@@ -6,8 +6,8 @@ Notes are learner-owned artifacts. They are never annotations baked into an
 accepted lesson, never source truth, never answer keys, never scores, and
 never mastery. Nothing in this module settles anything: the runtime owns
 correctness, session state, evidence, and keyed disclosure, and this module
-deliberately cannot reach it. It imports `model` for two pure helpers and
-nothing else from the project.
+deliberately cannot reach it. It imports `model` for pure helpers and uses
+the existing journal for recoverable private document acceptance.
 
 Placement follows the `evidence.py` rule: a runtime-tier peer at the
 repository root, importable by any surface, importing no surface.
@@ -260,57 +260,125 @@ def _document_paths(dir_path):
             os.path.join(dir_path, "notes.md.json"))
 
 
-def write_note_document(dir_path, course_id, markdown, sidecar):
-    """Write the note document pair with the compare-and-swap discipline.
+_UNSET = object()
 
-    The Markdown is the human and export truth for wording; the JSON sidecar
-    is the machine truth for anchors, fingerprints, and states (D-16C-2).
-    Both are written to `<path>.tmp` and then `os.replace`d, the
-    `runtime.write_session` shape, so any fault leaves the old or the new
-    valid state and never a half-written one.
 
-    The sidecar is written FIRST and the Markdown second. The order matters
-    on a fault: a reader that finds a new sidecar and an old Markdown sees
-    machine state describing text it can still read, whereas the reverse
-    would show wording no anchor record accounts for.
-    """
-    os.makedirs(dir_path, exist_ok=True)
+def _pair_fingerprint(markdown, sidecar):
+    import hashlib
+    return hashlib.sha256(json.dumps([markdown, sidecar], ensure_ascii=False).encode()).hexdigest()
+
+
+def _valid_sidecar(sidecar, schema):
+    """Validate NOTE-01 plus the existing delete_note tombstone extension."""
+    import schema_validate
+    base = dict(sidecar)
+    tombstones = base.pop("tombstones", [])
+    tombstone_schema = {"type": "array", "items": {"type": "object",
+        "additionalProperties": False, "required": ["note_id", "status", "deleted_at"],
+        "properties": {"note_id": {"type": "string", "minLength": 1},
+                       "status": {"const": "deleted"}, "deleted_at": {"type": "string", "minLength": 1}}}}
+    return not schema_validate.validate(base, schema) and not schema_validate.validate(tombstones, tombstone_schema)
+
+
+def _read_pair(dir_path, course_id=None):
+    import journal
+    import resources
+    import schema_validate
+    import discovery
     md_path, side_path = _document_paths(dir_path)
+    if any(not discovery.inside_any_root(path, [dir_path]) for path in (md_path, side_path)):
+        raise journal.JournalError("notes.outside_root", "Restore the note pair inside its private root.")
+    raw = [journal._read_optional(path) for path in (md_path, side_path)]
+    report = journal.replay(dir_path)
+    if any(report[key] for key in ("interrupted", "recoverable", "mixed", "conflicts")):
+        raise journal.JournalError("notes.recovery_required", "Recover the private note journal before saving. Keep your draft.")
+    if raw == [None, None]:
+        if any(row.get("path") == "notes.md.json" and row.get("fingerprint") is not None
+               for row in journal._compute_registry(dir_path).values()):
+            raise journal.JournalError("notes.missing_document", "Restore the missing accepted note pair before saving.")
+        return None
+    if None in raw:
+        raise journal.JournalError("notes.incomplete_pair", "Restore the missing note document companion. Keep your draft.")
+    try:
+        markdown, side_text = [value.decode("utf-8") for value in raw]
+        sidecar = json.loads(side_text)
+        if not isinstance(sidecar, dict):
+            raise ValueError()
+        schema = json.loads(resources.read_text("schemas/note.schema.json"))
+        if (sidecar.get("schema_version") != NOTE_SCHEMA_VERSION or
+                not _valid_sidecar(sidecar, schema) or
+                (course_id and sidecar.get("course_id") != course_id)):
+            raise ValueError()
+    except (ValueError, UnicodeError):
+        raise journal.JournalError("notes.invalid_document", "Note document is unsupported or invalid. Preserve it for recovery.") from None
+    registry = journal._compute_registry(dir_path)
+    row = registry.get(sidecar["note_document_id"])
+    if not row and any(item.get("path") == "notes.md.json" for item in registry.values()):
+        raise journal.JournalError("notes.identity_conflict", "The note document identity changed. Reconcile the private note journal.")
+    if row:
+        entry = next(e for e in journal.entries(dir_path) if e["entry_id"] == row["last_entry_id"])
+        descriptors = {f["path"]: f for f in entry["undo"].get("files", [])}
+        if any(name not in descriptors or descriptors[name]["after_digest"] != journal._raw_digest(value)
+               for name, value in zip(("notes.md", "notes.md.json"), raw)):
+            raise journal.JournalError("notes.conflict", "The accepted note pair changed outside its writer. Reconcile before saving.")
+    return {"markdown": markdown, "sidecar": sidecar,
+            "fingerprint": _pair_fingerprint(markdown, side_text)}
+
+
+def write_note_document(dir_path, course_id, markdown, sidecar, expected_fingerprint=_UNSET):
+    """Accept the existing NOTE-01 pair through a private journal transaction.
+
+    The document is a journal component, with Markdown as its companion.
+    Journal entries contain hashes and identity only. Private before-images
+    remain beneath the note root. Readers refuse unresolved pair recovery.
+    Existing Python callers capture their base here. Interactive callers must
+    supply the fingerprint returned by read_note_document, or None for create.
+    """
+    import identity
+    import journal
+    import resources
+    import schema_validate
+    os.makedirs(dir_path, mode=0o700, exist_ok=True)
     sidecar = dict(sidecar)
     sidecar.setdefault("schema_version", NOTE_SCHEMA_VERSION)
     sidecar.setdefault("course_id", course_id)
-    tmp = side_path + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as fh:
-        json.dump(sidecar, fh, ensure_ascii=False, indent=2)
-        fh.write("\n")
-    os.replace(tmp, side_path)
-    tmp = md_path + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as fh:
-        fh.write(markdown)
-    os.replace(tmp, md_path)
-    return {"markdown_path": md_path, "sidecar_path": side_path}
+    schema = json.loads(resources.read_text("schemas/note.schema.json"))
+    if (sidecar.get("schema_version") != NOTE_SCHEMA_VERSION or
+            sidecar.get("course_id") != course_id or not _valid_sidecar(sidecar, schema)):
+        raise journal.JournalError("notes.invalid_document", "The note document is invalid. Keep your draft.")
+    old = read_note_document(dir_path, course_id)
+    current = old["fingerprint"] if old else None
+    if expected_fingerprint is not _UNSET and expected_fingerprint != current:
+        raise journal.JournalError("notes.stale", "Notes changed since you opened them. Keep your draft and reload.")
+    if old and old["sidecar"]["note_document_id"] != sidecar["note_document_id"]:
+        raise journal.JournalError("notes.identity_conflict", "Keep the existing note document identity.")
+    md_path, side_path = _document_paths(dir_path)
+    old_side = journal._read_optional(side_path)
+    old_md = journal._read_optional(md_path)
+    new_side = (json.dumps(sidecar, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+    new_md = markdown.encode("utf-8")
+    def validate_base():
+        found = _read_pair(dir_path, course_id)
+        if (found["fingerprint"] if found else None) != current:
+            raise journal.JournalError("notes.stale", "Notes changed before acceptance. Keep your draft.")
+    revision = journal.commit_operation(
+        dir_path, sidecar["note_document_id"], "component", "notes.md.json",
+        "edit_in_place" if old else "mint", new_side,
+        identity.object_fingerprint(old_side, "component") if old_side is not None else None,
+        "human", "local", create_if_missing=not old,
+        companions=({"path": "notes.md", "expected_digest": journal._raw_digest(old_md), "new_bytes": new_md},),
+        precommit=validate_base)
+    return {"markdown_path": md_path, "sidecar_path": side_path,
+            "fingerprint": _pair_fingerprint(markdown, new_side.decode()), "revision": revision}
 
 
 def read_note_document(dir_path, course_id=None):
-    """The one reader. Returns `{"markdown", "sidecar"}` or None when absent.
-
-    A leftover `.tmp` beside a valid pair is ignored rather than repaired or
-    reported, so an interrupted write leaves the last accepted state readable
-    with no recovery step. `course_id` is accepted for symmetry with the
-    writer and is not used to locate the file: one document per course
-    directory (D-16C-2), so the directory already says which course this is.
-    """
-    md_path, side_path = _document_paths(dir_path)
-    if not (os.path.exists(md_path) and os.path.exists(side_path)):
+    """Read a coherent accepted pair, or refuse with private recovery guidance."""
+    import journal
+    if not os.path.isdir(dir_path):
         return None
-    try:
-        with open(side_path, encoding="utf-8") as fh:
-            sidecar = json.load(fh)
-        with open(md_path, encoding="utf-8") as fh:
-            markdown = fh.read()
-    except (OSError, ValueError):
-        return None
-    return {"markdown": markdown, "sidecar": sidecar}
+    with journal._journal_lock(dir_path):
+        return _read_pair(dir_path, course_id)
 
 
 # ---------------------------------------------------------------------------

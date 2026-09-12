@@ -2291,3 +2291,78 @@ work. Verification results live in the report's validation section.
 - **Relationship:** extends the direct-reading, notes and terms, excerpt, and
   lesson-treatment options. It does not authorize free-floating quote
   collections or turn memorable wording into an answer key.
+
+### IL-20260912-01: durable reading activities and learner declarations
+
+- **Idea:** preserve each deliberate reading activity and its explicit learner
+  declaration across restart, independently of other uses of the same source.
+- **Disposition:** Core, accepted direction with implementation in progress.
+- **Owner:** the current A3 implementation coordinator owns integration.
+  Weibao owns product changes and human acceptance.
+- **Evidence class:** the September 10 prototype and September 12 A4 browser
+  journey expose reset state. The September 12 user continuation accepts the
+  concrete permanent-binding and occurrence-revision proposal including D3.
+- **Dependency and cost driver:** the existing graph parser, operation journal,
+  source identity and locator, evidence writer and learner-owned notes remain
+  authorities. Costs include legacy compatibility, replay after retraction,
+  fault recovery and offline restore verification.
+- **Implementation and promotion gate:** the
+  [accepted contract](research/source-to-reading/durable-reading-contract-2026-09-12.md)
+  defines graph, declaration and UI gates. Two activities sharing a source
+  retain independent history. Rename and placement edits preserve identity.
+  Material task revisions require a fresh declaration. No score is inferred.
+- **Retained breadth:** exact cursor resume, multiple spans and occurrence-private
+  note formats remain Deferred until a separate bounded contract and gate.
+  Existing source-anchored notes remain part of the supported integration.
+- **Relationship:** implements the accepted source-to-reading workspace
+  direction and its durable-contract handoff. It does not change assessment
+  authority or certify deferred human and real-course acceptance.
+
+### IL-20260912-02: thematic quiz environments and fluid interaction
+
+- **Idea:** adapt quiz character, layout and interaction to the activity while
+  preserving a coherent course experience. Coding and standard multiple choice
+  are the user's initial examples. Visual and case environments are candidates.
+- **Disposition:** Prototype. Captured proposal with no new prototype built.
+- **Owner:** the activity-presentation owner under IL-20260907-01 owns the
+  comparison. The CS Dojo owner under IL-20260906-09 owns executable-code
+  capability. Weibao owns acceptance of the experience.
+- **Evidence class:** direct user direction for thematic environments and
+  improved fluidity. Candidate layouts and selection rules are recommendations.
+  Existing presentation contracts establish a compatible route but do not
+  establish usability or learning benefit for these candidates.
+- **Dependency and cost driver:** use the shared presentation primitives,
+  runtime session and evidence authority, existing quiz renderer and CS Dojo
+  prototype route. Cost comes from draft continuity, transition coverage,
+  responsive behavior and maintaining equivalent controls across environments.
+- **Next action and promotion gate:** compare a coding activity, multiple
+  choice and a visual or case activity through entry, response, permitted
+  feedback or retry, interruption, summary and return to course. Check retained
+  drafts and context, predictable focus and controls, narrow screens, keyboard
+  alternatives and reduced motion. Demonstrate an unavailable-capability
+  fallback. Keep technical checks and human experience review separate.
+- **Boundary and retained choice:** activity purpose and assessment conditions
+  guide layout. A subject label alone cannot require execution or change the
+  response format. Task-based defaults, explicit selection and learner overrides
+  remain alternatives. Appearance and the two existing presentation profiles
+  remain independent. Formal testing retains its feedback and format rules.
+  Presentation never owns scoring, keyed disclosure or durable evidence.
+- **Falsifier and recovery:** if a candidate increases navigation work, loses a
+  draft or context, changes assessment meaning, or requires duplicate authority,
+  revise the candidate before promotion. Compare against a shared standard
+  layout. Future visual prototypes must be removable without changing canonical
+  courses or attempts. This capture is additive and can be superseded by a
+  later dated decision without deleting the user's words.
+- **Origin and relationship:** [September 12 vision entry](USER-VISION.md#2026-09-12-thematic-quiz-environments-and-fluid-interaction).
+  Extends IL-20260907-01, IL-20260907-02 and IL-20260906-09. This bounded pass
+  sampled their vision entries, the current contract, state and quiz-renderer
+  entry points. It is not an exhaustive UI audit or implementation plan.
+
+**2026-09-12 clarification, active preference:** the
+[code-box vision entry](USER-VISION.md#2026-09-12-code-boxes-that-reinforce-syntax-and-structure)
+requires code-reading prompts to show valid code in a dedicated formatted
+panel with preserved line breaks and indentation. The quiz presentation and
+authoring owners carry this through the existing route. First correct CSCI
+Q1 and Q5, then verify syntax and code-block rendering across quiz surfaces.
+The broader environment comparison remains Prototype. This capture implements
+no renderer or bank change.

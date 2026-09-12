@@ -86,6 +86,20 @@
           }
         }
       }
+    },
+    "reading_occurrences": {
+      "type": "array",
+      "description": "Immutable reading occurrence revisions. The document string is canonical JSON for the closed reading_occurrence_document definition.",
+      "items": {
+        "$ref": "#/$defs/reading_occurrence_row"
+      }
+    },
+    "reading_placement": {
+      "type": "array",
+      "description": "Display and Now or Library placement keyed by occurrence identity. Unknown activation remains visible but has no scheduling authority.",
+      "items": {
+        "$ref": "#/$defs/reading_placement"
+      }
     }
   },
   "$defs": {
@@ -357,6 +371,243 @@
         "rights_snapshot": {
           "type": "string",
           "description": "The rights state recorded at binding time, for the record. The authority is always the source object's own rights record, never this copy."
+        },
+        "binding_id": {
+          "type": "string",
+          "description": "Optional permanent binding identity. Blank legacy cells remain unversioned.",
+          "pattern": "^([0-9a-f]{16})?$"
+        },
+        "binding_revision_id": {
+          "type": "string",
+          "description": "Optional immutable revision identity for a versioned binding.",
+          "pattern": "^([0-9a-f]{16})?$"
+        },
+        "supersedes_binding_revision_id": {
+          "type": "string",
+          "description": "The prior revision in this binding chain, or blank for its root.",
+          "pattern": "^([0-9a-f]{16})?$"
+        },
+        "source_fingerprint": {
+          "type": "string",
+          "description": "Accepted readable source fingerprint pinned by this binding revision, or blank for a legacy row.",
+          "pattern": "^(sha256:[0-9a-f]{64})?$"
+        }
+      }
+    },
+    "reading_occurrence_row": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "occurrence_id",
+        "revision_id",
+        "document"
+      ],
+      "properties": {
+        "occurrence_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{16}$"
+        },
+        "revision_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{16}$"
+        },
+        "document": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "reading_placement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "occurrence_id",
+        "title",
+        "activation"
+      ],
+      "properties": {
+        "occurrence_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{16}$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "activation": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "reading_occurrence_document": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "occurrence_id",
+        "revision_id",
+        "supersedes_revision_id",
+        "course_id",
+        "objective_ids",
+        "binding_ref",
+        "source_ref",
+        "purpose",
+        "preparation_mode",
+        "path_role",
+        "learning_phase",
+        "sequence_evidence",
+        "assignment_provenance",
+        "assistance_policy"
+      ],
+      "properties": {
+        "occurrence_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{16}$"
+        },
+        "revision_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{16}$"
+        },
+        "supersedes_revision_id": {
+          "type": ["string", "null"],
+          "pattern": "^[0-9a-f]{16}$"
+        },
+        "course_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{16}$"
+        },
+        "objective_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{16}$"
+          }
+        },
+        "binding_ref": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["binding_id", "binding_revision_id"],
+          "properties": {
+            "binding_id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{16}$"
+            },
+            "binding_revision_id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{16}$"
+            }
+          }
+        },
+        "source_ref": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["source_object_id", "source_fingerprint", "locator", "range"],
+          "properties": {
+            "source_object_id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{16}$"
+            },
+            "source_fingerprint": {
+              "type": "string",
+              "pattern": "^sha256:[0-9a-f]{64}$"
+            },
+            "locator": {
+              "type": "string"
+            },
+            "range": {
+              "$ref": "#/$defs/reading_range"
+            }
+          }
+        },
+        "purpose": {
+          "type": "string",
+          "minLength": 1
+        },
+        "preparation_mode": {
+          "type": "string",
+          "minLength": 1
+        },
+        "path_role": {
+          "type": "string",
+          "minLength": 1
+        },
+        "learning_phase": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sequence_evidence": {
+          "$ref": "#/$defs/reading_sequence_evidence"
+        },
+        "assignment_provenance": {
+          "$ref": "#/$defs/reading_assignment_provenance"
+        },
+        "assistance_policy": {
+          "$ref": "#/$defs/reading_assistance_policy"
+        }
+      }
+    },
+    "reading_range": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["span_id", "locator_id", "locator_sidecar_fingerprint"],
+      "properties": {
+        "span_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "locator_id": {
+          "type": ["string", "null"]
+        },
+        "locator_sidecar_fingerprint": {
+          "type": ["string", "null"],
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      }
+    },
+    "reading_sequence_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "citation"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["Published", "Bounded", "unknown"]
+        },
+        "citation": {
+          "type": ["string", "null"]
+        }
+      }
+    },
+    "reading_assignment_provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["authority", "citation"],
+      "properties": {
+        "authority": {
+          "type": "string",
+          "enum": ["instructor", "learner", "proposed", "unknown"]
+        },
+        "citation": {
+          "type": ["string", "null"]
+        }
+      }
+    },
+    "reading_assistance_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "citation", "instruction"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["specified", "unknown"]
+        },
+        "citation": {
+          "type": ["string", "null"]
+        },
+        "instruction": {
+          "type": ["string", "null"]
         }
       }
     },

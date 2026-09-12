@@ -47,6 +47,7 @@ STAGE_FILES = (
     "identity.py", "journal.py", "discovery.py", "extension_registry.py",
     "source_adapters.py",
     "course.py", "graph.py", "course_package.py",
+    "reading.py", "reading_desk.py",
     "model_adapter.py", "tier_gate.py",
     # Phase 16A, added 2026-08-28 by plan 16A-04 Task 3. `surfaces/lesson.py`
     # now imports `capabilities` at module scope, so that the inline check's

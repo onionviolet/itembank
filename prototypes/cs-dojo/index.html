@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>CS Dojo | Itembank</title>
+  <link rel="stylesheet" href="dojo.css">
+  <script src="lessons.js" defer></script>
+  <script src="dojo.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#activity-title">Skip to activity</a>
+  <div class="shell">
+    <aside class="sidebar" aria-label="Course navigation">
+      <a class="brand" href="/" aria-label="Itembank CS Dojo start"><span class="brand-mark" aria-hidden="true">i</span>itembank</a>
+      <div class="course-label">Your study desk</div>
+      <h2 class="course-title">Programming<br>foundations</h2>
+      <p class="course-detail">Synthetic course specimen<br>Unit 01 · Arrays & functions</p>
+      <div class="nav-label">CS Dojo</div>
+      <nav id="activity-nav" aria-label="Activities"></nav>
+      <div class="sidebar-note"><span class="tiny-label">The thread through this unit</span><p>Predict a boundary.<br>Find the failure.<br>Build something small.</p></div>
+      <a href="source.md" target="_blank" rel="noopener" class="source-link">Read the plain-text unit <span aria-hidden="true">↗</span></a>
+      <p class="prototype-note">Prototype · Open practice<br>No grade or course evidence</p>
+    </aside>
+    <div class="body">
+      <header class="topbar">
+        <div class="breadcrumb">Programming foundations <span aria-hidden="true">/</span> <strong>CS Dojo</strong></div>
+        <div class="top-actions"><span class="draft-indicator">Draft in this tab</span><button id="export" class="button small">Export draft</button></div>
+      </header>
+      <main>
+        <div class="hero">
+          <div><p id="family" class="eyebrow"></p><h1 id="activity-title" tabindex="-1"></h1><p id="intro" class="intro"></p></div>
+          <span class="language">JavaScript <span class="language-detail">Browser runtime</span></span>
+        </div>
+        <div class="workbench">
+          <section class="brief" aria-labelledby="task-heading">
+            <p class="eyebrow">The task</p><h2 id="task-heading">Make your reasoning visible.</h2>
+            <p id="task-text"></p>
+            <div class="objective"><span id="objective-id" class="tiny-label"></span><p id="objective-text"></p></div>
+            <details class="context"><summary>Provided context</summary><p id="context-text"></p></details>
+            <button id="source-open" class="source-button"><span class="tiny-label">Source note</span><span id="source-label"></span><span aria-hidden="true">↗</span></button>
+            <div id="prediction-section" class="prediction">
+              <label for="prediction">Before you run</label><p class="field-help">Write the output you expect, including the final line.</p>
+              <textarea id="prediction" rows="4" placeholder="0 3&#10;What comes next?" spellcheck="false"></textarea>
+              <p id="prediction-help" class="field-help">A prediction opens the first run. It is not graded.</p>
+            </div>
+            <details class="worked"><summary>Open worked explanation</summary><p id="worked-text"></p></details>
+          </section>
+          <section class="workspace" aria-label="Code workspace">
+            <div class="editor-panel">
+              <div class="editor-top"><div id="file-tabs" class="file-tabs" role="group" aria-label="Provided files"></div><button id="reset" class="editor-reset">Reset activity</button></div>
+              <label id="editor-label" for="editor" class="sr-only">Code editor</label>
+              <div class="code-surface"><pre id="line-numbers" aria-hidden="true">1</pre><textarea id="editor" wrap="off" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" aria-describedby="editor-help"></textarea></div>
+              <div class="editor-bottom"><span id="editor-help">Tab moves focus · ⌘/Ctrl + Enter runs</span><span id="cursor-position">Line 1, column 1</span></div>
+              <div class="runbar"><span id="entry-label"></span><div><button id="stop" class="button" hidden>Stop</button><button id="run" class="button primary">Run code <span aria-hidden="true">▶</span></button></div></div>
+            </div>
+            <section class="results" aria-labelledby="results-heading">
+              <div class="section-head"><h2 id="results-heading">Observe</h2><span id="run-state" role="status" aria-live="polite">Ready</span></div>
+              <p id="run-help" class="field-help">Run the program to inspect its output.</p>
+              <div id="prediction-snapshot" class="prediction-snapshot" hidden></div>
+              <div id="observations" class="observation-scroll" hidden><table><caption class="sr-only">Program-reported examples</caption><thead><tr><th scope="col">Example</th><th scope="col">Observed</th><th scope="col">Expected</th></tr></thead><tbody id="observation-rows"></tbody></table></div>
+              <pre id="output" tabindex="0" aria-label="Program output">Output will appear here.</pre>
+              <p class="output-note">Program output is ungraded. Compare the values and inspect your reasoning.</p>
+            </section>
+            <section class="reflection" aria-labelledby="reflection-heading"><div class="section-head"><h2 id="reflection-heading">Explain what changed</h2><span class="tiny-label">Your own words</span></div><label id="reflection-label" for="reflection"></label><textarea id="reflection" rows="3" placeholder="My prediction, the observed behavior, and what I would change..."></textarea><p class="field-help">Code and notes stay in this tab. Export before reloading to keep them.</p></section>
+          </section>
+        </div>
+        <footer class="activity-footer"><button id="previous" class="button">← Previous activity</button><p id="next-note"></p><button id="next" class="button">Next activity →</button></footer>
+        <p id="export-status" role="status" aria-live="polite"></p>
+      </main>
+    </div>
+  </div>
+  <dialog id="source-dialog" aria-labelledby="source-title"><div class="dialog-head"><p class="eyebrow">Original synthetic source · SYN-CS-UNIT-01</p><button id="source-close" class="button small">Close</button></div><h2 id="source-title"></h2><p id="source-text"></p><a id="source-anchor" target="_blank" rel="noopener">Open in the plain-text unit</a></dialog>
+  <dialog id="reset-dialog" aria-labelledby="reset-title"><h2 id="reset-title">Reset this activity?</h2><p>This replaces its code, prediction, notes, and output with the starter version. Other activities keep their drafts.</p><div class="dialog-actions"><button id="reset-cancel" class="button">Keep draft</button><button id="reset-confirm" class="button primary">Reset activity</button></div></dialog>
+  <noscript><p class="noscript">The editor needs JavaScript. <a href="source.md">Read all activities and worked explanations in the plain-text unit.</a></p></noscript>
+</body>
+</html>

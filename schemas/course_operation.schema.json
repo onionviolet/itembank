@@ -2,9 +2,16 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://itembank.local/schemas/course_operation.schema.json",
   "title": "itembank course operation request",
-  "description": "The published request document for POST /api/course/<operation> and its CLI twin. One $defs node per operation, and the node IS the operation's signature: the Phase 999.3 MCP tool table generates one tool per API_ROUTES entry and reads its argument shape from here, so a schema edit changes the tool with no code edit. The top-level oneOf makes the whole file a single valid contract a reader can validate a captured request against; dispatch validates against the one named node the route's own path selects, so a refusal names the field rather than reporting that no branch matched. This document describes a REQUEST and never a durable object: course_graph.schema.json is the sidecar the operations write, write_manifest.schema.json is the writer's provenance record, and neither is reshaped to carry a request. No request field names a filesystem path, a fingerprint of another object, a right the caller claims to hold, or a score: a course is addressed by its id and resolved server-side, and every right a write consumes is read from the operation journal at the moment of that write. The one node that names rights is `rights`, and it records a decision rather than asserting a permission.",
+  "description": "The published request document for POST /api/course/<operation> and its CLI twin. One $defs node per operation, and the node IS the operation's signature: the Phase 999.3 MCP tool table generates one tool per API_ROUTES entry and reads its argument shape from here, so a schema edit changes the tool with no code edit. The top-level oneOf makes the whole file a single valid contract a reader can validate a captured request against; dispatch validates against the one named node the route's own path selects, so a refusal names the field rather than reporting that no branch matched. This document describes a REQUEST and never a durable object: course_graph.schema.json is the sidecar the operations write, write_manifest.schema.json is the writer's provenance record, and neither is reshaped to carry a request. No request field names a filesystem path, a right the caller claims to hold, or a score. Reading requests pin source and locator fingerprints that the engine verifies against accepted local bytes: a course is addressed by its id and resolved server-side, and every right a write consumes is read from the operation journal at the moment of that write. The one node that names rights is `rights`, and it records a decision rather than asserting a permission.",
   "x-itembank-version": 1,
   "oneOf": [
+    {"$ref": "#/$defs/reading_view"},
+    {"$ref": "#/$defs/save_reading_note"},
+    {"$ref": "#/$defs/declare_reading"},
+    {"$ref": "#/$defs/confirm_reading"},
+    {"$ref": "#/$defs/place_reading"},
+    {"$ref": "#/$defs/revise_reading"},
+    {"$ref": "#/$defs/create_reading"},
     {"$ref": "#/$defs/agent_operation"},
     {"$ref": "#/$defs/create"},
     {"$ref": "#/$defs/register_source"},
@@ -47,6 +54,505 @@
     {"$ref": "#/$defs/parity"}
   ],
   "$defs": {
+    "reading_range": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "span_id",
+        "locator_id",
+        "locator_sidecar_fingerprint"
+      ],
+      "properties": {
+        "span_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "locator_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "locator_sidecar_fingerprint": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      }
+    },
+    "reading_sequence_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "citation"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "Published",
+            "Bounded",
+            "unknown"
+          ]
+        },
+        "citation": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "reading_assignment_provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "authority",
+        "citation"
+      ],
+      "properties": {
+        "authority": {
+          "type": "string",
+          "enum": [
+            "instructor",
+            "learner",
+            "proposed",
+            "unknown"
+          ]
+        },
+        "citation": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "reading_assistance_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "citation",
+        "instruction"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "specified",
+            "unknown"
+          ]
+        },
+        "citation": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "instruction": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "reading_values": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "objective_ids",
+        "source_ref",
+        "purpose",
+        "preparation_mode",
+        "path_role",
+        "learning_phase",
+        "sequence_evidence",
+        "assignment_provenance",
+        "assistance_policy"
+      ],
+      "properties": {
+        "objective_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{16}$"
+          }
+        },
+        "binding_ref": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "binding_id",
+            "binding_revision_id"
+          ],
+          "properties": {
+            "binding_id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{16}$"
+            },
+            "binding_revision_id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{16}$"
+            }
+          }
+        },
+        "source_ref": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "source_object_id",
+            "source_fingerprint",
+            "locator",
+            "range"
+          ],
+          "properties": {
+            "source_object_id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{16}$"
+            },
+            "source_fingerprint": {
+              "type": "string",
+              "pattern": "^sha256:[0-9a-f]{64}$"
+            },
+            "locator": {
+              "type": "string"
+            },
+            "range": {
+              "$ref": "#/$defs/reading_range"
+            }
+          }
+        },
+        "purpose": {
+          "type": "string",
+          "minLength": 1
+        },
+        "preparation_mode": {
+          "type": "string",
+          "minLength": 1
+        },
+        "path_role": {
+          "type": "string",
+          "minLength": 1
+        },
+        "learning_phase": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sequence_evidence": {
+          "$ref": "#/$defs/reading_sequence_evidence"
+        },
+        "assignment_provenance": {
+          "$ref": "#/$defs/reading_assignment_provenance"
+        },
+        "assistance_policy": {
+          "$ref": "#/$defs/reading_assistance_policy"
+        }
+      }
+    },
+    "reading_changes": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "objective_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{16}$"
+          }
+        },
+        "binding_ref": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "binding_id",
+            "binding_revision_id"
+          ],
+          "properties": {
+            "binding_id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{16}$"
+            },
+            "binding_revision_id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{16}$"
+            }
+          }
+        },
+        "source_ref": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "source_object_id",
+            "source_fingerprint",
+            "locator",
+            "range"
+          ],
+          "properties": {
+            "source_object_id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{16}$"
+            },
+            "source_fingerprint": {
+              "type": "string",
+              "pattern": "^sha256:[0-9a-f]{64}$"
+            },
+            "locator": {
+              "type": "string"
+            },
+            "range": {
+              "$ref": "#/$defs/reading_range"
+            }
+          }
+        },
+        "purpose": {
+          "type": "string",
+          "minLength": 1
+        },
+        "preparation_mode": {
+          "type": "string",
+          "minLength": 1
+        },
+        "path_role": {
+          "type": "string",
+          "minLength": 1
+        },
+        "learning_phase": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sequence_evidence": {
+          "$ref": "#/$defs/reading_sequence_evidence"
+        },
+        "assignment_provenance": {
+          "$ref": "#/$defs/reading_assignment_provenance"
+        },
+        "assistance_policy": {
+          "$ref": "#/$defs/reading_assistance_policy"
+        }
+      }
+    },
+    "create_reading": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operation",
+        "course_id",
+        "expected_fingerprint",
+        "values",
+        "title",
+        "activation"
+      ],
+      "properties": {
+        "operation": {
+          "const": "create_reading"
+        },
+        "course_id": {
+          "$ref": "#/$defs/course_id"
+        },
+        "expected_fingerprint": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "actor": {
+          "type": "string"
+        },
+        "values": {
+          "$ref": "#/$defs/reading_values"
+        },
+        "binding_index": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Exact zero-based legacy binding row in the expected graph. Enrollment and occurrence write are atomic."
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "activation": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "revise_reading": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operation",
+        "course_id",
+        "expected_fingerprint",
+        "changes",
+        "occurrence_id",
+        "revision_id"
+      ],
+      "properties": {
+        "operation": {
+          "const": "revise_reading"
+        },
+        "course_id": {
+          "$ref": "#/$defs/course_id"
+        },
+        "expected_fingerprint": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "actor": {
+          "type": "string"
+        },
+        "revise_binding": {
+          "type": "boolean",
+          "description": "Append a revision of the pinned binding from changes.source_ref, retaining ancestors in the same graph mutation."
+        },
+        "changes": {
+          "$ref": "#/$defs/reading_changes"
+        },
+        "binding_index": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Exact zero-based legacy binding row in the expected graph. Enrollment and occurrence write are atomic."
+        },
+        "occurrence_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{16}$"
+        },
+        "revision_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{16}$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "activation": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "place_reading": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operation",
+        "course_id",
+        "expected_fingerprint",
+        "occurrence_id",
+        "revision_id",
+        "title",
+        "activation"
+      ],
+      "properties": {
+        "operation": {
+          "const": "place_reading"
+        },
+        "course_id": {
+          "$ref": "#/$defs/course_id"
+        },
+        "expected_fingerprint": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "actor": {
+          "type": "string"
+        },
+        "occurrence_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{16}$"
+        },
+        "revision_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{16}$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "activation": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "confirm_reading": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operation",
+        "course_id",
+        "expected_fingerprint",
+        "occurrence_id",
+        "revision_id",
+        "confirmation"
+      ],
+      "properties": {
+        "operation": {
+          "const": "confirm_reading"
+        },
+        "course_id": {
+          "$ref": "#/$defs/course_id"
+        },
+        "expected_fingerprint": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "occurrence_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{16}$"
+        },
+        "revision_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{16}$"
+        },
+        "confirmation": {
+          "const": "read"
+        }
+      }
+    },
+    "declare_reading": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operation",
+        "course_id",
+        "expected_fingerprint",
+        "occurrence_id",
+        "revision_id",
+        "intent_id"
+      ],
+      "properties": {
+        "operation": {
+          "const": "declare_reading"
+        },
+        "course_id": {
+          "$ref": "#/$defs/course_id"
+        },
+        "expected_fingerprint": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "occurrence_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{16}$"
+        },
+        "revision_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{16}$"
+        },
+        "intent_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{16}$"
+        }
+      }
+    },
     "course_id": {
       "type": "string",
       "minLength": 1,
@@ -820,6 +1326,87 @@
         "operation": {"const": "parity"},
         "course_id": {"$ref": "#/$defs/course_id"}
       }
+    },
+    "reading_view": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "course_id",
+        "expected_fingerprint",
+        "occurrence_id",
+        "revision_id",
+        "operation"
+      ],
+      "properties": {
+        "course_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "expected_fingerprint": {
+          "type": "string",
+          "minLength": 1
+        },
+        "occurrence_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "revision_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "operation": {
+          "const": "reading_view"
+        }
+      }
+    },
+    "save_reading_note": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "course_id",
+        "expected_fingerprint",
+        "occurrence_id",
+        "revision_id",
+        "note_id",
+        "wording",
+        "notes_fingerprint",
+        "operation"
+      ],
+      "properties": {
+        "course_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "expected_fingerprint": {
+          "type": "string",
+          "minLength": 1
+        },
+        "occurrence_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "revision_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "note_id": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{16,64}$"
+        },
+        "wording": {
+          "type": "string",
+          "minLength": 1
+        },
+        "notes_fingerprint": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "operation": {
+          "const": "save_reading_note"
+        }
+      }
     }
-    }
+  }
 }

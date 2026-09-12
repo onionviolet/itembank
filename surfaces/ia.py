@@ -4,14 +4,15 @@
 This module holds the closed vocabularies, the copy tables, and the pure read
 models behind the Activity view, the offline help panel, the course shelf, the
 course areas, the mode-layer table, and the degraded-state banners. It reads
-durable records and never writes one. It never imports `runtime`, so it cannot
-score; it never opens a journal file for appending or replacing; and the only
+durable records and never writes one. It uses the runtime's session reader
+without scoring; it never opens a journal file for appending or replacing.
+The only
 files it ever creates are the two small per-install state files under `_ia/`,
 which are app state rather than evidence and rather than settings. It imports
 `model` for exactly one name, `lesson_slug`, because the anchor scheme must be
 the shipped one and a second slug implementation would be a second anchor
-vocabulary. `lesson_slug` is the only name this module takes from `model`. `sample_course`
-is the second and last module imported from outside `surfaces/`.
+vocabulary. `lesson_slug` is the only name this module takes from `model`.
+The shelf also reads existing evidence when a session is unavailable.
 
 The Activity area named in this module means durable agent and maintenance
 jobs: a long-running discovery, an import that is waiting on a decision, a
@@ -477,7 +478,7 @@ def _record_field(record, name, default=None):
     The landed `course.read_course` returns `{doc, text, fingerprint,
     revision, object_id, state}`; identity is `object_id` and the display name
     is `doc["header"]["title"]`. Attention, counts, a resume cue, and a last
-    activity timestamp have no landed source in 14B at all, so they are read
+    activity timestamp have no source in the course record, so they are read
     only when a record carries them and are defaulted otherwise. Reading both
     is one projection over one record, not a second course schema.
     """
@@ -586,6 +587,14 @@ def course_shelf_state(root, course=_UNSET):
         except Exception:
             cards.append(_degraded_card(os.path.basename(course_dir)))
             continue
+        # Explicit projections supplied by other clients remain supported.
+        # Landed course records have none, so read their canonical sittings.
+        if _record_field(record, "resume_cue") is None:
+            try:
+                cue = _course_resume_cue(root, course_dir)
+            except Exception:
+                cue = "Session status unavailable"
+            record = dict(record, resume_cue=cue)
         cards.append(_healthy_card(record, os.path.basename(course_dir)))
 
     cards.sort(key=_shelf_sort_key)
@@ -594,12 +603,96 @@ def course_shelf_state(root, course=_UNSET):
     return result
 
 
+def _course_resume_cue(root, course_dir):
+    """Read canonical sittings only. Unknown files cannot prove a fresh start.
+
+    The daemon stores sessions at the workspace root, while CLI sittings can
+    live beside a course bank. Bank paths use the same containment rule as
+    the daemon's course area. No cursor, attempt, or progress cache is written.
+    """
+    from runtime import read_session
+    import evidence
+
+    course_real = os.path.realpath(course_dir)
+    attempts = {os.path.join(os.path.abspath(root), "_attempts")}
+    evidence_roots = []
+    unreadable = []
+    for directory, dirs, _ in os.walk(course_dir, onerror=unreadable.append):
+        evidence_roots.append(directory)
+        if "_attempts" in dirs:
+            attempts.add(os.path.join(directory, "_attempts"))
+        dirs[:] = [name for name in dirs if not name.startswith(("_", "."))]
+    latest = {}
+    for directory in sorted(attempts):
+        try:
+            names = os.listdir(directory)
+        except FileNotFoundError:
+            continue
+        except OSError:
+            unreadable.append(directory)
+            continue
+        for name in names:
+            if not (name.startswith("session_") and name.endswith(".json")):
+                continue
+            try:
+                data = read_session(os.path.join(directory, name))
+                bank = data["bank"]
+                if not isinstance(bank, str) or not os.path.isabs(bank):
+                    raise ValueError("session bank is unavailable")
+                inside = os.path.commonpath(
+                    [course_real, os.path.realpath(bank)]) == course_real
+                if not inside:
+                    if os.path.commonpath([course_real, os.path.realpath(directory)]) == course_real:
+                        unreadable.append(name)
+                    continue
+                if (not data.get("session_id")
+                        or data["status"] not in ("active", "complete")):
+                    raise ValueError("session state is unavailable")
+                if (not isinstance(data.get("items"), list)
+                        or type(data.get("cursor")) is not int
+                        or not 0 <= data["cursor"] <= len(data["items"])
+                        or not isinstance(data.get("responses"), list)):
+                    raise ValueError("session position is unavailable")
+                stamp = os.path.getmtime(os.path.join(directory, name))
+                candidate = (stamp, data["session_id"], data["status"])
+                previous = latest.get(bank)
+                if (previous is None or stamp > previous[0]
+                        or (stamp == previous[0] and data["session_id"] < previous[1])):
+                    latest[bank] = candidate
+            except (Exception, SystemExit):
+                unreadable.append(name)
+    statuses = [candidate[2] for candidate in latest.values()]
+    if "active" in statuses:
+        return ("Session in progress; other session status unavailable"
+                if unreadable else "Session in progress")
+    if unreadable:
+        return "Session status unavailable"
+    if statuses:
+        return "Recorded sessions complete"
+    # Evidence can survive a removed session. It cannot reconstruct a cursor.
+    for directory in evidence_roots:
+        log = evidence.log_path(directory)
+        try:
+            if os.path.getsize(log):
+                if any(evidence.events(log)):
+                    return "Previous activity recorded; session status unavailable"
+                return "Session status unavailable"
+        except FileNotFoundError:
+            continue
+        except Exception:
+            return "Session status unavailable"
+    return NOT_STARTED_CUE
+
+
 def _healthy_card(record, basename):
     course_id = _record_field(record, "course_id", basename)
     name = _record_field(record, "name", basename)
     attention = _attention_of(record)
-    cue = _record_field(record, "resume_cue", NOT_STARTED_CUE)
+    cue = _record_field(record, "resume_cue", "Session status unavailable")
     verb = "Start " if cue == NOT_STARTED_CUE else "Resume "
+    if (cue in ("Recorded sessions complete", "Session status unavailable")
+            or cue.startswith("Previous activity")):
+        verb = "Open "
     return {
         "course_id": course_id,
         "name": name,

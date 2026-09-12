@@ -1319,17 +1319,19 @@ def check_api_route_scope():
 
     The sixteen assessment, lesson, source, and shelf routes predate the
     course namespace. Phase 19A's completed operation families contribute
-    thirty-three course routes. Phase 19B adds ``agent-operation`` and Phase
-    19C adds ``register-source``, for thirty-five course routes and fifty-one
-    total. The count is asserted rather than trusted. Every entry is mirrored
+    thirty-three course routes. Phase 19B adds ``agent-operation``, Phase 19C
+    adds ``register-source``, and the reading contract adds seven routes, for
+    forty-two course routes and fifty-eight total. The count is asserted rather
+    than trusted. Every entry is mirrored
     in ROUTE_CLI (route-without-CLI-twin fails here) and in SURFACE_PARITY with
     its reserved MCP tool name (Extensibility Rule 9(a)).
     """
-    if len(daemon.API_ROUTES) != 51:
-        fail("the accepted /api/* inventory has exactly fifty-one routes: "
+    if len(daemon.API_ROUTES) != 58:
+        fail("the accepted /api/* inventory has exactly fifty-eight routes: "
              "sixteen assessment, lesson, source and shelf routes, plus "
-             "thirty-five course routes from Phase 19A's operation families, "
-             "Phase 19B agent-operation and Phase 19C register-source. "
+             "forty-two course routes from Phase 19A's operation families, "
+             "Phase 19B agent-operation, Phase 19C register-source, and the "
+             "reading contract. "
              "API_ROUTES has %d" % len(daemon.API_ROUTES))
     # 19A-01, amending 19A-CONTEXT D-02: the source-binding door landed on
     # /api/bind and /api/rights before the namespace existed. Both were

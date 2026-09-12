@@ -24,6 +24,10 @@ build does not recognize and a column this build does not recognize both
 survive a parse and re-serialize byte for byte, so an older build rewriting a
 newer build's file never destroys what it could not read.
 """
+import copy
+import json
+import re
+
 import identity
 
 COURSE_GRAPH_VERSION = 1
@@ -115,6 +119,21 @@ BINDING_KINDS = ("source", "treatment")
 # degradation is how that rule is enforced rather than merely stated.
 BINDING_STATES = ("covered", "thin", "missing", "conflicting", "unknown")
 
+READING_ACTIVATIONS = ("Now", "Library")
+READING_SEQUENCE_STATUSES = ("Published", "Bounded", "unknown")
+READING_ASSIGNMENT_AUTHORITIES = ("instructor", "learner", "proposed",
+                                  "unknown")
+READING_ASSISTANCE_STATUSES = ("specified", "unknown")
+
+READING_OCCURRENCE_FIELDS = (
+    "occurrence_id", "revision_id", "supersedes_revision_id", "course_id",
+    "objective_ids", "binding_ref", "source_ref", "purpose",
+    "preparation_mode", "path_role", "learning_phase", "sequence_evidence",
+    "assignment_provenance", "assistance_policy")
+
+_OPAQUE_ID_RE = re.compile(r"^[0-9a-f]{16}$")
+_FINGERPRINT_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
+
 # A coverage claim points at a locator and reproduces nothing, so it consumes
 # `read`. Quoting is what `excerpt` does. Even so a freshly minted source
 # refuses, because `read` also defaults to unknown and unknown is restrictive.
@@ -149,7 +168,8 @@ EVIDENCE_CLAIM_STATES = ("unknown", "present")
 # serializes byte-identically to what it did before. `14B-FREEZE.md` carries a
 # dated amendment recording the addition.
 SECTION_ORDER = ("Course", "Structure", "Objectives", "Sources", "Edges",
-                 "Bindings", "Migrations", "Blueprint", "Log")
+                 "Bindings", "Migrations", "Blueprint", "Reading occurrences",
+                 "Reading placement", "Log")
 
 HEADER_FIELDS = ("graph_schema_version", "course_object_id", "title")
 
@@ -165,7 +185,8 @@ SECTION_COLUMNS = {
               "confidence", "override"),
     "Bindings": ("binding_kind", "objective", "source_object_id",
                  "treatment_kind", "locator", "state", "confidence",
-                 "rights_snapshot"),
+                 "rights_snapshot", "binding_id", "binding_revision_id",
+                 "supersedes_binding_revision_id", "source_fingerprint"),
     # `reviewer` and `rationale_review` are Phase 15B's two additive columns
     # (RELIABILITY-03). A row written before 15B carries them as empty
     # strings, exactly as every other unfilled column reads, so a pre-15B
@@ -183,6 +204,8 @@ SECTION_COLUMNS = {
     # that could disagree with the first.
     "Blueprint": ("blueprint_id", "version", "construct", "citation",
                   "document"),
+    "Reading occurrences": ("occurrence_id", "revision_id", "document"),
+    "Reading placement": ("occurrence_id", "title", "activation"),
     "Log": ("timestamp", "note"),
 }
 
@@ -195,6 +218,8 @@ SECTION_KEYS = {
     "Bindings": "bindings",
     "Migrations": "migrations",
     "Blueprint": "blueprint",
+    "Reading occurrences": "reading_occurrences",
+    "Reading placement": "reading_placement",
     "Log": "log",
 }
 
@@ -212,7 +237,7 @@ SECTION_KEYS = {
 # an empty section carries none, but the bytes differ. Emitting an empty
 # optional section would break the pre-15B additivity proof, and that proof is
 # the one non-negotiable 4 actually asks for.
-OPTIONAL_SECTIONS = ("Blueprint",)
+OPTIONAL_SECTIONS = ("Blueprint", "Reading occurrences", "Reading placement")
 
 TITLE_LINE = "# Course graph"
 
@@ -261,6 +286,8 @@ def new_course(title, course_object_id):
     }
     for section in SECTION_ORDER[1:]:
         doc[SECTION_KEYS[section]] = []
+    doc["section_columns"] = {
+        section: list(SECTION_COLUMNS[section]) for section in SECTION_ORDER[1:]}
     doc["unknown_sections"] = []
     doc["upgraded_from"] = None
     return doc
@@ -386,12 +413,15 @@ def parse_course(text):
     doc["upgraded_from"] = None
     for section in SECTION_ORDER[1:]:
         doc[SECTION_KEYS[section]] = []
+    doc["section_columns"] = {
+        section: list(SECTION_COLUMNS[section]) for section in SECTION_ORDER[1:]}
     doc["unknown_sections"] = []
 
     for name, body in parts[1:]:
         if name in SECTION_KEYS:
-            _columns, records = _parse_table(name, body)
+            columns, records = _parse_table(name, body)
             doc[SECTION_KEYS[name]] = records
+            doc["section_columns"][name] = columns
         else:
             doc["unknown_sections"].append({"name": name, "body": list(body)})
 
@@ -402,12 +432,13 @@ def parse_course(text):
     if declared < COURSE_GRAPH_VERSION:
         doc = upgrade_document(doc, declared)
         doc["upgraded_from"] = declared
+    validate_reading_graph(doc)
     return doc
 
 
-def _emit_table(section, records):
+def _emit_table(section, records, authored_columns=None):
     columns = list(records[0]["columns"]) if records \
-        else list(SECTION_COLUMNS[section])
+        else list(authored_columns or SECTION_COLUMNS[section])
     known = SECTION_COLUMNS[section]
     out = ["| " + " | ".join(columns) + " |",
            "|" + "|".join(["---"] * len(columns)) + "|"]
@@ -444,7 +475,8 @@ def serialize_course(doc):
         out.append("")
         out.append("## " + section)
         out.append("")
-        out.extend(_emit_table(section, rows))
+        out.extend(_emit_table(
+            section, rows, (doc.get("section_columns") or {}).get(section)))
 
     for unknown in doc["unknown_sections"]:
         out.append("")
@@ -834,6 +866,9 @@ def add_binding(doc, binding_kind, objective, source_object_id,
         "source_object_id": source_object_id,
         "treatment_kind": treatment_kind, "locator": locator, "state": state,
         "confidence": confidence, "rights_snapshot": rights_snapshot})
+    authored_columns = (doc.get("section_columns") or {}).get("Bindings")
+    if authored_columns:
+        record["columns"] = list(authored_columns)
     doc["bindings"].append(record)
     return record
 
@@ -895,6 +930,546 @@ def validate_binding(record):
     out["original_confidence"] = raw_conf
     out["confidence"] = raw_conf if raw_conf in EDGE_CONFIDENCES else "unknown"
     return out
+
+
+def _reading_error(code, message):
+    raise GraphError(code, message + "; the course graph is unchanged")
+
+
+def _opaque_id(value, field):
+    if not isinstance(value, str) or not _OPAQUE_ID_RE.fullmatch(value):
+        _reading_error("graph.malformed_reading_record",
+                       "%s must be a minted opaque id" % field)
+
+
+def _fingerprint(value, field):
+    if not isinstance(value, str) or not _FINGERPRINT_RE.fullmatch(value):
+        _reading_error("graph.malformed_reading_record",
+                       "%s must be a sha256 fingerprint" % field)
+
+
+def _canonical_json(value):
+    # A literal pipe would split the Markdown table cell. JSON permits the
+    # equivalent escape, so canonical reading documents use it consistently.
+    return json.dumps(value, ensure_ascii=False, sort_keys=True,
+                      separators=(",", ":")).replace("|", "\\u007c")
+
+
+def _record_payload(record, section):
+    payload = {key: record.get(key, "") for key in SECTION_COLUMNS[section]}
+    payload["extra"] = dict(record.get("extra") or {})
+    return payload
+
+
+def _safe_table_cell(value):
+    return (isinstance(value, str) and value == value.strip() and
+            "|" not in value and "\n" not in value and "\r" not in value)
+
+
+def _validate_binding_revisions(doc):
+    by_pair = {}
+    by_binding = {}
+    objective_ids = {row.get("id") for row in doc.get("objectives") or ()}
+    source_ids = {row.get("source_object_id") for row in doc.get("sources") or ()}
+    for row in doc.get("bindings") or ():
+        fields = (row.get("binding_id", ""), row.get("binding_revision_id", ""),
+                  row.get("supersedes_binding_revision_id", ""),
+                  row.get("source_fingerprint", ""))
+        if not any(fields):
+            continue
+        if not fields[0] or not fields[1] or not fields[3]:
+            _reading_error("graph.partial_binding_identity",
+                           "a versioned binding row must carry both ids and "
+                           "its source fingerprint")
+        _opaque_id(fields[0], "binding_id")
+        _opaque_id(fields[1], "binding_revision_id")
+        if fields[2]:
+            _opaque_id(fields[2], "supersedes_binding_revision_id")
+        _fingerprint(fields[3], "source_fingerprint")
+        if (row.get("binding_kind") not in BINDING_KINDS or
+                row.get("objective") not in objective_ids or
+                row.get("source_object_id") not in source_ids or
+                (row.get("binding_kind") == "treatment" and
+                 row.get("treatment_kind") not in TREATMENT_KINDS)):
+            _reading_error("graph.malformed_binding_revision",
+                           "a versioned binding must name known graph endpoints "
+                           "and a supported binding kind")
+        if any(not _safe_table_cell(row.get(field, ""))
+               for field in SECTION_COLUMNS["Bindings"]):
+            _reading_error("graph.malformed_binding_revision",
+                           "a versioned binding contains an unsafe table value")
+        pair = fields[:2]
+        if pair in by_pair:
+            code = ("graph.duplicate_binding_revision" if
+                    _record_payload(by_pair[pair], "Bindings") ==
+                    _record_payload(row, "Bindings") else
+                    "graph.divergent_binding_revision")
+            _reading_error(code, "binding revision %s/%s occurs more than once"
+                           % pair)
+        by_pair[pair] = row
+        by_binding.setdefault(fields[0], []).append(row)
+
+    for binding_id, rows in by_binding.items():
+        revisions = {row["binding_revision_id"]: row for row in rows}
+        children = {}
+        roots = []
+        for row in rows:
+            parent = row.get("supersedes_binding_revision_id", "")
+            if not parent:
+                roots.append(row)
+                continue
+            if parent not in revisions:
+                _reading_error("graph.missing_binding_revision",
+                               "binding %s names missing revision %s"
+                               % (binding_id, parent))
+            children.setdefault(parent, []).append(row)
+        if not roots and rows:
+            _reading_error("graph.cyclic_binding_revisions",
+                           "binding %s contains a revision cycle" % binding_id)
+        if len(roots) != 1:
+            _reading_error("graph.binding_revision_chain",
+                           "binding %s must have exactly one root" % binding_id)
+        if any(len(group) > 1 for group in children.values()):
+            _reading_error("graph.branching_binding_revisions",
+                           "binding %s has competing successor revisions"
+                           % binding_id)
+        seen = set()
+        current = roots[0]
+        while current:
+            revision_id = current["binding_revision_id"]
+            if revision_id in seen:
+                _reading_error("graph.cyclic_binding_revisions",
+                               "binding %s contains a revision cycle" % binding_id)
+            seen.add(revision_id)
+            next_rows = children.get(revision_id, ())
+            current = next_rows[0] if next_rows else None
+        if len(seen) != len(rows):
+            _reading_error("graph.cyclic_binding_revisions",
+                           "binding %s contains a disconnected revision cycle"
+                           % binding_id)
+    return by_pair
+
+
+def validate_reading_occurrence(document, doc):
+    """Validate one closed occurrence document against graph-known facts.
+
+    This checks structure and pinned cross-references. It does not verify
+    source bytes, locator sidecars, rights, journal acceptance, or accepted
+    heads, which belong to successor operation units.
+    """
+    if (not isinstance(document, dict) or
+            set(document) != set(READING_OCCURRENCE_FIELDS)):
+        _reading_error("graph.malformed_reading_record",
+                       "a reading occurrence must have exactly the published fields")
+    for field in ("occurrence_id", "revision_id", "course_id"):
+        _opaque_id(document[field], field)
+    parent = document["supersedes_revision_id"]
+    if parent is not None:
+        _opaque_id(parent, "supersedes_revision_id")
+    if document["course_id"] != doc["header"].get("course_object_id"):
+        _reading_error("graph.reading_course_mismatch",
+                       "the occurrence course_id does not match this graph")
+
+    objective_ids = document["objective_ids"]
+    if (not isinstance(objective_ids, list) or not objective_ids or
+            any(not isinstance(value, str) for value in objective_ids) or
+            len(set(objective_ids)) != len(objective_ids)):
+        _reading_error("graph.malformed_reading_record",
+                       "objective_ids must be a nonempty unique list")
+    for objective_id in objective_ids:
+        _opaque_id(objective_id, "objective_ids entry")
+    known_objectives = {row["id"] for row in doc.get("objectives") or ()}
+    if any(value not in known_objectives for value in objective_ids):
+        _reading_error("graph.unknown_objective",
+                       "a reading occurrence names an objective absent from the graph")
+
+    binding_ref = document["binding_ref"]
+    if (not isinstance(binding_ref, dict) or
+            set(binding_ref) != {"binding_id", "binding_revision_id"}):
+        _reading_error("graph.malformed_reading_record",
+                       "binding_ref must be a closed binding revision reference")
+    _opaque_id(binding_ref["binding_id"], "binding_ref.binding_id")
+    _opaque_id(binding_ref["binding_revision_id"],
+               "binding_ref.binding_revision_id")
+    binding = None
+    for row in doc.get("bindings") or ():
+        if (row.get("binding_id") == binding_ref["binding_id"] and
+                row.get("binding_revision_id") ==
+                binding_ref["binding_revision_id"]):
+            binding = row
+            break
+    if binding is None:
+        _reading_error("graph.missing_binding_revision",
+                       "the occurrence pins a binding revision absent from the graph")
+    if (binding.get("binding_kind") != "treatment" or
+            binding.get("treatment_kind") != "direct-reading"):
+        _reading_error("graph.reading_binding_not_direct",
+                       "a reading occurrence must pin a direct-reading treatment")
+    if binding.get("objective") not in objective_ids:
+        _reading_error("graph.reading_objective_mismatch",
+                       "the pinned binding objective is absent from the occurrence")
+
+    source_ref = document["source_ref"]
+    if (not isinstance(source_ref, dict) or
+            set(source_ref) != {"source_object_id", "source_fingerprint",
+                               "locator", "range"}):
+        _reading_error("graph.malformed_reading_record",
+                       "source_ref must be a closed pinned source reference")
+    _opaque_id(source_ref["source_object_id"], "source_ref.source_object_id")
+    _fingerprint(source_ref["source_fingerprint"],
+                 "source_ref.source_fingerprint")
+    if not isinstance(source_ref["locator"], str):
+        _reading_error("graph.malformed_reading_record",
+                       "source_ref.locator must be authored text")
+    if source_ref["source_object_id"] not in {
+            row["source_object_id"] for row in doc.get("sources") or ()}:
+        _reading_error("graph.unknown_source",
+                       "the occurrence source is absent from this graph")
+    for field in ("source_object_id", "source_fingerprint", "locator"):
+        if source_ref[field] != binding.get(field, ""):
+            _reading_error("graph.reading_binding_mismatch",
+                           "source_ref.%s disagrees with the pinned binding" % field)
+
+    reading_range = source_ref["range"]
+    if (not isinstance(reading_range, dict) or
+            set(reading_range) != {"span_id", "locator_id",
+                                  "locator_sidecar_fingerprint"} or
+            not isinstance(reading_range["span_id"], str) or
+            not reading_range["span_id"]):
+        _reading_error("graph.malformed_reading_record",
+                       "range must be one closed nonempty span")
+    locator_id = reading_range["locator_id"]
+    sidecar_fp = reading_range["locator_sidecar_fingerprint"]
+    if (locator_id is None) != (sidecar_fp is None):
+        _reading_error("graph.malformed_reading_record",
+                       "adapted range locator fields must both be present or both null")
+    if locator_id is not None:
+        if not isinstance(locator_id, str) or not locator_id:
+            _reading_error("graph.malformed_reading_record",
+                           "range.locator_id must be nonempty when present")
+        _fingerprint(sidecar_fp, "range.locator_sidecar_fingerprint")
+
+    for field in ("purpose", "preparation_mode", "path_role", "learning_phase"):
+        if not isinstance(document[field], str) or not document[field].strip():
+            _reading_error("graph.malformed_reading_record",
+                           "%s must be nonempty authored text" % field)
+    sequence = document["sequence_evidence"]
+    if (not isinstance(sequence, dict) or
+            set(sequence) != {"status", "citation"} or
+            sequence["status"] not in READING_SEQUENCE_STATUSES or
+            (sequence["citation"] is not None and
+             not isinstance(sequence["citation"], str))):
+        _reading_error("graph.malformed_reading_record",
+                       "sequence_evidence is not a closed supported record")
+    if (sequence["status"] == "Published" and
+            (not sequence["citation"] or not sequence["citation"].strip())):
+        _reading_error("graph.malformed_reading_record",
+                       "Published sequence evidence requires a citation")
+    provenance = document["assignment_provenance"]
+    if (not isinstance(provenance, dict) or
+            set(provenance) != {"authority", "citation"} or
+            provenance["authority"] not in READING_ASSIGNMENT_AUTHORITIES or
+            (provenance["citation"] is not None and
+             not isinstance(provenance["citation"], str))):
+        _reading_error("graph.malformed_reading_record",
+                       "assignment_provenance is not a closed supported record")
+    if (provenance["authority"] == "instructor" and
+            (not provenance["citation"] or not provenance["citation"].strip())):
+        _reading_error("graph.malformed_reading_record",
+                       "instructor assignment provenance requires a citation")
+    policy = document["assistance_policy"]
+    if (not isinstance(policy, dict) or
+            set(policy) != {"status", "citation", "instruction"} or
+            policy["status"] not in READING_ASSISTANCE_STATUSES or
+            any(value is not None and not isinstance(value, str)
+                for value in (policy["citation"], policy["instruction"]))):
+        _reading_error("graph.malformed_reading_record",
+                       "assistance_policy is not a closed supported record")
+    if (policy["status"] == "specified" and
+            (not policy["citation"] or not policy["citation"].strip() or
+             not policy["instruction"] or not policy["instruction"].strip())):
+        _reading_error("graph.malformed_reading_record",
+                       "specified assistance policy requires citation and instruction")
+    return copy.deepcopy(document)
+
+
+def _reading_documents(doc):
+    documents = []
+    for row in doc.get("reading_occurrences") or ():
+        try:
+            document = json.loads(row.get("document", ""))
+        except (TypeError, ValueError):
+            _reading_error("graph.malformed_reading_record",
+                           "a reading occurrence document is not JSON")
+        if row.get("document") != _canonical_json(document):
+            _reading_error("graph.noncanonical_reading_document",
+                           "a reading occurrence document is not canonical JSON")
+        validate_reading_occurrence(document, doc)
+        if (row.get("occurrence_id") != document["occurrence_id"] or
+                row.get("revision_id") != document["revision_id"]):
+            _reading_error("graph.reading_projection_mismatch",
+                           "reading occurrence projections disagree with the document")
+        documents.append(document)
+    return documents
+
+
+def validate_reading_placement(record):
+    """Return authored placement plus its supported scheduling interpretation."""
+    occurrence_id = record.get("occurrence_id", "")
+    _opaque_id(occurrence_id, "reading placement occurrence_id")
+    title = record.get("title", "")
+    activation = record.get("activation", "")
+    if (not _safe_table_cell(title) or not title.strip() or title != title.strip() or
+            not _safe_table_cell(activation) or not activation.strip() or
+            activation != activation.strip()):
+        _reading_error("graph.malformed_reading_placement",
+                       "reading title and activation must be nonempty table text")
+    return {"occurrence_id": occurrence_id, "title": title,
+            "activation": activation,
+            "effective_activation": (activation if activation in
+                                     READING_ACTIVATIONS else "unsupported")}
+
+
+def validate_reading_graph(doc):
+    """Validate versioned bindings, occurrence chains, and placement joins."""
+    _validate_binding_revisions(doc)
+    documents = _reading_documents(doc)
+    by_pair = {}
+    by_occurrence = {}
+    for document in documents:
+        pair = (document["occurrence_id"], document["revision_id"])
+        if pair in by_pair:
+            code = ("graph.duplicate_reading_revision" if
+                    by_pair[pair] == document else
+                    "graph.divergent_reading_revision")
+            _reading_error(code, "reading revision %s/%s occurs more than once"
+                           % pair)
+        by_pair[pair] = document
+        by_occurrence.setdefault(document["occurrence_id"], []).append(document)
+    for occurrence_id, rows in by_occurrence.items():
+        revisions = {row["revision_id"]: row for row in rows}
+        roots = [row for row in rows if row["supersedes_revision_id"] is None]
+        children = {}
+        for row in rows:
+            parent = row["supersedes_revision_id"]
+            if parent is None:
+                continue
+            if parent not in revisions:
+                _reading_error("graph.missing_reading_revision",
+                               "occurrence %s names missing revision %s"
+                               % (occurrence_id, parent))
+            children.setdefault(parent, []).append(row)
+        if not roots and rows:
+            _reading_error("graph.cyclic_reading_revisions",
+                           "occurrence %s contains a revision cycle"
+                           % occurrence_id)
+        if len(roots) != 1:
+            _reading_error("graph.reading_revision_chain",
+                           "occurrence %s must have exactly one root"
+                           % occurrence_id)
+        if any(len(group) > 1 for group in children.values()):
+            _reading_error("graph.branching_reading_revisions",
+                           "occurrence %s has competing successor revisions"
+                           % occurrence_id)
+        seen = set()
+        current = roots[0]
+        while current:
+            revision_id = current["revision_id"]
+            if revision_id in seen:
+                _reading_error("graph.cyclic_reading_revisions",
+                               "occurrence %s contains a revision cycle"
+                               % occurrence_id)
+            seen.add(revision_id)
+            successors = children.get(revision_id, ())
+            current = successors[0] if successors else None
+        if len(seen) != len(rows):
+            _reading_error("graph.cyclic_reading_revisions",
+                           "occurrence %s contains a disconnected revision cycle"
+                           % occurrence_id)
+
+    placements = {}
+    for row in doc.get("reading_placement") or ():
+        placement = validate_reading_placement(row)
+        occurrence_id = placement["occurrence_id"]
+        if occurrence_id in placements:
+            _reading_error("graph.duplicate_reading_placement",
+                           "occurrence %s has more than one placement"
+                           % occurrence_id)
+        if occurrence_id not in by_occurrence:
+            _reading_error("graph.missing_reading_occurrence",
+                           "placement %s has no reading occurrence"
+                           % occurrence_id)
+        placements[occurrence_id] = placement
+    missing = set(by_occurrence) - set(placements)
+    if missing:
+        _reading_error("graph.missing_reading_placement",
+                       "occurrence %s has no placement" % sorted(missing)[0])
+    return {"occurrences": copy.deepcopy(documents),
+            "placements": copy.deepcopy(placements)}
+
+
+def enroll_binding(doc, binding_index, source_fingerprint):
+    """Assign permanent identity to one exactly selected legacy binding row."""
+    if (not isinstance(binding_index, int) or isinstance(binding_index, bool) or
+            binding_index < 0):
+        _reading_error("graph.unknown_binding_row",
+                       "the selected binding row index must be a nonnegative integer")
+    candidate = copy.deepcopy(doc)
+    try:
+        row = candidate["bindings"][binding_index]
+    except (KeyError, IndexError, TypeError):
+        _reading_error("graph.unknown_binding_row",
+                       "the selected binding row does not exist")
+    if any(row.get(field, "") for field in
+           ("binding_id", "binding_revision_id",
+            "supersedes_binding_revision_id", "source_fingerprint")):
+        _reading_error("graph.binding_already_versioned",
+                       "the selected binding row already carries identity")
+    _fingerprint(source_fingerprint, "source_fingerprint")
+    row["binding_id"] = identity.new_object_id()
+    row["binding_revision_id"] = identity.new_object_id()
+    row["supersedes_binding_revision_id"] = ""
+    row["source_fingerprint"] = source_fingerprint
+    for binding in candidate["bindings"]:
+        for field in SECTION_COLUMNS["Bindings"]:
+            if field not in binding["columns"]:
+                binding["columns"].append(field)
+    candidate.setdefault("section_columns", {})["Bindings"] = \
+        list(candidate["bindings"][0]["columns"])
+    validate_reading_graph(candidate)
+    doc.clear()
+    doc.update(candidate)
+    return doc["bindings"][binding_index]
+
+
+def append_binding_revision(doc, binding_id, changes):
+    """Append one immutable successor to the unique head of a binding chain."""
+    candidate = copy.deepcopy(doc)
+    rows = [row for row in candidate.get("bindings") or ()
+            if row.get("binding_id") == binding_id]
+    if not rows:
+        _reading_error("graph.unknown_binding_revision",
+                       "the binding identity is absent from this graph")
+    parent_ids = {row.get("supersedes_binding_revision_id") for row in rows
+                  if row.get("supersedes_binding_revision_id")}
+    heads = [row for row in rows
+             if row.get("binding_revision_id") not in parent_ids]
+    if len(heads) != 1:
+        _reading_error("graph.binding_revision_chain",
+                       "the binding has no unique head")
+    forbidden = {"binding_id", "binding_revision_id",
+                 "supersedes_binding_revision_id"}
+    if (not isinstance(changes, dict) or forbidden.intersection(changes) or
+            any(key not in SECTION_COLUMNS["Bindings"] for key in changes)):
+        _reading_error("graph.invalid_binding_revision_change",
+                       "binding revision changes may alter only binding content")
+    if (not changes or any(not _safe_table_cell(value)
+                           for value in changes.values())):
+        _reading_error("graph.invalid_binding_revision_change",
+                       "binding revision changes must be safe Markdown table strings")
+    values = {field: heads[0].get(field, "")
+              for field in SECTION_COLUMNS["Bindings"]}
+    values.update(changes)
+    if all(values[field] == heads[0].get(field, "") for field in changes):
+        _reading_error("graph.invalid_binding_revision_change",
+                       "a binding revision must change binding content")
+    values["binding_id"] = binding_id
+    values["binding_revision_id"] = identity.new_object_id()
+    values["supersedes_binding_revision_id"] = heads[0]["binding_revision_id"]
+    record = copy.deepcopy(heads[0])
+    for field, value in values.items():
+        record[field] = value
+        if field not in record["columns"]:
+            record["columns"].append(field)
+    candidate["bindings"].append(record)
+    validate_reading_graph(candidate)
+    doc.clear()
+    doc.update(candidate)
+    return doc["bindings"][-1]
+
+
+def add_reading_occurrence(doc, values, title, activation):
+    """Mint and append one occurrence root and its placement atomically."""
+    if (not isinstance(values, dict) or
+            any(key in values for key in ("occurrence_id", "revision_id",
+                                          "supersedes_revision_id", "course_id"))):
+        _reading_error("graph.malformed_reading_record",
+                       "new occurrence values must omit graph-owned identity fields")
+    candidate = copy.deepcopy(doc)
+    document = dict(values)
+    document.update({"occurrence_id": identity.new_object_id(),
+                     "revision_id": identity.new_object_id(),
+                     "supersedes_revision_id": None,
+                     "course_id": candidate["header"]["course_object_id"]})
+    validate_reading_occurrence(document, candidate)
+    candidate["reading_occurrences"].append(
+        new_record("Reading occurrences", {
+            "occurrence_id": document["occurrence_id"],
+            "revision_id": document["revision_id"],
+            "document": _canonical_json(document)}))
+    candidate["reading_placement"].append(new_record("Reading placement", {
+        "occurrence_id": document["occurrence_id"], "title": title,
+        "activation": activation}))
+    validate_reading_graph(candidate)
+    doc.clear()
+    doc.update(candidate)
+    return copy.deepcopy(document)
+
+
+def append_reading_revision(doc, occurrence_id, changes):
+    """Append one immutable material revision while retaining all ancestors."""
+    candidate = copy.deepcopy(doc)
+    documents = [item for item in _reading_documents(candidate)
+                 if item["occurrence_id"] == occurrence_id]
+    if not documents:
+        _reading_error("graph.unknown_reading_occurrence",
+                       "the reading occurrence is absent from this graph")
+    parent_ids = {item["supersedes_revision_id"] for item in documents
+                  if item["supersedes_revision_id"] is not None}
+    heads = [item for item in documents
+             if item["revision_id"] not in parent_ids]
+    forbidden = {"occurrence_id", "revision_id", "supersedes_revision_id",
+                 "course_id"}
+    if (len(heads) != 1 or not isinstance(changes, dict) or
+            forbidden.intersection(changes) or
+            any(key not in READING_OCCURRENCE_FIELDS for key in changes)):
+        _reading_error("graph.invalid_reading_revision",
+                       "the occurrence needs one head and material field changes only")
+    if not changes or all(heads[0][key] == value for key, value in changes.items()):
+        _reading_error("graph.invalid_reading_revision",
+                       "a reading revision must change the reading task")
+    document = copy.deepcopy(heads[0])
+    document.update(changes)
+    document["revision_id"] = identity.new_object_id()
+    document["supersedes_revision_id"] = heads[0]["revision_id"]
+    validate_reading_occurrence(document, candidate)
+    candidate["reading_occurrences"].append(
+        new_record("Reading occurrences", {
+            "occurrence_id": occurrence_id,
+            "revision_id": document["revision_id"],
+            "document": _canonical_json(document)}))
+    validate_reading_graph(candidate)
+    doc.clear()
+    doc.update(candidate)
+    return copy.deepcopy(document)
+
+
+def update_reading_placement(doc, occurrence_id, title, activation):
+    """Change display and placement without minting an occurrence revision."""
+    candidate = copy.deepcopy(doc)
+    rows = [row for row in candidate.get("reading_placement") or ()
+            if row.get("occurrence_id") == occurrence_id]
+    if len(rows) != 1:
+        _reading_error("graph.missing_reading_placement",
+                       "the occurrence must have exactly one placement to update")
+    rows[0]["title"] = title
+    rows[0]["activation"] = activation
+    validate_reading_graph(candidate)
+    doc.clear()
+    doc.update(candidate)
+    return validate_reading_placement(
+        [row for row in doc["reading_placement"]
+         if row["occurrence_id"] == occurrence_id][0])
 
 
 def _objective_by_id(doc, objective_id):

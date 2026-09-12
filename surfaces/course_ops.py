@@ -98,6 +98,13 @@ REQUEST_SCHEMA_PATH = "schemas/course_operation.schema.json"
 # second table: this is the list the route set, the CLI actions, and the
 # reserved MCP tool names are all checked against.
 OPERATION_ENGINE = {
+    "reading_view": "reading_desk.operation",
+    "save_reading_note": "reading_desk.operation",
+    "create_reading": "course.reading_operation",
+    "confirm_reading": "reading.operation",
+    "declare_reading": "reading.operation",
+    "revise_reading": "course.reading_operation",
+    "place_reading": "course.reading_operation",
     "create": "course.create_course",
     "register_source": "journal.commit_operation",
     "rename": "course.write_course",
@@ -143,7 +150,7 @@ OPERATION_ENGINE = {
 # The operations that only read. They reach no writer, advance no revision,
 # and are the only ones a surface may serve behind the read-side gate; every
 # other name in OPERATION_ENGINE writes.
-READ_OPERATIONS = ("bindings", "structure", "treatments", "autonomy",
+READ_OPERATIONS = ("reading_view", "bindings", "structure", "treatments", "autonomy",
                    "replay", "blueprint_gate", "audit", "staleness",
                    "verify_package", "package_losses", "outline",
                    "coverage", "untreated", "protocol", "parity")
@@ -1932,7 +1939,29 @@ def _op_agent_operation(root, body, actor_kind, actor_name, base=None):
     return result
 
 
+def _op_reading(root, body, actor_kind, actor_name, base=None):
+    base = base or resolve_course(root, body["course_id"])
+    import reading
+    import reading_desk
+    engine = (reading.operation if body["operation"] in ("confirm_reading", "declare_reading")
+              else course_module.reading_operation)
+    if body["operation"] in ("reading_view", "save_reading_note"):
+        engine = reading_desk.operation
+    result = engine(
+        base, body["operation"], body, actor_kind, actor_name)
+    result.update(operation=body["operation"], course_id=body["course_id"],
+                  engine=OPERATION_ENGINE[body["operation"]])
+    return result
+
+
 OPERATIONS = {
+    "reading_view": _op_reading,
+    "save_reading_note": _op_reading,
+    "confirm_reading": _op_reading,
+    "declare_reading": _op_reading,
+    "create_reading": _op_reading,
+    "revise_reading": _op_reading,
+    "place_reading": _op_reading,
     "agent_operation": _op_agent_operation,
     "create": _op_create,
     "register_source": _op_register_source,
@@ -2280,12 +2309,23 @@ def cmd_course(a):
             if value is None or value == "" or value == []:
                 continue
             request[name] = value
+        if operation == "save_reading_note":
+            request["notes_fingerprint"] = a.notes_fingerprint
         if operation == "agent_operation":
             request["action"] = a.action
         payload = run(a.root, operation, request, actor_kind="human",
                       actor_name=getattr(a, "actor", "") or "")
         if getattr(a, "json", False):
             print(json.dumps(payload, ensure_ascii=False, indent=2))
+            return 0
+        if operation in ("reading_view", "save_reading_note"):
+            print(json.dumps(payload, ensure_ascii=False, indent=2))
+            return 0
+        if operation in ("confirm_reading", "declare_reading"):
+            print("%s %s" % (payload["status"], payload.get("intent_id") or payload["event_id"]))
+            if operation == "declare_reading":
+                print("  retracted: %s" % payload["retracted"])
+                print("  availability: %s" % payload["availability"]["state"])
             return 0
         if operation == "structure":
             _print_structure(payload)

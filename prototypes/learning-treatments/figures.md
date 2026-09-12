@@ -140,12 +140,14 @@ credit, or scorer behavior is proposed.
 
 ### Rainfall table prompt
 
-**Candidate composition:** existing `table` plus `short` or table discussion.
+**Synthetic export:** existing `short` for a prose comparison. The separate
+value-retrieval treatment retains its blanks and optional value bank.
 
 **Prompt:** Using Monday’s equal collection intervals, describe the difference
 between Gauge A and Gauge B.
 
-The source values stay visible. No response schema or accepted answer exists.
+The source values stay visible. The exported `short` item has a proposed model
+answer and rubric pending human review. No accepted answer exists.
 
 ## Limits
 
@@ -159,16 +161,23 @@ Separate runtime candidates now exist for label-to-location matching in
 `runtime-candidate/water-process-placement.txt` and for explaining the rainfall
 comparison in `runtime-candidate/rainfall-comparison.txt`. The latter is
 learning practice using `short`, with prose left pending. These are hand-authored
-format experiments. The studio now exports placement drafts automatically.
-Typed and table sketches retain their existing ungraded preview. A value bank with visible table cells can
+format experiments. The studio exports placement and Monday comparison drafts on request.
+Choose Rainfall observations, then Explain Monday comparison. Edit the
+instruction and purpose, try an ungraded prose response, and use Review draft,
+Create bank draft, then Download bank draft. The file embeds Monday, Gauge A
+12 mm, Gauge B 18 mm, their equal 24-hour interval, and the exact source locator.
+Both author fields require one plain-text line. Unsafe structural text is
+visibly refused instead of silently rewritten. Changes clear old exports.
+Trial responses never enter the proposed model answer or rubric.
+Typed labels and table retrieval retain their existing ungraded preview. A value bank with visible table cells can
 allow elimination, so the blank exercise is source-value recognition or recall.
 It does not establish rainfall reasoning or examination fidelity.
 
 - The HTML page uses adjacent CSS and JavaScript files and works offline.
 - Choices, target pairing, and draft edits stay in page memory unless the user
-  downloads the separate placement bank draft.
-- Downloaded bank drafts include a proposed source-derived key for author
-  review. The studio has no scorer, mastery result, evidence record, source
+  downloads a separate placement or comparison bank draft.
+- Downloaded bank drafts include a proposed source-derived key or rubric for
+  author review. The studio has no scorer, mastery result, evidence record, source
   binding, accepted write, localStorage, fetch, or submitted learner response.
 - `visual`, `table`, `dnd`, and `build` remain candidates for future format and
   accessibility review. This prototype makes no durable type.

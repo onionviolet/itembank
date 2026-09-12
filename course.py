@@ -25,6 +25,13 @@ writing. `migrate_stub` reads it, emits a separate sidecar, journals the
 import, and leaves the hand-authored file byte-identical.
 """
 import os
+import json
+
+import auditor
+import discovery
+import resources
+import schema_validate
+import source_adapters
 
 import graph
 import identity
@@ -116,7 +123,8 @@ def read_course(course_root):
 
 
 def write_course(course_root, doc, expected_fingerprint, actor_kind,
-                 actor_name, operation="edit_in_place", applied_agent=None):
+                 actor_name, operation="edit_in_place", applied_agent=None,
+                 precommit=None):
     """Write `doc` back to the sidecar through the one compare-and-swap path.
 
     `expected_fingerprint` is passed straight through to
@@ -129,7 +137,184 @@ def write_course(course_root, doc, expected_fingerprint, actor_kind,
         kind=COURSE_KIND, rel_path=COURSE_SIDECAR_FILENAME,
         operation=operation, new_bytes=raw,
         expected_fingerprint=expected_fingerprint, actor_kind=actor_kind,
-        actor_name=actor_name, applied_agent=applied_agent)
+        actor_name=actor_name, applied_agent=applied_agent, precommit=precommit)
+
+
+def accepted_reading_graph(base, expected_fingerprint):
+    """Require an explicit base and journal-backed accepted graph bytes."""
+    if not expected_fingerprint:
+        raise CourseError("course.expected_fingerprint_required",
+                          "Refresh the course and supply its fingerprint.")
+    if not discovery.inside_any_root(sidecar_path(base), [base]):
+        raise CourseError("course.reading_outside_root", "The course graph leaves the approved root.")
+    read = read_course(base)
+    registry = journal._compute_registry(base)
+    row = registry.get(read["object_id"]) or {}
+    entries = list(journal.entries(base))
+    accepted = next((entry for entry in entries
+                     if entry["entry_id"] == row.get("last_entry_id")), {})
+    prepared = next((entry for entry in entries
+                     if entry["entry_id"] == accepted.get("resolves_entry")), {})
+    # A transport receipt proves local bytes, not the original enrollment or
+    # accepted revision history. Legacy packages do not carry that provenance.
+    if any(entry.get("object_id") == read["object_id"] and
+           entry.get("operation") == "restore" and
+           not (entry.get("undo") or {}).get("reverses_entry")
+           for entry in entries):
+        raise CourseError("course.reading_acceptance_unknown",
+                          "Restore the original reading acceptance history before making new declarations.")
+    if (read["state"] != "clean" or row.get("kind") != COURSE_KIND or
+            row.get("path") != COURSE_SIDECAR_FILENAME or
+            row.get("fingerprint") != read["fingerprint"] or
+            prepared.get("state") != "prepared" or
+            prepared.get("object_id") != read["object_id"] or
+            prepared.get("after_fingerprint") != read["fingerprint"] or
+            any(prepared.get(key) != accepted.get(key) for key in
+                ("path", "kind", "operation", "revision", "origin"))):
+        raise CourseError("course.reading_acceptance_unknown",
+                          "Recover or reconcile the course journal before editing readings.")
+    if expected_fingerprint != read["fingerprint"]:
+        raise CourseError("course.reading_stale", "Refresh the accepted graph before retrying.")
+    graph.validate_reading_graph(read["doc"])
+    return read
+
+
+def validate_reading_source(base, source_ref):
+    """Resolve one whole normalized span on the accepted, readable local source."""
+    source_id = source_ref["source_object_id"]
+    row = journal._compute_registry(base).get(source_id)
+    if not row or row.get("kind") != "source":
+        raise CourseError("course.unknown_source", "Register the source before assigning it.")
+    content_entries = [entry for entry in journal.entries(base)
+                       if entry.get("object_id") == source_id and entry.get("state") == "applied"
+                       and entry.get("operation") not in ("grant_rights", "supersede")]
+    if not content_entries or content_entries[-1].get("operation") == "external_edit":
+        raise CourseError("course.reading_source_stale", "Review the external source edit first.")
+    path = os.path.join(base, row["path"])
+    if not discovery.inside_any_root(path, [base]):
+        raise CourseError("course.reading_outside_root", "The source leaves the approved course root.")
+    if not identity.rights_granted(row.get("rights"), "read"):
+        raise CourseError("course.rights_not_granted", "Review the current source read right.")
+    try:
+        with open(path, "rb") as stream:
+            raw_source = stream.read()
+    except OSError:
+        raise CourseError("course.reading_source_unavailable", "Restore access to the registered source.")
+    if (journal._unresolved_prepared_for(base, source_id) is not None or
+            identity.object_fingerprint(raw_source, "source") != source_ref["source_fingerprint"] or
+            row.get("fingerprint") != source_ref["source_fingerprint"]):
+        raise CourseError("course.reading_source_stale", "Reconcile the source bytes before assigning them.")
+    normalized = auditor.normalize_source(raw_source, source_id)
+    selected = source_ref["range"]
+    spans = [span for span in normalized["spans"]
+             if span["span_id"] == selected["span_id"]]
+    if len(spans) != 1:
+        raise CourseError("course.reading_range_unsupported", "Choose exactly one existing normalized span.")
+    sidecar_path = source_adapters.sidecar_path_for(path)
+    locator = source_ref["locator"]
+    if os.path.lexists(sidecar_path) or selected["locator_id"] is not None:
+        if (selected["locator_id"] is None or
+                not discovery.inside_any_root(sidecar_path, [base]) or
+                not os.path.isfile(sidecar_path)):
+            raise CourseError("course.reading_locator_missing", "Select a current local adapter locator.")
+        with open(sidecar_path, "rb") as stream:
+            raw = stream.read()
+        relative = os.path.relpath(sidecar_path, base)
+        accepted_files = [file for entry in journal.entries(base)
+                          if entry.get("state") == "applied" and
+                          entry.get("object_id") == source_id
+                          for file in (entry.get("undo") or {}).get("files", [])
+                          if file["path"] == relative]
+        if not accepted_files or accepted_files[-1]["after_digest"] != journal._raw_digest(raw):
+            raise CourseError("course.reading_locator_unaccepted",
+                              "The locator sidecar needs accepted source-operation provenance.")
+        if identity.object_fingerprint(raw, "source") != selected["locator_sidecar_fingerprint"]:
+            raise CourseError("course.reading_locator_stale", "Review the changed locator sidecar.")
+        try:
+            sidecar = json.loads(raw)
+        except (ValueError, UnicodeError):
+            raise CourseError("course.reading_locator_invalid", "Repair the locator sidecar JSON.")
+        schema = json.loads(resources.read_text("schemas/source_locator.schema.json"))
+        matches = [item for item in sidecar.get("locators", [])
+                   if item.get("id") == selected["locator_id"]]
+        if (schema_validate.validate(sidecar, schema) or
+                sidecar.get("source_id") != source_id or
+                sidecar.get("fingerprint") != source_ref["source_fingerprint"] or
+                len(matches) != 1 or matches[0].get("span_id") != selected["span_id"] or
+                locator != selected["locator_id"]):
+            raise CourseError("course.reading_locator_invalid", "The pinned locator must join this exact source span.")
+    else:
+        # A heading names only its own span here, never an inferred section.
+        matches = [span for span in normalized["spans"] if locator and
+                   locator in (span["span_id"],
+                               "line %d" % span["locator"]["start_line"],
+                               span["verbatim"],
+                               " / ".join(span["locator"]["heading_path"])
+                               if span["kind"] == "heading" else None)]
+        if len(matches) != 1 or matches[0]["span_id"] != selected["span_id"]:
+            raise CourseError("course.reading_range_unsupported",
+                              "Locator must uniquely name one whole span. Multi-span sections are unsupported.")
+    return spans[0]
+
+
+def reading_operation(base, operation, body, actor_kind, actor_name):
+    """Create, revise or place a reading with one journaled graph mutation."""
+    read = accepted_reading_graph(base, body.get("expected_fingerprint"))
+    doc = read["doc"]
+    values = dict(body.get("values") or body.get("changes") or {})
+    if ("title" in body) != ("activation" in body):
+        raise CourseError("course.invalid_request", "Provide title and activation together.")
+    if "binding_index" in body:
+        if "source_ref" not in values or "binding_ref" in values:
+            raise CourseError("course.invalid_request",
+                              "Enrollment requires source_ref and omits binding_ref.")
+        binding = graph.enroll_binding(doc, body["binding_index"],
+                                       values["source_ref"]["source_fingerprint"])
+        values["binding_ref"] = {key: binding[key] for key in
+                                  ("binding_id", "binding_revision_id")}
+    if operation == "create_reading":
+        occurrence = graph.add_reading_occurrence(doc, values, body["title"], body["activation"])
+    else:
+        records = [item for item in graph.validate_reading_graph(doc)["occurrences"]
+                   if item["occurrence_id"] == body["occurrence_id"]]
+        parents = {item["supersedes_revision_id"] for item in records}
+        heads = [item for item in records if item["occurrence_id"] == body["occurrence_id"]
+                 and item["revision_id"] not in parents]
+        if len(heads) != 1 or heads[0]["revision_id"] != body["revision_id"]:
+            raise CourseError("course.reading_revision_stale", "Select the current occurrence head.")
+        occurrence = heads[0]
+        if operation == "revise_reading":
+            if body.get("revise_binding"):
+                if "binding_index" in body or "binding_ref" in values or "source_ref" not in values:
+                    raise CourseError("course.invalid_request",
+                                      "Binding revision requires source_ref and no other binding selection.")
+                source = values["source_ref"]
+                binding = graph.append_binding_revision(
+                    doc, occurrence["binding_ref"]["binding_id"],
+                    {key: source[key] for key in
+                     ("source_object_id", "source_fingerprint", "locator")})
+                values["binding_ref"] = {key: binding[key] for key in
+                                          ("binding_id", "binding_revision_id")}
+            occurrence = graph.append_reading_revision(doc, body["occurrence_id"], values)
+        if "title" in body or operation == "place_reading":
+            graph.update_reading_placement(doc, body["occurrence_id"], body["title"], body["activation"])
+    graph.validate_reading_graph(doc)
+
+    def validate():
+        accepted_reading_graph(base, body["expected_fingerprint"])
+        validate_reading_source(base, occurrence["source_ref"])
+
+    revision = write_course(base, doc, body["expected_fingerprint"], actor_kind,
+                            actor_name, precommit=validate)
+    receipt = next(entry["entry_id"] for entry in journal.entries(base)
+                   if entry.get("state") == "applied" and
+                   entry.get("object_id") == read["object_id"] and
+                   entry.get("revision") == revision["revision"] and
+                   entry.get("after_fingerprint") == revision["fingerprint"])
+    return {"course_object_id": read["object_id"], "fingerprint": revision["fingerprint"],
+            "revision": revision["revision"], "entry_id": receipt,
+            "occurrence": occurrence, "binding_ref": occurrence["binding_ref"],
+            "undo": "Reverse journal entry " + receipt}
 
 
 def _stub_tables(text):

@@ -1,0 +1,46 @@
+/* Original synthetic teaching material. These are open examples, not a bank. */
+'use strict';
+window.DOJO_LESSONS = [
+  {
+    id: 'predict', number: '01', family: 'Read & predict', title: 'Where does the loop stop?',
+    objective: 'SYN-CS-01', objectiveText: 'Trace array indices and explain an exclusive upper bound.',
+    intro: 'A loop condition is a promise about which positions the program will visit. Make a prediction before you test that promise.',
+    task: 'Predict every line this program prints. Then run it and explain what happens on the final iteration.',
+    context: 'The readings array has three values. JavaScript array indices start at zero. This example deliberately visits one position beyond the array.',
+    source: 'source.md#indices', sourceLabel: 'Array positions and loop boundaries',
+    sourceText: 'For an array of length n, the occupied indices run from 0 through n - 1. Reading an absent array element produces undefined. The condition i < values.length stops before the first absent position.',
+    files: {'trace.js': 'const readings = [3, 7, 4];\n\nfor (let i = 0; i <= readings.length; i++) {\n  console.log(i, readings[i]);\n}'}, entry: 'trace.js',
+    prediction: true, reflection: 'Which condition would visit exactly the three stored readings, and why?',
+    example: 'The original loop visits indices 0, 1, 2, and 3. The final line is "3 undefined". With i < readings.length, the loop visits only 0, 1, and 2. The length is the count of elements, not the last occupied index.',
+    next: 'Use that boundary to diagnose a broken total.',
+  },
+  {
+    id: 'debug', number: '02', family: 'Debug & compare', title: 'Why did the total become NaN?',
+    objective: 'SYN-CS-02', objectiveText: 'Use an observed failure and an empty case to repair a loop.',
+    intro: 'The same boundary mistake can hide inside a calculation. Use the examples to locate the first value that stops making sense.',
+    task: 'Repair sum(readings) so it adds every provided number exactly once. It must return 0 for an empty array. Keep the examples and add one of your own.',
+    context: 'Inputs are arrays of finite numbers. You provide sum(readings). The report(label, actual, expected) helper displays all three values without grading them. Every provided example is visible below.',
+    source: 'source.md#accumulators', sourceLabel: 'Accumulating a total',
+    sourceText: 'Start a sum at 0, the additive identity. Add only occupied elements. Adding undefined to a number produces NaN, which then propagates through later additions. For an empty array, the loop should execute zero times and return its initial total.',
+    files: {'sum.js': 'function sum(readings) {\n  let total = 0;\n  for (let i = 0; i <= readings.length; i++) {\n    total += readings[i];\n  }\n  return total;\n}\n\nreport("three readings", sum([3, 7, 4]), 14);\nreport("empty input", sum([]), 0);\nreport("negative value", sum([-2, 5]), 3);\n\n// Add an example that tests a different boundary.\n'}, entry: 'sum.js',
+    prediction: false, reflection: 'What caused NaN? Which example gives you evidence that the boundary is fixed?',
+    example: 'Change i <= readings.length to i < readings.length. The original loop adds readings[readings.length], which is undefined. The repaired empty loop runs zero times. A one-element array is a useful additional boundary example.',
+    next: 'Carry your boundary reasoning into a small module.',
+  },
+  {
+    id: 'lab', number: '03', family: 'Build & test', title: 'Give the average a clear contract.',
+    objective: 'SYN-CS-03', objectiveText: 'Implement a function across a declared module boundary and design examples.',
+    intro: 'A small program needs both behavior and a way to inspect it. Keep the implementation and its examples in separate files.',
+    task: 'Implement mean(readings) in stats.js. Return the arithmetic mean for nonempty arrays and null for an empty array. In examples.js, add a case with a negative number and one with a single value.',
+    context: 'Inputs contain finite numbers. No packages or filesystem are available. stats.js exposes mean using module.exports. examples.js loads it with require("./stats.js"). This declared teaching harness supports these local files, not the Node.js environment.',
+    source: 'source.md#contracts', sourceLabel: 'Function contracts and example design',
+    sourceText: 'The arithmetic mean is the sum divided by the number of values. An empty array has no arithmetic mean, so this exercise explicitly returns null. Examples should probe ordinary inputs and boundaries. Passing selected examples alone does not prove that a program is correct.',
+    files: {
+      'stats.js': 'function mean(readings) {\n  // Return null when there are no readings.\n  // Otherwise calculate the sum and divide by the count.\n  return null;\n}\n\nmodule.exports = { mean };',
+      'examples.js': 'const { mean } = require("./stats.js");\n\nreport("two readings", mean([2, 6]), 4);\nreport("empty input", mean([]), null);\n\n// Add a negative-value example.\n// Add a single-value example.\n',
+    }, entry: 'examples.js',
+    prediction: false, reflection: 'Explain your empty-input choice. What could still be wrong even if these examples look right?',
+    example: 'First handle readings.length === 0 by returning null. Otherwise accumulate every value and return total / readings.length. Useful extra examples include [-2, 6] with expected mean 2 and [5] with expected mean 5. Inspect readability and reasoning separately from observed behavior.',
+    next: 'Export your code and reasoning for review, or revisit an earlier activity.',
+  },
+];

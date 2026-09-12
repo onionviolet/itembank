@@ -1034,18 +1034,75 @@ def _director_fixture(root, course_id):
     return base, source_id, objective_id, record
 
 
+def _acceptance_pair_errors(matching):
+    """A write has one prepared intent and one applied acceptance, not two writes."""
+    accepting = [entry for entry in matching
+                 if (entry.get("agent") or {}).get("phase") == "accept"]
+    prepared = [entry for entry in accepting if entry.get("state") == "prepared"]
+    applied = [entry for entry in accepting if entry.get("state") == "applied"]
+    errors = []
+    if len(accepting) != 2 or len(prepared) != 1 or len(applied) != 1:
+        return ["requires exactly one prepared intent and one applied acceptance"]
+    intent, accepted = prepared[0], applied[0]
+    if not intent.get("entry_id") or accepted.get("resolves_entry") != intent["entry_id"]:
+        errors.append("applied acceptance does not resolve its prepared intent")
+    if not accepted.get("entry_id") or accepted["entry_id"] == intent["entry_id"]:
+        errors.append("intent and acceptance require distinct entry identities")
+    if accepting.index(intent) > accepting.index(accepted):
+        errors.append("acceptance precedes prepared intent")
+    for key in ("operation", "object_id", "kind", "revision", "parent_revision",
+                "path", "expected_fingerprint", "before_fingerprint",
+                "after_fingerprint", "before_image", "undo", "agent"):
+        if intent.get(key) != accepted.get(key):
+            errors.append("intent and acceptance disagree on " + key)
+    return errors
+
+
+def _one_applied_acceptance(matching, label):
+    errors = _acceptance_pair_errors(matching)
+    for error in errors:
+        fail("%s: %s" % (label, error))
+    if errors:
+        return None
+    return next(entry for entry in matching
+                if (entry.get("agent") or {}).get("phase") == "accept"
+                and entry.get("state") == "applied")
+
+
+def check_acceptance_pair_rejects_invalid_history():
+    """Keep duplicate acceptance and missing or misattributed intent as failures."""
+    import copy
+    intent = {"entry_id": "intent", "state": "prepared", "object_id": "object",
+              "revision": 1, "path": "course.md", "operation": "edit_in_place",
+              "agent": {"phase": "accept", "operation_id": "operation"}}
+    accepted = copy.deepcopy(intent)
+    accepted.update(entry_id="accepted", state="applied", resolves_entry="intent")
+    valid = [intent, accepted]
+    if _acceptance_pair_errors(valid):
+        fail("valid acceptance pair was refused")
+    invalid = [[accepted], [intent], [accepted, intent],
+               [intent, accepted, dict(accepted, entry_id="duplicate")]]
+    for key, value in (("resolves_entry", "wrong"), ("entry_id", "intent"),
+                       ("object_id", "other"), ("revision", 2), ("path", "other.md")):
+        pair = copy.deepcopy(valid)
+        pair[1][key] = value
+        invalid.append(pair)
+    for field, value in (("operation_id", "other"), ("phase", "declare-intent")):
+        pair = copy.deepcopy(valid)
+        pair[0]["agent"][field] = value
+        invalid.append(pair)
+    for pair in invalid:
+        if not _acceptance_pair_errors(pair):
+            fail("invalid acceptance history was accepted: %r" % pair)
+    print("ok   acceptance pair rejects duplicates, missing intent and misattribution")
+
+
 def _assert_one_accepted_entry_and_restored(base, operation_id,
                                              original_bytes, label):
     matching = director.operation_entries(base, operation_id)
-    accepted = [entry for entry in matching
-                if (entry.get("agent") or {}).get("phase") == "accept"]
-    if len(accepted) != 1:
-        fail("%s acceptance produced %d operation journal entries, not one"
-             % (label, len(accepted)))
+    entry = _one_applied_acceptance(matching, label)
+    if entry is None:
         return
-    entry = accepted[0]
-    if entry.get("state") != "applied":
-        fail("%s acceptance entry is %r" % (label, entry.get("state")))
     if (entry.get("undo") or {}).get("kind") != "restore_before_image":
         fail("%s acceptance entry does not own its restore before-image"
              % label)
@@ -1055,9 +1112,9 @@ def _assert_one_accepted_entry_and_restored(base, operation_id,
         os.path.dirname(base), "reverse_operation",
         {"course_id": os.path.basename(base), "operation_id": operation_id},
         actor_name="tester")
-    if len(restored["reversed_entries"]) != 1:
-        fail("%s reversal restored %d entries, not one"
-             % (label, len(restored["reversed_entries"])))
+    if restored.get("complete") is not True or restored["reversed_entries"] != [entry["entry_id"]]:
+        fail("%s reversal did not restore exactly its applied acceptance: %r"
+             % (label, restored))
     with open(os.path.join(base, course_module.COURSE_SIDECAR_FILENAME),
               "rb") as fh:
         after = fh.read()
@@ -1068,6 +1125,20 @@ def _assert_one_accepted_entry_and_restored(base, operation_id,
         course_module.read_course(base)
     except Exception as err:
         fail("%s reversal left an invalid course: %s" % (label, err))
+    with open(journal.log_path(base), "rb") as fh:
+        log_before_retry = fh.read()
+    again = course_ops.run(
+        os.path.dirname(base), "reverse_operation",
+        {"course_id": os.path.basename(base), "operation_id": operation_id},
+        actor_name="tester")
+    if again.get("complete") is not True or again.get("reversed_entries") != []:
+        fail("%s repeated reversal was not a completed no-op" % label)
+    with open(journal.log_path(base), "rb") as fh:
+        if fh.read() != log_before_retry:
+            fail("%s repeated reversal appended another journal revision" % label)
+    with open(os.path.join(base, course_module.COURSE_SIDECAR_FILENAME), "rb") as fh:
+        if fh.read() != original_bytes:
+            fail("%s repeated reversal changed restored bytes" % label)
 
 
 def check_director_family_reaches_route_and_cli_with_one_reversible_accept():
@@ -1142,24 +1213,20 @@ def check_director_family_reaches_route_and_cli_with_one_reversible_accept():
             operation_id, *root_args)
         reversed_payload = run("course", "reverse-operation", "cli-course",
                                "--operation", operation_id, *root_args)
-        accepted = [entry for entry in director.operation_entries(
-            base, operation_id)
-                    if (entry.get("agent") or {}).get("phase") == "accept"]
-        if len(accepted) != 1:
-            fail("CLI acceptance produced %d operation journal entries, not one"
-                 % len(accepted))
-        elif (accepted[0].get("undo") or {}).get("kind") != \
-                "restore_before_image":
+        accepted = _one_applied_acceptance(
+            director.operation_entries(base, operation_id), "CLI acceptance")
+        if accepted and (accepted.get("undo") or {}).get("kind") != "restore_before_image":
             fail("CLI acceptance entry does not own its restore before-image")
-        if len(reversed_payload.get("reversed_entries") or ()) != 1:
-            fail("CLI reversal did not report exactly one restored entry")
+        if (reversed_payload.get("complete") is not True or accepted is None
+                or reversed_payload.get("reversed_entries") != [accepted["entry_id"]]):
+            fail("CLI reversal did not report exactly its applied acceptance")
         with open(os.path.join(base, course_module.COURSE_SIDECAR_FILENAME),
                   "rb") as fh:
             if fh.read() != before:
                 fail("CLI reversal did not restore the original bytes")
         course_module.read_course(base)
         print("ok   all seven director operations reach both route and CLI; "
-              "each accepted mutation is one operation entry whose one "
+              "each accepted mutation has a linked intent and one applied entry whose "
               "before-image restores the original valid course bytes")
     finally:
         if proc is not None:
@@ -1384,6 +1451,7 @@ def check_a_course_write_is_loopback_only():
                    "package_losses": {"package_id": "*exported*"},
                    "outline": {}, "coverage": {}, "untreated": {},
                    "protocol": {}, "parity": {}}
+    read_fields["reading_view"] = {"expected_fingerprint": "*current*", "occurrence_id": "a"*16, "revision_id": "b"*16}
     for name in course_ops.READ_OPERATIONS:
         if name not in read_fields:
             fail("the read %r has no entry in this check's field table, so "
@@ -1408,6 +1476,8 @@ def check_a_course_write_is_loopback_only():
             if extra.get("package_id") == "*exported*":
                 extra["package_id"] = exported["package_id"]
             before = course_module.read_course(base)
+            if extra.get("expected_fingerprint") == "*current*":
+                extra["expected_fingerprint"] = before["fingerprint"]
             request = dict(extra)
             if "package_id" not in request:
                 request["course_id"] = "fen"
@@ -1850,8 +1920,8 @@ def check_migration_settlement_surfaces():
                 "graph.migration_already_settled")
         _assert_one_accepted_entry_and_restored(
             base, operation_id, before_settlement, "CLI migration settlement")
-        if len(director.operation_entries(base, operation_id)) != 1:
-            fail("CLI settlement operation id names more than its one CAS entry")
+        if len(director.operation_entries(base, operation_id)) != 2:
+            fail("CLI settlement history contains more than its verified CAS pair")
 
         route, mid = proposed(tmp, "route_course")
         proc, url, _ = start_daemon(tmp)
@@ -1903,8 +1973,8 @@ def check_migration_settlement_surfaces():
         _assert_one_accepted_entry_and_restored(
             route, operation_id, before_settlement,
             "route migration settlement")
-        if len(director.operation_entries(route, operation_id)) != 1:
-            fail("route settlement operation id names more than its one CAS entry")
+        if len(director.operation_entries(route, operation_id)) != 2:
+            fail("route settlement history contains more than its verified CAS pair")
         print("ok   migration settlement refusals preserve rows on CLI and route")
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
@@ -2407,4 +2477,5 @@ def main():
 
 
 if __name__ == "__main__":
+    check_acceptance_pair_rejects_invalid_history()
     sys.exit(main())

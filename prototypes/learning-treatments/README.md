@@ -45,8 +45,10 @@ dialogs, and typed responses retain their state. The existing runtime separately
 validates one four-label `dnd` item and one rainfall-comparison `short` item.
 The studio remains an ungraded authoring preview. Placement drafts now export
 as an existing `dnd` item with selected locations, the full word bank, a proposed
-source key, and self-contained source context. Typed and table export are not
-implemented by this link. The current packet is recorded below under
+source key, and self-contained source context. Monday comparison now exports a
+`short` draft through the separate table treatment described under
+[Studio table export](#studio-table-export-2026-09-12). Typed labels and table
+retrieval remain preview-only. The placement packet is recorded below under
 [Studio placement export](#studio-placement-export-2026-09-11).
 
 Official format evidence and the independent review are in
@@ -57,8 +59,8 @@ the user's original words are recorded in
 ## Scope and recovery
 
 The HTML and Markdown here are original synthetic material. Page interaction
-state is temporary. An explicit placement export creates a separate downloaded
-bank draft for author review. Reload discards unsaved page changes. Remove this
+state is temporary. An explicit placement or Monday comparison export creates
+a separate downloaded bank draft for author review. Reload discards unsaved page changes. Remove this
 directory to undo the prototype, with any downloaded copies retained separately.
 No production runtime, schemas, learner files,
 course graph, source rights, scoring, or evidence store are changed.
@@ -386,3 +388,88 @@ owners and revisit conditions in Current direction.
 RETURN: report the working export path, the passing focused and quick gates,
 the prototype-only status, and the outstanding deferred reviews. No commit,
 push, accepted course revision, or learner-record change was made.
+
+
+## Studio table export, 2026-09-12
+
+GOAL: A5 now exports one synthetic Monday comparison as an existing `short`
+item through Review draft, Create bank draft, and Download bank draft.
+The missing studio-to-bank path is implemented. It retains the earlier
+retrieval exercise as a separate treatment, including its elimination caveat.
+The comparison keeps both values visible and asks for one prose explanation.
+
+OWNER AND SCOPE: A5 owns the figure studio changes and focused table export
+verification. Weibao owns human and product acceptance. The coordinating task
+and A1 receive this evidence for later integration. The starting revision was
+`e7c242a89d16ecd2d715a0cb6b7197ab285bbff6`, with clean prototype files and other
+lanes already dirty. No Git mutation was performed. Only original synthetic
+source text was processed in this hosted authoring session. No third-party
+source, real learner record, external service, or accepted course was changed.
+
+CHANGED PATHS: `figures.html`, `figures.js`, `figures.css`, `figures.md`,
+`table-export.js`, `runtime-candidate/verify_table_export.mjs`, and this README.
+`placement-export.js`, chapter files, production code, schemas, and scoring
+policy are unchanged by A5. Other concurrent code edits are outside this lane.
+
+F5: Resolved in the synthetic lane. The downloaded file embeds Monday,
+Gauge A = 12 mm, Gauge B = 18 mm, equal 24-hour intervals, and
+`figures.md#source-table-1`, Table 1, Monday row. Its public stem preserves
+that context without needing a source file beside the download. The fixed
+model answer and rubric come from the existing reviewed candidate. Exact
+current author wording is preserved in the stem and JSON author metadata.
+Author purpose remains an author note, not scoring authority. Prose trial
+responses never enter exported key material. Structural text in either author
+field is visibly refused. This bounded serializer accepts one plain-text line
+per field and one fixed Monday comparison, not arbitrary table authoring.
+
+F6: Resolved in the synthetic lane. Source, treatment, selection, wording,
+bank-setting, reset, and view changes clear the old export. Each review rebuilds
+its draft from current state. Retrieval and comparison retain independent
+wording and trial responses. Source inspection returns focus and preserves the
+comparison response. No preview response is evaluated or persisted.
+
+EVIDENCE: `node prototypes/learning-treatments/runtime-candidate/verify_table_export.mjs`
+passed actual browser download byte equality against the displayed bank draft,
+canonical CLI lint (one item, zero errors, two intentional warnings for missing
+accepted ID and low confidence), stats (one application `short`), coverage
+(one synthetic comparison objective), and a rich HTML build. Three distinct
+prose responses each returned `score: null`, `defer_feedback`, and
+`pending_manual: 1`. Public items and submission receipts withheld model and
+rubric fields. Browser checks passed exact source return and focus, retained
+separate drafts, stale export clearing, ten visible structural-text refusals,
+390-pixel studio and review overflow checks, and no remote requests or script
+errors. All banks, builds, downloads, sessions, and evidence used a separate
+system temporary root and were removed on exit.
+
+The unchanged placement gate `runtime-candidate/verify_export.mjs` passed all
+15 selections, exact metadata, lint, disclosure and correct/incorrect runtime
+results, hostile-text handling, and actual download equality. The unchanged
+`verify.mjs` passed existing figure and chapter interactions, source anchors,
+no storage or network, and desktop/narrow layouts. Browser tests use the
+README's existing Playwright and Chromium environment overrides.
+
+`python3 scripts/preflight.py --quick` passed every executed gate. Full Python,
+full JavaScript, and clean-tree checks were skipped by quick mode. The focused
+browser gates above ran separately. `git diff --check` passed. No concurrent
+or pre-existing failure appeared in these executed gates. Full integrated
+validation belongs to A4 after the code lanes stop.
+
+REVIEW AND LIMITS: A5 inspected its actual diff and the complete new exporter
+and verifier. Production parser and scorer implementations were not audited.
+The tests call their canonical CLI. The prior EXAM-FIT-REVIEW F1 elimination
+finding remains addressed by separate treatment labels. F2 through F4 retain
+their prior limitations. This is a synthetic compatibility and interaction
+pass, not whole-exam fidelity, learning efficacy, independent review, or human
+accessibility acceptance. Human touch, screen-reader, zoom/reflow, visual,
+real-course, and durable-format acceptance remain deferred with Weibao under
+the existing direction. Arbitrary edits can diverge from the fixed comparison
+rubric, so the whole item still requires human review before accepted use.
+
+RECOVERY: reverse only A5's listed prototype hunks and remove its two new
+files to restore the prior studio. Reload discards temporary studio state.
+Delete separately downloaded drafts independently. No accepted data became
+stale. Do not reset the shared checkout or discard concurrent lane edits.
+
+NEXT ACTION: A1 reviews the returned artifact and exact diff after code lanes
+stop, then alone launches the bounded A4 integration successor. A5 creates no
+overlapping successor.

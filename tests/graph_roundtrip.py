@@ -324,6 +324,12 @@ EXPECTED_PUBLIC_API = [
     # plan that authorizes these two is 15B-02, and `14B-FREEZE.md` carries the
     # dated amendment for the SECTION_ORDER member they write into.
     "add_blueprint", "blueprints",
+    # Reading graph contract: permanent binding identity, immutable occurrence
+    # revisions, and occurrence-keyed display placement.
+    "enroll_binding", "append_binding_revision", "add_reading_occurrence",
+    "append_reading_revision", "update_reading_placement",
+    "validate_reading_occurrence", "validate_reading_placement",
+    "validate_reading_graph",
     # 15B-04: the two paths permitted to settle a migration proposal, closing
     # the acceptance gap 14B deliberately left open and named 15B as owner of.
     # `set_migration_state` stays and still refuses, so the count of ways to

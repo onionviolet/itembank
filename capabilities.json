@@ -516,6 +516,41 @@
     },
     {
       "method": "POST",
+      "path": "/api/course/create-reading",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/course/reading-view",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/course/save-reading-note",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/course/confirm-reading",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/course/declare-reading",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/course/revise-reading",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/course/place-reading",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
       "path": "/api/course/create",
       "token_gated": true
     },
@@ -802,6 +837,11 @@
     {
       "method": "GET",
       "path": "^/help/(?P<code>[a-z0-9_.]{1,64})$",
+      "token_gated": true
+    },
+    {
+      "method": "GET",
+      "path": "^/course/(?P<course_id>[A-Za-z0-9_.-]{1,64})/reading/(?P<occurrence_id>[a-f0-9]{16,64})/(?P<revision_id>[a-f0-9]{16,64})$",
       "token_gated": true
     },
     {

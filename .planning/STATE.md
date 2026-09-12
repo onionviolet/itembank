@@ -4,11 +4,11 @@ milestone: reach
 milestone_name: reach
 current_phase_name: 20-extensible-ui-foundation-and-interaction-clarity-pass
 current_phase: 20
-status: "Phase 20's three named deterministic integration repairs pass. The one captured full preflight passed every Phase 20 row, then failed only on the existing four-subject parity ok / unavailable result and expected dirty-tree clean. Human visual, touch-device, and screen-reader review remains owed and uncertified."
-stopped_at: "Compatibility repair packet completed. The remaining Phase 20 gate is Weibao's human visual, touch-device, screen-reader, 200 percent text, 400 percent zoom, and aesthetic review. Repository-wide green also needs the separately owned four-subject parity backend."
-last_updated: "2026-09-08T00:00:00.000Z"
-last_activity: 2026-09-08
-last_activity_desc: "The configuration-key, 16B compatibility, theme-page baseline, and MCP manifest gaps were repaired. A captured full preflight passed Phase 20 rows but retained the separately owned four-subject parity unavailable failure. Human review remains owed."
+status: "A3 Link 5B original journal and source-companion restore passes twelve focused tests. Private-note transport policy and final integration remain pending."
+stopped_at: "Link 5B is stable at original journal/source restore. Awaiting the explicit private-note backup policy question in the current task. No successor dispatched."
+last_updated: "2026-09-12"
+last_activity: 2026-09-12
+last_activity_desc: "Restored original receipts, source grants and locator companions through staged publication. Reconciled note-promotion baselines and missing reading build inventory."
 progress:
   total_phases: 41
   completed_phases: 40
@@ -17,6 +17,74 @@ progress:
   counting_rule: "phase directories under .planning/phases; a phase counts complete when frozen or when its execution gate is complete, human legs owed being a label rather than an open state after the 2026-09-05 waiver. Open are 19B, 19D, and 19E. 19C's diagnostic gate is complete, with two repairs required before dependent 19D work. A plan is complete only when its required gate passes; a summary file alone does not close it."
 ---
 # Project State
+
+**Active A3 implementation, 2026-09-12:** Link 5B passes twelve reading-package
+tests and affected focused gates. Original course/source receipts, historical
+snapshots, current source rights, locator companions and confirmation replay
+cross a staged offline restore. The three note-promotion baseline assertions
+are reconciled without changing recorded baselines. Both reading modules now
+enter the build inventory. Private notes remain excluded pending a product
+decision: two explicit default-off personal-backup options for current notes
+and separately private recovery history. The existing package contract has no
+such privacy screening. The [Link 5B partial result](research/source-to-reading/durable-reading-contract-2026-09-12.md#link-5b-partial-result-original-journal-and-source-companions-2026-09-12)
+owns exact gates, hashes and remaining limitations. No new browser journey or
+full candidate preflight ran. G8 and A3 remain incomplete. No successor or Git
+mutation. The current task retains ownership pending the policy answer.
+
+**Prior A3 Link 5A gate, retained as history:** Link 5A passes five reading-package
+tests, affected package/reading/journal/resume/protocol checks and quick
+preflight. A clean restored browser retains independent assignment history
+through restart and disables writes when original acceptance provenance is
+missing. Native and adapted probes exposed missing rights, journals, notes and
+locator companions. The [Link 5A result and Link 5B packet](research/source-to-reading/durable-reading-contract-2026-09-12.md#link-5a-result-reading-history-transport-and-degraded-restore-2026-09-12)
+own exact findings and remaining gates. Link 5B owns implementation and STATE
+upon dispatch in this same checkout. G8, restored notes/source-content journey,
+note-promotion assertion reconciliation and full candidate validation remain
+open. Human and real-course acceptance remain deferred. No Git authority.
+
+**Prior A3 Link 4 gate, retained as history:** Link 4 supported reading and private
+source notes pass seven focused tests, affected gates, quick preflight and the
+actual synthetic browser journey. Journaled companion acceptance closes the
+note save gap. Repeated assignments share notes but retain separate completion.
+The [Link 4 result and Link 5 packet](research/source-to-reading/durable-reading-contract-2026-09-12.md#link-4-implementation-result-2026-09-12)
+own hashes, recovery evidence, three reproduced note-promotion baseline
+failures, and the offline restore/final integration gate. The Link 5 successor
+owns this same local checkout upon dispatch. Full candidate validation and G8
+remain open. Human and real-course acceptance remain deferred. Preserve A4's
+parity-unavailable and dirty-tree baseline. No Git or release authority.
+
+
+**Prior A3 Link 3 gate, retained as history:** Link 3 scoreless declarations pass
+14 focused synthetic tests, affected evidence/lesson/protocol/director/journal/
+course/MCP/reading-operation regressions and quick preflight. The
+[Link 3 result and Link 4 packet](research/source-to-reading/durable-reading-contract-2026-09-12.md#link-3-implementation-result-2026-09-12)
+own fingerprints, audit reconciliation and the supported source-anchored
+notes/UI successor. No UI, saved-note, offline restore, human or real-course
+acceptance is claimed. Continue in this same uncommitted checkout.
+
+**Prior A3 Link 2 gate, retained as history:** Link 2 journaled reading operations
+pass their focused checks, existing course/journal/graph/binding/adapter/MCP
+regressions and quick preflight. The
+[Link 2 result and Link 3 packet](research/source-to-reading/durable-reading-contract-2026-09-12.md#link-2-implementation-result-2026-09-12)
+own the reviewed hashes, reconciliation and scoreless declaration gate.
+The accepted identity and D3 contract remains unchanged. No learner declaration,
+Mark read UI, notes, offline restore or human acceptance is claimed. The next
+owner uses this same uncommitted checkout and preserves the A4 baseline and
+other dirty work. No Git, real-course, parity-backend or release authority is added.
+
+**Prior A4 integration baseline, before A3 acceptance:** A4 bounded integration is complete.
+Actual browser practice resume retained canonical state through daemon restart.
+Final full preflight resolves course-ops and file-fault cleanup. Its only named
+Python failure is the known local-model parity `ok / unavailable` result.
+The expected dirty-tree failure is a workflow condition, not a code failure.
+All 123 Python files ran, fast and JS gates passed, and reviewed patch hashes
+remained unchanged. This is not repository-wide green.
+[The final integration report](research/source-to-reading/integrated-study-journey-2026-09-12.md#final-cleanup-candidate-validation-2026-09-12)
+and [current index](research/improvement-priorities-2026-09-12.md#a4-final-cleanup-candidate-reconciliation-2026-09-12)
+preserve all three full runs and remaining owners. The coordinator returns the
+bounded result to Weibao. A3/D3 remains proposed. Reading position resets and
+no notes/reported-read control was available on the exercised route. Human and
+real-course acceptance remain uncertified. No successor or Git mutation.
 
 ## Current position (2026-09-08): Phase 20 deterministic repair complete
 

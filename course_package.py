@@ -28,6 +28,7 @@ This module imports no `urllib`, no `socket`, and no `subprocess`. A restore
 is structurally an offline operation, not merely an offline one by habit.
 """
 import contextlib
+import base64
 import ctypes
 import errno
 import hashlib
@@ -65,7 +66,8 @@ MANIFEST_KEYS = ("schema_version", "package_id", "created",
 # Version 1 readers retain the original required keys. New exports bind the
 # evidence bytes to the manifest with this additive integrity field. Legacy
 # packages without evidence remain readable. Unbound evidence is refused.
-MANIFEST_OPTIONAL_KEYS = ("evidence_fingerprint",)
+MANIFEST_OPTIONAL_KEYS = ("evidence_fingerprint", "reading_transport_fingerprint")
+READING_TRANSPORT_FILENAME = "reading-transport.json"
 
 EVIDENCE_DIRNAME = "evidence"
 EVIDENCE_FILENAME = "evidence_export.jsonl"
@@ -86,7 +88,7 @@ LOSS_ROW_KEYS = ("category", "target", "reason")
 LOSS_CATEGORIES = ("external-link", "rights-restricted", "machine-local",
                    "unreachable-source", "unsupported-kind",
                    "evidence-not-carried", "unregistered-file",
-                   "provenance-not-carried")
+                   "provenance-not-carried", "reading-transport-loss")
 
 # The one operation-specific right that gates payload inclusion (RIGHTS-01).
 # `export` is handing a file to a person; `package` is writing it into a
@@ -366,6 +368,10 @@ def validate_manifest(manifest, expected_package_id=None, restore_dest=None):
             not _FINGERPRINT_RE.fullmatch(manifest["evidence_fingerprint"])):
         raise PackageError("package.invalid_manifest",
                            "the evidence fingerprint must be a sha256 digest")
+    if 'reading_transport_fingerprint' in manifest and (
+            not isinstance(manifest['reading_transport_fingerprint'], str) or
+            not _FINGERPRINT_RE.fullmatch(manifest['reading_transport_fingerprint'])):
+        raise PackageError('package.invalid_manifest', 'Invalid reading transport fingerprint.')
     package_id = validate_package_id(manifest.get("package_id"))
     if expected_package_id is not None and package_id != expected_package_id:
         raise PackageError(
@@ -666,11 +672,22 @@ def package_snapshot(package_root, expected_package_id=None, workspace_root=None
                                "found": _digest(evidence_raw)})
         elif evidence_raw:
             rows = _validated_evidence_events(evidence_raw)
+        transport_raw = None
+        if 'reading_transport_fingerprint' in manifest:
+            try:
+                transport_raw = _read_relative(directory, READING_TRANSPORT_FILENAME)
+            except FileNotFoundError:
+                missing.append({'object_id': 'reading-transport', 'payload': READING_TRANSPORT_FILENAME})
+            if transport_raw is not None and _digest(transport_raw) != manifest['reading_transport_fingerprint']:
+                mismatches.append({'object_id': 'reading-transport',
+                                   'expected': manifest['reading_transport_fingerprint'],
+                                   'found': _digest(transport_raw)})
         report = {"entries_verified": verified, "mismatches": mismatches,
                   "missing": missing,
                   "complete": verified == len(manifest["entries"]) and not missing and not mismatches}
         return {"manifest": manifest, "manifest_raw": manifest_raw,
-                "payloads": payloads, "evidence": rows, "verification": report}
+                "payloads": payloads, "evidence": rows, "verification": report,
+                "reading_transport_raw": transport_raw}
 
 
 def _payload_relpath(entry):
@@ -916,10 +933,17 @@ def evidence_scope(base, course_root):
         if path:
             banks.add(path)
             banks.add(os.path.basename(path))
-    return {"objectives": _course_objective_ids(course_root), "banks": banks}
+    import course as course_module
+    return {"objectives": _course_objective_ids(course_root), "banks": banks,
+            "course_id": course_module.read_course(course_root)["object_id"]}
 
 
 def _event_claimed(event, scope, sessions):
+    # A reading belongs to its permanent course identity, even if the graph
+    # no longer contains its occurrence. Never infer ownership from a shared
+    # objective, source or session. Orphan history still belongs in export.
+    if event.get("event_type") == "reading_declared":
+        return bool(scope.get("course_id")) and event.get("course_id") == scope["course_id"]
     bank = event.get("bank")
     if bank and (bank in scope["banks"]
                  or os.path.basename(bank) in scope["banks"]):
@@ -954,9 +978,14 @@ def evidence_export_lines(course_root, scope):
             if session:
                 sessions.add(session)
 
+    reading_ids = {event["event_id"] for event in events
+                   if event.get("event_type") == "reading_declared"
+                   and _event_claimed(event, scope, sessions=set())}
     out, unclaimed = [], []
     for event in events:
-        if _event_claimed(event, scope, sessions):
+        reading_correction = (event.get("event_type") == "retraction"
+                              and event.get("retracts") in reading_ids)
+        if reading_correction or _event_claimed(event, scope, sessions):
             out.append(json.dumps(event, ensure_ascii=False, sort_keys=True))
         else:
             unclaimed.append(event)
@@ -988,7 +1017,166 @@ def _check_duplicate_relpaths(entries):
                 "package.duplicate_relpath",
                 "two manifest entries claim the same payload path %s; "
                 "refused" % relpath)
-        seen.add(relpath)
+            seen.add(relpath)
+
+
+def _capture_reading_transport(base, course_root, manifest, payloads, evidence_raw):
+    """Capture only the course and packaged reading sources, never private notes."""
+    import course
+    import graph
+    cid = manifest['course_object_id']
+    doc = course.read_course(course_root)['doc']
+    if not doc.get('reading_occurrences') and b'"reading_declared"' not in evidence_raw:
+        return None, []
+    losses = []
+    transport = {'version': 1, 'objects': [], 'entries': [], 'files': {},
+                 'history_state': 'known' if os.path.isfile(evidence.log_path(course_root)) else 'unavailable',
+                 'losses': losses}
+    def loss(target, reason):
+        losses.append(_loss_row('reading-transport-loss', target, reason))
+    try:
+        occurrences = graph.validate_reading_graph(doc)['occurrences']
+        refs = {row['source_ref']['source_object_id'] for row in occurrences}
+        refs.update(event['source_ref']['source_object_id']
+                    for event in _validated_evidence_events(evidence_raw)
+                    if event.get('event_type') == 'reading_declared')
+        ids = {entry['object_id'] for entry in manifest['entries']
+               if entry['object_id'] == cid or entry['object_id'] in refs}
+        ordered = []
+        # Parse strictly so a skipped future or corrupt receipt cannot become
+        # an apparently complete original acceptance chain.
+        with _directory_handle(os.path.realpath(base)) as directory:
+            raw_log = _read_relative(directory, journal.JOURNAL_DIRNAME + '/' + journal.LOG_FILENAME)
+        for line in raw_log.splitlines():
+            if not line.strip():
+                continue
+            entry = json.loads(line)
+            checkpoint = (entry.get('agent') or {}).get('checkpoint') or {}
+            if entry.get('object_id') in ids or (
+                    entry.get('object_id') is None and
+                    checkpoint.get('reading_confirmation_version') and
+                    (checkpoint.get('event') or {}).get('course_id') == cid):
+                ordered.append(entry)
+        journal.validate_transport(ordered, ids, cid)
+        files = {}
+        for entry in ordered:
+            if entry['object_id'] is None:
+                evidence._validate_reading_event(entry['agent']['checkpoint']['event'])
+                continue
+            for descriptor in (entry.get('undo') or {}).get('files', []):
+                image = descriptor.get('before_image')
+                if image:
+                    relative = journal.JOURNAL_DIRNAME + '/' + image
+                    with _directory_handle(os.path.realpath(base)) as directory:
+                        files[relative] = _read_relative(directory, relative)
+            image = entry.get('before_image')
+            if image:
+                relative = journal.JOURNAL_DIRNAME + '/' + image
+                with _directory_handle(os.path.realpath(base)) as directory:
+                    files[relative] = _read_relative(directory, relative)
+        # Only current accepted locator companions are payloads. Older
+        # companions travel solely as the journal's recovery before-images.
+        latest = {}
+        for entry in ordered:
+            if entry['state'] == 'applied':
+                for descriptor in (entry.get('undo') or {}).get('files', []):
+                    if descriptor['path'] != entry['path']:
+                        latest[descriptor['path']] = descriptor
+        for relative, descriptor in latest.items():
+            if descriptor.get('after_digest') is None:
+                continue
+            try:
+                with _directory_handle(os.path.realpath(base)) as directory:
+                    files[relative] = _read_relative(directory, relative)
+            except FileNotFoundError:
+                loss(relative, 'Accepted locator companion is missing.')
+        transport.update(objects=sorted(ids), entries=ordered,
+                         files={path: base64.b64encode(raw).decode('ascii') for path, raw in sorted(files.items())})
+        _validate_reading_transport(transport, manifest, payloads)
+        intents = {(e.get('agent') or {}).get('operation_id') for e in ordered}
+        current = {(r['occurrence_id'], r['revision_id']) for r in occurrences}
+        for event in _validated_evidence_events(evidence_raw):
+            if event.get('event_type') != 'reading_declared':
+                continue
+            if event['intent_id'] not in intents:
+                loss(event['event_id'], 'Confirmation receipt is missing. Make a fresh confirmation for new work.')
+            if (event['occurrence_id'], event['occurrence_revision_id']) not in current:
+                loss(event['event_id'], 'Orphan reading history is preserved outside the current graph projection.')
+    except (OSError, ValueError, KeyError, TypeError, journal.JournalError, graph.GraphError, PackageError):
+        transport.update(objects=[], entries=[], files={})
+        loss(cid, 'Original reading acceptance closure is missing, unsupported or conflicting. Restore remains read-only.')
+    if transport['history_state'] == 'unavailable':
+        loss('reading-history', 'Reading history is unavailable, not known empty.')
+    return json.dumps(transport, sort_keys=True).encode('utf-8'), losses
+
+
+def _validate_reading_transport(transport, manifest, payloads):
+    """Validate original heads, recovery digests and the closed companion scope."""
+    if (not isinstance(transport, dict) or set(transport) !=
+            {'version', 'objects', 'entries', 'files', 'history_state', 'losses'} or
+            transport['version'] != 1 or transport['history_state'] not in ('known', 'unavailable')):
+        raise PackageError('package.invalid_transport', 'Unsupported reading transport.')
+    selected = set(transport['objects'])
+    entries = {e['object_id']: e for e in manifest['entries']}
+    if not selected <= set(entries) or (selected and manifest['course_object_id'] not in selected):
+        raise PackageError('package.invalid_transport', 'Reading transport escapes package objects.')
+    heads = journal.validate_transport(transport['entries'], selected, manifest['course_object_id'])
+    files = {path: base64.b64decode(raw, validate=True) for path, raw in transport['files'].items()}
+    allowed, companions = set(), {}
+    for entry in transport['entries']:
+        if entry['object_id'] is None:
+            evidence._validate_reading_event(entry['agent']['checkpoint']['event'])
+            continue
+        path = entry['path']
+        if not _valid_relpath(path) or path.split('/')[0].startswith('_') and path != entries[entry['object_id']]['relpath']:
+            raise PackageError('package.invalid_transport', 'Unsafe original object path.')
+        if entry['kind'] != entries[entry['object_id']]['kind']:
+            raise PackageError('package.invalid_transport', 'Original object kind differs.')
+        descriptors = (entry.get('undo') or {}).get('files', [])
+        for descriptor in descriptors:
+            relative = descriptor['path']
+            import source_adapters
+            if relative != path and (entry['kind'] != 'source' or
+                                     relative != source_adapters.sidecar_path_for(path)):
+                raise PackageError('package.invalid_transport', 'Unrelated companion refused.')
+            image = descriptor.get('before_image')
+            if image:
+                target = journal.JOURNAL_DIRNAME + '/' + image
+                expected = descriptor['before_digest']
+                if image != journal.BEFORE_DIRNAME + '/' + expected + '.bin' or journal._raw_digest(files.get(target)) != expected:
+                    raise PackageError('package.invalid_transport', 'Recovery companion digest differs.')
+                allowed.add(target)
+            elif descriptor.get('before_digest') is not None:
+                raise PackageError('package.invalid_transport', 'Recovery before-image is absent.')
+            if relative != path and entry['state'] == 'applied':
+                companions[relative] = descriptor['after_digest']
+        image = entry.get('before_image')
+        if image:
+            target = journal.JOURNAL_DIRNAME + '/' + image
+            raw = files.get(target)
+            if raw is None or image != journal.BEFORE_DIRNAME + '/' + journal._raw_digest(raw) + '.bin' or identity.object_fingerprint(raw, entry['kind']) != entry['before_fingerprint']:
+                raise PackageError('package.invalid_transport', 'Original snapshot fingerprint differs.')
+            allowed.add(target)
+    for relative, digest in companions.items():
+        allowed.add(relative)
+        if relative in files and journal._raw_digest(files[relative]) != digest:
+            raise PackageError('package.invalid_transport', 'Accepted locator companion differs.')
+    if set(files) - allowed:
+        raise PackageError('package.invalid_transport', 'Unreferenced recovery bytes refused.')
+    for oid, head in heads.items():
+        entry = entries[oid]
+        if entry['kind'] == 'source' and not identity.rights_granted(head.get('rights'), PACKAGE_RIGHT):
+            raise PackageError('package.invalid_transport', 'Original source package right is not granted.')
+        if any(head[key] != entry[other] for key, other in
+               (('path', 'relpath'), ('after_fingerprint', 'fingerprint'), ('revision', 'revision'))):
+            raise PackageError('package.invalid_transport', 'Original head differs from package.')
+        # Historical snapshots must reconstruct every accepted revision.
+        candidates = [payloads[oid]] + [raw for path, raw in files.items() if path.startswith(journal.JOURNAL_DIRNAME + '/')]
+        for receipt in transport['entries']:
+            if receipt['object_id'] == oid and receipt['state'] == 'applied' and receipt['after_fingerprint'] is not None:
+                if not any(identity.object_fingerprint(raw, entry['kind']) == receipt['after_fingerprint'] for raw in candidates):
+                    raise PackageError('package.invalid_transport', 'Accepted historical snapshot is missing.')
+    return files
 
 
 @contextlib.contextmanager
@@ -1013,7 +1201,8 @@ def capture_export(base, course_root, expected_fingerprint=None, manifest=None):
         raise PackageError("package.stale_course", "the course changed before export capture")
     if manifest is not None:
         validate_manifest(manifest)
-        for key in ("entries", "loss_report", "course_object_id"):
+        keys = ('entries', 'course_object_id') if 'reading_transport_fingerprint' in manifest else ('entries', 'loss_report', 'course_object_id')
+        for key in keys:
             if manifest[key] != current[key]:
                 raise PackageError("package.stale_course", "the export inputs changed since planning")
         current["package_id"] = manifest["package_id"]
@@ -1034,14 +1223,30 @@ def capture_export(base, course_root, expected_fingerprint=None, manifest=None):
     raw = (("\n".join(lines) + "\n") if lines else "").encode("utf-8")
     _validated_evidence_events(raw)
     current["evidence_fingerprint"] = _digest(raw)
-    return {"manifest": current, "payloads": payloads, "evidence_raw": raw}
+    transport, transport_losses = _capture_reading_transport(base, course_root, current, payloads, raw)
+    if transport is not None:
+        current['reading_transport_fingerprint'] = _digest(transport)
+        closure = json.loads(transport)
+        if closure['objects']:
+            current['loss_report'] = [r for r in current['loss_report']
+                                     if r['category'] != 'provenance-not-carried' and
+                                     not (r['category'] == 'unregistered-file' and r['target'] in closure['files'])]
+            current['loss_report'].append(_loss_row('provenance-not-carried', journal.LOG_FILENAME,
+                'Only original course and packaged reading-source receipts travel. Unrelated journal history stays local.'))
+        current['loss_report'].extend(transport_losses)
+        current['loss_report'].sort(key=lambda r: (r['category'], r['target']))
+        if manifest is not None and 'reading_transport_fingerprint' in manifest and current['loss_report'] != manifest['loss_report']:
+            raise PackageError('package.stale_course', 'Reading transport losses changed during export.')
+    return {"manifest": current, "payloads": payloads, "evidence_raw": raw,
+            "reading_transport_raw": transport, "reading_transport_losses": transport_losses}
 
 
 def recheck_export(base, course_root, snapshot):
     """Refuse changes to any inclusion, rights, evidence or loss input."""
     current = capture_export(base, course_root, manifest=snapshot["manifest"])
     if current["payloads"] != snapshot["payloads"] or \
-            current["evidence_raw"] != snapshot["evidence_raw"]:
+            current["evidence_raw"] != snapshot["evidence_raw"] or \
+            current.get('reading_transport_raw') != snapshot.get('reading_transport_raw'):
         raise PackageError("package.stale_course", "the export snapshot changed before publication")
 
 
@@ -1092,6 +1297,9 @@ def _export_package(base, course_root, dest, archive, snapshot):
     _write_bytes_atomic(
         os.path.join(dest, EVIDENCE_DIRNAME, EVIDENCE_FILENAME),
         snapshot["evidence_raw"])
+    if snapshot.get('reading_transport_raw') is not None:
+        _write_bytes_atomic(os.path.join(dest, READING_TRANSPORT_FILENAME),
+                            snapshot['reading_transport_raw'])
 
     _write_bytes_atomic(os.path.join(dest, LOSS_REPORT_FILENAME),
                         loss_report_text(manifest).encode("utf-8"))
@@ -1113,6 +1321,11 @@ def _export_package(base, course_root, dest, archive, snapshot):
     if _digest(written_evidence) != manifest["evidence_fingerprint"]:
         raise PackageError("package.fingerprint_mismatch",
                            "the written evidence differs from the export snapshot")
+    if snapshot.get('reading_transport_raw') is not None:
+        with _directory_handle(os.path.realpath(dest)) as directory:
+            written = _read_relative(directory, READING_TRANSPORT_FILENAME)
+        if _digest(written) != manifest['reading_transport_fingerprint']:
+            raise PackageError('package.fingerprint_mismatch', 'Reading transport changed during export.')
 
     recheck_export(base, course_root, snapshot)
     manifest["state"] = "applied"
@@ -1211,6 +1424,24 @@ def restore_package(package_root, dest, actor_kind, actor_name, _snapshot=None):
             "%s, found %s"
             % (bad["object_id"], bad["expected"], bad["found"]))
 
+    if snapshot.get('reading_transport_raw') is not None:
+        return _restore_reading_transport(snapshot, dest, actor_kind, actor_name)
+
+    # Exercise the same evidence writer against a private disposable copy
+    # before any destination object is accepted. Invalid correction epochs or
+    # divergent immutable event IDs must not leave a partially restored course.
+    if any(event.get("event_type") == "reading_declared"
+           for event in snapshot["evidence"]):
+        with tempfile.TemporaryDirectory(prefix="itembank-restore-evidence-") as stage:
+            log = evidence.log_path(dest)
+            if os.path.exists(log):
+                with _directory_handle(dest) as directory:
+                    raw = _read_relative(directory, os.path.relpath(log, dest))
+                os.makedirs(os.path.dirname(evidence.log_path(stage)), exist_ok=True)
+                _write_bytes_atomic(evidence.log_path(stage), raw)
+            _restore_evidence(snapshot["evidence"], stage,
+                              manifest["course_object_id"])
+
     destination_registry = journal.read_registry(dest)
     verified, restore_losses = 0, []
     for entry in entries:
@@ -1239,7 +1470,8 @@ def restore_package(package_root, dest, actor_kind, actor_name, _snapshot=None):
             actor_name=actor_name, create_if_missing=True)
         verified += 1
 
-    recorded, already = _restore_evidence(snapshot["evidence"], dest)
+    recorded, already = _restore_evidence(snapshot["evidence"], dest,
+                                         manifest["course_object_id"])
 
     return {
         "entries_verified": verified,
@@ -1253,23 +1485,157 @@ def restore_package(package_root, dest, actor_kind, actor_name, _snapshot=None):
     }
 
 
-def _restore_evidence(events, dest):
+def _restore_reading_transport(snapshot, dest, actor_kind, actor_name):
+    """Build a complete private root, then publish it without replacement.
+
+    Existing roots are read-only comparisons. Divergence never starts a merge
+    or writes a refusal into the destination's own journal.
+    """
+    manifest = snapshot['manifest']
+    try:
+        transport = json.loads(snapshot['reading_transport_raw'])
+        files = _validate_reading_transport(transport, manifest, snapshot['payloads'])
+    except (ValueError, KeyError, TypeError, journal.JournalError) as err:
+        raise PackageError('package.invalid_transport', 'Original reading transport did not validate.') from err
+    dest = os.path.abspath(dest)
+    parent = os.path.realpath(os.path.dirname(dest))
+    dest = os.path.join(parent, os.path.basename(dest))
+    if os.path.lexists(dest) and (os.path.islink(dest) or not os.path.isdir(dest)):
+        raise PackageError('package.destination_exists', 'Restore destination is not a plain directory.')
+    # Validate replay against the live destination before constructing any
+    # publishable state. This is read-only and supplies precise event errors.
+    if os.path.exists(evidence.log_path(dest)):
+        with tempfile.TemporaryDirectory(prefix='.reading-replay-', dir=parent) as probe:
+            with _directory_handle(dest) as directory:
+                raw = _read_relative(directory, os.path.relpath(evidence.log_path(dest), dest))
+            os.makedirs(os.path.dirname(evidence.log_path(probe)))
+            _write_bytes_atomic(evidence.log_path(probe), raw)
+            _restore_evidence(snapshot['evidence'], probe, manifest['course_object_id'])
+    with tempfile.TemporaryDirectory(prefix='.reading-restore-', dir=parent) as container:
+        stage = os.path.join(container, 'course')
+        os.mkdir(stage, 0o700)
+        for entry in manifest['entries']:
+            path = safe_target(stage, entry['relpath'])
+            journal._write_bytes_atomic(path, snapshot['payloads'][entry['object_id']])
+        for relative, raw in files.items():
+            journal._write_bytes_atomic(safe_target(stage, relative), raw)
+        if transport['objects']:
+            journal.restore_transport(stage, transport['entries'], set(transport['objects']), manifest['course_object_id'])
+        for entry in manifest['entries']:
+            if entry['object_id'] in transport['objects']:
+                continue
+            # A scoped closure can coexist with ordinary non-reading payloads.
+            journal.commit_operation(stage, entry['object_id'], entry['kind'], entry['relpath'],
+                'restore', None, entry['fingerprint'], actor_kind, actor_name, write_target=False)
+        recorded, already = _restore_evidence(snapshot['evidence'], stage, manifest['course_object_id'])
+        if transport['history_state'] == 'known' and not os.path.exists(evidence.log_path(stage)):
+            journal._write_bytes_atomic(evidence.log_path(stage), b'')
+        if transport['history_state'] == 'unavailable' and snapshot['evidence']:
+            raise PackageError('package.invalid_transport', 'Unavailable history cannot carry claimed events.')
+        import course
+        accepted = False
+        try:
+            course.accepted_reading_graph(stage, course.read_course(stage)['fingerprint'])
+            accepted = True
+        except (course.CourseError, ValueError):
+            pass
+        # Sync staged contents and directories before the atomic publication.
+        staged_files = {}
+        for directory, _dirs, names in os.walk(stage, topdown=False):
+            for name in names:
+                path = os.path.join(directory, name)
+                with open(path, 'rb') as stream:
+                    staged_files[os.path.relpath(path, stage)] = stream.read()
+                    os.fsync(stream.fileno())
+            evidence._sync_evidence_directory(os.path.join(directory, 'sentinel'))
+        if os.path.isdir(dest) and os.listdir(dest):
+            selected = set(transport['objects'])
+            actual_receipts = [entry for entry in journal.entries(dest)
+                               if entry.get('object_id') in selected or
+                               (entry.get('object_id') is None and
+                                ((entry.get('agent') or {}).get('checkpoint') or {}).get('reading_confirmation_version'))]
+            if actual_receipts != transport['entries']:
+                raise PackageError('package.object_conflict', 'Destination acceptance history differs.')
+            registry = journal._compute_registry(dest)
+            for entry in manifest['entries']:
+                head = registry.get(entry['object_id']) or {}
+                if any(head.get(key) != entry[other] for key, other in
+                       (('path', 'relpath'), ('fingerprint', 'fingerprint'), ('kind', 'kind'))):
+                    raise PackageError('package.object_conflict', 'Destination object identity differs.')
+            with _directory_handle(dest) as directory:
+                for relative, raw in staged_files.items():
+                    # The lock has no canonical bytes and registry is a projection.
+                    if relative in (os.path.relpath(journal.registry_path(stage), stage),
+                                    os.path.relpath(journal.log_path(stage), stage),
+                                    os.path.join(journal.JOURNAL_DIRNAME, journal.LOCK_FILENAME)):
+                        continue
+                    try:
+                        current = _read_relative(directory, relative)
+                    except FileNotFoundError:
+                        current = None
+                    if current != raw:
+                        raise PackageError('package.object_conflict', 'Destination closure differs. Nothing was overwritten.')
+            already, recorded = len(snapshot['evidence']), 0
+        else:
+            if os.path.isdir(dest):
+                # rmdir refuses a raced nonempty directory. Publication also
+                # refuses a destination that appears after this empty removal.
+                os.rmdir(dest)
+            try:
+                publish_directory(parent, stage, dest)
+                evidence._sync_evidence_directory(dest)
+            except Exception:
+                if not os.path.lexists(dest):
+                    os.mkdir(dest)
+                raise
+    return {'entries_verified': len(manifest['entries']),
+            'entries_in_manifest': len(manifest['entries']), 'complete': True,
+            'reading_acceptance': 'accepted' if accepted else 'unknown',
+            'course_object_id': manifest['course_object_id'],
+            'losses': list(manifest['loss_report']), 'restore_losses': [],
+            'evidence_recorded': recorded, 'evidence_already_recorded': already}
+
+
+def _restore_evidence(events, dest, course_id=None):
     """Append every exported event into the destination's own evidence log
     through `evidence.append_event`, the one evidence writer.
 
-    No second evidence store is created here and none may ever be. The one
-    writer already answers `recorded` versus `already_recorded`, so counting
-    its answers makes a second restore of the same package idempotent for
-    free rather than by a dedupe rule invented in this module.
+    Exact immutable identities are replayed without another append, including
+    retractions whose normal writer intentionally has no logical dedupe key.
+    New rows still pass through the evidence writer and its correction checks.
     """
     log = evidence.log_path(dest)
     recorded, already = 0, 0
+    existing = {event["event_id"]: event for event in evidence._reading_history(log)}
     for event in events:
-        answer = evidence.append_event(log, event)
+        if event.get("event_type") == "reading_declared" and (
+                not course_id or event.get("course_id") != course_id):
+            raise PackageError("package.reading_course_conflict",
+                               "the reading history belongs to another course")
+        prior = existing.get(event["event_id"])
+        if prior is not None:
+            if prior != event:
+                raise PackageError("package.evidence_identity_conflict",
+                                   "an immutable evidence identity has different content")
+            already += 1
+            continue
+        def authorize_history():
+            # The caller verified the manifest-bound payload and event schema.
+            # This authorizes transport of an existing declaration, never a
+            # fresh learner confirmation or source access in this destination.
+            evidence._validate_reading_event(event)
+            if not course_id or event.get("course_id") != course_id:
+                raise PackageError("package.reading_course_conflict",
+                                   "the reading history belongs to another course")
+        answer = evidence.append_event(
+            log, event, precommit=authorize_history
+            if event.get("event_type") == "reading_declared" else None)
         if answer.get("status") == "recorded":
             recorded += 1
+            existing[event["event_id"]] = event
         else:
-            already += 1
+            raise PackageError("package.evidence_identity_conflict",
+                               "a logical evidence record has a different immutable identity")
     return recorded, already
 
 

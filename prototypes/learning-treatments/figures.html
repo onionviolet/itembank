@@ -6,6 +6,7 @@
   <title>Visual activity studio · Itembank</title>
   <link rel="stylesheet" href="figures.css">
   <script src="placement-export.js" defer></script>
+  <script src="table-export.js" defer></script>
   <script src="figures.js" defer></script>
 </head>
 <body>
@@ -18,11 +19,12 @@
       <p class="eyebrow">01 / Choose material</p>
       <div class="source-options"><button data-source="figure" aria-pressed="true"><strong>Water cycle</strong><small>Figure 2 · four process labels</small></button><button data-source="table" aria-pressed="false"><strong>Rainfall observations</strong><small>Table 1 · equal collection intervals</small></button></div>
       <fieldset id="format-options"><legend>02 / Response format</legend><label><input type="radio" name="format" value="placement" checked> Drag labels onto the figure</label><label><input type="radio" name="format" value="blank"> Type the missing labels</label></fieldset>
+      <fieldset id="table-treatment" hidden><legend>02 / Table treatment</legend><label><input type="radio" name="table-format" value="blank" checked> Retrieve selected values</label><label><input type="radio" name="table-format" value="comparison"> Explain Monday comparison</label></fieldset>
       <fieldset id="bank-options"><legend>Answer support</legend><label><input type="checkbox" id="show-bank" checked aria-describedby="bank-help"> Show an answer bank</label><p id="bank-help" class="drop-help"></p></fieldset>
       <label class="field" for="instruction">Activity instruction<textarea id="instruction" rows="4"></textarea></label>
       <label class="field" for="purpose">Purpose <span class="muted">(author note)</span><textarea id="purpose" rows="3"></textarea></label>
       <p class="tip">Start with a small selection. Keep enough context visible to support the task.</p>
-      <details class="limits"><summary>About this prototype</summary><p>Original synthetic sources and an ungraded preview. Diagram placement can be downloaded as a separate bank draft with a proposed source key. No course or learner record is saved.</p><a href="figures.md" target="_blank" rel="noopener">Open raw Markdown in a new tab</a></details>
+      <details class="limits"><summary>About this prototype</summary><p>Original synthetic sources and an ungraded preview. Diagram placement and the Monday comparison can be downloaded as separate bank drafts pending review. No course or learner record is saved.</p><a href="figures.md" target="_blank" rel="noopener">Open raw Markdown in a new tab</a></details>
       <button id="reset" class="text-button">Reset this studio</button>
     </aside>
     <section class="desk" id="workspace" tabindex="-1" aria-labelledby="activity-title">
@@ -44,7 +46,7 @@
   <p id="export-bank-error" role="alert" hidden></p>
   <section id="export-bank-panel" aria-labelledby="export-bank-title" hidden>
     <h3 id="export-bank-title">Bank draft for author review</h3>
-    <p>Includes a proposed answer key from the synthetic source. Trial answers are not used. This draft has not been validated or accepted by the runtime.</p>
+    <p>Includes a proposed source key or human-review rubric. Trial answers are not used. This draft has not been validated or accepted by the runtime.</p>
     <p id="export-bank-summary"></p>
     <pre id="export-bank-text" tabindex="0"></pre>
     <button id="export-bank-download" class="primary" disabled>Download bank draft</button>

@@ -188,6 +188,31 @@ adaptive disclosure, and other learning controls, without making the source
 file depend on those enhancements for its meaning. A richer capability must
 have a useful non-interactive representation and an accessible interaction.
 
+### Durable reading activities, accepted 2026-09-12
+
+A reading occurrence is one deliberate use of an accepted source range in a
+course. It has stable identity and immutable accepted revisions. Two
+occurrences may share the same source and binding without sharing completion.
+Each revision names its course, objectives, permanent binding revision,
+accepted source fingerprint, exact locator and assignment context. Opening a
+source and reading time imply no completion. Only an explicit learner
+declaration recorded by the existing evidence writer marks that occurrence
+revision as reported read. Reading declarations and learner notes never become
+response scores or mastery. Availability, staleness, acceptance and learner
+declarations remain separate states. Legacy courses gain no inferred activity
+or history. Accepted revisions and learner records survive restart and preserve
+reviewable conflicts and explicit export or restore losses.
+
+Title and Now/Library placement are separate metadata keyed by occurrence.
+Renaming or moving an unchanged task retains its occurrence revision and
+declaration. Changing the source range or task demand requires a new immutable
+revision and never transfers a prior declaration automatically.
+
+The [durable reading contract](research/source-to-reading/durable-reading-contract-2026-09-12.md)
+owns the accepted format, staged implementation and evidence. Implementation
+acceptance remains separate from product-direction acceptance. Exact cursor
+resume, multiple spans and occurrence-private notes remain deferred.
+
 ### Learning experience and capability research
 
 Do not design the course journey by accumulating attractive widgets. Research

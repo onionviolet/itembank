@@ -58,7 +58,8 @@ KNOWN_EVENT_TYPES = ("response", "retraction", "mark", "day_tick",
                      "term_lookup", "key_review", "hint", "selection",
                      "lesson_complete", "cap_override",
                      "model_interaction", "mark_proposal", "visual_action",
-                     "gate_skip", "activity_completed", "activity_skipped")
+                     "gate_skip", "activity_completed", "activity_skipped",
+                     "reading_declared")
 
 # The record of what a sitting asked for (D-03): one event per session, so a
 # deleted session file never destroys the ability to reproduce the sitting.
@@ -272,6 +273,72 @@ def recent_dedupe_keys(path, window=DEDUPE_WINDOW_BYTES):
         os.close(fd)
 
 
+def _sync_evidence_directory(path):
+    """Persist a new directory entry on platforms with directory fsync."""
+    if os.name == "nt":
+        return
+    fd = os.open(os.path.dirname(os.path.abspath(path)), os.O_RDONLY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
+def _durable_evidence_line(fd, path, raw):
+    """Under the append lock, either persist the complete line or roll back."""
+    start = os.lseek(fd, 0, os.SEEK_END)
+    try:
+        offset = 0
+        while offset < len(raw):
+            count = os.write(fd, raw[offset:])
+            if count <= 0:
+                raise OSError("evidence write made no progress")
+            offset += count
+        os.fsync(fd)
+        _sync_evidence_directory(path)
+        _sync_evidence_directory(os.path.dirname(path))
+    except BaseException:
+        os.ftruncate(fd, start)
+        os.fsync(fd)
+        raise
+
+
+def _repair_evidence_tail(fd, path):
+    """Quarantine an unterminated trailing record before another append.
+
+    The newline is the record boundary even when the partial bytes parse.
+    The original prefix stays untouched. A failed quarantine never truncates.
+    """
+    end = os.lseek(fd, 0, os.SEEK_END)
+    if not end:
+        return
+    os.lseek(fd, end - 1, os.SEEK_SET)
+    if os.read(fd, 1) == b"\n":
+        return
+    start = end
+    chunks = []
+    while start:
+        size = min(start, 65536)
+        start -= size
+        os.lseek(fd, start, os.SEEK_SET)
+        chunk = os.read(fd, size)
+        split = chunk.rfind(b"\n")
+        if split >= 0:
+            chunks.append(chunk[split + 1:])
+            start += split + 1
+            break
+        chunks.append(chunk)
+    tail = b"".join(reversed(chunks))
+    quarantine = path + ".torn-" + new_event_id()
+    with open(quarantine, "xb") as fh:
+        fh.write(tail)
+        fh.flush()
+        os.fsync(fh.fileno())
+    _sync_evidence_directory(quarantine)
+    os.ftruncate(fd, start)
+    os.fsync(fd)
+
+
 def append_line_checked(path, line, dedupe_key):
     """Append `line` unless a live response event already carries
     `dedupe_key` within the last `DEDUPE_WINDOW_BYTES` of the log.
@@ -293,13 +360,13 @@ def append_line_checked(path, line, dedupe_key):
     fd = os.open(path, os.O_RDWR | os.O_CREAT, 0o644)
     try:
         with locked(fd):
+            _repair_evidence_tail(fd, path)
             if dedupe_key is not None:
                 existing = _tail_dedupe_keys(fd, DEDUPE_WINDOW_BYTES)
                 event_id = existing.get(dedupe_key)
                 if event_id is not None:
                     return False, event_id
-            os.lseek(fd, 0, os.SEEK_END)
-            os.write(fd, line.encode("utf-8") + b"\n")
+            _durable_evidence_line(fd, path, line.encode("utf-8") + b"\n")
             return True, None
     finally:
         os.close(fd)
@@ -744,7 +811,7 @@ def visual_actions(log, session_id, item_id=None):
                                   "id": ev.get("item_ref", "")}) == item_id)]
 
 
-def append_event(log, event):
+def append_event(log, event, precommit=None):
     """The ONE evidence writer, and the one place that decides `recorded`
     versus `already_recorded`.
 
@@ -756,12 +823,165 @@ def append_event(log, event):
     double-record" but "and the tool says which happened," and a caller
     that collapses the two loses that.
     """
+    if event.get("event_type") == "reading_declared":
+        return _append_reading(log, event, precommit)
+    if precommit is not None:
+        raise ValueError("precommit is supported only for reading declarations")
     written, existing_id = append_line_checked(
         log, json.dumps(event, ensure_ascii=False, sort_keys=True),
         event.get("dedupe_key"))
     if written:
         return {"accepted": True, "status": "recorded", "event_id": event["event_id"]}
     return {"accepted": False, "status": "already_recorded", "event_id": existing_id}
+
+
+READING_FIELDS = ("course_id", "occurrence_id", "occurrence_revision_id",
+                  "objective_ids", "binding_ref", "source_ref", "declaration")
+
+
+def reading_canonical(value):
+    return json.dumps(value, ensure_ascii=False, sort_keys=True,
+                      separators=(",", ":"))
+
+
+def reading_dedupe_key(course_id, occurrence_id, revision_id):
+    raw = reading_canonical(["reading_declared", course_id, occurrence_id,
+                             revision_id, "read"])
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def _validate_reading_event(event):
+    import resources
+    import schema_validate
+    schema = json.loads(resources.read_text("schemas/response.schema.json"))
+    errors = schema_validate.validate(event, schema)
+    if errors:
+        raise ValueError("invalid reading declaration: %s" % errors)
+    key = reading_dedupe_key(event["course_id"], event["occurrence_id"],
+                             event["occurrence_revision_id"])
+    if event["dedupe_key"] != key:
+        raise ValueError("reading declaration dedupe integrity conflict")
+
+
+def reading_declared_event(course_id, occurrence, intent_id, base_retraction_id):
+    """Build scoreless evidence from a server-resolved accepted revision."""
+    event = {"schema_version": EVENT_SCHEMA_VERSION, "event_type": "reading_declared",
+             "event_id": new_event_id(), "ts": utc_now(), "session_id": new_event_id(),
+             "intent_id": intent_id, "base_retraction_id": base_retraction_id,
+             "actor": "learner", "course_id": course_id,
+             "occurrence_id": occurrence["occurrence_id"],
+             "occurrence_revision_id": occurrence["revision_id"], "declaration": "read"}
+    for field in ("objective_ids", "binding_ref", "source_ref"):
+        event[field] = json.loads(reading_canonical(occurrence[field]))
+    event["dedupe_key"] = reading_dedupe_key(course_id, occurrence["occurrence_id"],
+                                             occurrence["revision_id"])
+    _validate_reading_event(event)
+    return event
+
+
+def _reading_history(log):
+    """Strict compatibility guard. Never turn unreadable history into empty."""
+    rows = []
+    if not os.path.exists(log):
+        return rows
+    with open(log, encoding="utf-8") as fh:
+        for line in fh:
+            if not line.endswith("\n"):
+                raise ValueError("reading history has an incomplete trailing record")
+            event = json.loads(line)
+            if (not isinstance(event, dict) or
+                    event.get("event_type") not in KNOWN_EVENT_TYPES or
+                    type(event.get("schema_version")) is not int or
+                    event["schema_version"] > EVENT_SCHEMA_VERSION):
+                raise ValueError("unsupported evidence history")
+            if event["event_type"] == "reading_declared":
+                _validate_reading_event(event)
+            rows.append(event)
+    ids, intents, logical = {}, {}, {}
+    for event in rows:
+        event_id = event.get("event_id")
+        if event_id in ids:
+            raise ValueError("duplicate immutable evidence event identity")
+        ids[event_id] = event
+        if event.get("event_type") == "reading_declared":
+            intent = event["intent_id"]
+            if intent in intents:
+                raise ValueError("duplicate immutable reading intent")
+            intents[intent] = event_id
+            key = event["dedupe_key"]
+            payload = reading_canonical({k: event[k] for k in READING_FIELDS})
+            if key in logical and logical[key] != payload:
+                raise ValueError("reading history logical key integrity conflict")
+            logical[key] = payload
+    return rows
+
+
+def reading_retraction_epoch(rows, key):
+    targets = {e["event_id"] for e in rows
+               if e.get("event_type") == "reading_declared" and e.get("dedupe_key") == key}
+    corrections = [e["event_id"] for e in rows
+                   if e.get("event_type") == "retraction" and e.get("retracts") in targets]
+    return corrections[-1] if corrections else None
+
+
+def _append_reading(log, event, precommit):
+    _validate_reading_event(event)
+    os.makedirs(os.path.dirname(log), exist_ok=True)
+    fd = os.open(log, os.O_RDWR | os.O_CREAT, 0o644)
+    try:
+        with locked(fd):
+            _repair_evidence_tail(fd, log)
+            rows = _reading_history(log)
+            # A previous process may have died after a complete write but
+            # before fsync. A replay must make that receipt durable too.
+            os.fsync(fd)
+            _sync_evidence_directory(log)
+            _sync_evidence_directory(os.path.dirname(log))
+            retracted = {e.get("retracts") for e in rows if e.get("event_type") == "retraction"}
+            for prior in rows:
+                if (prior.get("event_type") == "reading_declared" and
+                        prior["dedupe_key"] == event["dedupe_key"] and
+                        any(reading_canonical(prior[k]) != reading_canonical(event[k])
+                            for k in READING_FIELDS)):
+                    raise ValueError("reading logical key integrity conflict")
+                if prior.get("event_id") == event["event_id"] and prior != event:
+                    raise ValueError("immutable evidence event identity conflict")
+                if (prior.get("event_type") == "reading_declared" and
+                        prior["intent_id"] == event["intent_id"]):
+                    if reading_canonical(prior) != reading_canonical(event):
+                        raise ValueError("reading intent integrity conflict")
+                    return {"accepted": False, "status": "already_recorded",
+                            "event_id": prior["event_id"], "event": prior,
+                            "retracted": prior["event_id"] in retracted}
+            if event["base_retraction_id"] != reading_retraction_epoch(rows, event["dedupe_key"]):
+                raise ValueError("reading confirmation is stale after retraction")
+            live = [e for e in rows if e.get("event_type") == "reading_declared"
+                    and e.get("dedupe_key") == event["dedupe_key"] and e["event_id"] not in retracted]
+            if live:
+                return {"accepted": False, "status": "already_recorded",
+                        "event_id": live[0]["event_id"], "event": live[0], "retracted": False}
+            if precommit is None:
+                raise ValueError("first reading write requires an authorized validator")
+            precommit()
+            _durable_evidence_line(fd, log, (reading_canonical(event) + "\n").encode("utf-8"))
+            return {"accepted": True, "status": "recorded", "event_id": event["event_id"],
+                    "event": event, "retracted": False}
+    finally:
+        os.close(fd)
+
+
+def reading_state(log, course_id, occurrence_id, revision_id):
+    """Project only live declarations. Missing or unsupported history is explicit."""
+    if not os.path.exists(log):
+        return {"state": "unavailable", "event_ids": []}
+    try:
+        _reading_history(log)
+        key = reading_dedupe_key(course_id, occurrence_id, revision_id)
+        ids = [e["event_id"] for e in live_events(log)
+               if e.get("event_type") == "reading_declared" and e["dedupe_key"] == key]
+        return {"state": "reported-read" if ids else "not-reported", "event_ids": ids}
+    except (ValueError, OSError):
+        return {"state": "unsupported", "event_ids": []}
 
 
 def events(log):

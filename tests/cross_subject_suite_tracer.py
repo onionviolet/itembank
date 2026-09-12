@@ -346,8 +346,8 @@ def scenario_registry_consistency(manifest, tmp):
         fail("notes.py's local strategy tuple %r has drifted from "
              "strategies.STRATEGY_IDS %r"
              % (notes._REGISTERED_STRATEGY_IDS, strategies.STRATEGY_IDS))
-    if len(evidence.KNOWN_EVENT_TYPES) != 16:
-        fail("KNOWN_EVENT_TYPES holds %d members, expected 16"
+    if len(evidence.KNOWN_EVENT_TYPES) != 17:
+        fail("KNOWN_EVENT_TYPES holds %d members, expected 17"
              % len(evidence.KNOWN_EVENT_TYPES))
     if evidence.EVENT_SCHEMA_VERSION != 2:
         fail("EVENT_SCHEMA_VERSION is %r" % evidence.EVENT_SCHEMA_VERSION)

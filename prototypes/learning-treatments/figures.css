@@ -5,3 +5,5 @@
 .answer-bank{list-style:none;display:flex;flex-wrap:wrap;gap:8px;padding:0;margin:12px 0 18px}.answer-bank li{padding:9px 12px;border:1px solid var(--line);border-radius:6px;background:var(--sage);font-size:13px}#bank-options{grid-column:1/-1}#bank-help{margin-top:4px}input:disabled{cursor:default}
 .export-actions{display:flex;flex-wrap:wrap;align-items:center;gap:16px}.export-actions p{flex:1;min-width:180px;margin:0;color:var(--muted)}#export-bank-panel{border-top:1px solid var(--line);margin-top:24px;padding-top:8px}#export-bank-error{color:#863d28}#export-bank-text{max-height:48vh;overflow:auto}#export-bank-status{color:var(--forest)}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
+
+#table-treatment{grid-column:1/-1}#comparison-answer{min-height:110px}

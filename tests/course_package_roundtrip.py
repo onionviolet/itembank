@@ -139,7 +139,7 @@ def check_manifest_and_losses():
            ("external-link", "rights-restricted", "machine-local",
             "unreachable-source", "unsupported-kind",
             "evidence-not-carried", "unregistered-file",
-            "provenance-not-carried"), "LOSS_CATEGORIES")
+            "provenance-not-carried", "reading-transport-loss"), "LOSS_CATEGORIES")
         link_row = only_row(manifest, "external-link", linked,
                             "the linked source")
         if "linked, not imported" not in link_row["reason"]:

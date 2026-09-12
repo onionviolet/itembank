@@ -809,7 +809,325 @@ def check_agent_operation_record():
     print("    check_agent_operation_record")
 
 
+def check_atomic_temp_cleanup():
+    """Faults remove only the invocation's temp and preserve old-or-new targets."""
+    from pathlib import Path
+    from unittest.mock import patch
+    import builtins
+
+    for point in ("write", "flush", "fsync", "replace", "after_replace"):
+        with tempfile.TemporaryDirectory() as base:
+            target = Path(base, "target.md")
+            target.write_bytes(b"old")
+            unrelated = Path(base, "target.md.tmp")
+            unrelated.write_bytes(b"another writer")
+            real_open, real_replace = builtins.open, journal.os.replace
+            class FaultFile:
+                def __init__(self, fh):
+                    self.fh = fh
+                def __enter__(self):
+                    return self
+                def __exit__(self, *args):
+                    self.fh.close()
+                def write(self, raw):
+                    if point == "write":
+                        self.fh.write(raw[:1])
+                        raise OSError("partial write")
+                    return self.fh.write(raw)
+                def flush(self):
+                    if point == "flush":
+                        raise OSError("flush")
+                    return self.fh.flush()
+                def fileno(self):
+                    return self.fh.fileno()
+            def opened(path, mode="r", *args, **kwargs):
+                fh = real_open(path, mode, *args, **kwargs)
+                return FaultFile(fh) if mode == "xb" else fh
+            def replace(source, destination):
+                if point == "replace":
+                    raise OSError("replace")
+                real_replace(source, destination)
+                if point == "after_replace":
+                    raise OSError("replace completed then raised")
+            def sync(fd):
+                if point == "fsync":
+                    raise OSError("fsync")
+            try:
+                with patch.object(builtins, "open", side_effect=opened), \
+                     patch.object(journal.os, "fsync", side_effect=sync), \
+                     patch.object(journal.os, "replace", side_effect=replace):
+                    journal._write_bytes_atomic(str(target), b"new")
+            except OSError:
+                pass
+            else:
+                raise AssertionError("atomic fault injection missed")
+            assert target.read_bytes() == (b"new" if point == "after_replace" else b"old")
+            assert unrelated.read_bytes() == b"another writer"
+            assert sorted(p.name for p in Path(base).iterdir()) == ["target.md", "target.md.tmp"]
+    with tempfile.TemporaryDirectory() as base:
+        target = Path(base, "target.md")
+        target.write_bytes(b"old")
+        # Even a generated-name collision grants no right to remove that file.
+        collision = Path(base, ".fixed-target.md.tmp")
+        collision.write_bytes(b"unrelated")
+        class FixedId:
+            hex = "fixed"
+        with patch.object(journal.uuid, "uuid4", return_value=FixedId()):
+            try:
+                journal._write_bytes_atomic(str(target), b"new")
+            except FileExistsError:
+                pass
+            else:
+                raise AssertionError("exclusive temp collision was overwritten")
+        assert collision.read_bytes() == b"unrelated"
+        assert target.read_bytes() == b"old"
+    print("OK atomic temp cleanup (write, flush, fsync, replace, after-replace, collision)")
+
+
+def check_exact_recovery():
+    """Regression gates for exact absence, paired files, and recovery replay."""
+    from pathlib import Path
+    from unittest.mock import patch
+    import director
+
+    def commit(base, object_id, raw, operation="mint", companions=(), agent=None):
+        old = Path(base, "target.md").read_bytes() if Path(base, "target.md").exists() else None
+        return journal.commit_operation(
+            base, object_id, "source", "target.md", operation, raw,
+            identity.object_fingerprint(old, "source") if old is not None else None,
+            "human", "recovery-test", create_if_missing=True,
+            companions=companions, applied_agent=agent)
+
+    def latest(base, state="applied"):
+        return [e for e in journal.entries(base) if e["state"] == state][-1]
+
+    def conflict(call):
+        try:
+            call()
+        except journal.JournalError as exc:
+            assert exc.code == "journal.conflict", exc.code
+        else:
+            raise AssertionError("divergence was overwritten")
+
+    for existing in (None, b""):
+        with tempfile.TemporaryDirectory() as base:
+            target = Path(base, "target.md")
+            if existing is not None:
+                target.write_bytes(existing)
+            oid = identity.new_object_id()
+            commit(base, oid, b"created\n")
+            entry = latest(base)
+            journal.undo(base, entry["entry_id"], "human", "test")
+            assert target.exists() == (existing is not None)
+            if target.exists():
+                assert target.read_bytes() == existing
+            log = Path(journal.log_path(base)).read_bytes()
+            journal.undo(base, entry["entry_id"], "human", "test")
+            assert Path(journal.log_path(base)).read_bytes() == log
+            registry = Path(journal.registry_path(base)).read_bytes()
+            Path(journal.registry_path(base)).unlink()
+            journal.rebuild_registry(base)
+            assert Path(journal.registry_path(base)).read_bytes() == registry
+            assert (oid in journal.read_registry(base)) == (existing is not None)
+            target.write_bytes(b"external\n")
+            conflict(lambda: journal.undo(base, entry["entry_id"], "human", "test"))
+            assert target.read_bytes() == b"external\n"
+    with tempfile.TemporaryDirectory() as base:
+        oid = identity.new_object_id()
+        commit(base, oid, b"one\n")
+        original = latest(base)
+        commit(base, oid, b"two\n", "edit_in_place")
+        edit = latest(base)
+        # Exact-byte checks must catch whitespace normalized by object_fingerprint.
+        Path(base, "target.md").write_bytes(b"two  \n")
+        conflict(lambda: journal.undo(base, edit["entry_id"], "human", "test"))
+        Path(base, "target.md").write_bytes(b"two\n")
+        journal.undo(base, edit["entry_id"], "human", "test")
+        assert Path(base, "target.md").read_bytes() == b"one\n"
+        journal.undo(base, original["entry_id"], "human", "test")
+        assert not Path(base, "target.md").exists()
+        result = commit(base, oid, b"reborn\n")
+        assert result["revision"] == 5
+
+    # A process death is represented by BaseException, bypassing caught-error rollback.
+    class ProcessDeath(BaseException):
+        pass
+
+    for boundary in ("before", "mixed", "after", "accepted", "registry"):
+        with tempfile.TemporaryDirectory() as base:
+            oid = identity.new_object_id()
+            companion = {"path": "locator.json", "expected_digest": None,
+                         "new_bytes": b'{"page": 1}'}
+            real_write, real_append = journal._write_bytes_atomic, journal.append_entry
+
+            def write(path, raw):
+                if boundary == "before" and path == str(Path(base, "target.md")):
+                    raise ProcessDeath()
+                result = real_write(path, raw)
+                if boundary == "mixed" and path == str(Path(base, "target.md")):
+                    raise ProcessDeath()
+                if boundary == "registry" and path == journal.registry_path(base):
+                    raise OSError("registry unavailable")
+                return result
+
+            def append(root, entry):
+                if entry["state"] == "applied" and boundary == "after":
+                    raise ProcessDeath()
+                result = real_append(root, entry)
+                if entry["state"] == "applied" and boundary == "accepted":
+                    raise OSError("applied append raised after write")
+                return result
+
+            try:
+                with patch.object(journal, "_write_bytes_atomic", side_effect=write), \
+                     patch.object(journal, "append_entry", side_effect=append):
+                    commit(base, oid, b"derived\n", companions=(companion,))
+            except (ProcessDeath, OSError):
+                pass
+            else:
+                raise AssertionError("failure injection missed")
+            replay = journal.replay(base)
+            bucket = {"before": "interrupted", "mixed": "mixed", "after": "recoverable"}.get(boundary)
+            if bucket:
+                assert len(replay[bucket]) == 1, replay
+                entry = latest(base, "prepared")
+                # Unknown companion bytes are visible and block all recovery writes.
+                if boundary == "mixed":
+                    Path(base, "locator.json").write_bytes(b"external")
+                    assert journal.replay(base)["conflicts"]
+                    conflict(lambda: journal.undo(base, entry["entry_id"], "human", "test"))
+                    assert Path(base, "target.md").read_bytes() == b"derived\n"
+                    Path(base, "locator.json").unlink()
+            else:
+                entry = latest(base)
+                assert Path(base, "target.md").read_bytes() == b"derived\n"
+                assert Path(base, "locator.json").read_bytes() == companion["new_bytes"]
+            journal.rebuild_registry(base)
+            journal.undo(base, entry["entry_id"], "human", "test")
+            assert not Path(base, "target.md").exists()
+            assert not Path(base, "locator.json").exists()
+            assert oid not in journal.rebuild_registry(base)
+            assert not journal.replay(base)["mixed"]
+
+    # Pending work blocks reversal of older history until explicitly recovered.
+    with tempfile.TemporaryDirectory() as base:
+        oid = identity.new_object_id()
+        commit(base, oid, b"one\n")
+        original = latest(base)
+        real = journal._write_bytes_atomic
+        def die_before_target(path, raw):
+            if path == str(Path(base, "target.md")):
+                raise ProcessDeath()
+            return real(path, raw)
+        try:
+            with patch.object(journal, "_write_bytes_atomic", side_effect=die_before_target):
+                commit(base, oid, b"two\n", "edit_in_place")
+        except ProcessDeath:
+            pass
+        pending = latest(base, "prepared")
+        try:
+            journal.undo(base, original["entry_id"], "human", "test")
+        except journal.JournalError as exc:
+            assert exc.code == "journal.interrupted"
+        else:
+            raise AssertionError("older history reversed underneath pending work")
+        assert Path(base, "target.md").read_bytes() == b"one\n"
+        assert journal.replay(base)["interrupted"]
+        journal.undo(base, pending["entry_id"], "human", "test")
+        journal.undo(base, original["entry_id"], "human", "test")
+        assert not Path(base, "target.md").exists()
+
+    # Caught failure restores an existing empty paired file and primary bytes.
+    with tempfile.TemporaryDirectory() as base:
+        oid = identity.new_object_id()
+        commit(base, oid, b"before\n")
+        Path(base, "locator.json").write_bytes(b"")
+        real = journal._write_bytes_atomic
+        def fail_pair(path, raw):
+            if path == str(Path(base, "locator.json")) and raw == b"new":
+                raise OSError("paired write failure")
+            return real(path, raw)
+        try:
+            with patch.object(journal, "_write_bytes_atomic", side_effect=fail_pair):
+                commit(base, oid, b"after\n", "edit_in_place", companions=(
+                    {"path": "locator.json", "expected_digest": journal._raw_digest(b""),
+                     "new_bytes": b"new"},))
+        except OSError:
+            pass
+        else:
+            raise AssertionError("paired write injection missed")
+        assert Path(base, "target.md").read_bytes() == b"before\n"
+        assert Path(base, "locator.json").read_bytes() == b""
+        assert journal.object_state(base, oid) == "clean"
+        commit(base, oid, b"after\n", "edit_in_place", companions=(
+            {"path": "locator.json", "expected_digest": journal._raw_digest(b""),
+             "new_bytes": b"new"},))
+        entry = latest(base)
+        image = entry["undo"]["files"][1]["before_image"]
+        Path(journal.journal_dir(base), image).write_bytes(b"corrupt")
+        try:
+            journal.undo(base, entry["entry_id"], "human", "test")
+        except journal.JournalError as exc:
+            assert exc.code == "journal.before_image_invalid"
+        else:
+            raise AssertionError("corrupt image accepted")
+        assert Path(base, "target.md").read_bytes() == b"after\n"
+        assert Path(base, "locator.json").read_bytes() == b"new"
+        Path(journal.journal_dir(base), image).write_bytes(b"")
+        # A copied root needs no original absolute paths or process state to undo.
+        with tempfile.TemporaryDirectory() as destination:
+            restored = Path(destination, "offline")
+            shutil.copytree(base, restored)
+            journal.rebuild_registry(restored)
+            journal.undo(restored, entry["entry_id"], "human", "test")
+            assert Path(restored, "target.md").read_bytes() == b"before\n"
+            assert Path(restored, "locator.json").read_bytes() == b""
+
+    with tempfile.TemporaryDirectory() as base:
+        operation = director.new_operation_id()
+        agent = director._agent_dict(operation, "test", "course_builder",
+                                     "draft-and-review", (), "accept", 3)
+        oid = identity.new_object_id()
+        commit(base, oid, b"one\n", agent=agent)
+        commit(base, oid, b"two\n", "edit_in_place", agent=agent)
+        result = director.reverse_operation(base, operation, "human", "test")
+        assert result["complete"] and len(result["reversed_entries"]) == 2
+        assert not Path(base, "target.md").exists()
+        assert director.reverse_operation(base, operation, "human", "test")["complete"]
+    with tempfile.TemporaryDirectory() as base:
+        operation = director.new_operation_id()
+        agent = director._agent_dict(operation, "test", "course_builder",
+                                     "draft-and-review", (), "accept", 3)
+        real = journal._write_bytes_atomic
+        def interrupted_mint(path, raw):
+            if path == str(Path(base, "target.md")):
+                raise ProcessDeath()
+            return real(path, raw)
+        try:
+            with patch.object(journal, "_write_bytes_atomic", side_effect=interrupted_mint):
+                commit(base, identity.new_object_id(), b"new\n", agent=agent)
+        except ProcessDeath:
+            pass
+        result = director.reverse_operation(base, operation, "human", "test")
+        assert result["complete"] and len(result["reversed_entries"]) == 1
+        assert not Path(base, "target.md").exists()
+        assert director.reverse_operation(base, operation, "human", "test")["complete"]
+    with tempfile.TemporaryDirectory() as base:
+        operation = director.new_operation_id()
+        agent = director._agent_dict(operation, "test", "course_builder",
+                                     "draft-and-review", (), "accept", 3)
+        Path(base, "linked.md").write_bytes(b"linked\n")
+        journal.commit_operation(base, identity.new_object_id(), "source", "linked.md",
+                                 "link", b"linked\n", None, "human", "test",
+                                 write_target=False, applied_agent=agent)
+        assert not director.reverse_operation(base, operation, "human", "test")["complete"]
+        assert Path(base, "linked.md").read_bytes() == b"linked\n"
+    print("OK exact recovery (absence, empty, edits, replay, pairs, conflicts, offline copy, director)")
+
+
 def main():
+    check_atomic_temp_cleanup()
+    check_exact_recovery()
     check_commit()
     check_lock_busy()
     check_walking_skeleton_slice()

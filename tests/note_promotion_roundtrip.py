@@ -187,7 +187,8 @@ POST_BASELINE_SCHEMA_KEYS = {
     # Stripping it reconstructs the baselined document exactly, which is the
     # point: the baseline is never re-recorded, because a re-recorded
     # baseline proves nothing.
-    "schemas/settings.schema.json": ("agent_policy", "look"),
+    # Phase 20 adds composition independently of all existing settings.
+    "schemas/settings.schema.json": ("agent_policy", "look", "presentation_profile"),
 }
 
 
@@ -239,13 +240,16 @@ def check_additivity():
     if evidence.EVENT_SCHEMA_VERSION != 2:
         fail("the schema version moved to %r; D-16C-1 says it stays 2"
              % (evidence.EVENT_SCHEMA_VERSION,))
-    if len(evidence.KNOWN_EVENT_TYPES) != 16:
+    # Link 3 adds scoreless reading declarations. Reconstruct the original
+    # vocabulary without changing its recorded count or ordering guarantee.
+    baseline_types = tuple(t for t in evidence.KNOWN_EVENT_TYPES if t != 'reading_declared')
+    if len(baseline_types) != 16:
         fail("KNOWN_EVENT_TYPES holds %d members"
-             % len(evidence.KNOWN_EVENT_TYPES))
-    if evidence.KNOWN_EVENT_TYPES[-2:] != ("activity_completed",
+             % len(baseline_types))
+    if baseline_types[-2:] != ("activity_completed",
                                            "activity_skipped"):
         fail("the two new types are not last: %r"
-             % (evidence.KNOWN_EVENT_TYPES[-2:],))
+             % (baseline_types[-2:],))
 
     # The D-09 degrade path: a reader meeting an unknown type skips and
     # warns rather than failing, which is what makes a later build's event

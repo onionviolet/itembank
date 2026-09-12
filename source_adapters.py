@@ -2281,25 +2281,14 @@ def _import_source(base, adapter, raw_object_id, actor_kind, actor_name,
         return unsupported_result("source.internal_error", errors[0],
                                    source_id)
 
-    sidecar_abs = os.path.join(os.path.abspath(base), sidecar_rel_path)
-    write_sidecar_atomic(sidecar_abs, sidecar)
-
-    try:
-        # `commit_operation` directly rather than `journal.op_import` for one
-        # reason: `op_import` mints the object_id itself, and the sidecar must
-        # already carry that id when it is written. The RIGHTS-01 transform
-        # gate lives inside `_commit_impl` and fires identically either way.
-        journal.commit_operation(
-            base, source_id, "source", md_rel_path, "import", md_bytes,
-            expected_fingerprint=None, actor_kind=actor_kind,
-            actor_name=actor_name, create_if_missing=True,
-            source_object_id=raw_object_id)
-    except journal.JournalError:
-        try:
-            os.remove(sidecar_abs)
-        except OSError:
-            pass
-        raise
+    journal.commit_operation(
+        base, source_id, "source", md_rel_path, "import", md_bytes,
+        expected_fingerprint=None, actor_kind=actor_kind,
+        actor_name=actor_name, create_if_missing=True,
+        source_object_id=raw_object_id,
+        companions=({"path": sidecar_rel_path, "expected_digest": None,
+                     "new_bytes": (json.dumps(sidecar, ensure_ascii=False, indent=2)
+                                   + "\n").encode("utf-8")},))
 
     return ok_result(source_id, adapter, md_rel_path, sidecar_rel_path,
                       _last_entry_id(base, source_id))
@@ -2480,20 +2469,15 @@ def _capture_url(base, url, actor_kind, actor_name, options, confirm):
         return unsupported_result("source.internal_error", errors[0],
                                    source_id)
 
-    sidecar_abs = os.path.join(os.path.abspath(base), sidecar_rel_path)
-    write_sidecar_atomic(sidecar_abs, sidecar)
-    try:
-        journal.commit_operation(
-            base, source_id, "source", md_rel_path, "import", md_bytes,
-            expected_fingerprint=None, actor_kind=actor_kind,
-            actor_name=actor_name, create_if_missing=True,
-            source_object_id=None)
-    except journal.JournalError:
-        try:
-            os.remove(sidecar_abs)
-        except OSError:
-            pass
-        raise
+    journal.commit_operation(
+        base, source_id, "source", md_rel_path, "import", md_bytes,
+        expected_fingerprint=None, actor_kind=actor_kind,
+        actor_name=actor_name, create_if_missing=True,
+        source_object_id=None,
+        companions=({"path": sidecar_rel_path, "expected_digest": None,
+                     "new_bytes": (json.dumps(sidecar, ensure_ascii=False, indent=2)
+                                   + "\n").encode("utf-8")},))
+
     return ok_result(source_id, "web", md_rel_path, sidecar_rel_path,
                       _last_entry_id(base, source_id))
 

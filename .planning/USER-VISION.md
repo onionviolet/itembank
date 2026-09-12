@@ -2373,6 +2373,93 @@ assessment-alignment goal and the August 24 examination-fidelity principle.
 Extends both to answer-bank choices and figure-derived activities. It preserves
 broader learning treatments while keeping tested scope visible.
 
+### 2026-09-12: thematic quiz environments and fluid interaction
+
+> I had an idea that each quizzing enviorment can be thematic in a way, like the Code learner style for dode, and standard style for multiple choice and more? but more fluidity and better UI and UX
+
+#### Interpretation recorded 2026-09-12
+
+**Status:** exploratory. Activity environments and their transitions need a
+concrete comparison before an implementation choice is accepted.
+
+**Current interpretation:** quiz environments should have a visual character,
+layout, and interaction rhythm suited to the activity. Code Learner is a
+reference for coding work. Multiple choice can use a focused standard quiz
+layout. Other activities may need a fitting environment of their own. The
+experience should remain coherent and fluid across those environments.
+
+Candidate interpretations include a coding workbench with prompt, editor and
+output, a focused choice layout, a diagram workspace with adjacent response
+controls, and a case workspace with evidence and decisions. These are examples
+for comparison, not a closed list or approved designs. Activity purpose,
+response needs and assessment conditions should inform layout. A multiple
+choice code-reading question need not become an executable coding exercise.
+
+**Open questions:** whether thematic character means task-based composition,
+subject styling, learner-selectable variants, or a combination remains open.
+A comparison should test automatic selection with an override against explicit
+selection. Proposed signs of fluidity are retained drafts and context, stable
+navigation and focus, feedback beside the response, and a clear next action
+through answer, feedback, retry, summary and course return. These require
+observed interaction evidence and learner review. Animation alone cannot prove
+that the journey is easier to use.
+
+**Planning effect:** [IL-20260912-02](IDEA-LEDGER.md#il-20260912-02-thematic-quiz-environments-and-fluid-interaction)
+records a Prototype route under the existing activity-presentation owner.
+A bounded comparison should cover coding, multiple choice and a visual or case
+activity through complete transitions. Runtime scoring, disclosure, source
+identity and evidence remain shared. Formal assessment retains its required
+formats and feedback conditions. This capture creates no new activity schema,
+implementation packet or change to the active reading work.
+
+**Relationship to prior entries:** extends the September 6 Syntax Lab and CS
+Dojo direction, the September 7 extensible-presentation and complete-transition
+entries, and the September 11 examination-alignment direction. It preserves
+the switchable Measured Field Guide and Learning Trajectory Deck profiles.
+Activity-specific composition within a profile is distinct from switching the
+whole profile. Automatic switching remains an option to evaluate.
+
+### 2026-09-12: code boxes that reinforce syntax and structure
+
+> also for stuff like "What does this code print? `temperature = 72; raining = True; if temperature >= 70 and not raining: print("walk"); else: print("bus")`"
+>
+> Mkae it show in a code box so I passively learn semantics and streucture as well, put that into uservision
+
+#### Interpretation recorded 2026-09-12
+
+**Status:** active presentation preference. Implementation remains to be done.
+
+**Current interpretation:** code-reading and output-prediction questions show
+their program in a dedicated code box, separate from the prose prompt and
+answer choices. Preserve valid language syntax, line breaks, indentation and
+block structure. Show Python branches as ordinary multiline Python rather
+than compressing them into a semicolon-separated sentence. The quoted example
+records the defective presentation that prompted this request, not an accepted
+Python program.
+
+Use a monospace code face and syntax highlighting so keywords, literals and
+nesting remain easy to distinguish. Preserve a readable plain-text fallback.
+The learner's intended benefit is repeated exposure to authentic code
+structure while answering conceptual questions. Formatting supports that goal
+but does not establish comprehension by itself.
+
+**Open questions:** exact visual styling remains part of the activity UI work.
+The code-box preference itself needs no further design decision. A read-only
+code panel fits prediction questions. An editable panel fits activities that
+ask the learner to write or change code.
+
+**Planning effect:** extend
+[IL-20260912-02](IDEA-LEDGER.md#il-20260912-02-thematic-quiz-environments-and-fluid-interaction)
+through the existing quiz presentation and authoring owners. Correct the
+current CSCI bank's Q1 and Q5 snippets and render valid code blocks through the
+shared quiz surfaces. Verify syntax, retained whitespace, narrow-screen
+readability and unchanged answer meaning. Bank-format lint alone does not
+validate embedded programming-language syntax.
+
+**Relationship to prior entries:** makes the code-reading presentation within
+the September 12 thematic-environments entry concrete. Extends the Syntax Lab
+and CS Dojo direction without requiring execution for a multiple-choice item.
+
 ## Interpretation protocol
 
 An interpretation may appear immediately after a verbatim entry when it helps

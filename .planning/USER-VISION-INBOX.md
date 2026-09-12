@@ -785,6 +785,33 @@ and enrichment remain explicit choices. IL-20260910-01 applies that direction
 to the current figure and table prototype without creating a second exam-policy
 authority or a duplicate concept.
 
+### 2026-09-12: thematic quiz environments and fluid interaction
+
+> I had an idea that each quizzing enviorment can be thematic in a way, like the Code learner style for dode, and standard style for multiple choice and more? but more fluidity and better UI and UX
+
+**Disposition:** Promote and route (2026-09-12).
+
+Promoted verbatim to [the matching vision entry](USER-VISION.md#2026-09-12-thematic-quiz-environments-and-fluid-interaction).
+[IL-20260912-02](IDEA-LEDGER.md#il-20260912-02-thematic-quiz-environments-and-fluid-interaction)
+retains this as a Prototype proposal. Code Learner and standard multiple choice
+are the user's examples. Other candidate environments and selection behavior
+remain interpretations to compare. The route extends the existing presentation
+and CS Dojo work without scheduling implementation or claiming UX acceptance.
+
+### 2026-09-12: code boxes that reinforce syntax and structure
+
+> also for stuff like "What does this code print? `temperature = 72; raining = True; if temperature >= 70 and not raining: print("walk"); else: print("bus")`"
+>
+> Mkae it show in a code box so I passively learn semantics and streucture as well, put that into uservision
+
+**Disposition:** Promote as a concrete presentation preference (2026-09-12).
+
+Promoted verbatim to [the matching vision entry](USER-VISION.md#2026-09-12-code-boxes-that-reinforce-syntax-and-structure).
+The existing IL-20260912-02 route owns code boxes for prediction questions,
+with valid syntax, indentation and line breaks. The vision entry records the
+current CSCI snippet correction and renderer checks. This is a recorded
+requirement, not a claim that the quiz or its content has been repaired.
+
 ## Disposition vocabulary
 
 - **Promote:** add the verbatim statement and interpretation to `USER-VISION`.

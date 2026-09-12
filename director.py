@@ -269,7 +269,7 @@ def _agent_dict(operation_id, intent, actor_role, autonomy, scopes, phase,
             "egress": egress}
 
 
-def _append(base, entry):
+def _append(base, entry, lock_held=False):
     """Append one journal entry under the journal's own lock.
 
     `journal.append_entry` documents that the caller must already hold the
@@ -286,6 +286,8 @@ def _append(base, entry):
     uses. Neither could be made public without growing `journal.py`'s
     whole-phase diff past the two lines plan 15A-01 fixes it at.
     """
+    if lock_held:
+        return journal.append_entry(base, entry)
     with journal._journal_lock(base):
         return journal.append_entry(base, entry)
 
@@ -296,7 +298,8 @@ def _origin(actor_kind, actor_name):
 
 
 def begin_operation(base, course_root, intent, actor_kind, actor_name,
-                    actor_role, autonomy, scopes=(), operation_id=""):
+                    actor_role, autonomy, scopes=(), operation_id="",
+                    checkpoint=None, lock_held=False):
     """Declare an operation's intent and scope before it does anything.
 
     The first phase of the operation protocol is a durable record that says
@@ -306,6 +309,10 @@ def begin_operation(base, course_root, intent, actor_kind, actor_name,
     is designed to leave behind.
 
     Returns the operation id, which every later phase entry carries.
+
+    Trusted domain callers may supply a checkpoint and hold the existing
+    journal lock across validation and receipt creation. Neither argument
+    is exposed by the begin-operation request schema.
     """
     operation_id = operation_id or new_operation_id()
     _append(base, {
@@ -321,8 +328,8 @@ def begin_operation(base, course_root, intent, actor_kind, actor_name,
         "code": "", "message": intent, "rights": None,
         "agent": _agent_dict(operation_id, intent, actor_role, autonomy,
                              scopes, PROTOCOL_STEPS[0], 0,
-                             _checkpoint_with_outcome(None, "recorded", "")),
-    })
+                             _checkpoint_with_outcome(checkpoint, "recorded", "")),
+    }, lock_held=lock_held)
     return operation_id
 
 
@@ -572,9 +579,30 @@ def reverse_operation(base, operation_id, actor_kind, actor_name):
 
     reversed_entries = []
     restored_revisions = []
+    complete = True
+    history = list(journal.entries(base))
+    resolved = {e.get("resolves_entry") for e in history
+                if e.get("resolves_entry")}
+    already = {e["undo"]["reverses_entry"] for e in history
+               if e.get("state") == "applied" and
+               (e.get("undo") or {}).get("reverses_entry")}
+    checked = set()
+    for entry in entries:
+        if entry["entry_id"] in already and entry.get("object_id") not in checked:
+            journal.undo(base, entry["entry_id"], actor_kind, actor_name)
+            checked.add(entry.get("object_id"))
     for entry in reversed(entries):
+        if entry.get("operation") == AGENT_RECORD_TYPE or entry.get("state") == "refused":
+            continue
+        if entry.get("state") == "prepared" and entry["entry_id"] in resolved:
+            continue
+        if entry["entry_id"] in already:
+            continue
         undo_record = entry.get("undo") or {}
-        if undo_record.get("kind") != "restore_before_image":
+        if entry.get("operation") == "move" or (undo_record.get("kind") not in ("restore_before_image", "remove_created") and not (
+                entry.get("operation") in ("mint", "import", "copy") and
+                entry.get("before_fingerprint") is None)):
+            complete = False
             continue
         result = journal.undo(base, entry["entry_id"], actor_kind, actor_name)
         reversed_entries.append(entry["entry_id"])
@@ -582,7 +610,7 @@ def reverse_operation(base, operation_id, actor_kind, actor_name):
 
     return {"reversed_entries": reversed_entries,
             "restored_revisions": restored_revisions,
-            "complete": True}
+            "complete": complete}
 
 
 def _objective_statement(doc, objective_id):

@@ -2374,7 +2374,32 @@ def check_vendored_manifest():
           "parked package")
 
 
+def check_paired_recovery():
+    from pathlib import Path
+    from unittest.mock import patch
+    with tempfile.TemporaryDirectory() as base:
+        raw = Path(base, "raw.md")
+        raw.write_bytes(b"# Synthetic raw source\n\nA source sentence.\n")
+        before = raw.read_bytes()
+        linked = journal.op_link(base, "source", raw.name, "human", "test",
+                                 rights={right: "granted" for right in identity.RIGHTS_OPERATIONS})
+        result = source_adapters.import_source(base, "markdown", linked["object_id"], "human", "test")
+        assert result["status"] == "ok", result
+        journal.undo(base, result["journal_entry_id"], "human", "test")
+        assert not Path(base, result["md_rel_path"]).exists()
+        assert not Path(base, result["sidecar_rel_path"]).exists()
+        assert raw.read_bytes() == before
+        files = {p.relative_to(base) for p in Path(base).rglob("*") if p.is_file()}
+        with patch.object(journal, "commit_operation", side_effect=RuntimeError("pre-commit")):
+            failed = source_adapters.import_source(base, "markdown", linked["object_id"], "human", "test")
+        assert failed["status"] == "unsupported"
+        assert {p.relative_to(base) for p in Path(base).rglob("*") if p.is_file()} == files
+        assert raw.read_bytes() == before
+    print("ok: paired recovery removes derived Markdown and locator, pre-commit failure adds no files")
+
+
 if __name__ == "__main__":
+    check_paired_recovery()
     check_thin_slice()
     check_scanned_pdf_is_typed_unsupported()
     check_nothing_raises()

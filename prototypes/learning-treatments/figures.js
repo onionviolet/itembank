@@ -10,12 +10,20 @@ const background = `<svg viewBox="0 0 760 420" role="img" aria-label="A lake bel
 function initialState() {
   return {
     figure:{selection:new Set(['evaporation','precipitation']),instruction:'Name the water processes at the marked locations.',purpose:'Match a process label to its location and direction in the watershed.',format:'placement',showBank:true,answers:{blank:{},placement:{}}},
+    tableComparison:{selection:new Set(['0-1','0-2']),instruction:globalThis.ItembankTableExport.instruction,purpose:globalThis.ItembankTableExport.purpose,format:'comparison',showBank:false,answers:{comparison:{}}},
     table:{selection:new Set(['0-2']),instruction:'Complete the selected rainfall measurements in millimeters.',purpose:'Retrieve selected source values with day, gauge, and interval preserved.',format:'blank',showBank:true,answers:{blank:{},placement:{}}},
   };
 }
 let state=initialState(),source='figure',view='edit',picked='';
 let exportedBank=null;
-const active=()=>state[source];
+const active=()=>source==='table'&&state.table.format==='comparison'?state.tableComparison:state[source];
+const comparison=()=>source==='table'&&active().format==='comparison';
+function clearExport() {
+  exportedBank=null;
+  $('export-bank-panel').hidden=true;$('export-bank-text').textContent='';
+  $('export-bank-download').disabled=true;$('export-bank-status').textContent='';
+  $('export-bank-error').hidden=true;$('export-bank-error').textContent='';
+}
 const responses=()=>active().answers[active().format];
 const bankVisible=()=>active().format==='placement'||active().showBank;
 const bankLabels=()=>[...labels].sort((a,b)=>a.text.localeCompare(b.text));
@@ -86,10 +94,11 @@ function table(original=false) {
   ['Day','Gauge A','Gauge B','Interval'].forEach(t=>{const th=node('th',t);th.scope='col';tr.append(th);});head.append(tr);table.append(head);
   const body=node('tbody');
   rows.forEach((row,i)=>{
+    if(!original&&comparison()&&i!==0)return;
     const tr=node('tr'),th=node('th',row[0]);th.scope='row';tr.append(th);
     [1,2].forEach(j=>{
       const td=node('td'),id=`${i}-${j}`,selected=active().selection.has(id),context=`${row[0]}, Gauge ${j===1?'A':'B'}`;
-      if(original)td.textContent=row[j]+' mm';
+      if(original||comparison())td.textContent=row[j]+' mm';
       else if(view==='edit'){
         const b=node('button',row[j]+' mm','cell');b.dataset.select=id;b.setAttribute('aria-pressed',String(selected));b.setAttribute('aria-label',`Select ${context}, ${row[j]} mm`);b.addEventListener('click',()=>toggle(id));td.append(b);
       }else if(selected){
@@ -101,6 +110,13 @@ function table(original=false) {
 function responseControls() {
   const area=$('response-area');area.replaceChildren();
   if(view!=='preview')return;
+  if(comparison()){
+    const label=node('label', 'Your explanation (ungraded trial)', 'field');
+    const input=node('textarea');input.id='comparison-answer';input.rows=4;input.value=responses().prose||'';
+    input.addEventListener('input',()=>setAnswer('prose',input.value));label.append(input);area.append(label);
+    area.append(node('p','Both source values stay visible. Explain the comparison in prose. Any future runtime response remains pending human review.','drop-help'));
+    return;
+  }
   if(bankVisible()){
     const heading=node('p',source==='figure'?'Word bank':'Value bank','drop-help');heading.id='answer-bank-title';area.append(heading);
     if(active().format!=='placement'){
@@ -135,10 +151,14 @@ function responseControls() {
   });area.append(fields);
 }
 function render() {
+  clearExport();
   const s=active(),preview=view==='preview';
   document.querySelectorAll('[data-source]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.source===source)));
   $('instruction').value=s.instruction;$('purpose').value=s.purpose;
   $('format-options').hidden=source==='table';
+  $('table-treatment').hidden=source!=='table';
+  $('bank-options').hidden=comparison();
+  document.querySelectorAll('[name="table-format"]').forEach(r=>r.checked=r.value===s.format);
   document.querySelectorAll('[name="format"]').forEach(r=>r.checked=r.value===s.format);
   $('show-bank').checked=bankVisible();$('show-bank').disabled=s.format==='placement';
   $('bank-help').textContent=s.format==='placement'?'Placement uses supplied labels. Choose typed answers to practice without a bank.':source==='table'?'Turn the bank off for recall practice. With a bank, visible cells may let you solve this by elimination.':'Turn the bank off for recall practice. Your typed responses stay in place.';
@@ -149,6 +169,10 @@ function render() {
   $('selection-count').textContent=`${s.selection.size} ${source==='figure'?'labels':'cells'} selected`;
   $('view-help').textContent=preview?'Try the activity. Responses are ungraded and temporary.':source==='figure'?'Select labels to replace with numbered locations.':'Select cells to turn into blanks. Keep headers and units visible.';
   $('preview-instruction').hidden=!preview;$('preview-instruction').textContent=s.instruction;
+  if(comparison()){
+    $('selection-count').textContent='Monday / both gauges';
+    $('view-help').textContent='Compare both Monday readings over the same 24 hours. Values stay visible.';
+  }
   $('visual').replaceChildren(source==='figure'?figure():table());responseControls();
   $('footer-help').textContent=preview?'Inspect the original at any time, then return to these responses.':'Your instruction, purpose, and selection determine the reviewable draft.';
 }
@@ -158,21 +182,28 @@ function review() {
   $('export-bank-panel').hidden=true;$('export-bank-text').textContent='';
   $('export-bank-download').disabled=true;$('export-bank-status').textContent='';
   $('export-bank-error').hidden=true;$('export-bank-error').textContent='';
-  $('export-bank-show').disabled=source!=='figure'||s.format!=='placement'||s.selection.size===0;
-  $('export-bank-help').textContent=source==='figure'&&s.format==='placement'?'Keeps the selected locations and all four supplied labels. Extra labels get a Not used destination.':'Bank export currently supports diagram placement. This treatment sketch keeps your typed or table draft intact.';
+  $('export-bank-show').disabled=!(comparison()||(source==='figure'&&s.format==='placement'&&s.selection.size>0));
+  $('export-bank-help').textContent=source==='figure'&&s.format==='placement'?'Keeps the selected locations and all four supplied labels. Extra labels get a Not used destination.':'Bank export supports diagram placement and Monday comparison. Typed labels and value retrieval remain preview-only.';
+  if(comparison())$('export-bank-help').textContent='Exports both Monday readings and one prose explanation using short. The proposed rubric remains pending human review.';
   const selected=source==='figure'?labels.filter(l=>s.selection.has(l.id)).map(l=>`${labels.indexOf(l)+1}. ${l.context} [${l.id}]`):[...s.selection].map(id=>{const [i,j]=id.split('-').map(Number);return `${rows[i][0]}, Gauge ${j===1?'A':'B'} [${id}]`;});
   $('review-summary').textContent=`${selected.length} ${source==='figure'?'locations':'cells'} will accept ${s.format==='placement'?'a chosen process label':'text'}. The source is unchanged.`;
   $('draft-text').textContent=`# Treatment draft\n\nStatus: unaccepted prototype\nSource: ${locator()}\nResponse shape: ${s.format==='placement'?'one label per selected location, each label used at most once':'one text field per selected location'}\nAnswer bank: ${bankVisible()?'shown':'hidden for recall practice'}\nSource presentation: current adapted preview with original-source dialog. Reproduction and future presentation remain user choices.\n\n## Instruction\n${s.instruction}\n\n## Selected locations\n${selected.map(x=>'- '+x).join('\n')}\n\n## Author purpose\n${s.purpose}\n\n## Static representation\nUse the source diagram with the selected labels replaced by the numbered locations above. For a table, preserve row and column headings and units while leaving selected values blank.\n\nAssessment key: not defined\nRuntime validation: not performed\nReviewer: pending`;
+  if(comparison()){
+    $('review-summary').textContent='One prose explanation compares Monday readings. Both values stay visible. Human review is pending.';
+    $('draft-text').textContent=`# Treatment draft\n\nStatus: unaccepted prototype\nSource: figures.md#source-table-1, Table 1, Monday row\nGauge A: 12 mm\nGauge B: 18 mm\nCollection interval: 24 hours for both\nResponse shape: one prose explanation, pending human review\n\n## Instruction\n${s.instruction}\n\n## Author purpose\n${s.purpose}\n\nStatic representation: both readings and interval remain visible beside the prompt. No value bank or hidden cells.\nRuntime validation: not performed\nReviewer: pending`;
+  }
   $('review-dialog').showModal();
 }
 function createBankDraft() {
   try{
-    if(!globalThis.ItembankPlacementExport)throw new Error('The bank exporter did not load. Reload the page to try again.');
+    const exporter=comparison()?globalThis.ItembankTableExport:globalThis.ItembankPlacementExport;
+    if(!exporter)throw new Error('The bank exporter did not load. Reload the page to try again.');
     const s=active();
-    const draft=globalThis.ItembankPlacementExport.create({source,format:s.format,selectedIds:[...s.selection],instruction:s.instruction,purpose:s.purpose,wordBank:bankVisible()});
+    const draft=exporter.create({source,format:s.format,selectedIds:[...s.selection],instruction:s.instruction,purpose:s.purpose,wordBank:bankVisible()});
     exportedBank=draft;
     $('export-bank-text').textContent=draft.text;
     $('export-bank-summary').textContent=`${draft.selectedCount} selected locations, four supplied labels${draft.unusedCount?`, ${draft.unusedCount} labels assigned to Not used`:''}. The downloaded file includes its synthetic source and static description.${draft.instructionNormalized?' Instruction line breaks become spaces in the question. The original wording is retained in the author metadata.':''}`;
+    if(comparison())$('export-bank-summary').textContent='One short item with Monday source values, exact locator, author wording, and a proposed human-review rubric. No trial answer is included.';
     $('export-bank-error').hidden=true;$('export-bank-panel').hidden=false;
     $('export-bank-download').disabled=false;
     $('export-bank-text').focus({preventScroll:true});
@@ -187,13 +218,14 @@ function downloadBankDraft() {
   const link=node('a');link.href=url;link.download=exportedBank.filename;
   document.body.append(link);link.click();link.remove();
   setTimeout(()=>URL.revokeObjectURL(url),1000);
-  $('export-bank-status').textContent='Download requested. The file is an unaccepted draft with a proposed key.';
+  $('export-bank-status').textContent='Download requested. The file is an unaccepted draft with a proposed source key or human-review rubric.';
 }
 document.querySelectorAll('[data-source]').forEach(b=>b.addEventListener('click',()=>{source=b.dataset.source;view='edit';picked='';render();say('Source changed. Each source keeps its own draft in this page.');}));
 document.querySelectorAll('[name="format"]').forEach(r=>r.addEventListener('change',()=>{active().format=r.value;render();}));
+document.querySelectorAll('[name="table-format"]').forEach(r=>r.addEventListener('change',()=>{state.table.format=r.value;view='edit';render();say('Table treatment changed. Each treatment keeps its own wording and trial responses.');}));
 $('show-bank').addEventListener('change',e=>{active().showBank=e.target.checked;render();say(bankVisible()?'Answer bank shown. Responses retained.':'Answer bank hidden for recall practice. Responses retained.');});
-$('instruction').addEventListener('input',e=>{active().instruction=e.target.value;$('preview-instruction').textContent=e.target.value;});
-$('purpose').addEventListener('input',e=>active().purpose=e.target.value);
+$('instruction').addEventListener('input',e=>{active().instruction=e.target.value;clearExport();$('preview-instruction').textContent=e.target.value;});
+$('purpose').addEventListener('input',e=>{active().purpose=e.target.value;clearExport();});
 $('edit-view').addEventListener('click',()=>{view='edit';render();say('Editing the selection. Preview responses are retained for unchanged locations.');});
 $('preview-view').addEventListener('click',()=>{view='preview';render();say('Preview ready. No answers are evaluated.');});
 $('source-open').addEventListener('click',()=>{

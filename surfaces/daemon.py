@@ -245,6 +245,7 @@ HELP_GET_RE = re.compile(r"^/help/(?P<code>[a-z0-9_.]{1,64})$")
 # run, so a traversal attempt is refused at dispatch before any handler runs.
 # The area alternation is a closed vocabulary mirroring `ia.COURSE_AREAS` minus
 # `overview`, which COURSE_GET_RE serves at the bare course path.
+COURSE_READING_RE = re.compile(r"^/course/(?P<course_id>[A-Za-z0-9_.-]{1,64})/reading/(?P<occurrence_id>[a-f0-9]{16,64})/(?P<revision_id>[a-f0-9]{16,64})$")
 COURSE_GET_RE = re.compile(r"^/course/(?P<course_id>[A-Za-z0-9_.-]{1,64})$")
 COURSE_AREA_RE = re.compile(r"^/course/(?P<course_id>[A-Za-z0-9_.-]{1,64})/(?P<area>learn|practice|test|map|sources|build|agent|evidence)$")
 COURSE_LESSON_RE = re.compile(r"^/course/(?P<course_id>[A-Za-z0-9_.-]{1,64})/learn/(?P<lesson_id>[A-Za-z0-9_.-]{1,64})$")
@@ -328,6 +329,13 @@ API_ROUTES = (
     ("POST", "/api/lesson-complete", "handle_api_lesson_complete"),
     ("POST", "/api/rubric-review", "handle_api_rubric_review"),
     ("POST", "/api/mark", "handle_api_mark"),
+    ("POST", "/api/course/create-reading", "handle_api_course_create_reading"),
+    ("POST", "/api/course/reading-view", "handle_api_course_reading_view"),
+    ("POST", "/api/course/save-reading-note", "handle_api_course_save_reading_note"),
+    ("POST", "/api/course/confirm-reading", "handle_api_course_confirm_reading"),
+    ("POST", "/api/course/declare-reading", "handle_api_course_declare_reading"),
+    ("POST", "/api/course/revise-reading", "handle_api_course_revise_reading"),
+    ("POST", "/api/course/place-reading", "handle_api_course_place_reading"),
     ("POST", "/api/course/create", "handle_api_course_create"),
     ("POST", "/api/course/register-source", "handle_api_course_register_source"),
     ("POST", "/api/course/rename", "handle_api_course_rename"),
@@ -425,6 +433,7 @@ ROUTES = (
     ("POST", DAY_OPEN_RE, "handle_day_open"),
     ("POST", DAY_EDIT_RE, "handle_day_edit"),
     ("GET", HELP_GET_RE, "handle_help_get"),
+    ("GET", COURSE_READING_RE, "handle_course_reading_get"),
     ("GET", COURSE_GET_RE, "handle_course_get"),
     ("GET", COURSE_AREA_RE, "handle_course_area_get"),
     ("POST", COURSE_AREA_RE, "handle_course_area_post"),
@@ -464,6 +473,13 @@ ROUTE_CLI = {
     ("POST", "/api/lesson-complete"): "lesson",
     ("POST", "/api/rubric-review"): "rubric-review",
     ("POST", "/api/mark"): "mark",
+    ("POST", "/api/course/create-reading"): "course",
+    ("POST", "/api/course/reading-view"): "course",
+    ("POST", "/api/course/save-reading-note"): "course",
+    ("POST", "/api/course/confirm-reading"): "course",
+    ("POST", "/api/course/declare-reading"): "course",
+    ("POST", "/api/course/revise-reading"): "course",
+    ("POST", "/api/course/place-reading"): "course",
     ("POST", "/api/course/create"): "course",
     ("POST", "/api/course/register-source"): "course",
     ("POST", "/api/course/rename"): "course",
@@ -527,6 +543,7 @@ ROUTE_CLI = {
     ("POST", DAY_OPEN_RE): "day",
     ("POST", DAY_EDIT_RE): "day",
     ("GET", HELP_GET_RE): "help-code",
+    ("GET", COURSE_READING_RE): "course",
     ("GET", COURSE_GET_RE): "daemon",
     ("GET", COURSE_AREA_RE): "daemon",
     ("POST", COURSE_AREA_RE): "course",
@@ -558,6 +575,13 @@ SURFACE_PARITY = (
     (("POST", "/api/source/recheck"), "source", "source_recheck"),
     (("POST", "/api/shelf"), "shelf", "shelf"),
     (("POST", "/api/mark"), "mark", "mark"),
+    (("POST", "/api/course/create-reading"), "course", "course_create_reading"),
+    (("POST", "/api/course/reading-view"), "course", "course_reading_view"),
+    (("POST", "/api/course/save-reading-note"), "course", "course_save_reading_note"),
+    (("POST", "/api/course/confirm-reading"), "course", "course_confirm_reading"),
+    (("POST", "/api/course/declare-reading"), "course", "course_declare_reading"),
+    (("POST", "/api/course/revise-reading"), "course", "course_revise_reading"),
+    (("POST", "/api/course/place-reading"), "course", "course_place_reading"),
     (("POST", "/api/course/create"), "course", "course_create"),
     (("POST", "/api/course/register-source"), "course", "course_register_source"),
     (("POST", "/api/course/rename"), "course", "course_rename"),
@@ -923,6 +947,20 @@ def _course_area_rows(handler, state, course_dir):
     doc = (record or {}).get("doc") or {}
 
     if area == "learn":
+        if record:
+            try:
+                from surfaces.reading_desk import href
+                validated = graph_module.validate_reading_graph(doc)
+                reading_rows = validated["occurrences"]
+                parents = {row["supersedes_revision_id"] for row in reading_rows}
+                for row in reading_rows:
+                    if row["revision_id"] not in parents:
+                        lessons.append({"href": href(state["course_id"], row),
+                                        "title": validated["placements"][row["occurrence_id"]]["title"],
+                                        "meta": row.get("preparation_mode", ""),
+                                        "note": "Open the accepted source range and shared private notes."})
+            except (ValueError, KeyError):
+                pass
         return ("Every lesson this course holds, as a durable document you can "
                 "also read outside the app."), lessons
     if area == "practice":
@@ -2934,6 +2972,60 @@ QUIZ_TOKEN_CAP = 2048
 QUIZ_SESSION_LOCK = threading.Lock()
 
 
+def _saved_quiz_session(handler, stem, path, qs):
+    """Resolve the newest persisted sitting without starting or advancing it.
+
+    Reuse the report index's bank matching and recency rule. Validate the
+    saved shape and selection against current items before handing its cursor
+    to the runtime. A finished sitting stays finished, including on restart.
+    """
+    from schema_validate import validate
+
+    try:
+        index = session_index(handler.root)
+        session_id = sessions_by_bank(handler.root, {stem: path}).get(stem)
+        attempts = os.path.join(os.path.abspath(handler.root), "_attempts")
+        try:
+            files = {os.path.join(attempts, name) for name in os.listdir(attempts)
+                     if name.startswith("session_") and name.endswith(".json")}
+        except FileNotFoundError:
+            files = set()
+        if files - set(index.values()):
+            raise ValueError("A saved session is unreadable. Review the session files before starting another sitting.")
+        if session_id is None:
+            return None
+        saved = index.get(session_id)
+        if saved is None:
+            raise ValueError("Saved session changed while opening. Try again.")
+        data = read_session(saved)
+        schema = json.loads(resources.read_text("schemas/session.schema.json"))
+        if validate(data, schema):
+            raise ValueError("Saved session is invalid. Review the session files before continuing.")
+        if (data["bank"] != os.path.abspath(path)
+                or data["mode"] != handler.sessions[stem].get("mode", "practice")
+                or not 0 <= data["cursor"] <= len(data["items"])
+                or any(not 0 <= i < len(qs) for i in data["items"])):
+            raise ValueError("Saved session does not match this quiz. Open its report before continuing.")
+        selections = [event for event in evidence.events(
+            evidence.log_path(os.path.dirname(os.path.abspath(path))))
+            if event.get("event_type") == "selection"
+            and event.get("session_id") == session_id]
+        keys = [evidence.evidence_key(qs[i]) for i in data["items"]]
+        if len(selections) != 1 or selections[0].get("items") != keys:
+            raise ValueError("Saved session selection is unavailable or changed. Review the bank and session before continuing.")
+        # Sessions do not pin a bank revision. A later file modification
+        # therefore needs review even if its item ids still match.
+        try:
+            selected_at = datetime.datetime.fromisoformat(selections[0]["ts"])
+            if selected_at.tzinfo is None or os.path.getmtime(path) > selected_at.timestamp():
+                raise ValueError("bank modified after selection")
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError("The bank file was modified or its saved selection time is unavailable. Review it before resuming.") from exc
+        return saved, data
+    except (SystemExit, OSError) as exc:
+        raise ValueError("Saved session is unavailable. Review the session files before continuing.") from exc
+
+
 def _ensure_quiz_session(handler, stem, path, qs):
     """The one session `GET /quiz/<stem>` reads, created once per bank.
 
@@ -2953,6 +3045,15 @@ def _ensure_quiz_session(handler, stem, path, qs):
         api_id = cfg.get("api_session_id")
         found = api_session_path(handler, api_id) if api_id else None
         if found:
+            return found
+        # An explicit `serve` launch owns its announced mode, seed and id.
+        # Automatic restart recovery belongs to the workspace daemon only.
+        saved = (None if cfg.get("progress") else
+                 _saved_quiz_session(handler, stem, path, qs))
+        if saved:
+            found, data = saved
+            cfg["api_session_id"] = data["session_id"]
+            cfg["session_id"] = data["session_id"]
             return found
         # The seed was hardcoded to 0 until 2026-08-24, so a scoped `serve` had
         # no way to influence item order. That is not cosmetic: a sitting parks
@@ -5216,7 +5317,10 @@ def _course_operation(handler, operation, envelope=None):
     change what a client already parses. Non-negotiable 4 is about silent
     breakage, and a renamed key is exactly that.
     """
-    if operation in course_ops.READ_OPERATIONS:
+    if operation == "reading_view":
+        if _reject_cross_origin_write(handler):
+            return
+    elif operation in course_ops.READ_OPERATIONS:
         if _reject_cross_origin(handler):
             return
     elif _reject_cross_origin_write(handler):
@@ -6309,3 +6413,52 @@ def cmd_disclosure(a):
     print(json.dumps(update.disclosure_state(a.dir), ensure_ascii=False,
                      indent=2))
     return 0
+
+
+def handle_api_course_create_reading(handler):
+    """Journal an accepted reading graph operation."""
+    _course_operation(handler, "create_reading")
+
+
+def handle_api_course_confirm_reading(handler):
+    """Record an explicit learner confirmation."""
+    _course_operation(handler, "confirm_reading")
+
+
+def handle_api_course_declare_reading(handler):
+    """Persist or replay a confirmed scoreless declaration."""
+    _course_operation(handler, "declare_reading")
+
+
+def handle_api_course_revise_reading(handler):
+    """Journal an accepted reading graph operation."""
+    _course_operation(handler, "revise_reading")
+
+
+def handle_api_course_place_reading(handler):
+    """Journal an accepted reading graph operation."""
+    _course_operation(handler, "place_reading")
+
+
+def handle_api_course_reading_view(handler):
+    _course_operation(handler, "reading_view")
+
+
+def handle_api_course_save_reading_note(handler):
+    _course_operation(handler, "save_reading_note")
+
+
+def handle_course_reading_get(handler, course_id, occurrence_id, revision_id):
+    if _reject_cross_origin_write(handler):
+        return
+    try:
+        import course
+        import reading_desk
+        from surfaces import reading_desk as desk_surface
+        base = course_ops.resolve_course(handler.root, course_id)
+        read = course.read_course(base)
+        view = reading_desk.snapshot(base, dict(expected_fingerprint=read['fingerprint'],
+                                     occurrence_id=occurrence_id, revision_id=revision_id))
+        handler.send_html(desk_surface.render(course_id, read, occurrence_id, revision_id, view).encode('utf-8'))
+    except Exception:
+        handler.send_error(400, 'Reading unavailable. Refresh the course or inspect recovery.')

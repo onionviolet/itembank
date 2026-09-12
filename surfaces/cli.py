@@ -1448,7 +1448,7 @@ def build_parser():
                                  "carries; a stale one is refused by name")
         cp.set_defaults(fn=course_ops.cmd_course)
 
-    def structural(name, blurb):
+    def structural(name, blurb, require_expected=False):
         """One `itembank course <name>` parser with the four arguments every
         structural write shares. The operation's own fields are added by the
         caller, each named exactly as the published node names it."""
@@ -1460,12 +1460,48 @@ def build_parser():
         sp.add_argument("--actor", default="",
                         help="who is recording this, for the operation journal")
         sp.add_argument("--expect", default="", dest="expected_fingerprint",
+                        required=require_expected,
                         help="the fingerprint you believe the sidecar "
                              "carries; a stale one is refused by name")
         sp.add_argument("--json", action="store_true",
                         help="emit the operation result as JSON")
         sp.set_defaults(fn=course_ops.cmd_course)
         return sp
+
+    for action in ("reading-view", "save-reading-note"):
+        p = structural(action, "read source or save a private source note", True)
+        p.add_argument("--occurrence-id", required=True)
+        p.add_argument("--revision-id", required=True)
+        if action == "save-reading-note":
+            p.add_argument("--note-id", required=True)
+            p.add_argument("--wording", required=True)
+            p.add_argument("--notes-fingerprint", required=True,
+                           type=lambda value: None if value == "none" else value,
+                           help="the displayed note fingerprint, or none for a new document")
+    for action in ("confirm-reading", "declare-reading"):
+        rp = structural(action, "explicit scoreless reading declaration", True)
+        rp.add_argument("--occurrence-id", required=True)
+        rp.add_argument("--revision-id", required=True)
+        if action == "confirm-reading":
+            rp.add_argument("--confirmation", choices=["read"], required=True)
+        else:
+            rp.add_argument("--intent-id", required=True)
+
+    for action in ("create-reading", "revise-reading", "place-reading"):
+        rp = structural(action, "journal one accepted reading graph change", True)
+        if action != "place-reading":
+            field = "values" if action == "create-reading" else "changes"
+            rp.add_argument("--" + field, type=json.loads, required=True,
+                            help="closed reading fields as JSON")
+            rp.add_argument("--binding-index", type=int)
+        if action != "create-reading":
+            rp.add_argument("--occurrence-id", required=True)
+            rp.add_argument("--revision-id", required=True)
+        if action == "revise-reading":
+            rp.add_argument("--revise-binding", action="store_true", default=None,
+                            help="append a revision of the pinned binding from source_ref")
+        rp.add_argument("--title", required=action != "revise-reading")
+        rp.add_argument("--activation", required=action != "revise-reading")
 
     cc = structural("add-container", "add one structural container (a "
                     "module, a week, a unit); adds zero edges, because "

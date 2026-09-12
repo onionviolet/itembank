@@ -260,12 +260,29 @@ def _write_bytes_atomic(path, raw):
     durable write this module makes (the before-image, the target, and the
     registry projection all go through this one function)."""
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-    tmp = path + ".tmp"
-    with open(tmp, "wb") as fh:
-        fh.write(raw)
-        fh.flush()
-        os.fsync(fh.fileno())
-    os.replace(tmp, path)
+    tmp = os.path.join(os.path.dirname(path),
+                       ".%s-%s.tmp" % (uuid.uuid4().hex, os.path.basename(path)))
+    owned = False
+    try:
+        with open(tmp, "xb") as fh:
+            owned = True
+            fh.write(raw)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp, path)
+    except OSError as exc:
+        if exc.filename == tmp:
+            # Report the durable target, not an invocation-specific temp name.
+            raise OSError(exc.errno, exc.strerror, path) from exc
+        raise
+    finally:
+        # Only this invocation's exclusively created temp belongs to cleanup.
+        # After replace, the target is accepted or recoverable and stays put.
+        if owned:
+            try:
+                os.remove(tmp)
+            except FileNotFoundError:
+                pass
 
 
 def append_entry(base, entry):
@@ -338,6 +355,84 @@ def entries(base):
             yield obj
 
 
+def validate_transport(ordered, object_ids, course_id=None):
+    """Validate scoped original receipts before importing them into a journal.
+
+    Transport preserves receipts, rather than minting acceptance for copied
+    bytes. The package owner separately validates paths and snapshot bytes.
+    """
+    seen, heads, pending = {}, {}, set()
+    for entry in ordered:
+        if (not isinstance(entry, dict) or set(entry) != set(ENTRY_KEYS) or
+                entry.get('schema_version') != JOURNAL_SCHEMA_VERSION or
+                entry.get('operation') not in RECORD_TYPES or
+                entry.get('state') not in ('prepared', 'applied', 'refused') or
+                not isinstance(entry.get('entry_id'), str) or
+                len(entry['entry_id']) != 32 or
+                not isinstance(entry.get('timestamp'), str)):
+            raise JournalError('journal.invalid_transport', 'Unsupported original journal receipt.')
+        eid = entry['entry_id']
+        if eid in seen:
+            raise JournalError('journal.invalid_transport', 'Duplicate original receipt identity.')
+        oid = entry['object_id']
+        if oid is None:
+            checkpoint = (entry.get('agent') or {}).get('checkpoint') or {}
+            event = checkpoint.get('event') or {}
+            if (course_id is None or entry['operation'] != 'agent_operation' or
+                    entry['state'] != 'applied' or
+                    checkpoint.get('reading_confirmation_version') != 1 or
+                    event.get('course_id') != course_id):
+                raise JournalError('journal.invalid_transport', 'Unrelated operation receipt refused.')
+        elif oid not in object_ids:
+            raise JournalError('journal.invalid_transport', 'Unrelated object history refused.')
+        elif entry['state'] == 'prepared':
+            pending.add(eid)
+        elif entry.get('resolves_entry'):
+            prior = seen.get(entry['resolves_entry'])
+            if (prior is None or prior['entry_id'] not in pending or
+                    any(prior.get(key) != entry.get(key) for key in
+                        ('object_id', 'kind', 'path', 'operation', 'revision',
+                         'parent_revision', 'origin', 'before_fingerprint',
+                         'after_fingerprint', 'before_image', 'undo', 'rights', 'agent'))):
+                raise JournalError('journal.invalid_transport', 'Original acceptance has no matching intent.')
+            pending.remove(prior['entry_id'])
+        elif entry['state'] == 'applied':
+            raise JournalError('journal.invalid_transport', 'Original acceptance intent is missing.')
+        if oid is not None and entry['state'] == 'applied':
+            previous = heads.get(oid)
+            if (entry['parent_revision'] != (previous['revision'] if previous else None) or
+                    entry['revision'] != ((previous['revision'] if previous else 0) + 1)):
+                raise JournalError('journal.invalid_transport', 'Original revision chain is incomplete.')
+            reversed_id = (entry.get('undo') or {}).get('reverses_entry')
+            if reversed_id and (reversed_id not in seen or seen[reversed_id].get('object_id') != oid):
+                raise JournalError('journal.invalid_transport', 'Original undo refers outside its object history.')
+            heads[oid] = entry
+        seen[eid] = entry
+    if pending or set(heads) != set(object_ids):
+        raise JournalError('journal.invalid_transport', 'Original history is incomplete or interrupted.')
+    return heads
+
+
+def restore_transport(base, ordered, object_ids, course_id=None):
+    """Accept validated original history only in a private, empty journal.
+
+    The caller stages all payloads and recovery bytes before this call, then
+    publishes the complete directory. Never merge histories in a live root.
+    """
+    heads = validate_transport(ordered, object_ids, course_id)
+    with _journal_lock(base):
+        if os.path.exists(log_path(base)):
+            raise JournalError('journal.transport_conflict', 'Restore requires an empty staged journal.')
+        for head in heads.values():
+            raw = _read_optional(_recovery_path(base, head['path']))
+            if raw is None or identity.object_fingerprint(raw, head['kind']) != head['after_fingerprint']:
+                raise JournalError('journal.transport_conflict', 'Restored head does not match original acceptance.')
+        for entry in ordered:
+            append_entry(base, entry)
+        rebuild_registry(base)
+    return heads
+
+
 def _new_template(operation, object_id, kind, rel_path, actor_kind,
                    actor_name, source_object_id, source_revision,
                    restores_revision, rights=None):
@@ -369,11 +464,60 @@ def _new_template(operation, object_id, kind, rel_path, actor_kind,
     }
 
 
+def _raw_digest(raw):
+    return hashlib.sha256(raw).hexdigest() if raw is not None else None
+
+
+def _read_optional(path):
+    try:
+        with open(path, "rb") as fh:
+            return fh.read()
+    except FileNotFoundError:
+        return None
+
+
+def _recovery_path(base, relative):
+    path = os.path.join(os.path.abspath(base), relative)
+    if os.path.isabs(relative) or not discovery.inside_any_root(path, [base]):
+        raise JournalError("journal.path_outside_root", "recovery path leaves approved root")
+    return path
+
+
+def _set_file(path, raw):
+    if raw is None:
+        if os.path.lexists(path):
+            os.remove(path)
+    else:
+        _write_bytes_atomic(path, raw)
+
+
+def _file_descriptor(base, path, before, after):
+    image = None
+    if before is not None:
+        image = "/".join((BEFORE_DIRNAME, _raw_digest(before) + ".bin"))
+        _write_bytes_atomic(_recovery_path(journal_dir(base), image), before)
+    return {"path": path, "before_image": image,
+            "before_digest": _raw_digest(before), "after_digest": _raw_digest(after)}
+
+
+def _file_states(base, entry):
+    """Exact per-file states, or the legacy primary fingerprint comparison."""
+    files = (entry.get("undo") or {}).get("files")
+    if files:
+        return [(f, _raw_digest(_read_optional(_recovery_path(base, f["path"]))))
+                for f in files]
+    raw = _read_optional(_recovery_path(base, entry["path"]))
+    return [({"before_digest": entry["before_fingerprint"],
+              "after_digest": entry["after_fingerprint"]},
+             identity.object_fingerprint(raw, entry["kind"]) if raw is not None else None)]
+
+
 def commit_operation(base, object_id, kind, rel_path, operation, new_bytes,
                       expected_fingerprint, actor_kind, actor_name,
                       create_if_missing=False, source_object_id=None,
                       source_revision=None, write_target=True, note=None,
-                      rights=None, applied_agent=None):
+                      rights=None, applied_agent=None, companions=(),
+                      precommit=None):
     """The one compare-and-swap write path every durable object kind goes
     through. See the module docstring's Walking-skeleton usage paragraph for
     the minimal three-call sequence. Raises `JournalError` on refusal;
@@ -387,6 +531,10 @@ def commit_operation(base, object_id, kind, rel_path, operation, new_bytes,
     "source"`, is stored on the entry and defaults to
     `identity.rights_default()` when omitted, matching
     `identity.mint_object`'s own default.
+
+    `precommit` is a trusted, read-only domain validator called under the
+    journal lock before preparing the write. It may refuse by raising.
+    It is never accepted from a request and must not acquire this lock again.
     """
     return _commit_impl(
         base, object_id, kind, rel_path, operation, new_bytes,
@@ -394,14 +542,17 @@ def commit_operation(base, object_id, kind, rel_path, operation, new_bytes,
         create_if_missing=create_if_missing,
         source_object_id=source_object_id, source_revision=source_revision,
         restores_revision=None, write_target=write_target, note=note,
-        rights=rights, applied_agent=applied_agent)
+        rights=rights, applied_agent=applied_agent, companions=companions,
+        precommit=precommit)
 
 
 def _commit_impl(base, object_id, kind, rel_path, operation, new_bytes,
                   expected_fingerprint, actor_kind, actor_name,
                   create_if_missing, source_object_id, source_revision,
                   restores_revision, write_target=True, note=None,
-                  rights=None, applied_agent=None):
+                  rights=None, applied_agent=None, companions=(),
+                  remove_target=False, recovery_entry=None, lock_held=False,
+                  precommit=None):
     if operation not in RECORD_TYPES:
         raise JournalError(
             "journal.unknown_operation",
@@ -428,7 +579,11 @@ def _commit_impl(base, object_id, kind, rel_path, operation, new_bytes,
             "%s resolves outside the approved root %s; the write is "
             "refused rather than followed" % (rel_path, base))
 
-    with _journal_lock(base):
+    with (contextlib.nullcontext() if lock_held else _journal_lock(base)):
+        # Trusted domain validation shares the write lock so journaled source
+        # rights cannot change between validation and graph acceptance.
+        if precommit is not None:
+            precommit()
         exists = os.path.exists(target_path)
         before_raw = None
         if exists:
@@ -439,10 +594,13 @@ def _commit_impl(base, object_id, kind, rel_path, operation, new_bytes,
         # A link or supersede records no content change: the after
         # fingerprint is the observed on-disk (or absent) fingerprint, never
         # a fingerprint of bytes that were never written.
-        after_fingerprint = before_fingerprint if not write_target else \
-            identity.object_fingerprint(new_bytes, kind)
+        after_fingerprint = (before_fingerprint if not write_target else
+                             None if remove_target else
+                             identity.object_fingerprint(new_bytes, kind))
 
         registry = _compute_registry(base)
+        if recovery_entry is None and _unresolved_prepared_for(base, object_id):
+            raise JournalError("journal.interrupted", "recover the pending operation before writing")
         prev = registry.get(object_id)
         registry_fingerprint = prev["fingerprint"] if prev is not None \
             else None
@@ -506,7 +664,7 @@ def _commit_impl(base, object_id, kind, rel_path, operation, new_bytes,
         # before `expected_fingerprint` is ever consulted, so passing the
         # current on-disk fingerprint as the expected base cannot bypass it;
         # only `reconcile()` (recorded human decision) clears it.
-        if prev is not None and registry_fingerprint != compare_fingerprint:
+        if recovery_entry is None and prev is not None and registry_fingerprint != compare_fingerprint:
             _refuse(base, template, "journal.conflict",
                     "object %s has the same id and divergent bytes: on "
                     "disk %s, last accepted revision %d recorded %s. "
@@ -518,7 +676,7 @@ def _commit_impl(base, object_id, kind, rel_path, operation, new_bytes,
                        prev["revision"] if prev is not None else 0,
                        registry_fingerprint))
 
-        if prev is not None and expected_fingerprint is None:
+        if recovery_entry is None and prev is not None and expected_fingerprint is None:
             _refuse(base, template, "journal.missing_fingerprint",
                     "object %s carries no fingerprint, so a compare-and-swap "
                     "write cannot be checked; the write is refused rather "
@@ -532,13 +690,15 @@ def _commit_impl(base, object_id, kind, rel_path, operation, new_bytes,
                     "operation was prepared"
                     % (compare_fingerprint, expected_fingerprint))
 
-        if write_target and after_fingerprint == before_fingerprint:
+        if write_target and after_fingerprint == before_fingerprint and recovery_entry is None:
             _refuse(base, template, "journal.no_change",
                     "the new bytes for %s are identical to the current "
                     "bytes; no revision was recorded" % object_id)
 
-        revision = 1 if prev is None else prev["revision"] + 1
-        parent_revision = None if prev is None else prev["revision"]
+        history = [e for e in entries(base) if e.get("object_id") == object_id
+                   and e.get("state") == "applied" and e.get("revision") is not None]
+        parent_revision = history[-1]["revision"] if history else None
+        revision = (parent_revision or 0) + 1
 
         before_image = None
         if write_target and exists:
@@ -551,36 +711,63 @@ def _commit_impl(base, object_id, kind, rel_path, operation, new_bytes,
         template["parent_revision"] = parent_revision
         template["before_image"] = before_image
         template["undo"] = {
-            "kind": "restore_before_image" if before_image else "none",
+            "kind": ("restore_before_image" if before_image else
+                     "remove_created" if write_target else "none"),
             "before_image": before_image,
             "target": rel_path,
             "restores_revision": restores_revision,
         }
 
+        mutations = []
+        if write_target:
+            mutations.append((rel_path, before_raw,
+                              None if remove_target else new_bytes))
+        seen = {os.path.realpath(target_path)}
+        for companion in companions:
+            path = _recovery_path(base, companion["path"])
+            if os.path.realpath(path) in seen:
+                raise JournalError("journal.conflict", "duplicate transaction target")
+            seen.add(os.path.realpath(path))
+            raw = _read_optional(path)
+            if _raw_digest(raw) != companion.get("expected_digest"):
+                raise JournalError("journal.conflict", "paired target changed before commit")
+            mutations.append((companion["path"], raw, companion["new_bytes"]))
+        if mutations:
+            template["undo"]["files"] = [
+                _file_descriptor(base, path, old, new)
+                for path, old, new in mutations]
+            template["undo"]["target_absent"] = remove_target
+        if recovery_entry is not None:
+            template["undo"]["reverses_entry"] = recovery_entry["entry_id"]
+        if applied_agent is not None:
+            # Attribute the intent too, so director can find interrupted work.
+            template["agent"] = applied_agent
+
         prepared = dict(template)
         prepared["state"] = "prepared"
         prepared = append_entry(base, prepared)
 
-        if write_target:
-            _write_bytes_atomic(target_path, new_bytes)
-
-            with open(target_path, "rb") as fh:
-                committed_raw = fh.read()
-            committed_fingerprint = identity.object_fingerprint(
-                committed_raw, kind)
-            if committed_fingerprint != after_fingerprint:
-                refused = dict(template)
-                refused["state"] = "refused"
-                refused["resolves_entry"] = prepared["entry_id"]
-                refused["code"] = "journal.after_guard_failed"
-                refused["message"] = (
-                    "the committed bytes of %s fingerprint as %s but the "
-                    "operation expected %s; the journal entry stays "
-                    "prepared and the previous revision is still the last "
-                    "accepted one"
-                    % (object_id, committed_fingerprint, after_fingerprint))
-                append_entry(base, refused)
-                raise JournalError(refused["code"], refused["message"])
+        try:
+            for path, old, new in mutations:
+                _set_file(_recovery_path(base, path), new)
+            if any(_read_optional(_recovery_path(base, path)) != new
+                   for path, old, new in mutations):
+                raise JournalError("journal.after_guard_failed", "transaction bytes differ")
+        except Exception:
+            # No applied append has been attempted. Roll back only our bytes.
+            # A rollback fault keeps the prepared record available to undo.
+            for path, old, new in reversed(mutations):
+                absolute = _recovery_path(base, path)
+                current = _read_optional(absolute)
+                if current == old:
+                    continue
+                if current != new:
+                    raise JournalError("journal.conflict", "transaction target diverged during rollback")
+                _set_file(absolute, old)
+            refused = dict(template, state="refused", resolves_entry=prepared["entry_id"],
+                           code="journal.rolled_back", message="previous file states restored")
+            append_entry(base, refused)
+            raise
 
         applied = dict(template)
         applied["state"] = "applied"
@@ -634,6 +821,9 @@ def _compute_registry(base):
             continue
         object_id = entry.get("object_id")
         if not object_id:
+            continue
+        if (entry.get("undo") or {}).get("target_absent"):
+            objects.pop(object_id, None)
             continue
         objects[object_id] = {
             "object_id": object_id,
@@ -719,6 +909,9 @@ def _unresolved_prepared_for(base, object_id):
         resolves = entry.get("resolves_entry")
         if resolves:
             resolved_ids.add(resolves)
+        reverses = (entry.get("undo") or {}).get("reverses_entry")
+        if entry.get("state") == "applied" and reverses:
+            resolved_ids.add(reverses)
     for entry_id, entry in prepared_by_id.items():
         if entry_id not in resolved_ids:
             return entry
@@ -737,15 +930,9 @@ def object_state(base, object_id):
 
     unresolved = _unresolved_prepared_for(base, object_id)
     if unresolved is not None:
-        target_path = os.path.join(os.path.abspath(base), unresolved["path"])
-        raw = None
-        if os.path.exists(target_path):
-            with open(target_path, "rb") as fh:
-                raw = fh.read()
-        fingerprint = identity.object_fingerprint(raw, unresolved["kind"]) \
-            if raw is not None else None
-        if fingerprint == unresolved["before_fingerprint"]:
-            return "interrupted"
+        states = _file_states(base, unresolved)
+        return ("interrupted" if all(value in (f["before_digest"], f["after_digest"])
+                                      for f, value in states) else "conflict")
 
     registry = read_registry(base)
     obj = registry.get(object_id)
@@ -754,6 +941,10 @@ def object_state(base, object_id):
     target_path = os.path.join(os.path.abspath(base), obj["path"])
     if not os.path.exists(target_path):
         return "missing"
+    latest = next((e for e in entries(base) if e["entry_id"] == obj.get("last_entry_id")), None)
+    if latest and (latest.get("undo") or {}).get("files"):
+        if any(value != f["after_digest"] for f, value in _file_states(base, latest)):
+            return "conflict"
     with open(target_path, "rb") as fh:
         raw = fh.read()
     fingerprint = identity.object_fingerprint(raw, obj["kind"])
@@ -795,102 +986,129 @@ def replay(base):
         resolves = entry.get("resolves_entry")
         if resolves:
             resolved_ids.add(resolves)
+        reverses = (entry.get("undo") or {}).get("reverses_entry")
+        if entry.get("state") == "applied" and reverses:
+            resolved_ids.add(reverses)
         if entry.get("state") == "refused":
             refused.append(entry)
 
     interrupted = []
     recoverable = []
+    mixed = []
+    conflicts = []
     for entry in ordered:
         if entry.get("state") != "prepared":
             continue
         if entry["entry_id"] in resolved_ids:
             continue
-        target_path = os.path.join(os.path.abspath(base), entry["path"])
-        raw = None
-        if os.path.exists(target_path):
-            with open(target_path, "rb") as fh:
-                raw = fh.read()
-        fingerprint = identity.object_fingerprint(raw, entry["kind"]) \
-            if raw is not None else None
-        if fingerprint == entry["after_fingerprint"]:
+        states = _file_states(base, entry)
+        if all(value == f["after_digest"] for f, value in states):
             recoverable.append(dict(
                 entry, note="the new bytes survived; the applied record "
                             "was not written"))
-        elif fingerprint == entry["before_fingerprint"]:
+        elif all(value == f["before_digest"] for f, value in states):
             interrupted.append(dict(
                 entry, note="the previous bytes survived; the commit did "
                             "not land"))
+        elif all(value in (f["before_digest"], f["after_digest"]) for f, value in states):
+            mixed.append(dict(entry, note="paired write interrupted; undo restores all prior files"))
+        else:
+            conflicts.append(dict(entry, note="transaction target diverged; reconcile before recovery"))
 
     objects = {object_id: object_state(base, object_id)
                for object_id in _known_object_ids(ordered)}
 
     return {"objects": objects, "interrupted": interrupted,
-            "recoverable": recoverable, "refused": refused}
+            "recoverable": recoverable, "refused": refused,
+            "mixed": mixed, "conflicts": conflicts}
 
 
 def undo(base, entry_id, actor_kind, actor_name):
-    """Restore the before-image of the named journal entry as a NEW forward
-    revision, journaled with operation `"restore"` and `restores_revision`
-    set to the revision the restored content came from. Never deletes or
-    edits a line; refuses with `journal.conflict` if the target's current
-    fingerprint does not match the named entry's `after_fingerprint`,
-    reusing the same message and next-safe-action wording `commit_operation`
-    uses for a same-id divergent-bytes conflict.
+    """Restore exact prior files under the journal lock as a forward revision.
 
-    This function does not hold `_journal_lock` itself: the compare-and-swap
-    guard inside `commit_operation` (called here as `_commit_impl` with
-    `expected_fingerprint` set to the freshly-read current fingerprint)
-    provides the same atomicity a second, outer lock acquisition here would
-    only deadlock trying to duplicate.
+    Old creation records are supported when prior absence is unambiguous.
+    Recorded before images remain the only source of restored bytes.
     """
-    entry = None
-    for candidate in entries(base):
-        if candidate["entry_id"] == entry_id:
-            entry = candidate
-            break
-    if entry is None:
-        raise JournalError("journal.unknown_entry",
-                            "no journal entry %s found" % entry_id)
-
-    object_id, kind, rel_path = entry["object_id"], entry["kind"], \
-        entry["path"]
-    target_path = os.path.join(os.path.abspath(base), rel_path)
-    current_raw = None
-    if os.path.exists(target_path):
-        with open(target_path, "rb") as fh:
-            current_raw = fh.read()
-    current_fingerprint = identity.object_fingerprint(current_raw, kind) \
-        if current_raw is not None else None
-
-    if current_fingerprint != entry["after_fingerprint"]:
-        registry = _compute_registry(base)
-        prev = registry.get(object_id)
-        registry_fingerprint = prev["fingerprint"] if prev is not None \
-            else None
-        raise JournalError(
-            "journal.conflict",
-            "object %s has the same id and divergent bytes: on disk %s, "
-            "last accepted revision %d recorded %s. This is a conflict, "
-            "not an overwrite. Next safe action: read the object, "
-            "reconcile the difference by hand, then re-run the operation "
-            "with the on-disk fingerprint as the expected base."
-            % (object_id, current_fingerprint,
-               prev["revision"] if prev is not None else 0,
-               registry_fingerprint))
-
-    before_image = entry.get("before_image")
-    before_raw = b""
-    if before_image:
-        before_path = os.path.join(journal_dir(base), before_image)
-        with open(before_path, "rb") as fh:
-            before_raw = fh.read()
-
-    return _commit_impl(
-        base, object_id, kind, rel_path, "restore", before_raw,
-        expected_fingerprint=current_fingerprint, actor_kind=actor_kind,
-        actor_name=actor_name, create_if_missing=True,
-        source_object_id=None, source_revision=None,
-        restores_revision=entry.get("parent_revision"))
+    with _journal_lock(base):
+        ordered = list(entries(base))
+        entry = next((e for e in ordered if e["entry_id"] == entry_id), None)
+        if entry is None:
+            raise JournalError("journal.unknown_entry", "no journal entry %s found" % entry_id)
+        # A resolved prepared entry names the same durable write as its applied row.
+        resolution = next((e for e in ordered if e.get("resolves_entry") == entry_id), None)
+        if entry["state"] == "prepared" and resolution:
+            if resolution["state"] != "applied":
+                raise JournalError("journal.not_applied", "refused operation cannot be undone")
+            entry = resolution
+            entry_id = entry["entry_id"]
+        if entry["state"] not in ("applied", "prepared") or not entry.get("object_id"):
+            raise JournalError("journal.not_applied", "entry has no reversible durable write")
+        object_id, kind, rel_path = entry["object_id"], entry["kind"], entry["path"]
+        pending = _unresolved_prepared_for(base, object_id)
+        if pending is not None and pending["entry_id"] != entry_id:
+            raise JournalError("journal.interrupted", "recover the pending operation before undoing history")
+        applied = [e for e in ordered if e.get("object_id") == object_id and e["state"] == "applied"]
+        latest = applied[-1] if applied else None
+        prior_undo = next((e for e in reversed(applied)
+                           if (e.get("undo") or {}).get("reverses_entry") == entry_id), None)
+        if prior_undo:
+            if latest != prior_undo or any(value != f["after_digest"]
+                                           for f, value in _file_states(base, prior_undo)):
+                raise JournalError("journal.conflict", "restoration is no longer the accepted disk state")
+            rebuild_registry(base)
+            return prior_undo
+        # Undo a stack of edits after their newer entries have been reversed.
+        effective = []
+        for e in applied:
+            reversed_id = (e.get("undo") or {}).get("reverses_entry")
+            if reversed_id:
+                effective = [x for x in effective if x["entry_id"] != reversed_id]
+            else:
+                effective.append(e)
+        if entry["state"] == "applied" and (not effective or effective[-1]["entry_id"] != entry_id):
+            raise JournalError("journal.conflict", "a newer accepted entry must be reversed first")
+        if entry["state"] == "prepared" and latest and latest["revision"] != entry.get("parent_revision"):
+            raise JournalError("journal.conflict", "prepared operation has a newer accepted revision")
+        states = _file_states(base, entry)
+        if any(value not in ((f["before_digest"], f["after_digest"])
+                             if entry["state"] == "prepared" else (f["after_digest"],))
+               for f, value in states):
+            raise JournalError("journal.conflict", "transaction has divergent bytes; reconcile before undo")
+        descriptor = entry.get("undo") or {}
+        if entry.get("operation") == "move":
+            raise JournalError("journal.undo_unsupported", "move recovery needs both path identities")
+        files = descriptor.get("files")
+        if not files:
+            image = entry.get("before_image")
+            if not image and not (entry.get("before_fingerprint") is None and
+                                  entry["operation"] in ("mint", "import", "copy")):
+                raise JournalError("journal.undo_unsupported", "entry has no exact recovery descriptor")
+            files = [{"path": rel_path, "before_image": image}]
+        restore = []
+        for f in files:
+            path = _recovery_path(base, f["path"])
+            image = f.get("before_image")
+            raw = None
+            if image:
+                image_path = _recovery_path(journal_dir(base), image)
+                raw = _read_optional(image_path)
+                digest = os.path.basename(image).removesuffix(".bin")
+                if raw is None or _raw_digest(raw) != digest:
+                    raise JournalError("journal.before_image_invalid", "before image missing or corrupt")
+            if "before_digest" in f and _raw_digest(raw) != f["before_digest"]:
+                raise JournalError("journal.before_image_invalid", "before image does not match descriptor")
+            restore.append({"path": f["path"], "new_bytes": raw,
+                            "expected_digest": _raw_digest(_read_optional(path))})
+        if not restore or restore[0]["path"] != rel_path:
+            raise JournalError("journal.undo_unsupported", "primary recovery target is missing")
+        current = _read_optional(_recovery_path(base, rel_path))
+        return _commit_impl(
+            base, object_id, kind, rel_path, "restore", restore[0]["new_bytes"],
+            expected_fingerprint=identity.object_fingerprint(current, kind) if current is not None else None,
+            actor_kind=actor_kind, actor_name=actor_name, create_if_missing=True,
+            source_object_id=None, source_revision=None,
+            restores_revision=entry.get("parent_revision"), companions=restore[1:],
+            remove_target=restore[0]["new_bytes"] is None, recovery_entry=entry, lock_held=True)
 
 
 # ---------------------------------------------------------------------------
