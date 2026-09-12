@@ -2099,6 +2099,280 @@ learner-facing design.
 
 **Relationship to prior entries:** extends the September 8 selective-generation and interactive-visual-teaching entries. It authorizes implementation beyond a comparison report while preserving the source-to-course and portable-artifact boundaries.
 
+### 2026-09-09: UI scope and an auditable project history
+
+> both, I still feel like our UI isnt the best it cant be but idk how to scope it, also how can we organize our prior ideas and audits and more into one progressive timeline and ideaboarding surface that can be audited and reflected upon in the future without being biased by existing work?
+
+#### Interpretation recorded 2026-09-09
+
+**Status:** exploratory product direction.
+
+**Current interpretation:** examine both learner-facing and architectural
+lessons from the referenced projects. Help define a bounded, coherent UI
+improvement exercise. Make the history of ideas, audits, choices, changes,
+evidence, and later reflection navigable through one progressive timeline and
+ideaboarding surface. Preserve alternatives and original intent so implemented
+work does not receive automatic preference in future evaluation.
+
+**Open questions:** a representative study session and comparative prototypes
+must identify the UI composition that fits best. A small history prototype must
+establish useful grouping, chronology, provenance and reflection before a
+durable schema or a home inside the learner application is accepted. The user
+has not selected a new design or requested whole-history migration here.
+
+**Planning effect:**
+`research/ui-and-project-memory-proposal-2026-09-09.md` carries the evidence,
+proposed scope and bounded next packet. IL-20260909-01 through IL-20260909-05
+retain proposals without changing the active roadmap or accepting architecture.
+The existing Phase 20 crosswalk retains UI audit closure ownership.
+
+**Relationship to prior entries:** extends the September 6 best-fitting UI
+and audit-closure direction, September 7 renewable UI research, and September
+8 adopted learner interface. The selected interface remains the operating
+choice while its current fitness may be compared again. This statement does
+not erase prior choices or turn their completion into proof of satisfaction.
+
+### 2026-09-09: fresh evaluation of prior choices in future audits
+
+> also note for future audits dont be swayed by prior choices cause it might have been the best at the time but there could always be better
+
+#### Interpretation recorded 2026-09-09
+
+**Status:** active standing direction.
+
+**Current interpretation:** future audits judge options against current user
+needs and current evidence. A past choice may have been appropriate under its
+then-known constraints and still deserve replacement now. Prior acceptance,
+implementation effort, and repeated summaries are not proof of present fitness.
+Evaluate switching costs separately and preserve the reasoning on both sides.
+
+**Open questions:** the review surface should test whether staged exposure to
+prior solution choices helps comparisons. No procedure can guarantee an
+unbiased reviewer. Concrete contrary evidence and reconsideration conditions
+must remain inspectable.
+
+**Planning effect:** `AGENT-WORKFLOW.md` section 10 gains standing guidance for
+fresh evaluation. The proposed history surface records the evaluation methods
+in `research/ui-and-project-memory-proposal-2026-09-09.md`. This does not
+automatically replace any current product decision.
+
+**Relationship to prior entries:** sharpens the immediately preceding project
+history request and the September 6 replace-or-retain direction. It preserves
+past rationale while preventing earlier acceptance from becoming an exemption
+from future evaluation.
+
+### 2026-09-10: figure-derived questions, chapter tiers, source wisdom, and paper notes
+
+> make question type that converts figures/tables from books into fill in the blank/drag and drop
+
+> Combineing similar chapters into groups aand make them into tiers?
+
+> Absorvbing words of wisdom(from emt books and stuff)&#x20;
+
+> digitalizing paper notes?
+
+#### Interpretation recorded 2026-09-10
+
+**Status:** exploratory. The paper-note clause confirms active direction. The
+other three clauses name desired capabilities, not accepted formats or a
+scheduled phase.
+
+**Current interpretation:** figures and tables in approved books should be
+usable as source material for interaction-shaped questions, including blanks
+and drag-and-drop, when that treatment preserves the figure's meaning and the
+assessment target. Related chapters may be organized into meaningful groups
+and progressive tiers so the learner can see and traverse a larger body of
+material without flattening distinct objectives. Memorable practical guidance,
+especially in sources such as EMT books, should be captured as a source-grounded
+learning treatment rather than lost inside long prose. Existing paper notes
+should be digitizable and usable by the course under the already recorded note
+authority rules.
+
+**Open questions:** figure conversion must establish whether the interaction is
+a new item type, an authoring transform into existing `visual`, `table`, `dnd`,
+or `build` capabilities, or both. It must also define accessible static
+equivalents, source locators, image rights, and review of any derived key.
+Chapter tiers need a named meaning, such as prerequisite depth, difficulty,
+course sequence, or learner-facing disclosure, and must not treat chapter
+similarity as objective identity. Source wisdom needs selection criteria and a
+treatment shape, such as callouts, key terms, field cautions, or retrieval
+prompts, while preserving context and distinguishing source quotation from AI
+synthesis. Paper-note digitization retains its existing OCR confidence,
+identity, reconciliation, rights, and note-versus-truth questions.
+
+**Planning effect:** IL-20260910-01 through IL-20260910-03 register the three
+new proposals for bounded research or prototypes. IL-20260820-01 and
+IL-20260820-02 continue to own paper-note intake. No format, requirement, or
+phase changes on this entry alone.
+
+**Relationship to prior entries:** extends the 2026-08-22 paper-item-format fit
+check from reproducing question shapes to deriving interactions from a bound
+figure or table. Extends the course hierarchy and objective-spine direction
+with a possible grouped, tiered projection. Extends direct-source treatment by
+naming memorable practical guidance as material worth surfacing. Confirms the
+2026-08-20 paper-note digitization direction and supersedes nothing.
+
+### 2026-09-10: reading prototype must match the accepted UI and project benchmark
+
+> This prototype looks nothing like the new design style and more? Nothing UI com prejensive compared to the github projects and more
+
+#### Interpretation recorded 2026-09-10
+
+**Status:** active. This corrects the visual and experiential scope of the
+source-to-reading prototype.
+
+**Current interpretation:** a prototype is not useful merely because it proves
+the storage boundary. It must look and behave like the newly adopted Itembank
+learner interface and demonstrate a credible course workspace. It should
+combine the strongest already-reviewed project patterns that fit Itembank,
+including a personal learning desk, objective path, source-grounded reader,
+notes, activity transitions, evidence boundaries, recovery, and responsive
+navigation. Generic cards and browser-default styling do not meet this bar.
+
+**Open questions:** human review must still decide whether the rebuilt visual
+hierarchy feels coherent and sufficiently comprehensive. Touch hardware,
+screen-reader behavior, 200 percent text, 400 percent zoom, and aesthetic
+acceptance remain direct review gates rather than agent-certified results.
+
+**Planning effect:** Link P1 in
+`SOURCE-TO-READING-IMPLEMENTATION-PLAN-2026-09-10.md` now requires the accepted
+greenfield identity and the complete reading workspace. Its semantic
+zero-mutation gates remain necessary but are no longer sufficient.
+
+**Relationship to prior entries:** extends and enforces the 2026-09-08 entry
+adopting the greenfield learner interface and the 2026-09-09 request to learn
+from the reviewed projects. It supersedes the minimal visual presentation of
+the first reading-occurrence prototype, not its authority or recovery tests.
+
+### 2026-09-10: rebuilt reading prototype is fitting enough to continue
+
+> alot better, room to improve in the future but this is more fitting accordingly
+
+#### Interpretation recorded 2026-09-10
+
+**Status:** active. The rebuilt source-to-reading prototype is accepted as a
+fitting direction for continued work, with refinement still expected.
+
+**Current interpretation:** the personal study-desk shell, objective path,
+editorial source reader, contextual notes, Resources, evidence boundaries,
+recovery states, and responsive navigation form an appropriate baseline for
+this course experience. Future work should refine this direction rather than
+return to the generic-card prototype.
+
+**Open questions:** typography, spacing, interaction polish, activity breadth,
+and production fit can improve through later representative journeys. Human
+touch, screen-reader, 200 percent text, 400 percent zoom, and final aesthetic
+review remain open.
+
+**Planning effect:** the visual-style blocker on Link P1 is cleared. Link P2
+may use this interface direction when designing the durable occurrence and
+evidence contract, while retaining its separate product and authority gates.
+
+**Relationship to prior entries:** resolves the immediate dissatisfaction in
+the preceding 2026-09-10 prototype correction. It confirms the 2026-09-08
+greenfield interface direction and supersedes no future refinement work.
+
+### 2026-09-11: source reproduction choice and deferred prototype review
+
+> "does not reproduce the original figure, source dialog, or label-placement experience. " Reproducing is fine... but that should be something deferred to the user as a choice or osmething,&#x20;
+>
+> "Human touch, screen-reader, zoom, visual approval, real-course comparison, and format acceptance remain open."
+>
+> will be hard to test for now so just defer to future for the others accordingly, work on next part
+
+#### Interpretation recorded 2026-09-11
+
+**Status:** active. This clarifies user choice and prototype sequencing.
+
+**Current interpretation:** reproducing the original figure, source dialog, or
+label-placement experience is permitted as a user-selected treatment under the
+source rights in force. A derived presentation is another available treatment.
+Human touch, screen-reader, zoom, visual approval, real-course comparison, and
+format acceptance are deferred for this prototype chain. Further synthetic
+work may proceed without treating those checks as passed or as current blockers.
+
+**Open questions:** the user can choose the reproduction treatment when a
+specific source and task are available. The deferred checks resume when a
+representative course and appropriate human reviewers or devices are available,
+and before claiming the corresponding accessibility, format, or exam readiness.
+
+**Planning effect:** extends IL-20260910-01 and the
+[learning-treatment prototype](../prototypes/learning-treatments/README.md#current-direction-2026-09-11).
+The prototype record must retain the deferred checks, owner, and revisit
+condition. This is a scoped sequencing decision and grants no global
+accessibility waiver or source-rights exception.
+
+**Relationship to prior entries:** extends the September 10 figure-derived
+question direction and clarifies the open-review status in "rebuilt reading
+prototype is fitting enough to continue". Those checks remain owed. Any earlier
+description of non-reproduction describes a prototype limit, not a prohibition.
+
+### 2026-09-11: diagram placement and selectable answer banks
+
+> for the diagram, drag and drop might be better, and also, always give option of word bank? Or at least, since NREMT stuff always have bank (I think) might need double check
+
+#### Interpretation recorded 2026-09-11
+
+**Status:** exploratory. Diagram placement is the preferred next prototype.
+
+**Current interpretation:** offer label placement for diagrams with an
+equivalent non-drag interaction. Preserve typed recall as a learning choice and
+let the learner choose an optional word or value bank for supported teaching
+activities. Exam-style practice follows the target's documented response
+formats and supplied choices. Removing required choices changes the activity
+into labeled recall practice. Adding unsupported help changes its conditions.
+
+**Open questions:** whether drag-and-drop is the best treatment remains an
+interaction question. Verify each examination's current credential-level
+formats before choosing defaults. The user's tentative NREMT statement does
+not establish that every exam uses a word bank or the same response types.
+
+**Planning effect:** extends IL-20260910-01 without adopting a new runtime type.
+The [exam-fit review](../prototypes/learning-treatments/runtime-candidate/EXAM-FIT-REVIEW.md)
+owns the official EMT evidence, version, and known prototype mismatches.
+The [prototype record](../prototypes/learning-treatments/README.md#current-direction-2026-09-11) owns the
+comparison of placement, typed recall, and optional teaching support.
+
+**Relationship to prior entries:** refines the September 10 figure and table
+question proposal. Confirms the August 24 principle that practice should mirror
+the real examination's formats. Preserves the teaching-versus-exam distinction
+already retained in IL-20260826-10, whose separate-pool implementation remains
+Backburner.
+
+### 2026-09-11: orient learning and practice to the actual examination
+
+> put into uservision accordingly as well, for stuff to be oriented accordingly to the exam and what will be tested and more?
+
+#### Interpretation recorded 2026-09-11
+
+**Status:** active. This confirms and sharpens existing assessment direction.
+
+**Current interpretation:** organize the default learning path around the
+actual tested objectives and the support needed to perform them. Orient
+exam-style practice to current official scope, cognitive demand, response
+formats, documented distributions, timing, permitted aids, and scoring
+conditions. Classroom targets follow the applicable syllabus, instructor
+guidance, and rubric. Teaching activities may use other formats when their
+purpose is labeled. Enrichment remains a discoverable learner choice.
+
+**Open questions:** each course still needs its governing exam version and
+assessment evidence. Unknown weights, item mixes, or difficulty distributions
+stay unknown. Successful synthetic exercises cannot establish whole-exam
+coverage, learning efficacy, or readiness.
+
+**Planning effect:** use the existing
+[assessment intake](../.claude/skills/ASSESSMENT-INTAKE.md) and
+[course-building loop](SOURCE-TO-COURSE.md#the-course-building-loop) to govern
+future authoring and review. Apply the distinction now through IL-20260910-01
+and the [exam-fit review](../prototypes/learning-treatments/runtime-candidate/EXAM-FIT-REVIEW.md).
+No new blueprint schema, scoring authority, or completed examination course is
+accepted by this clarification.
+
+**Relationship to prior entries:** confirms the August 13 course-generator and
+assessment-alignment goal and the August 24 examination-fidelity principle.
+Extends both to answer-bank choices and figure-derived activities. It preserves
+broader learning treatments while keeping tested scope visible.
+
 ## Interpretation protocol
 
 An interpretation may appear immediately after a verbatim entry when it helps

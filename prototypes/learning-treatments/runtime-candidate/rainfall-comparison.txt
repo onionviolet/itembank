@@ -1,0 +1,45 @@
+# Synthetic rainfall comparison
+
+Status: original synthetic draft. Key and rubric review are deferred.
+Role: exploratory learning practice, not an EMT examination item.
+
+## Treatment decision
+
+The source proposal asks the learner to describe the difference between two
+measurements taken over equal collection intervals. Use the existing `short`
+format because the response explains a comparison. The runtime records prose
+as pending review. This is separate from the studio's missing-value exercise.
+It does not replace that exercise or claim exam-format equivalence.
+
+## SOURCES
+
+synthetic-table-1 | ../figures.md#source-table-1, Table 1, Monday row, Gauge A, Gauge B, and Collection interval. Original synthetic specimen.
+
+## Static source excerpt
+
+| Day | Gauge A | Gauge B | Collection interval |
+| --- | ---: | ---: | --- |
+| Monday | 12 mm | 18 mm | 24 hours |
+
+## Review policy
+
+The proposed criteria below support a future review. No points, penalties,
+partial credit, pass threshold, or official grading policy is assigned.
+Equivalent mathematical or verbal explanations are acceptable proposals.
+Ambiguous gauge direction, missing units, or an unsupported collection interval
+require review. The author does not settle a mark in this prototype.
+
+Q1. Table 1 records Monday rainfall: Gauge A = 12 mm, Gauge B = 18 mm, and both collection intervals = 24 hours. Describe how Gauge B compares with Gauge A and explain why the intervals matter for this comparison. Source: figures.md#source-table-1, Table 1, Monday row.   (difficulty: application)
+[OBJECTIVE: synthetic:rainfall.equal-interval-comparison]
+[TYPE: short]
+[SRC: synthetic-table-1 Table 1 Monday row]
+
+MODEL: Gauge B collected 6 mm more than Gauge A, since 18 mm minus 12 mm is 6 mm. Both readings cover 24 hours, so the depth comparison uses the same duration.
+
+RUBRIC:
+- Identifies Gauge B as the larger reading and states the difference as 6 mm, or gives an equivalent calculation with units and clear direction.
+- Explains that both readings cover the same 24-hour interval, so a longer collection time is not the reason for the difference.
+
+TRAP: Reporting the size of the difference without saying which gauge is larger, or assuming unequal collection times despite the source row.
+
+CONFIDENCE: low

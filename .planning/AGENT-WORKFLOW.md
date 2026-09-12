@@ -320,3 +320,33 @@ Before closing a planning or product-direction pass, verify:
 7. Mirrored skills remain byte-identical.
 8. No plan weakens the one-parser, one-scorer, one-evidence-store boundary.
 9. No em dash characters were introduced outside verbatim quotations.
+
+### Fresh evaluation of prior choices, added 2026-09-09
+
+User authority: `USER-VISION.md`, "fresh evaluation of prior choices in future
+audits", 2026-09-09. Apply this to future audits and design comparisons.
+
+1. Define the current user need and evaluation criteria before using old
+   solution choices to narrow the alternatives. Then reconcile with the exact
+   earlier intent, evidence, and currently binding rules.
+2. Treat prior acceptance and implementation as historical facts. Evaluate a
+   credible alternative when a better fit is plausible. A choice that was best
+   under earlier conditions may no longer be best now.
+3. Record current fitness separately from switching cost, compatibility,
+   maintenance, and recovery. Prior effort alone does not establish quality.
+4. Preserve contrary evidence, failed experiments, unknowns, and the provenance
+   of repeated claims. Multiple summaries of one observation are not
+   independent confirmation. A passed technical gate does not establish human
+   satisfaction or learning efficacy.
+5. State what evidence would change the recommendation and when to revisit it.
+   Keep the existing choice operational until an explicit revision changes it.
+   Cite present authority when a boundary limits execution, and record a
+   proposed boundary change when warranted rather than assuming it is eternal.
+
+Record original rationale and later corrections together. No audit may claim
+to be free of bias merely because it used this procedure.
+
+The bounded [vision-reference architecture comparison](research/ui-and-project-memory-proposal-2026-09-09.md#fresh-architecture-evaluation-demonstration-2026-09-09)
+demonstrates this procedure. Its recommendation preserves the local operating
+choice and records missing evidence. It does not validate the proposed visual
+label-withholding method or close human review gates.

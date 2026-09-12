@@ -1,0 +1,52 @@
+# Synthetic water-process hotspot candidate
+
+**Status:** draft only. Key and construct review required. This is an original
+synthetic prototype artifact, not a published or accepted assessment.
+
+## Source record
+
+`../figures.md#source-figure-2`, Figure 2, "Water moving through a local
+landscape." The source identity is the original synthetic specimen in this
+prototype. No external source, course binding, learner evidence, or rights
+grant is implied.
+
+## Static treatment meaning
+
+The source figure depicts a lake at left, a cloud above, and land leading to a
+stream at right. One marked target is placed at the upward arrow leaving the
+lake. A second target is placed at the downward arrow from the cloud. This
+candidate asks the learner to identify the location that depicts the named
+process. The static description preserves the source geometry without placing
+the private accepted target or process label in the public interaction contract.
+
+## SOURCES
+
+synthetic-figure-2 | Original synthetic specimen | ../figures.md#source-figure-2 | Figure 2
+
+Q1. In the synthetic Figure 2 context, select the target that marks water rising from the lake.   (difficulty: application)
+[OBJECTIVE: synthetic:water-cycle.process-location]
+[TYPE: visual]
+[INTERACTION: hotspot]
+[VISUAL: {"version":1,"plane":{"width":"10","height":"6"},"regions":[{"id":"region-a","label":"Target A","shape":"circle","coords":["2","4","0.75"]},{"id":"region-b","label":"Target B","shape":"circle","coords":["6","1.5","0.75"]}],"initial":{"region":null},"actions":["select_hotspot"],"accessibility":{"description":"A schematic watershed with two selectable targets. Target A is beside the upward arrow from the lake. Target B is below the cloud at the downward arrow."}}]
+[SCORING: {"kind":"hotspot","accepted":[{"region":"region-a"}],"tolerance":{},"partial_credit":false}]
+
+WHY BEST: The upward arrow originating at the lake is the source location for the named process.
+
+KEY DISCRIMINATOR: Match the direction and origin of the marked arrow to the process named in the prompt.
+
+SECOND-BEST: Target B marks the downward cloud-to-land arrow. It would be correct if the prompt named the process shown by falling water.
+
+DISTRACTOR ANALYSIS:
+- Target B follows the downward arrow from cloud to land. It would be correct for a prompt about the falling-water process.
+
+TRAP: Choosing the cloud-adjacent target because both targets concern water movement.
+
+CONFIDENCE: low
+
+## Review limits
+
+This historical candidate verifies target selection. The 2026-09-11 user
+direction favors drag-and-drop for diagram labels. The separate
+water-process-placement.txt candidate now tests that matching construct.
+Reproduction, source opening, and future visual presentation remain user
+choices. Related review is deferred while synthetic prototype work continues.

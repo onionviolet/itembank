@@ -1,0 +1,1079 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Chapter tiers and source context | Itembank prototype</title>
+    <style>
+      :root {
+        --paper: #f5f3ec;
+        --surface: #fffefa;
+        --ink: #21332e;
+        --forest: #385c4a;
+        --moss: #78906a;
+        --sage: #e7edde;
+        --line: #d7dbd0;
+        --muted: #66736d;
+        --accent: #555d87;
+        --warm: #f4ead7;
+        --serif: Georgia, "Times New Roman", serif;
+        --sans:
+          ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          sans-serif;
+        --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        margin: 0;
+        background: var(--paper);
+        color: var(--ink);
+        font: 15px/1.55 var(--sans);
+      }
+      button {
+        font: inherit;
+        color: inherit;
+        cursor: pointer;
+      }
+      button:focus-visible,
+      a:focus-visible {
+        outline: 3px solid #7685b4;
+        outline-offset: 3px;
+      }
+      .skip {
+        position: absolute;
+        left: 12px;
+        top: -50px;
+        background: var(--ink);
+        color: white;
+        padding: 8px 12px;
+        z-index: 3;
+      }
+      .skip:focus {
+        top: 12px;
+      }
+      .shell {
+        display: grid;
+        grid-template-columns: 245px minmax(0, 1fr);
+      }
+      .side {
+        position: sticky;
+        top: 0;
+        height: 100vh;
+        border-right: 1px solid var(--line);
+        padding: 30px 20px;
+        display: flex;
+        flex-direction: column;
+      }
+      .brand {
+        display: flex;
+        gap: 9px;
+        align-items: center;
+        font-size: 23px;
+        font-weight: 750;
+        letter-spacing: -0.06em;
+      }
+      .mark {
+        display: grid;
+        place-items: center;
+        width: 25px;
+        height: 28px;
+        border-radius: 3px 9px 3px 3px;
+        background: var(--ink);
+        color: var(--paper);
+        font: 16px var(--serif);
+      }
+      .eyebrow {
+        margin: 12px 0 30px;
+        font-size: 10px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      .nav {
+        display: grid;
+        gap: 5px;
+      }
+      .nav button,
+      .mobile-nav button {
+        border: 0;
+        background: transparent;
+        text-align: left;
+        border-radius: 6px;
+        padding: 10px 12px;
+      }
+      .nav button.active {
+        background: var(--sage);
+        font-weight: 700;
+      }
+      .course-stamp {
+        margin-top: 32px;
+        padding: 15px 12px;
+        border-top: 1px solid var(--line);
+        border-bottom: 1px solid var(--line);
+      }
+      .course-stamp strong,
+      .course-stamp small {
+        display: block;
+      }
+      .course-stamp small,
+      .local {
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .local {
+        margin-top: auto;
+      }
+      .local:before {
+        content: "";
+        display: inline-block;
+        width: 7px;
+        height: 7px;
+        margin-right: 7px;
+        border-radius: 50%;
+        background: #66846c;
+      }
+      .topbar {
+        height: 70px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid var(--line);
+        padding: 0 42px;
+        font-size: 12px;
+      }
+      .badge {
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 4px 10px;
+        color: var(--muted);
+      }
+      main {
+        max-width: 1420px;
+        margin: auto;
+        padding: 34px 42px 64px;
+      }
+      .intro {
+        display: flex;
+        justify-content: space-between;
+        align-items: end;
+        gap: 20px;
+        margin-bottom: 25px;
+      }
+      .intro h1 {
+        font: 46px/1.05 var(--serif);
+        letter-spacing: -0.04em;
+        margin: 5px 0 8px;
+      }
+      .intro p {
+        margin: 0;
+        color: var(--muted);
+        max-width: 660px;
+      }
+      .source-id {
+        font: 11px var(--mono);
+        color: var(--muted);
+        white-space: nowrap;
+      }
+      .axis-bar {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        border-top: 1px solid var(--line);
+        border-bottom: 1px solid var(--line);
+        padding: 12px 0;
+        margin-bottom: 26px;
+        flex-wrap: wrap;
+      }
+      .axis-bar span {
+        font-size: 11px;
+        color: var(--muted);
+        margin-right: auto;
+      }
+      .axis-bar button {
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: transparent;
+        padding: 7px 12px;
+      }
+      .axis-bar button.active {
+        border-color: var(--forest);
+        background: var(--sage);
+        font-weight: 700;
+      }
+      .axis-bar .reset {
+        margin-left: auto;
+      }
+      .layout {
+        display: grid;
+        grid-template-columns: 255px minmax(0, 1fr) 275px;
+        gap: 28px;
+      }
+      .panel-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid var(--line);
+        padding-bottom: 10px;
+        margin-bottom: 8px;
+      }
+      .panel-head h2 {
+        margin: 0;
+        font-size: 13px;
+      }
+      .group {
+        border-bottom: 1px solid var(--line);
+        padding: 13px 0;
+      }
+      .group h3 {
+        font: 19px/1.1 var(--serif);
+        margin: 0 0 3px;
+      }
+      .group p {
+        font-size: 11px;
+        color: var(--muted);
+        margin: 0 0 9px;
+      }
+      .chapter-button {
+        width: 100%;
+        border: 0;
+        border-left: 3px solid transparent;
+        background: transparent;
+        text-align: left;
+        padding: 9px 8px;
+        margin: 2px 0;
+      }
+      .chapter-button:hover {
+        background: #edf0e7;
+      }
+      .chapter-button[aria-current="true"] {
+        border-left-color: var(--accent);
+        background: #e9ebe3;
+        padding-left: 12px;
+      }
+      .chapter-button strong,
+      .chapter-button small {
+        display: block;
+      }
+      .chapter-button strong {
+        font-size: 13px;
+      }
+      .chapter-button small {
+        font: 10px var(--mono);
+        color: var(--muted);
+        margin-top: 3px;
+      }
+      .reader {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 34px clamp(22px, 5vw, 60px);
+        box-shadow: 0 12px 35px #26372d0a;
+      }
+      .label {
+        display: inline-flex;
+        gap: 7px;
+        align-items: center;
+        border: 1px solid #d7dec8;
+        border-radius: 999px;
+        background: #edf0e3;
+        padding: 4px 10px;
+        font-size: 10px;
+      }
+      .label:before {
+        content: "●";
+        color: var(--forest);
+      }
+      .reader h2 {
+        font: 39px/1.08 var(--serif);
+        letter-spacing: -0.025em;
+        margin: 13px 0;
+      }
+      .objective {
+        border-bottom: 1px solid var(--line);
+        padding-bottom: 19px;
+        color: #4c6057;
+        font-size: 16px;
+      }
+      .objective code {
+        font: 10px var(--mono);
+        color: var(--muted);
+      }
+      .quote-card {
+        margin: 25px 0;
+        background: #edf0e3;
+        border-left: 4px solid var(--forest);
+        padding: 17px 18px;
+      }
+      .quote-card h3,
+      .synthesis h3 {
+        margin: 0 0 8px;
+        font-size: 11px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+      .quote-card blockquote {
+        font: 21px/1.5 var(--serif);
+        margin: 0;
+        color: #334a40;
+      }
+      .context-copy {
+        font: 16px/1.75 var(--serif);
+        color: #344b43;
+      }
+      .synthesis {
+        margin-top: 22px;
+        background: var(--warm);
+        padding: 16px 18px;
+        border-radius: 5px;
+      }
+      .synthesis p {
+        margin: 0;
+      }
+      .prerequisites {
+        margin-top: 18px;
+        border-top: 1px solid var(--line);
+        padding-top: 16px;
+      }
+      .prerequisites h3 {
+        margin: 0 0 7px;
+        font-size: 11px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+      .prerequisites p {
+        margin: 0 0 10px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .prereq-list {
+        display: grid;
+        gap: 8px;
+      }
+      .prereq-edge {
+        display: grid;
+        grid-template-columns: max-content 1fr;
+        gap: 8px;
+        align-items: start;
+      }
+      .prereq-edge span {
+        color: var(--muted);
+        font-size: 11px;
+      }
+      .prereq-list button,
+      .source-action {
+        border: 1px solid var(--line);
+        border-radius: 5px;
+        background: transparent;
+        padding: 7px 10px;
+        font-size: 12px;
+      }
+      .reader-footer {
+        border-top: 1px solid var(--line);
+        padding-top: 20px;
+        margin-top: 27px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 15px;
+      }
+      .reader-footer button {
+        border: 1px solid var(--line);
+        border-radius: 5px;
+        background: transparent;
+        padding: 8px 11px;
+      }
+      .source-context {
+        border-left: 1px solid var(--line);
+        padding-left: 22px;
+      }
+      .book {
+        height: 150px;
+        background: var(--forest);
+        border-radius: 2px 7px 7px 2px;
+        color: #edf0d8;
+        padding: 19px;
+        box-shadow: inset 6px 0 #ffffff18;
+        font: 24px/1.15 var(--serif);
+      }
+      .book small {
+        display: block;
+        margin-bottom: 24px;
+        font: 9px var(--sans);
+        letter-spacing: 0.13em;
+      }
+      .source-context p,
+      .source-context li {
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .source-context code {
+        font: 10px var(--mono);
+      }
+      details {
+        border-top: 1px solid var(--line);
+        margin-top: 19px;
+        padding-top: 14px;
+      }
+      summary {
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: 700;
+      }
+      .why {
+        background: var(--sage);
+        border: 1px solid #d7dec8;
+        padding: 14px;
+        margin-top: 18px;
+        font-size: 12px;
+      }
+      .limits {
+        margin-top: 18px;
+        color: var(--muted);
+        font-size: 11px;
+      }
+      .mobile-nav {
+        display: none;
+      }
+      .status {
+        min-height: 20px;
+        font-size: 11px;
+        color: var(--forest);
+        text-align: right;
+      }
+      dialog {
+        width: min(680px, calc(100vw - 32px));
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        padding: 0;
+        background: var(--surface);
+        color: var(--ink);
+        box-shadow: 0 18px 60px #21332e44;
+      }
+      dialog::backdrop {
+        background: #21332e55;
+      }
+      .dialog-content {
+        padding: 28px;
+      }
+      .dialog-content h2 {
+        margin: 6px 0 14px;
+        font: 31px/1.1 var(--serif);
+      }
+      .dialog-quote {
+        margin: 18px 0;
+        border-left: 4px solid var(--forest);
+        padding: 12px 16px;
+        background: var(--sage);
+        font: 19px/1.5 var(--serif);
+      }
+      .dialog-actions {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 14px;
+        border-top: 1px solid var(--line);
+        padding-top: 18px;
+      }
+      .dialog-actions button {
+        border: 0;
+        border-radius: 5px;
+        background: var(--ink);
+        color: white;
+        padding: 9px 13px;
+      }
+      @media (max-width: 1060px) {
+        .layout {
+          grid-template-columns: 225px minmax(0, 1fr);
+        }
+        .source-context {
+          grid-column: 2;
+          border-left: 0;
+          border-top: 1px solid var(--line);
+          padding: 22px 0;
+          display: grid;
+          grid-template-columns: 180px 1fr;
+          gap: 20px;
+        }
+        .book {
+          margin: 0;
+        }
+      }
+      @media (max-width: 720px) {
+        .shell {
+          display: block;
+        }
+        .side {
+          display: none;
+        }
+        .topbar {
+          height: 60px;
+          padding: 0 19px;
+        }
+        .topbar .crumb {
+          display: none;
+        }
+        main {
+          padding: 24px 18px 88px;
+        }
+        .intro {
+          display: block;
+        }
+        .intro h1 {
+          font-size: 36px;
+        }
+        .source-id {
+          margin-top: 10px;
+        }
+        .axis-bar span {
+          width: 100%;
+          margin-right: 0;
+        }
+        .axis-bar .reset {
+          margin-left: 0;
+        }
+        .layout {
+          display: block;
+        }
+        .tiers {
+          margin-bottom: 20px;
+        }
+        .group {
+          padding: 10px 0;
+        }
+        .group h3 {
+          font-size: 17px;
+        }
+        .chapter-button {
+          padding: 8px 6px;
+        }
+        .reader {
+          padding: 25px 20px;
+        }
+        .reader h2 {
+          font-size: 33px;
+        }
+        .quote-card blockquote {
+          font-size: 19px;
+        }
+        .source-context {
+          display: block;
+          margin-top: 22px;
+        }
+        .book {
+          height: 118px;
+        }
+        .reader-footer {
+          align-items: stretch;
+          flex-direction: column;
+        }
+        .reader-footer button {
+          width: 100%;
+        }
+        .mobile-nav {
+          position: fixed;
+          z-index: 4;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          height: 66px;
+          background: var(--paper);
+          border-top: 1px solid var(--line);
+          display: flex;
+          justify-content: space-around;
+        }
+        .mobile-nav button {
+          text-align: center;
+          font-size: 10px;
+        }
+        .mobile-nav button:first-letter {
+          font-size: 17px;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <a class="skip" href="#reader">Skip to selected chapter</a>
+    <div class="shell">
+      <aside class="side">
+        <div class="brand"><span class="mark">i</span>itembank</div>
+        <p class="eyebrow">A place for understanding</p>
+        <nav class="nav" aria-label="Workspace">
+          <button class="active" type="button" data-scroll="tiers">
+            Chapter map</button
+          ><button type="button" data-scroll="reader">Read in context</button
+          ><button type="button" data-scroll="limits">Prototype limits</button>
+        </nav>
+        <div class="course-stamp">
+          <span class="eyebrow">Synthetic course</span
+          ><strong>Watershed field notes</strong
+          ><small>4 source chapters · local specimen</small>
+        </div>
+        <p class="local">Offline page · no egress</p>
+      </aside>
+      <section>
+        <header class="topbar">
+          <span class="crumb"
+            >Courses / Watershed field notes / Chapter map</span
+          ><span class="badge">Prototype · reversible projection</span>
+        </header>
+        <main>
+          <div class="intro">
+            <div>
+              <p class="eyebrow">Course navigation treatment</p>
+              <h1>One source, two useful maps.</h1>
+              <p>
+                Compare course sequence with prerequisite depth while every
+                chapter and objective keeps its own stable identity.
+                <a href="index.html">All treatment prototypes</a>
+              </p>
+            </div>
+            <code class="source-id"
+              >SYN-WFN-01 · original synthetic source</code
+            >
+          </div>
+          <section class="axis-bar" aria-label="Choose a tier axis">
+            <span>Tier axis, a navigation projection only</span
+            ><button
+              type="button"
+              class="active"
+              data-axis="sequence"
+              aria-pressed="true"
+            >
+              Course sequence</button
+            ><button type="button" data-axis="depth" aria-pressed="false">
+              Prerequisite depth</button
+            ><button type="button" class="reset" id="reset">
+              Reset to source order
+            </button>
+          </section>
+          <div class="layout">
+            <aside class="tiers" id="tiers" aria-label="Chapter tiers">
+              <div class="panel-head">
+                <h2 id="tier-title">Course sequence</h2>
+                <span class="eyebrow" id="tier-count">3 tiers</span>
+              </div>
+              <div id="groups"></div>
+            </aside>
+            <article class="reader" id="reader" tabindex="-1">
+              <span class="label"
+                >Original synthetic source · exact locator</span
+              >
+              <p class="eyebrow" id="chapter-meta"></p>
+              <h2 id="chapter-title"></h2>
+              <p class="objective" id="objective"></p>
+              <section class="quote-card">
+                <h3>Memorable wording from the source</h3>
+                <blockquote id="quote"></blockquote>
+              </section>
+              <section>
+                <h3 class="eyebrow">Context in the source</h3>
+                <p class="context-copy" id="context-copy"></p>
+              </section>
+              <section class="synthesis">
+                <h3>Separate synthesis for this treatment</h3>
+                <p id="synthesis-copy"></p>
+              </section>
+              <section class="prerequisites" aria-labelledby="prereq-title">
+                <h3 id="prereq-title">Prerequisite relationships</h3>
+                <p id="prereq-summary"></p>
+                <div class="prereq-list" id="prereq-list"></div>
+              </section>
+              <footer class="reader-footer">
+                <button type="button" id="previous">← Previous chapter</button>
+                <div
+                  class="status"
+                  id="status"
+                  role="status"
+                  aria-live="polite"
+                ></div>
+                <button type="button" id="next">Next chapter →</button>
+              </footer>
+            </article>
+            <aside class="source-context">
+              <div class="book">
+                <small>WATERSHED FIELD NOTES</small>Rainfall,<br />routes, and
+                runoff
+              </div>
+              <div>
+                <p>
+                  <strong>At the source</strong><br />Original synthetic course
+                  specimen<br /><a id="locator" href="chapters.md#ch-rf-02"></a>
+                </p>
+                <details>
+                  <summary>Inspect projection boundary</summary>
+                  <p id="boundary"></p>
+                </details>
+                <div class="why">
+                  <strong id="why-title">Why this group?</strong>
+                  <p id="why-copy"></p>
+                </div>
+                <p class="limits" id="limits">
+                  <strong>Visible limit:</strong> This page makes no claim about
+                  completion, mastery, or evidence. It saves nothing and resets
+                  on reload.
+                </p>
+                <p>
+                  <button
+                    class="source-action"
+                    type="button"
+                    id="inspect-source"
+                  >
+                    Inspect source context
+                  </button>
+                </p>
+                <p><a href="chapters.md" target="_blank" rel="noopener">Open raw Markdown in a new tab</a></p>
+              </div>
+            </aside>
+          </div>
+        </main>
+      </section>
+    </div>
+    <nav class="mobile-nav" aria-label="Prototype navigation">
+      <button type="button" data-scroll="tiers">Map</button
+      ><button type="button" data-scroll="reader">Read</button
+      ><button type="button" data-scroll="limits">Limits</button>
+    </nav>
+    <dialog id="source-dialog" aria-labelledby="dialog-title">
+      <div class="dialog-content">
+        <p class="eyebrow">Original synthetic source · exact context</p>
+        <h2 id="dialog-title"></h2>
+        <p><code id="dialog-locator"></code></p>
+        <blockquote class="dialog-quote" id="dialog-quote"></blockquote>
+        <p id="dialog-context"></p>
+        <div class="dialog-actions">
+          <a id="dialog-raw-link" href="chapters.md#ch-rf-02" target="_blank" rel="noopener"
+            >Open raw Markdown in a new tab</a
+          >
+          <form method="dialog">
+            <button type="submit">Close context</button>
+          </form>
+        </div>
+      </div>
+    </dialog>
+    <script>
+      const chapters = [
+        {
+          id: "CH-WC-01",
+          objective: "OBJ-WC-01",
+          title: "The water cycle is a moving system",
+          locator: "WFN-01 §1.2",
+          statement:
+            "Trace water among atmosphere, land, and surface storage using evaporation, condensation, precipitation, infiltration, and runoff.",
+          quote:
+            "A raindrop does not leave the water cycle when it reaches the ground. It changes route. Some water enters soil, some travels over the surface, and some returns to the air. The route depends on conditions at that place and time.",
+          context:
+            "This opening paragraph comes before any rainfall comparison. It introduces water routes without pretending that every route happens in one fixed order.",
+          synthesis:
+            "Sketch arrows only after naming the storage or place at each end. An arrow without a destination can hide whether water infiltrated, ran off, or evaporated.",
+          prerequisites: [],
+          foundationReason:
+            "This synthetic source begins here. Its water-route vocabulary is not derived from another chapter in this specimen.",
+        },
+        {
+          id: "CH-RF-02",
+          objective: "OBJ-RF-02",
+          title: "Read rainfall as an interval",
+          locator: "WFN-01 §2.3",
+          statement:
+            "Compare rainfall observations only when their time windows, units, and collection conditions are known.",
+          quote:
+            "Rainfall totals are not self-explanatory. Before comparing two numbers, read the interval attached to each one. Twelve millimeters in one hour and twelve millimeters in one day describe different conditions.",
+          context:
+            "The next paragraph asks the reader to check units and whether the gauge was read after a complete collection interval.",
+          synthesis:
+            "Put the interval beside every total before doing any subtraction. The units can match while the question still does not.",
+          prerequisites: [],
+          foundationReason:
+            "This synthetic measurement chapter is independently foundational. It does not require the water-route chapter to identify a collection interval.",
+        },
+        {
+          id: "CH-WS-03",
+          objective: "OBJ-WS-03",
+          title: "Follow water across a watershed",
+          locator: "WFN-01 §3.1",
+          statement:
+            "Explain how slope, soil, vegetation, and paved surfaces can change water’s route after precipitation.",
+          quote:
+            "A watershed boundary is a map of likely direction, not a promise that every drop will arrive at the same time. Soil, roots, pavement, and small channels alter the pace and route of water moving downhill.",
+          context:
+            "This paragraph introduces a source map before the chapter’s two synthetic hillside observations.",
+          synthesis:
+            "When comparing places, name one surface difference and one path difference. That keeps a watershed explanation from becoming a list of weather words.",
+          prerequisites: [
+            {
+              id: "CH-WC-01",
+              reason:
+                "Water-route and storage terms are needed to explain why a watershed surface changes where water goes.",
+            },
+          ],
+        },
+        {
+          id: "CH-ST-04",
+          objective: "OBJ-ST-04",
+          title: "Compare storm responses",
+          locator: "WFN-01 §4.2",
+          statement:
+            "Use a shared rainfall interval and observed surface conditions to make a bounded comparison of runoff response.",
+          quote:
+            "A heavier response is not proof of one cause. Start with what was measured, keep the comparison window visible, and name the condition that could explain the difference.",
+          context:
+            "This caution appears immediately before a pair of synthetic runoff observations. It limits the claim a reader can make from a small comparison.",
+          synthesis:
+            "Lead with the observation, then offer the condition as a possible explanation. This preserves the difference between data and a cause.",
+          prerequisites: [
+            {
+              id: "CH-RF-02",
+              reason:
+                "A shared rainfall interval makes the storm observations comparable before any explanation is offered.",
+            },
+            {
+              id: "CH-WS-03",
+              reason:
+                "Watershed routes and surfaces supply the conditions that can plausibly explain a different runoff response.",
+            },
+          ],
+        },
+      ];
+      const axes = {
+        sequence: {
+          name: "Course sequence",
+          reason:
+            "This is source order. It helps with a taught or straight-through reading path, and groups adjacent chapters only.",
+          groups: [
+            [
+              "Observe water",
+              ["CH-WC-01", "CH-RF-02"],
+              "The source begins by naming routes, then makes rainfall totals comparable.",
+            ],
+            [
+              "Trace water",
+              ["CH-WS-03"],
+              "This chapter applies the earlier terms to movement across a place.",
+            ],
+            [
+              "Compare responses",
+              ["CH-ST-04"],
+              "The final chapter uses shared observations for a bounded comparison.",
+            ],
+          ],
+        },
+        depth: {
+          name: "Prerequisite depth",
+          reason:
+            "This projection is derived from the explicit synthetic prerequisite edges shown in each chapter. It is for re-entry or repair, not a mastery estimate.",
+        },
+      };
+      let axis = "sequence",
+        selected = "CH-RF-02";
+      let sourceOpener = null;
+      const byId = (id) => chapters.find((c) => c.id === id);
+      const $ = (id) => document.getElementById(id);
+      function prerequisiteDepth(chapter, memo = new Map()) {
+        if (memo.has(chapter.id)) return memo.get(chapter.id);
+        const parents = chapter.prerequisites.map((edge) => byId(edge.id));
+        const depth = parents.length
+          ? 1 +
+            Math.max(
+              ...parents.map((parent) => prerequisiteDepth(parent, memo)),
+            )
+          : 0;
+        memo.set(chapter.id, depth);
+        return depth;
+      }
+      function depthGroups() {
+        const memo = new Map();
+        const labels = [
+          [
+            "Independent foundations",
+            "No incoming prerequisite edge in this specimen.",
+          ],
+          [
+            "Apply one foundation",
+            "Each chapter depends on one named foundation.",
+          ],
+          [
+            "Combine foundations",
+            "Each chapter depends on a prior comparison and place-based explanation.",
+          ],
+        ];
+        return labels
+          .map(([name, reason], depth) => [
+            name,
+            chapters
+              .filter((chapter) => prerequisiteDepth(chapter, memo) === depth)
+              .map((chapter) => chapter.id),
+            reason,
+          ])
+          .filter(([, ids]) => ids.length);
+      }
+      function axisGroups(axisName) {
+        return axisName === "depth" ? depthGroups() : axes.sequence.groups;
+      }
+      function render() {
+        const data = axes[axis];
+        const groups = axisGroups(axis);
+        $("tier-title").textContent = data.name;
+        $("tier-count").textContent = groups.length + " tiers";
+        $("boundary").textContent = data.reason;
+        $("groups").replaceChildren(
+          ...groups.map(([name, ids, reason], n) => {
+            const group = document.createElement("section");
+            group.className =
+              "group" + (ids.includes(selected) ? " contains-current" : "");
+            const heading = document.createElement("h3");
+            heading.textContent = n + 1 + ". " + name;
+            const copy = document.createElement("p");
+            copy.textContent = reason;
+            group.append(heading, copy);
+            ids.forEach((id) => {
+              const c = byId(id),
+                button = document.createElement("button");
+              button.type = "button";
+              button.className = "chapter-button";
+              button.dataset.chapter = id;
+              button.setAttribute(
+                "aria-current",
+                id === selected ? "true" : "false",
+              );
+              button.innerHTML =
+                "<strong>" +
+                c.title +
+                "</strong><small>" +
+                c.id +
+                " · " +
+                c.objective +
+                "</small>";
+              button.addEventListener("click", () => select(id, true));
+              group.append(button);
+            });
+            return group;
+          }),
+        );
+        document.querySelectorAll("[data-axis]").forEach((button) => {
+          const on = button.dataset.axis === axis;
+          button.classList.toggle("active", on);
+          button.setAttribute("aria-pressed", String(on));
+        });
+        renderReader();
+      }
+      function renderReader() {
+        const c = byId(selected);
+        $("chapter-meta").textContent =
+          c.id + " · " + c.objective + " · source chapter retained";
+        $("chapter-title").textContent = c.title;
+        $("objective").innerHTML =
+          "<code>" + c.objective + "</code><br>" + c.statement;
+        $("quote").textContent = c.quote;
+        $("context-copy").textContent = c.context;
+        $("synthesis-copy").textContent = c.synthesis;
+        renderPrerequisites(c);
+        renderSourceDialog(c);
+        $("locator").href = "chapters.md#" + c.id.toLowerCase();
+        $("locator").textContent = "SYN-WFN-01 · " + c.locator;
+        $("why-title").textContent = "Why " + currentGroup()[0] + "?";
+        $("why-copy").textContent = currentGroup()[2];
+      }
+      function renderPrerequisites(chapter) {
+        const list = $("prereq-list");
+        list.replaceChildren();
+        if (!chapter.prerequisites.length) {
+          $("prereq-summary").textContent = chapter.foundationReason;
+          return;
+        }
+        $("prereq-summary").textContent =
+          "These are conceptual dependencies for this synthetic projection. They do not report learner knowledge.";
+        chapter.prerequisites.forEach((edge) => {
+          const prerequisite = byId(edge.id);
+          const row = document.createElement("div");
+          row.className = "prereq-edge";
+          const button = document.createElement("button");
+          button.type = "button";
+          button.textContent = edge.id + " · " + prerequisite.title;
+          button.addEventListener("click", () => select(edge.id, true));
+          const reason = document.createElement("span");
+          reason.textContent = edge.reason;
+          row.append(button, reason);
+          list.append(row);
+        });
+      }
+      function renderSourceDialog(chapter) {
+        const anchor = "chapters.md#" + chapter.id.toLowerCase();
+        $("dialog-title").textContent = chapter.id + ": " + chapter.title;
+        $("dialog-locator").textContent = anchor;
+        $("dialog-quote").textContent = chapter.quote;
+        $("dialog-context").textContent = chapter.context;
+        $("dialog-raw-link").href = anchor;
+      }
+      function currentGroup() {
+        return axisGroups(axis).find((group) => group[1].includes(selected));
+      }
+      function order() {
+        return axisGroups(axis).flatMap((g) => g[1]);
+      }
+      function select(id, focus) {
+        selected = id;
+        render();
+        if (focus) {
+          $("reader").scrollIntoView({ behavior: "smooth", block: "start" });
+          $("reader").focus({ preventScroll: true });
+          $("status").textContent =
+            "Opened " + id + " with its source context.";
+        }
+      }
+      document.querySelectorAll("[data-axis]").forEach((button) =>
+        button.addEventListener("click", () => {
+          axis = button.dataset.axis;
+          render();
+          $("status").textContent =
+            "Showing " + axes[axis].name.toLowerCase() + ".";
+        }),
+      );
+      $("reset").addEventListener("click", () => {
+        axis = "sequence";
+        render();
+        $("status").textContent = "Reset to source order. No chapter changed.";
+      });
+      $("previous").addEventListener("click", () => {
+        const items = order(),
+          i = items.indexOf(selected);
+        select(items[(i - 1 + items.length) % items.length], false);
+      });
+      $("next").addEventListener("click", () => {
+        const items = order(),
+          i = items.indexOf(selected);
+        select(items[(i + 1) % items.length], false);
+      });
+      $("inspect-source").addEventListener("click", () => {
+        sourceOpener = $("inspect-source");
+        $("source-dialog").showModal();
+      });
+      $("locator").addEventListener("click", (event) => {
+        event.preventDefault();
+        sourceOpener = $("locator");
+        $("source-dialog").showModal();
+      });
+      $("source-dialog").addEventListener("close", () => {
+        if (sourceOpener) sourceOpener.focus();
+      });
+      document.querySelectorAll("[data-scroll]").forEach((button) =>
+        button.addEventListener("click", () =>
+          $(button.dataset.scroll).scrollIntoView({
+            behavior: "smooth",
+            block: "start",
+          }),
+        ),
+      );
+      render();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Visual activity studio · Itembank</title>
+  <link rel="stylesheet" href="figures.css">
+  <script src="placement-export.js" defer></script>
+  <script src="figures.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#workspace">Skip to activity</a>
+<header class="top"><a class="brand" href="index.html">itembank</a><span>Watershed field notes / Build</span><span class="pill">Prototype · temporary edits</span></header>
+<main>
+  <div class="intro"><div><p class="eyebrow">Source to activity</p><h1>Make the visual do the teaching.</h1><p>Select the parts to retrieve, then try the activity before reviewing the draft.</p></div><button id="source-open" class="quiet">Inspect original source</button></div>
+  <div class="studio">
+    <aside class="settings" aria-label="Activity settings">
+      <p class="eyebrow">01 / Choose material</p>
+      <div class="source-options"><button data-source="figure" aria-pressed="true"><strong>Water cycle</strong><small>Figure 2 · four process labels</small></button><button data-source="table" aria-pressed="false"><strong>Rainfall observations</strong><small>Table 1 · equal collection intervals</small></button></div>
+      <fieldset id="format-options"><legend>02 / Response format</legend><label><input type="radio" name="format" value="placement" checked> Drag labels onto the figure</label><label><input type="radio" name="format" value="blank"> Type the missing labels</label></fieldset>
+      <fieldset id="bank-options"><legend>Answer support</legend><label><input type="checkbox" id="show-bank" checked aria-describedby="bank-help"> Show an answer bank</label><p id="bank-help" class="drop-help"></p></fieldset>
+      <label class="field" for="instruction">Activity instruction<textarea id="instruction" rows="4"></textarea></label>
+      <label class="field" for="purpose">Purpose <span class="muted">(author note)</span><textarea id="purpose" rows="3"></textarea></label>
+      <p class="tip">Start with a small selection. Keep enough context visible to support the task.</p>
+      <details class="limits"><summary>About this prototype</summary><p>Original synthetic sources and an ungraded preview. Diagram placement can be downloaded as a separate bank draft with a proposed source key. No course or learner record is saved.</p><a href="figures.md" target="_blank" rel="noopener">Open raw Markdown in a new tab</a></details>
+      <button id="reset" class="text-button">Reset this studio</button>
+    </aside>
+    <section class="desk" id="workspace" tabindex="-1" aria-labelledby="activity-title">
+      <header class="desk-head"><div><p class="eyebrow" id="source-locator"></p><h2 id="activity-title"></h2></div><div class="view-switch" aria-label="Studio view"><button id="edit-view" aria-pressed="true">Edit selection</button><button id="preview-view" aria-pressed="false">Try preview</button></div></header>
+      <div class="instruction-line"><p id="view-help"></p><span class="pill" id="selection-count"></span></div>
+      <h3 id="preview-instruction" hidden></h3>
+      <div id="visual"></div>
+      <div id="response-area"></div>
+      <p id="activity-status" role="status" aria-live="polite"></p>
+      <footer class="desk-footer"><p id="footer-help">Choose labels directly on the figure. Each selected label becomes a blank in the preview.</p><button class="primary" id="review-open">Review draft</button></footer>
+    </section>
+  </div>
+</main>
+<dialog id="source-dialog" aria-labelledby="source-dialog-title"><div class="dialog-head"><div><p class="eyebrow">Original synthetic source</p><h2 id="source-dialog-title"></h2></div><button data-close="source-dialog" aria-label="Close source">Close</button></div><p id="dialog-locator" class="mono"></p><div id="source-content"></div><p>Source wording and values are unchanged. Your selection is a separate treatment.</p><a id="raw-source" target="_blank" rel="noopener">Open raw Markdown in a new tab</a></dialog>
+<dialog id="review-dialog" aria-labelledby="review-title">
+  <div class="dialog-head"><div><p class="eyebrow">Review before accepting</p><h2 id="review-title">Activity draft</h2></div><button data-close="review-dialog" aria-label="Close draft review">Back to studio</button></div>
+  <p id="review-summary"></p><pre id="draft-text" tabindex="0"></pre>
+  <div class="export-actions"><button id="export-bank-show" class="primary">Create bank draft</button><p id="export-bank-help"></p></div>
+  <p id="export-bank-error" role="alert" hidden></p>
+  <section id="export-bank-panel" aria-labelledby="export-bank-title" hidden>
+    <h3 id="export-bank-title">Bank draft for author review</h3>
+    <p>Includes a proposed answer key from the synthetic source. Trial answers are not used. This draft has not been validated or accepted by the runtime.</p>
+    <p id="export-bank-summary"></p>
+    <pre id="export-bank-text" tabindex="0"></pre>
+    <button id="export-bank-download" class="primary" disabled>Download bank draft</button>
+    <p id="export-bank-status" role="status" aria-live="polite"></p>
+  </section>
+</dialog>
+</body>
+</html>

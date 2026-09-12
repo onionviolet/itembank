@@ -1,0 +1,50 @@
+# Synthetic water-process label placement
+
+Status: original synthetic draft. Key review and product acceptance are
+deferred. Role: exploratory learning practice, not an EMT examination item.
+
+## Treatment decision
+
+Match each supplied process label to a location in Figure 2. The existing
+`dnd` format carries the four labels and four destination descriptions. This
+preserves label-to-location matching. The studio supplies the spatial preview.
+Reproducing the source figure and choosing its presentation are user choices.
+The existing bank renderer presents named destinations instead of a picture.
+
+## SOURCES
+
+synthetic-figure-2 | ../figures.md#source-figure-2, Figure 2, Water moving through a local landscape. Original synthetic specimen.
+
+## Static representation
+
+Location 1 is the upward arrow leaving the lake. Location 2 is the cloud
+formation area. Location 3 is the downward arrow from cloud to land.
+Location 4 is the arrow crossing land toward the stream and lake.
+Place each label once: Condensation, Evaporation, Precipitation, Runoff.
+
+Q1. Match each supplied water-process label to a location in synthetic Figure 2. Location 1: upward arrow leaving the lake. Location 2: cloud formation area. Location 3: downward arrow from cloud to land. Location 4: arrow crossing land toward the stream and lake. Use every label once. Source: figures.md#source-figure-2, Figure 2.   (difficulty: application)
+[OBJECTIVE: synthetic:water-cycle.label-location]
+[TYPE: dnd]
+[SRC: synthetic-figure-2 Figure 2]
+[CATEGORIES: Location 1 | Location 2 | Location 3 | Location 4]
+
+ITEM) Condensation :: Location 2
+ITEM) Evaporation :: Location 1
+ITEM) Precipitation :: Location 3
+ITEM) Runoff :: Location 4
+
+WHY BEST: Each label matches the movement or change named by its source location.
+
+KEY DISCRIMINATOR: Distinguish rising water, cloud formation, falling water, and water crossing land.
+
+SECOND-BEST: Swapping the cloud formation and falling-water labels confuses a change within the cloud with movement away from it.
+
+DISTRACTOR ANALYSIS:
+- Evaporation at Location 3 would be correct if that arrow instead showed water leaving the lake and rising.
+- Condensation at Location 3 would be correct if that location instead marked cloud formation.
+- Precipitation at Location 4 would be correct if that arrow instead showed water falling from cloud to land.
+- Runoff at Location 1 would be correct if that arrow instead crossed land toward a stream.
+
+TRAP: Assigning labels based on closeness to the cloud instead of the specific movement or change.
+
+CONFIDENCE: low

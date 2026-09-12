@@ -2097,3 +2097,197 @@ work. Verification results live in the report's validation section.
 - **Promotion gate:** demonstrate a useful highlighted explanation and learner-controlled interaction in the existing surface. Verify keyboard and touch behavior, readable contrast, reduced motion, and a study-usable static fallback. Highlights must not imply mastery or accepted evidence.
 - **Boundary:** no character chat, turn-taking, simulated discussion, or narration dependency. Staged reveals and subtle motion are candidate interpretations, not mandatory effects on every lesson.
 - **Relationship:** extends IL-20260908-04 and clarifies that IL-20260908-05 does not exclude visual richness. Adoption criteria live in `research/competition-2026-09-08/ABSORPTION.md`.
+
+### IL-20260909-01: compare the UI through one complete study session
+
+- **Idea:** scope a fresh comparison around course entry, learning, source
+  context, notes, practice, feedback, exit and resume on desktop and phone.
+- **Disposition:** Prototype.
+- **Owner:** existing learner-UI owner, with Weibao reviewing experience.
+- **Evidence class:** direct user concern on 2026-09-09. Candidate compositions
+  are recommendations informed by dated audit evidence.
+- **Dependency and cost driver:** identical populated content and state across
+  the current UI and alternatives. Cost is coherent interaction and user review.
+- **Promotion gate:** compare current fitness, comfort, transitions and visual
+  preference, then assess migration separately. No fixture pass substitutes for
+  human acceptance.
+- **Relationship:** extends the September 8 adopted UI without automatically
+  replacing it. `research/ui-and-project-memory-proposal-2026-09-09.md` owns
+  the proposed comparison. Phase 20's crosswalk retains audit closure.
+
+### IL-20260909-02: progressive project history and ideaboarding surface
+
+- **Idea:** a synchronized timeline, idea board and review view over original
+  intent, alternatives, decisions, changes, audits and later reflection.
+- **Disposition:** Prototype.
+- **Owner:** project planning and audit workflow owner, with Weibao reviewing.
+- **Evidence class:** direct user direction on 2026-09-09. The three-view layout
+  and proposed relationship overlay are engineering recommendations.
+- **Dependency and cost driver:** existing file identities, exact references,
+  historical revisions and explicit unresolved matches. Cost is reliable
+  reconciliation, accessible navigation and evidence freshness.
+- **Promotion gate:** trace one real UI decision thread through roughly 20 to
+  30 records, including alternatives and contrary evidence. Rebuild its index
+  without changing originals or concealing unindexed records.
+- **Boundary:** no accepted graph schema, automatic import of other projects,
+  or duplicate status authority. No guarantee of unbiased review.
+- **Relationship:** extends IL-20260909-01 and the renewable-research direction.
+  `research/ui-and-project-memory-proposal-2026-09-09.md` owns the prototype
+  proposal. Standing fresh-evaluation guidance lives in `AGENT-WORKFLOW.md`.
+
+### IL-20260909-03: source context, hybrid retrieval and processing provenance
+
+- **Idea:** investigate Synapse and seer patterns for course-scoped source help,
+  exact source locations, lexical plus conceptual retrieval, and inspectable
+  processing history using existing source and operation owners.
+- **Disposition:** Prototype.
+- **Owner:** existing source, discovery and reader capability owners.
+- **Evidence class:** author-reported public project descriptions, independent
+  hybrid-retrieval documentation, and recommendations. Closed-source behavior
+  was not tested.
+- **Dependency and cost driver:** approved sample corpus, source revisions,
+  locator fidelity, rights and disclosure. Cost is extraction, model/index
+  resources, retrieval evaluation and maintenance.
+- **Promotion gate:** compare retrieval variants on identical judged queries,
+  including absent answers and restricted or stale material. Verify exact
+  passage opening and explicit extraction limits. Reuse accepted job state.
+- **Relationship:** extends existing source/reader work and IL-20260908-07.
+  `research/synapse-seer-primary-source-review-2026-09-09.md` records external
+  evidence. No infrastructure or upstream implementation is adopted.
+
+### IL-20260909-04: formal verification of a narrow protocol invariant
+
+- **Idea:** consider formal specification or proof when one stable,
+  consequential invariant has an identified verification gap.
+- **Disposition:** Backburner.
+- **Owner:** runtime verification owner.
+- **Evidence class:** recommendation inspired by Synapse's author-reported
+  Lean and Prolog description. No inspected proof or factual-truth guarantee.
+- **Dependency and cost driver:** precise target property and explicit
+  assumptions. Cost is formalization, tooling and proof maintenance.
+- **Revisit trigger:** a named invariant whose risk and test limits justify a
+  bounded formal-method comparison.
+- **Boundary:** proof of a formal statement does not prove source facts or the
+  correctness of translating prose into that statement.
+- **Relationship:** P4 in
+  `research/ui-and-project-memory-proposal-2026-09-09.md` retains this option.
+
+### IL-20260909-05: institution-scale processing and communications
+
+- **Idea:** retain distributed queues, services and communications as possible
+  mechanisms for future institutional demand or demonstrated throughput needs.
+- **Disposition:** Backburner.
+- **Owner:** future deployment or institutional capability owner.
+- **Evidence class:** author-reported project architecture and recommendation.
+- **Dependency and cost driver:** demonstrated user demand and measured local
+  limits. Cost is service operations, deployment, security and failure recovery.
+- **Revisit trigger:** a concrete institutional workflow or processing workload
+  that existing operations cannot satisfy at acceptable cost and latency.
+- **Relationship:** P5 in
+  `research/ui-and-project-memory-proposal-2026-09-09.md`. No Rust rewrite,
+  Kafka/NATS dependency or Kubernetes deployment is selected by this research.
+
+### IL-20260910-01: figure and table derived interactive questions
+
+- **Idea:** let an author derive fill-in-the-blank or drag-and-drop questions
+  from figures and tables in an approved, bound source while preserving the
+  original visual context, source location, and assessment meaning.
+- **Disposition:** Prototype.
+- **Owner:** assessment-format and authoring owners, with source and accessible
+  rendering review.
+- **Evidence class:** direct user direction on 2026-09-10. The choice between a
+  new type and composition of existing types is an unresolved recommendation.
+- **Dependency and cost driver:** stable source and media identity, quote and
+  transform rights, one-parser and one-scorer integration, reviewed derived
+  keys, and a useful non-drag static alternative. Cost comes from visual
+  extraction, author review, rendering, and accessibility testing.
+- **Promotion gate:** one source figure and one source table produce reviewable
+  items that preserve construct and citations, lint clean, score only through
+  the runtime, and remain answerable by keyboard and a static representation.
+- **Relationship:** extends the 2026-08-22 paper-format fit check and the media
+  treatment route. Research must compare a new semantic type with authoring
+  transforms into existing `visual`, `table`, `dnd`, and `build` types.
+
+#### Clarification recorded 2026-09-11: exam fit, treatment choice, and review timing
+
+- **Intent and disposition:** the figure and table authoring proposal remains
+  Prototype under IL-20260910-01. Prefer diagram label placement for the next
+  comparison and retain typed recall with optional word or value banks as
+  labeled teaching choices. Reproduction of the original figure, source dialog,
+  and label-placement experience is permitted as a user choice within the
+  source rights in force.
+- **Origin:** [source reproduction and review timing](USER-VISION.md#2026-09-11-source-reproduction-choice-and-deferred-prototype-review),
+  [diagram placement and answer banks](USER-VISION.md#2026-09-11-diagram-placement-and-selectable-answer-banks),
+  and [actual examination orientation](USER-VISION.md#2026-09-11-orient-learning-and-practice-to-the-actual-examination).
+- **Owner and evidence class:** existing assessment-format and authoring owners
+  implement the prototype. Weibao and appropriate human reviewers own the
+  deferred experience checks. Treatment preferences and sequencing are direct
+  user direction. Official format findings remain versioned evidence in the
+  [exam-fit review](../prototypes/learning-treatments/runtime-candidate/EXAM-FIT-REVIEW.md).
+- **Dependency and cost driver:** preserve source rights, citations, construct,
+  runtime scoring and disclosure, and an equivalent non-drag interaction.
+  Source treatment and review cost depend on extraction fidelity, actual
+  examination demands, and representative human testing. Exam-style defaults
+  follow documented response formats and conditions. Typed recall and added
+  help cannot be represented as exact exam simulation without supporting
+  evidence. Existing assessment intake owns this policy.
+- **Deferred gate scope and trigger:** human touch, screen-reader, zoom, visual
+  approval, real-course comparison, and format acceptance are Deferred for this
+  prototype chain. They remain owed and do not block further synthetic work.
+  Revisit when representative course material and appropriate reviewers or
+  devices are available, before making the corresponding acceptance claims.
+  No global accessibility waiver or exam-readiness claim follows. The original
+  promotion gate above remains the gate for durable adoption.
+- **Next action and recovery:** review the synthetic placement and typed modes
+  against the official format findings. Retain the historical prototype
+  treatments for comparison. This clarification changes planning records only.
+  Undo these dated additions without reverting any earlier user statements or
+  another writer's changes.
+- **Record validation, 2026-09-11:** the read-only vision audit recognizes all
+  three new entries and their exact downstream links. The pre-existing backlog
+  remains 10 missing file references, 4 ambiguous roots, 10 missing relationship
+  fields, 56 entries without structural downstream links, and 1 unresolved
+  local vision link. The planning/audit owner can repair those legacy links in
+  a separate packet. No whole-vision audit or implementation acceptance is
+  claimed by this bounded capture.
+
+### IL-20260910-02: group related chapters into learner-facing tiers
+
+- **Idea:** group similar or related chapters and present the groups in tiers
+  that help a learner navigate breadth and progression.
+- **Disposition:** Prototype.
+- **Owner:** course and objective-graph owners, with learner-UI review.
+- **Evidence class:** direct exploratory user direction on 2026-09-10. The tier
+  semantics and grouping method are not yet evidence-backed.
+- **Dependency and cost driver:** versioned objectives, structural and
+  prerequisite relationships, source chapter bindings, and a named tier axis.
+  Cost comes from reconciliation, migration, and testing whether the projection
+  helps learners rather than hiding important distinctions.
+- **Promotion gate:** compare at least two tier meanings on a real course and
+  retain chapter and objective identities. A reviewer must be able to inspect
+  why each chapter was grouped and undo the projection without moving evidence.
+- **Relationship:** extends the course hierarchy, objective spine, and
+  progressive-disclosure direction. Similar titles or embeddings alone never
+  establish that chapters or objectives are the same object.
+
+### IL-20260910-03: source-grounded words of wisdom
+
+- **Idea:** surface memorable, high-value practical guidance from bound sources,
+  including EMT books, as an inspectable learning treatment with exact source
+  context.
+- **Disposition:** Registered.
+- **Owner:** course-treatment and lesson-authoring owners, with domain and
+  source review where required.
+- **Evidence class:** direct user direction on 2026-09-10. Selection rules and
+  presentation forms remain recommendations.
+- **Dependency and cost driver:** approved source roots, exact locators, quote
+  and transform rights, objective relevance, and separation of quotation from
+  synthesis. Cost comes from source review, context preservation, and keeping
+  guidance current when the bound source changes.
+- **Promotion gate:** extract a small reviewed set from one source and show each
+  item in context with provenance, treatment purpose, and any authority limit.
+  For EMT material, textbook guidance must remain distinct from current local
+  protocol, instructor direction, and formal assessment authority.
+- **Relationship:** extends the direct-reading, notes and terms, excerpt, and
+  lesson-treatment options. It does not authorize free-floating quote
+  collections or turn memorable wording into an answer key.

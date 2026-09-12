@@ -670,6 +670,121 @@ Promoted verbatim to USER-VISION.md. IL-20260908-06 and `research/competition-20
 
 Promoted verbatim to USER-VISION.md. The existing competition ABSORPTION.md owns implementation evidence and the full landscape. IL-20260908-07 extends absorption beyond OpenMAIC and LiaScript. Broad intent does not mean every surveyed runtime or institutional feature must be installed.
 
+### 2026-09-09: UI scope and an auditable project history
+
+> consider these projects and if there is any thing we caan learn form them
+
+> both, I still feel like our UI isnt the best it cant be but idk how to scope it, also how can we organize our prior ideas and audits and more into one progressive timeline and ideaboarding surface that can be audited and reflected upon in the future without being biased by existing work?
+
+**Disposition:** Split, promote, and route (2026-09-09).
+
+The second statement is promoted verbatim to `USER-VISION.md`. Synapse and seer
+are research references from the screenshot, not instructions or accepted
+product designs. `research/ui-and-project-memory-proposal-2026-09-09.md` owns
+the comparison, proposed UI scope, history surface, and evidence limits.
+IL-20260909-01 through IL-20260909-05 retain the candidate routes.
+
+### 2026-09-09: fresh evaluation of prior choices in future audits
+
+> also note for future audits dont be swayed by prior choices cause it might have been the best at the time but there could always be better
+
+**Disposition:** Promote and record as standing audit guidance (2026-09-09).
+
+Promoted verbatim to `USER-VISION.md`. `AGENT-WORKFLOW.md` section 10 records
+current-needs comparison, the distinction between design fitness and switching
+cost, contrary evidence, and revisit conditions. Prior acceptance remains part
+of the history rather than proof of current superiority.
+
+### 2026-09-10: figure-derived questions, chapter tiers, source wisdom, and paper notes
+
+> make question type that converts figures/tables from books into fill in the blank/drag and drop
+
+> Combineing similar chapters into groups aand make them into tiers?
+
+> Absorvbing words of wisdom(from emt books and stuff)&#x20;
+
+> digitalizing paper notes?
+
+**Disposition:** Promote, route, and duplicate (2026-09-10).
+
+The first three statements are promoted verbatim to `USER-VISION.md` as new
+product-direction ideas. Figure and table conversion routes to a reversible
+item-format and authoring prototype. Chapter grouping and tiers route to course
+and objective-graph research because the meaning of a tier is still open.
+Source wisdom routes to source-grounded lesson and note treatment research.
+
+The paper-note statement is promoted as a confirmation of the existing
+2026-08-20 vision entry, not as a second source class. IL-20260820-01 and
+IL-20260820-02 remain its implementation route. IL-20260910-01 through
+IL-20260910-03 record the new proposals without scheduling them.
+
+### 2026-09-10: reading prototype must match the accepted UI and project benchmark
+
+> This prototype looks nothing like the new design style and more? Nothing UI com prejensive compared to the github projects and more
+
+**Disposition:** Promote and route (2026-09-10).
+
+Promoted verbatim to `USER-VISION.md`. This is a correction to the
+source-to-reading prototype, not a request for surface polish. The replacement
+must use the accepted greenfield learner identity and test a comprehensive
+course experience against the capabilities already selected from public
+project research. `SOURCE-TO-READING-IMPLEMENTATION-PLAN-2026-09-10.md` owns
+the corrective implementation and verification.
+
+### 2026-09-10: rebuilt reading prototype is fitting enough to continue
+
+> alot better, room to improve in the future but this is more fitting accordingly
+
+**Disposition:** Promote and route (2026-09-10).
+
+Promoted verbatim to `USER-VISION.md`. This accepts the rebuilt direction as a
+fitting continuation baseline. It does not certify final aesthetics,
+accessibility, production integration, or every future UI detail. The
+source-to-reading plan and handoff retain those open gates.
+
+### 2026-09-11: source reproduction choice and deferred prototype review
+
+> "does not reproduce the original figure, source dialog, or label-placement experience. " Reproducing is fine... but that should be something deferred to the user as a choice or osmething,&#x20;
+>
+> "Human touch, screen-reader, zoom, visual approval, real-course comparison, and format acceptance remain open."
+>
+> will be hard to test for now so just defer to future for the others accordingly, work on next part
+
+**Disposition:** Split, promote, and route (2026-09-11).
+
+Promoted to [the matching vision entry](USER-VISION.md#2026-09-11-source-reproduction-choice-and-deferred-prototype-review).
+Reproduction is a permitted user choice within the source rights in force.
+The named review legs are deferred for this prototype chain while further
+synthetic work continues. IL-20260910-01 retains the interaction proposal and
+the deferred review owner and trigger. The learning-treatment prototype owns
+execution and reports what is tested separately from future acceptance.
+
+### 2026-09-11: diagram placement and selectable answer banks
+
+> for the diagram, drag and drop might be better, and also, always give option of word bank? Or at least, since NREMT stuff always have bank (I think) might need double check
+
+**Disposition:** Promote and route (2026-09-11).
+
+Promoted to [the matching vision entry](USER-VISION.md#2026-09-11-diagram-placement-and-selectable-answer-banks).
+IL-20260910-01 retains diagram placement and optional teaching answer banks as
+one prototype route. The uncertain NREMT premise routes to the
+[exam-fit review](../prototypes/learning-treatments/runtime-candidate/EXAM-FIT-REVIEW.md).
+It is not promoted as a fact about every credential or examination.
+
+### 2026-09-11: orient learning and practice to the actual examination
+
+> put into uservision accordingly as well, for stuff to be oriented accordingly to the exam and what will be tested and more?
+
+**Disposition:** Promote as a clarification of existing direction (2026-09-11).
+
+Promoted to [the matching vision entry](USER-VISION.md#2026-09-11-orient-learning-and-practice-to-the-actual-examination).
+This confirms the August 24 examination-fidelity principle and existing
+[assessment intake](../.claude/skills/ASSESSMENT-INTAKE.md).
+Core objectives and necessary support guide the default path. Broader learning
+and enrichment remain explicit choices. IL-20260910-01 applies that direction
+to the current figure and table prototype without creating a second exam-policy
+authority or a duplicate concept.
+
 ## Disposition vocabulary
 
 - **Promote:** add the verbatim statement and interpretation to `USER-VISION`.
