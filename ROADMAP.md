@@ -119,6 +119,14 @@ learner evidence remain in private storage.
 - Do not fold Mandarin-specific TTS and third-party Anki packaging into this
   generic bank tool. That remains a separate private content pipeline.
 
+### 9. Make Today the owner-backed work surface
+
+- Replace the lane-first scan with a ranked **Now**, **Next** and **Later** task list while retaining the compact lane summary.
+- Show course, due state, estimated time, purpose, completion gate and source on each task card.
+- Add a vault course-ledger adapter that reads existing assignment rows without copying them into an Itembank task store.
+- Make check and uncheck update the owning row through a fingerprint guard, atomic write and append-only operation record.
+- Prove checked, unchecked, externally changed and owner-unavailable fixtures before registering another task provider.
+
 ## Acceptance for the agentic goal
 
 A fresh agent with no repository context can:

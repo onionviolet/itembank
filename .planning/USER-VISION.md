@@ -15,6 +15,22 @@ the difference rather than treating a prior summary as the user's intent.
 
 ## Verbatim goal statements
 
+### 2026-09-12: intuitive to-do display and owner-backed checkoff
+
+> whats a more intuitive way for you to display all of these? can we include a "to do" showing feature in itembank? and then checking off gets them checked off accordingly as well?
+
+#### Interpretation recorded 2026-09-12
+
+**Status:** accepted product direction with a synchronization boundary to implement.
+
+**Current interpretation:** Itembank's Today surface should show one ranked task list across courses instead of requiring the learner to scan a wide planning table. Each card should show the action, course, due state, estimated time, purpose, completion gate and source. The default view groups work into Now, Next and Later, with details collapsed until requested.
+
+Checking a task must update the task's declared owner rather than create a second completion state. A vault course-ledger task therefore writes back to that exact ledger row. Itembank's existing daily lane ticks remain evidence about a study day and do not close assignments. Every owner write uses a captured fingerprint, an atomic replacement, an append-only operation record and a visible conflict state if the file changed externally.
+
+**Planning effect:** add the owner-backed task adapter and ranked Today list to the learner-surface contract. Prototype the vault assignment-ledger adapter first. Verify one check, one uncheck, one concurrent external edit and one unavailable owner before expanding to other task providers.
+
+**Relationship to prior entries:** extends the 2026-08-13 complete-app-flow request and the 2026-08-26 course-first-page request with an explicit cross-course execution surface. It does not replace their course, lesson or progress views.
+
 ### 2026-08-24 - feedback that lets you proceed, and building from the standards
 
 > Im not asking for partial credit, its just to rule out wrong answers and also show what I got right so I can keep on going rather than gambling and more other stuff to consider and more,

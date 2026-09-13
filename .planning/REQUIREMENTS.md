@@ -174,6 +174,8 @@
 - [x] **SURF-07**: The whole tool uses one palette; the `day` page stops being a third stylesheet in literal hex
 - [x] **SURF-08**: The accent colour is set from the OS colour picker with light and dark pairs computed from it, and correct/incorrect stay contrast-checked and colour-blind safe
 - [x] **SURF-09**: `day` supports full in-page markdown editing with an optimistic-concurrency guard, so an edit cannot silently overwrite one made in Obsidian
+- [ ] **SURF-10**: Today shows owner-backed tasks as a ranked Now, Next and Later list with course, due state, time, purpose, completion gate and source visible or directly expandable
+- [ ] **SURF-11**: Checking or unchecking a task updates its declared owner through a compare-and-swap adapter and atomic write. Itembank creates no competing completion flag, records the operation, and exposes conflict, unavailable and recovery states
 
 ### Model layer
 

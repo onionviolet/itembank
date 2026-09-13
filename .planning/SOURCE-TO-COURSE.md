@@ -157,6 +157,10 @@ the course permits it, objective and source bindings are stable, and the bank
 can pass complete validation. A reading layer does not silently become an
 answer key, assessment, or mastery claim.
 
+The 2026-09-12 vision entry, **intuitive to-do display and owner-backed checkoff**, extends live-course pacing. The Today surface presents live work as a ranked list grouped into **Now**, **Next** and **Later**. The compact card shows the task, course, due state, estimated time, purpose, completion gate and authoritative source. Supporting detail stays behind disclosure so the learner can choose the next action without scanning the full planning table.
+
+Task completion belongs to the task's declared owner. A checkbox on a vault-backed assignment updates that exact course-ledger row through an owner adapter. It does not also create an Itembank-owned completion flag. Itembank's existing lane ticks remain separate day-level evidence and never close an assignment. Owner writes require an expected fingerprint, atomic replacement, an append-only operation record, reversible completion and a visible conflict or unavailable state when the source changed or cannot be written.
+
 ### Learning experience and capability research
 
 Do not design the course journey by accumulating attractive widgets. Research
