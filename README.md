@@ -643,7 +643,12 @@ file, and dated fuse each lane carries, plus a table of global fuses. Data,
 never code: fuses expire and lanes change, and a tool with them baked in dies
 with them. Two kinds of table, told apart by their headers: a `Lane` column
 wires lanes; a two-column table whose second header is a date carries global
-fuses. An optional `Notes glob` column makes a lane's whole document cluster
+fuses. An optional `Assignments` column points to that course's existing
+assignment ledger. Today reads its `ID | Type | Title | Source | Assigned | Due
+| Status | Link` table in place and shows one ranked Now, Next, and Later list.
+Checking a task changes only that row's Status through a fingerprinted atomic
+write and operation journal. It does not tick the lane or create another task
+store. An optional `Notes glob` column makes a lane's whole document cluster
 reachable from its card through a file selector, and the notes button hands
 the file to whatever already edits it. The wiring is linted like everything
 else here: unknown lane, missing notes path, malformed date, and deck absent

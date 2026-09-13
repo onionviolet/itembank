@@ -213,6 +213,22 @@ owns the accepted format, staged implementation and evidence. Implementation
 acceptance remains separate from product-direction acceptance. Exact cursor
 resume, multiple spans and occurrence-private notes remain deferred.
 
+### Owner-backed tasks in Today, accepted 2026-09-12
+
+The [owner-backed to-do request](USER-VISION.md#2026-09-12-owner-backed-to-do-display-and-completion)
+makes Today a ranked projection of live course assignment rows. The first
+adapter reads the existing vault course-assignment-ledger table in place and
+groups tasks into Now, Next, and Later. A compact task exposes its name, course,
+due or overdue state, estimate, purpose, completion gate, and authoritative
+source. Secondary owner details remain progressively disclosed.
+
+The assignment ledger remains the completion authority. Checking or unchecking
+a task changes only that exact Status cell through an expected fingerprint,
+atomic replacement, append-only operation record, and retained before image.
+An unavailable, malformed, or externally changed owner produces a visible
+no-write state. Itembank keeps no copied task database. Day lane ticks remain
+day-level evidence and never close an assignment.
+
 ### Learning experience and capability research
 
 Do not design the course journey by accumulating attractive widgets. Research

@@ -97,6 +97,16 @@
 
 - [ ] **SCHED-01**: The tool computes what is due today per objective from its own evidence
 - [ ] **SCHED-02**: A daily cap prevents a course being binged, enforced through `day`
+
+### Owner-backed Today tasks
+
+Source: [2026-09-12 owner-backed to-do display and completion](USER-VISION.md#2026-09-12-owner-backed-to-do-display-and-completion).
+
+- [x] **TASK-01**: Today reads explicitly wired vault course-assignment ledgers in place and groups their rows into Now, Next, and Later without copying them into an Itembank task store
+- [x] **TASK-02**: Each task exposes name, course, due or overdue state, estimate availability, purpose, completion gate, authoritative source, and progressively disclosed owner detail
+- [x] **TASK-03**: Checking and unchecking a task changes only its exact Status cell through an expected fingerprint, atomic replacement, append-only operation record, and recoverable before image
+- [x] **TASK-04**: An external edit, malformed row, or unavailable owner is a distinct visible no-write state
+- [x] **TASK-05**: Task controls are native keyboard and screen-reader controls, and the CLI check view carries an equivalent owner-labelled text projection while Day lane ticks retain their existing evidence meaning
 - [ ] **SCHED-03**: Anki keeps owning card reviews; itembank never writes a card schedule
 - [ ] **SCHED-04**: A completed lesson enters a review queue with a transparent, hand-set schedule rather than a fitted model
 

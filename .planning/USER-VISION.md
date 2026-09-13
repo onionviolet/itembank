@@ -2460,6 +2460,36 @@ validate embedded programming-language syntax.
 the September 12 thematic-environments entry concrete. Extends the Syntax Lab
 and CS Dojo direction without requiring execution for a multiple-choice item.
 
+### 2026-09-12: owner-backed to-do display and completion
+
+> whats a more intuitive way for you to display all of these? can we include a "to do" showing feature in itembank? and then checking off gets them checked off accordingly as well?
+
+#### Interpretation recorded 2026-09-12
+
+**Status:** active direction, implemented as a first vault-ledger slice.
+
+**Current interpretation:** Today presents course obligations as one ranked,
+compact to-do list grouped into Now, Next, and Later. A task stays owned by its
+declared course assignment ledger. Checking or unchecking it edits that exact
+ledger row rather than creating an Itembank completion database. Existing Day
+lane ticks remain day-level evidence and do not close course assignments.
+
+**Open questions:** ledgers do not currently carry estimates or a distinct
+completion-gate field, so the first adapter reports the estimate as not
+provided and explains the existing Status convention as the gate. Weibao still
+owns whether those become ledger columns and whether completed tasks remain in
+Later or move to a separate recent-completions view.
+
+**Planning effect:** the [owner-backed Today contract](SOURCE-TO-COURSE.md#owner-backed-tasks-in-today-accepted-2026-09-12)
+and [TASK-01 through TASK-05](REQUIREMENTS.md#owner-backed-today-tasks) bind the
+first implementation. The vault assignment row, its fingerprint, and the
+append-only operation journal govern mutation and recovery.
+
+**Relationship to prior entries:** extends the August 21 agentic LMS request
+for assignments, due work, and a chosen next action. It also extends the
+September 7 agenda-first home projection. It preserves the separate evidence
+and completion axes in the source-to-course contract.
+
 ## Interpretation protocol
 
 An interpretation may appear immediately after a verbatim entry when it helps

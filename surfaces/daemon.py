@@ -235,6 +235,7 @@ DAY_GET_RE = re.compile(r"^/day/(?P<stem>[^/]+)$")
 DAY_SAVE_RE = re.compile(r"^/day/(?P<stem>[^/]+)/save$")
 DAY_OPEN_RE = re.compile(r"^/day/(?P<stem>[^/]+)/open$")
 DAY_EDIT_RE = re.compile(r"^/day/(?P<stem>[^/]+)/edit$")
+DAY_TASK_RE = re.compile(r"^/day/(?P<stem>[^/]+)/task$")
 # The bounded character class is the path-traversal refusal, not a
 # convenience: a code cannot contain a separator, a percent escape, or an
 # unbounded run, so a traversal attempt is refused by the dispatcher
@@ -432,6 +433,7 @@ ROUTES = (
     ("POST", DAY_SAVE_RE, "handle_day_save"),
     ("POST", DAY_OPEN_RE, "handle_day_open"),
     ("POST", DAY_EDIT_RE, "handle_day_edit"),
+    ("POST", DAY_TASK_RE, "handle_day_task"),
     ("GET", HELP_GET_RE, "handle_help_get"),
     ("GET", COURSE_READING_RE, "handle_course_reading_get"),
     ("GET", COURSE_GET_RE, "handle_course_get"),
@@ -542,6 +544,7 @@ ROUTE_CLI = {
     ("POST", DAY_SAVE_RE): "day",
     ("POST", DAY_OPEN_RE): "day",
     ("POST", DAY_EDIT_RE): "day",
+    ("POST", DAY_TASK_RE): "day",
     ("GET", HELP_GET_RE): "help-code",
     ("GET", COURSE_READING_RE): "course",
     ("GET", COURSE_GET_RE): "daemon",
@@ -4119,6 +4122,22 @@ def handle_day_open(handler, stem):
         return
     if result is None:
         handler.send_error(404)
+        return
+    handler.send_json(result)
+
+
+def handle_day_task(handler, stem):
+    """Update one server-resolved assignment row through its owner adapter."""
+    if _reject_cross_origin_write(handler):
+        return
+    if stem not in handler.plans:
+        handler.send_not_found(stem)
+        return
+    try:
+        result = day.apply_task_post(_plan_day_state(handler, stem),
+                                     handler.read_json())
+    except Exception as exc:
+        handler.send_server_error(exc)
         return
     handler.send_json(result)
 
