@@ -123,6 +123,11 @@ A useful generated course must demonstrate:
   conflicting, or unknown by cited evidence rather than intuition.
 - **Alignment:** treatment and assessment match the verb and cognitive demand
   of the objective and, where applicable, the real exam blueprint.
+- **Course position:** when a course follows a live class, its reviewed current
+  position and selected mode determine whether the next material follows,
+  supplements, or stays slightly ahead. Self-paced courses need no live-class
+  position. Changes in current material make affected treatments reviewable,
+  not silently rewritten.
 - **Instructional coherence:** prerequisites precede dependents; lessons do not
   become summaries followed by detached questions.
 - **Assessment quality:** plausible distractors model real misconceptions and
@@ -151,6 +156,14 @@ The home surface is a course shelf. A course workspace has six coherent areas:
   and gaps.
 - **Build / review:** AI proposals, diffs, citations, quality findings,
   approval, rejection, and undo.
+
+Every accepted learner-facing artifact must be reachable from its fitting
+course area and from the normal next-action flow when it is relevant. This
+includes generated study material, lessons, readings, practice and tests. A
+file on disk, successful generation result, CLI command or standalone route is
+not a complete learner-facing result until the app exposes it with its course,
+objective, state and intended use. Optional supplement and slightly-ahead
+material remain visibly distinct from the course's recommended current work.
 
 Lessons support a continuous reader and a guided presentation over the same
 parsed content. The comprehensive UI supports hover/focus definitions,

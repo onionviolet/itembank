@@ -4,11 +4,11 @@ milestone: reach
 milestone_name: reach
 current_phase_name: 20-extensible-ui-foundation-and-interaction-clarity-pass
 current_phase: 20
-status: "A3 Link 5B original journal and source-companion restore passes twelve focused tests. Private-note transport policy and final integration remain pending."
-stopped_at: "Link 5B is stable at original journal/source restore. Awaiting the explicit private-note backup policy question in the current task. No successor dispatched."
+status: "A3 private-note backup policy is implemented with two explicit default-off controls. Focused gates pass. Full preflight retains only local-model parity unavailable and the expected dirty tree."
+stopped_at: "Private-note transport is stable in focused tests. An actual restored-root browser journey remains before final A3 acceptance."
 last_updated: "2026-09-12"
 last_activity: 2026-09-12
-last_activity_desc: "Restored original receipts, source grants and locator companions through staged publication. Reconciled note-promotion baselines and missing reading build inventory."
+last_activity_desc: "Added explicit current-note and recovery-history personal-backup controls, validated exact restore, and ran the full candidate preflight."
 progress:
   total_phases: 41
   completed_phases: 40
@@ -17,6 +17,21 @@ progress:
   counting_rule: "phase directories under .planning/phases; a phase counts complete when frozen or when its execution gate is complete, human legs owed being a label rather than an open state after the 2026-09-05 waiver. Open are 19B, 19D, and 19E. 19C's diagnostic gate is complete, with two repairs required before dependent 19D work. A plan is complete only when its required gate passes; a summary file alone does not close it."
 ---
 # Project State
+
+**Active A3 private-note closure, 2026-09-12:** Weibao approved two explicit
+personal-backup controls. Both default off. `include_private_notes` carries the
+current accepted private note pair. `include_private_note_history` separately
+carries its original private journal and before-images, and is refused unless
+current notes are also selected. Default export carries no private wording and
+names the omission in its loss report. Current-only restore mints a fresh valid
+private journal. History restore reproduces the original journal exactly.
+Focused reading-package, course-package, course-operation, reading-desk,
+protocol and schema gates pass, as does quick preflight and `git diff --check`.
+The full preflight ran all 128 Python files. Its only named Python failure is
+the pre-existing local-model parity `ok / unavailable`; clean fails because
+this authorized implementation is uncommitted. JS and fast gates pass. An
+actual restored-root browser journey was not run, so final A3 acceptance and
+human or real-course acceptance are not claimed. No commit or push was made.
 
 **Active A3 implementation, 2026-09-12:** Link 5B passes twelve reading-package
 tests and affected focused gates. Original course/source receipts, historical

@@ -812,6 +812,36 @@ with valid syntax, indentation and line breaks. The vision entry records the
 current CSCI snippet correction and renderer checks. This is a recorded
 requirement, not a claim that the quiz or its content has been repaired.
 
+### 2026-09-13: course-aligned pacing and visible generated study material
+
+> for some courses we can follow along or use it to supplement/go slightly in front of the current material, we can adjust some material accordingly, als oneed to make sure the stuff thats made, liek stufy and more actually shows in app?
+
+**Disposition:** Promote and split into two product obligations (2026-09-13).
+
+Promoted verbatim to [the matching vision entry](USER-VISION.md#2026-09-13-course-aligned-pacing-and-visible-generated-study-material).
+[IL-20260913-01](IDEA-LEDGER.md#il-20260913-01-course-aligned-pacing-modes)
+retains per-course follow, supplement and slightly-ahead modes as Registered
+course sequencing behavior. [IL-20260913-02](IDEA-LEDGER.md#il-20260913-02-app-visible-learner-artifacts)
+records app visibility as Core: creating or accepting a learner-facing artifact
+is not a complete product result until the course exposes it in the fitting app
+area and normal next-action flow. This capture does not claim the current app
+already meets that gate.
+
+### 2026-09-14: fictional modern cases, endings, and useful facts
+
+> then teach in a fictional and more understandable modern case, and do that for similar ways in the future
+>
+> so record this as an option for future and for stuff in itembank as needed for the future for Scenarios, and for pieces and more, can explain what happened in the end or fun facts if its benefitial to learn
+
+**Disposition:** Promote and register as an optional treatment (2026-09-14).
+
+Promoted verbatim to [the matching vision entry](USER-VISION.md#2026-09-14-fictional-modern-cases-endings-and-useful-facts).
+[IL-20260914-01](IDEA-LEDGER.md#il-20260914-01-fictional-analogy-and-contextual-enrichment-treatment)
+records fictional modern analogies, useful ending or outcome explanations and
+relevant sourced facts as optional learning roles. Existing policy, source,
+rights, scoring and disclosure authorities remain unchanged. This capture does
+not claim implementation or authorize prohibited course-specific analysis.
+
 ## Disposition vocabulary
 
 - **Promote:** add the verbatim statement and interpretation to `USER-VISION`.

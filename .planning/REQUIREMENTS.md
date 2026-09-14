@@ -582,13 +582,16 @@ staged implementation (per synthesis sections 1 and 12).
   learn and construct notes, D practice and test, E evidence and remediation, F
   author, review, and accept, G maintain, recover, and leave) are the product's
   end-to-end acceptance surface, each resumable with an exact position and a next
-  justified action. Owner: runtime plus app. Durable object: session and course
+  justified action. A live-class course may place work as current,
+  supplemental, or slightly ahead from a reviewed course position; a self-paced
+  course requires no live-class position. Owner: runtime plus app. Durable object: session and course
   state. Authority: runtime for assessment loops, course records elsewhere.
   Degraded: an interrupted loop preserves the last accepted state and exposes the
   next safe action. Gate: G8. (per synthesis section 3; retains LEARNUI-04.)
   Fixture: the 16B storyboard and interruption scenarios, interrupting a
   synthetic run of each of loops A through G mid-step and asserting each resumes
-  at an exact position with a next justified action.
+  at an exact position with a next justified action, plus one course whose three
+  placements remain visibly distinct when its reviewed current position changes.
 
 - [ ] **FLOW-02**: A learner moves between direct source reading, lesson, practice,
   feedback, and the next course action without reconstructing context, and no loop
@@ -878,13 +881,19 @@ staged implementation (per synthesis sections 1 and 12).
 - [ ] **APP-01**: The home surface is a course shelf with an exact resume cue and
   attention state; each course exposes Overview, Learn, Practice, Test, Course map
   (outline first), Sources, Build and review, Evidence, and contextual Notes; banks
-  are assessment artifacts inside courses, not the primary navigation unit. Owner:
+  are assessment artifacts inside courses, not the primary navigation unit. Every
+  accepted learner-facing reading, lesson, study aid, practice set and test is
+  reachable from its fitting course area, and relevant work can enter the normal
+  next-action flow. A created file, successful generation operation, CLI command or
+  standalone URL does not satisfy this requirement by itself. Owner:
   app. Durable object: course plus IA routes. Authority: course records. Degraded: a
   course that fails to load shows its last valid overview and plain-file access.
   Gate: G8. (per synthesis section 9.1; retains LEARNUI-01.) Fixture: the 16B
   storyboard's synthetic course shelf with two fictional courses, one corrupted
   so it must show its last valid overview and plain-file access, asserting exact
-  resume cues and every named course section.
+  resume cues and every named course section. The fixture also accepts one artifact
+  of each learner-facing kind and asserts its course-area link, intended-use label,
+  state and next-action eligibility without scanning the filesystem manually.
 
 - [ ] **APP-02**: Navigation uses stable opaque deep links and anchors, explicit
   parent and back semantics, focus and scroll restoration, and the same routes

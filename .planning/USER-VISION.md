@@ -2460,6 +2460,82 @@ validate embedded programming-language syntax.
 the September 12 thematic-environments entry concrete. Extends the Syntax Lab
 and CS Dojo direction without requiring execution for a multiple-choice item.
 
+### 2026-09-13: course-aligned pacing and visible generated study material
+
+> for some courses we can follow along or use it to supplement/go slightly in front of the current material, we can adjust some material accordingly, als oneed to make sure the stuff thats made, liek stufy and more actually shows in app?
+
+#### Interpretation recorded 2026-09-13
+
+**Status:** active. The pacing choices need course-level evidence. App
+visibility is a required product outcome.
+
+**Current interpretation:** a course may be configured to follow the current
+class material, supplement it, or stay slightly ahead. The selected mode guides
+which objectives and treatments appear next. It may justify revising material
+when the live course position or governing source changes, but revisions remain
+cited, reviewable and recoverable.
+
+Anything created or accepted for learner use, including study material,
+lessons, readings, practice and tests, must appear in the fitting course area
+and in the normal app journey. A valid file on disk, a successful generation
+operation or a standalone CLI or URL route is not enough by itself.
+
+**Open questions:** each course needs a current-material authority, freshness
+rule and meaning of "slightly" ahead. The UI still needs to distinguish a
+recommended next action from optional supplement and ahead material without
+turning all available content into one queue. Artifact types need a complete
+area and route mapping plus empty, stale, invalid and unavailable behavior.
+
+**Planning effect:** [IL-20260913-01](IDEA-LEDGER.md#il-20260913-01-course-aligned-pacing-modes)
+registers the three course pacing modes. [IL-20260913-02](IDEA-LEDGER.md#il-20260913-02-app-visible-learner-artifacts)
+makes learner-facing artifact reachability a Core gate. `SOURCE-TO-COURSE.md`
+now states both obligations. `REQUIREMENTS.md` extends FLOW-01 and APP-01 so a
+representative course must prove current, supplemental and slightly-ahead
+placement and must expose accepted learner artifacts through the course UI.
+No current course content, code, schedule or accepted artifact is changed by
+this capture.
+
+**Relationship to prior entries:** extends the August 13 complete-app-flow and
+course-generator direction, the August 26 course time-axis proposal, and the
+September 11 exam-orientation entry. It narrows neither self-paced courses nor
+learner-selected enrichment. Course-aligned pacing is optional per course.
+
+### 2026-09-14: fictional modern cases, endings, and useful facts
+
+> then teach in a fictional and more understandable modern case, and do that for similar ways in the future
+>
+> so record this as an option for future and for stuff in itembank as needed for the future for Scenarios, and for pieces and more, can explain what happened in the end or fun facts if its benefitial to learn
+
+#### Interpretation recorded 2026-09-14
+
+**Status:** active learning preference. Itembank support is Registered as an
+optional authoring treatment, not claimed as implemented.
+
+**Current interpretation:** when a direct explanation is restricted or a
+source is hard to understand, offer a clearer fictional modern case that
+teaches the transferable ideas without mapping the case back into prohibited
+coursework. Scenario, lesson, reading-companion and similar learning pieces may
+also explain the outcome or ending and include accurate, relevant facts when
+those additions materially improve understanding. These roles are optional and
+purpose-driven rather than mandatory cards added to every artifact.
+
+**Open questions:** Itembank should test whether outcome or spoiler disclosure
+is automatic, labeled, or learner-controlled. Factual sidebars need provenance
+and a usefulness bar so they do not become unsourced trivia. Policy metadata
+must still decide whether a fictional analogy can be used and how close it may
+come to an assigned source.
+
+**Planning effect:** [IL-20260914-01](IDEA-LEDGER.md#il-20260914-01-fictional-analogy-and-contextual-enrichment-treatment)
+registers this through the existing lesson, case-scenario and semantic-tip
+owners. A later synthetic prototype should test the plain Markdown and app
+versions before this becomes a requirement. No course artifact, renderer,
+scorer or disclosure rule changes in this capture.
+
+**Relationship to prior entries:** extends the September 12 thematic case
+environment and the existing niche or expert-tip roles. It does not weaken an
+instructor policy, convert protected material into a fictional paraphrase, or
+authorize course-specific answers that the governing policy forbids.
+
 ## Interpretation protocol
 
 An interpretation may appear immediately after a verbatim entry when it helps

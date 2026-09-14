@@ -314,9 +314,9 @@ def test_offline_page_writes_no_evidence_and_no_session_delta():
                     evidence_dirs.append(os.path.join(dp, *fns))
             if evidence_dirs:
                 fail("math lesson fetch wrote evidence: %r" % evidence_dirs)
-            # `_attempts/` exists because the daemon itself creates a
-            # per-bank session bookkeeping dir at startup -- the lesson
-            # fetch must add no session file to it.
+            # A lesson fetch must not start an assessment session. Older
+            # daemons created `_attempts/` during discovery, so accept the
+            # directory when it already exists but still refuse session data.
             attempts = os.path.join(workdir, "_attempts")
             if os.path.isdir(attempts):
                 leaked = [n for n in os.listdir(attempts)

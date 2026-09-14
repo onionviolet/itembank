@@ -905,6 +905,75 @@ def _course_evidence_counts(course_dir):
     return counts
 
 
+def _current_binding_rows(doc):
+    """Return legacy bindings plus the head of each versioned chain.
+
+    A superseded treatment must not keep publishing an activity in a course
+    area. Validation owns malformed-chain refusal; this projection only needs
+    the same unambiguous head rule for already parsed course documents.
+    """
+    rows = list(doc.get("bindings") or ())
+    superseded = {row.get("supersedes_binding_revision_id") for row in rows
+                  if row.get("supersedes_binding_revision_id")}
+    return [row for row in rows
+            if not row.get("binding_revision_id")
+            or row.get("binding_revision_id") not in superseded]
+
+
+def _course_bank_treatments(course_dir, doc, banks):
+    """Map each scanned course bank to its explicit assessment treatments.
+
+    The source object records the evidence and rights basis. The locator names
+    the derived assessment artifact. Resolve only the locator's path component
+    inside the course root. A missing, ambiguous, or escaping locator
+    classifies nothing.
+    """
+    course_root = os.path.realpath(course_dir)
+    by_path = dict((os.path.realpath(path), stem) for stem, path in banks)
+    bank_objectives = {}
+    for stem, path in banks:
+        try:
+            bank_objectives[stem] = {q.get("objective") for q in load(path)
+                                     if q.get("objective")}
+        except Exception:
+            bank_objectives[stem] = set()
+    source_ids = {row.get("source_object_id")
+                  for row in (doc.get("sources") or ())}
+    treatments = dict((stem, set()) for stem, _path in banks)
+    for row in _current_binding_rows(doc):
+        if (row.get("binding_kind") != "treatment"
+                or row.get("source_object_id") not in source_ids
+                or row.get("treatment_kind") not in ("practice", "formal-test")):
+            continue
+        locator = row.get("locator")
+        if not isinstance(locator, str) or not locator.strip():
+            continue
+        match = re.match(r"^(.+?\.md)(?=$|[\s,;#])", locator.strip(), re.I)
+        if match is None:
+            continue
+        rel_path = match.group(1)
+        if os.path.isabs(rel_path):
+            continue
+        candidate = os.path.realpath(os.path.join(course_dir, rel_path))
+        try:
+            inside = os.path.commonpath([course_root, candidate]) == course_root
+        except ValueError:
+            inside = False
+        if not inside:
+            continue
+        stem = by_path.get(candidate)
+        if stem is not None:
+            treatments[stem].add(row["treatment_kind"])
+            continue
+        # Older graphs located the supporting source passage rather than the
+        # derived bank. Exact objective identity still provides a bounded,
+        # non-filename join for those accepted records.
+        for bank_stem, objectives in bank_objectives.items():
+            if row.get("objective") in objectives:
+                treatments[bank_stem].add(row["treatment_kind"])
+    return treatments
+
+
 def _course_area_rows(handler, state, course_dir):
     """`(lead, rows)` for one course area, read from the course's own
     artifacts. `rows` empty means the area states itself as before."""
@@ -932,6 +1001,7 @@ def _course_area_rows(handler, state, course_dir):
                 "note": "Read the lesson, then sit its items."})
         quizzes.append({
             "href": "/quiz/%s" % urllib.parse.quote(stem, safe=""),
+            "bank_stem": stem,
             "title": title,
             "meta": "%d item%s" % (len(qs), "" if len(qs) == 1 else "s"),
             "note": "Practice keeps you on an item until it is right."})
@@ -963,10 +1033,26 @@ def _course_area_rows(handler, state, course_dir):
                 pass
         return ("Every lesson this course holds, as a durable document you can "
                 "also read outside the app."), lessons
+    assessment_treatments = _course_bank_treatments(course_dir, doc, banks)
     if area == "practice":
+        rows = [dict(row, href=row["href"] + "?mode=practice")
+                for row in quizzes
+                if "practice" in assessment_treatments.get(
+                    row["bank_stem"], set())]
         return ("A practice sitting scores as you go, unlocks one hint tier "
                 "per genuine wrong attempt, and never shows a key you have "
-                "not earned."), quizzes
+                "not earned."), rows
+    if area == "test":
+        rows = []
+        for row in quizzes:
+            stem = row["bank_stem"]
+            if "formal-test" not in assessment_treatments.get(stem, set()):
+                continue
+            rows.append(dict(
+                row, href=row["href"] + "?mode=exam",
+                note="A fixed sitting uses every item and defers feedback until completion."))
+        return ("A formal test uses the runtime's exam policy, a fixed complete "
+                "selection, and no answer-by-answer feedback."), rows
     if area == "map":
         rows = []
         containers = {c.get("id"): c.get("title") or c.get("label") or ""
@@ -1421,6 +1507,7 @@ def handle_palette(handler):
     would offer a course that had been removed. It performs no write and
     reaches nothing a GET does not already reach.
     """
+    _refresh_discovery(handler)
     cfg = settings.load_settings(handler.root)
     handler.send_bytes(
         palette.palette_json(handler.root, handler.banks,
@@ -1437,6 +1524,7 @@ def _course_page_state(handler, course_id, area):
     same operation layer an agent uses, instead of letting the page be an
     unvalidated, parallel course lookup.
     """
+    _refresh_discovery(handler)
     try:
         course_ops.run(handler.root, "outline", {"course_id": course_id})
     except Exception:
@@ -1754,8 +1842,7 @@ def handle_api_source_recheck(handler):
 
 
 def scan_dir(root):
-    """Walk `root` once and classify every `.md` file as a bank, a day plan,
-    or neither.
+    """Walk `root` and its explicitly linked courses, then classify `.md`.
 
     This is the startup-built allowlist every route resolves a client-
     supplied stem through -- a handler never joins a client string onto a
@@ -1764,18 +1851,73 @@ def scan_dir(root):
     dict means day plan; otherwise the file is skipped silently, the same
     graceful-empty-list classification `cmd_guard` already relies on.
 
+    An immediate directory symlink is an approved course root only when its
+    resolved target contains its own in-target course sidecar. This is the
+    same explicit link the course shelf admits. Nested symlinks never widen
+    either root: a directory link is not followed, and a file whose real path
+    escapes the active scan root is refused. Thus linking a course into the
+    workspace grants read access to that course, not to arbitrary paths the
+    course happens to link onward.
+
     Candidates are iterated in case-insensitive stem order (broken by full
     path for files that tie), so the winner of a stem collision is
     deterministic across restarts. Returns `(banks, plans, collisions)`,
     the first two keyed by filename stem, `collisions` a list of
     `(stem, winner_path, loser_path)`.
     """
+    root = os.path.abspath(root)
+    scan_roots = [(root, os.path.realpath(root))]
+    try:
+        entries = sorted(os.listdir(root))
+    except OSError:
+        entries = []
+    try:
+        import course as course_module
+        sidecar_name = course_module.COURSE_SIDECAR_FILENAME
+    except ImportError:
+        sidecar_name = ""
+    for entry in entries:
+        linked = os.path.join(root, entry)
+        if not os.path.islink(linked) or not os.path.isdir(linked):
+            continue
+        target = os.path.realpath(linked)
+        sidecar = os.path.join(linked, sidecar_name)
+        try:
+            sidecar_inside = (sidecar_name and os.path.isfile(sidecar)
+                              and os.path.commonpath(
+                                  [target, os.path.realpath(sidecar)]) == target)
+        except ValueError:
+            sidecar_inside = False
+        if sidecar_inside:
+            scan_roots.append((linked, target))
+
     candidates = []
-    for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
-        for name in filenames:
-            if name.lower().endswith(".md"):
-                candidates.append(os.path.join(dirpath, name))
+    seen_candidates = set()
+    for scan_root, allowed_real in scan_roots:
+        for dirpath, dirnames, filenames in os.walk(scan_root):
+            kept = []
+            for name in dirnames:
+                child = os.path.join(dirpath, name)
+                try:
+                    inside = os.path.commonpath(
+                        [allowed_real, os.path.realpath(child)]) == allowed_real
+                except ValueError:
+                    inside = False
+                if name not in SKIP_DIRS and not os.path.islink(child) and inside:
+                    kept.append(name)
+            dirnames[:] = kept
+            for name in filenames:
+                if not name.lower().endswith(".md"):
+                    continue
+                path = os.path.join(dirpath, name)
+                real = os.path.realpath(path)
+                try:
+                    inside = os.path.commonpath([allowed_real, real]) == allowed_real
+                except ValueError:
+                    inside = False
+                if inside and real not in seen_candidates:
+                    candidates.append(path)
+                    seen_candidates.add(real)
     candidates.sort(key=lambda p: (os.path.splitext(os.path.basename(p))[0].lower(), p))
 
     year = datetime.date.today().year
@@ -1801,6 +1943,43 @@ def scan_dir(root):
             continue
         winners[stem_key] = path
         table[stem] = path
+    return banks, plans, collisions
+
+
+DISCOVERY_REFRESH_LOCK = threading.Lock()
+
+
+def _refresh_discovery(handler):
+    """Refresh the identifier allowlists without invalidating live sittings.
+
+    Course, home, palette, and bank-list GETs call this read-side refresh, so
+    reloading one of those pages is the documented rescan action. Dictionary
+    replacement is atomic for request readers. Existing per-bank session
+    configuration is never discarded; newly admitted banks receive the same
+    configuration startup builds.
+    """
+    with DISCOVERY_REFRESH_LOCK:
+        banks, plans, collisions = scan_dir(handler.root)
+        old_banks = getattr(handler, "banks", None) or {}
+        old_sessions = getattr(handler, "sessions", None) or {}
+        # A removed or renamed bank becomes unreachable through `banks`, but
+        # its live bookkeeping remains available to an in-flight request and
+        # to a later reappearance under the same stem.
+        sessions = dict(old_sessions)
+        missing = {}
+        for stem, path in banks.items():
+            if old_banks.get(stem) != path or stem not in old_sessions:
+                missing[stem] = path
+        sessions.update(_build_sessions(missing))
+        # HTTP handler instances are per request, while these allowlists live
+        # on their shared handler class. Publish support before the new bank
+        # allowlist on both: an overlapping request may see the old bank set,
+        # but never a newly visible bank without its session configuration.
+        handler_class = type(handler)
+        for name, value in (("sessions", sessions), ("plans", plans),
+                            ("collisions", collisions), ("banks", banks)):
+            setattr(handler_class, name, value)
+            setattr(handler, name, value)
     return banks, plans, collisions
 
 
@@ -2428,6 +2607,7 @@ def handle_index(handler):
     an unknown value falls back to the shelf saying so. The old stem list stays
     reachable at `/banks`, which is also where a stem collision is reported.
     """
+    _refresh_discovery(handler)
     try:
         cfg = settings.load_settings(handler.root)
     except SystemExit as exc:
@@ -2483,6 +2663,7 @@ def handle_index(handler):
 
 def handle_courses_get(handler):
     """`GET /courses` renders the complete local shelf without desk coaching."""
+    _refresh_discovery(handler)
     cfg = settings.load_settings(handler.root)
     shelf = ia.course_shelf_state(handler.root)
     cards = []
@@ -2511,7 +2692,7 @@ def handle_banks(handler):
     warning naming any files it could not serve because another file
     shares their stem. The home links here instead of duplicating the
     list, because this is the only view that shows a collision."""
-    banks, plans = handler.banks, handler.plans
+    banks, plans, _collisions = _refresh_discovery(handler)
     cfg = settings.load_settings(handler.root)
     theme_block = theme.theme_css(cfg)
     profile, _notice = settings.resolve_presentation_profile(cfg)
@@ -2860,13 +3041,18 @@ def handle_quiz_get(handler, stem):
     if path is None:
         handler.send_not_found(stem)
         return
+    try:
+        launch_mode = _quiz_launch_mode(handler)
+    except ValueError as exc:
+        handler.send_error(400, str(exc))
+        return
     qs = load(path)
     lesson = parse_lesson(path)
     lesson_slugs = set(h["slug"] for h in lesson["headings"]) if lesson else set()
-    sess = handler.sessions.get(stem) or {}
+    sess = _quiz_session_config(handler, stem, launch_mode, path)
     view = teaching = None
     try:
-        session_file = _ensure_quiz_session(handler, stem, path, qs)
+        session_file = _ensure_quiz_session(handler, stem, path, qs, sess)
         view = session.do_next(session_file)
         teaching = session.do_teach(session_file)
     except SystemExit:
@@ -2880,11 +3066,65 @@ def handle_quiz_get(handler, stem):
         return
     receipt = urllib.parse.parse_qs(urllib.parse.urlsplit(handler.path).query).get("receipt", [""])[-1]
     flash = _consume_quiz_flash(handler, receipt, view) if receipt and view else None
-    _send_quiz_page(handler, stem, path, qs, sess, view, teaching, lesson_slugs, flash)
+    _send_quiz_page(handler, stem, path, qs, sess, view, teaching, lesson_slugs,
+                    flash, launch_mode=launch_mode)
+
+
+def _quiz_launch_mode(handler):
+    """The optional allowlisted course-area launch mode in the request URL."""
+    values = urllib.parse.parse_qs(
+        urllib.parse.urlsplit(handler.path).query).get("mode", [])
+    if not values:
+        return None
+    if len(values) != 1 or values[0] not in ("practice", "exam"):
+        raise ValueError("quiz mode must be practice or exam")
+    return values[0]
+
+
+def _quiz_session_config(handler, stem, launch_mode=None, bank_path=None):
+    """Return a mode-specific runtime configuration without mutating another.
+
+    The ordinary bank route keeps its established per-stem configuration.
+    Explicit course-area launches get a process-persistent slot keyed by bank
+    and mode, so Practice and Test cannot reuse or rewrite one another's
+    sitting. The runtime session file remains the authority for the mode.
+    """
+    base = handler.sessions.get(stem)
+    if base is None:
+        raise ValueError("quiz session configuration is unavailable")
+    if launch_mode is None:
+        return base
+    store = handler.quiz_mode_sessions
+    key = (stem, launch_mode)
+    if (key not in store or
+            (bank_path is not None and
+             store[key].get("_bank_path") != os.path.abspath(bank_path))):
+        cfg = dict(base)
+        cfg.pop("api_session_id", None)
+        cfg["session_id"] = uuid.uuid4().hex
+        cfg["mode"] = launch_mode
+        cfg["selection_mode"] = launch_mode
+        cfg["seed"] = 0
+        cfg["mode_specific"] = True
+        cfg["_bank_path"] = (os.path.abspath(bank_path)
+                             if bank_path is not None else None)
+        store[key] = cfg
+    return store[key]
+
+
+def _quiz_path(stem, launch_mode=None, receipt=None, answer=False):
+    path = "/quiz/%s%s" % (urllib.parse.quote(stem, safe=""),
+                            "/answer" if answer else "")
+    query = []
+    if launch_mode:
+        query.append(("mode", launch_mode))
+    if receipt:
+        query.append(("receipt", receipt))
+    return path + (("?" + urllib.parse.urlencode(query)) if query else "")
 
 
 def _send_quiz_page(handler, stem, path, qs, sess, view, teaching, lesson_slugs,
-                    flash=None, prefill=None, status=200):
+                    flash=None, prefill=None, status=200, launch_mode=None):
     """Render and send `GET /quiz/<stem>`'s page for the state it is in.
 
     Shared with the POST failure paths (plan item 2, 2026-08-24): a submit
@@ -2898,7 +3138,7 @@ def _send_quiz_page(handler, stem, path, qs, sess, view, teaching, lesson_slugs,
     theme_block = theme.theme_css(cfg)
     profile, _notice = settings.resolve_presentation_profile(cfg)
     _, page = quiz.page_for(path, qs, serve=True, reveal=False,
-                            post_path="/quiz/%s/answer" % stem,
+                            post_path=_quiz_path(stem, launch_mode, answer=True),
                             bank_stem=stem, mode=sess.get("mode", "practice"),
                             lesson_base="/lesson/%s" % stem,
                             lesson_slugs=lesson_slugs, theme_css=theme_block,
@@ -2914,7 +3154,7 @@ def _send_quiz_page(handler, stem, path, qs, sess, view, teaching, lesson_slugs,
         if isinstance(before, dict) and before.get("item"):
             rendered_view = before
             if flash.get("action") == "advance":
-                continue_href = "/quiz/%s" % stem
+                continue_href = _quiz_path(stem, launch_mode)
                 try:
                     continue_label = "Continue to item %d" % (
                         int(view.get("position", 0) or 0) + 1)
@@ -2936,7 +3176,8 @@ def _send_quiz_page(handler, stem, path, qs, sess, view, teaching, lesson_slugs,
                             '<b id="pos">%d</b>' % position, 1)
     if rendered_view is not None:
         baseline = quiz_page.baseline_for(rendered_view, teaching,
-                                          "/quiz/%s/answer" % stem, tokens, flash,
+                                          _quiz_path(stem, launch_mode, answer=True),
+                                          tokens, flash,
                                           prefill, continue_href, continue_label)
         page = page.replace('<div id="host"></div>', '<div id="host">%s</div>' % baseline, 1)
     handler.send_html(page.encode("utf-8"), status)
@@ -2972,18 +3213,34 @@ QUIZ_TOKEN_CAP = 2048
 QUIZ_SESSION_LOCK = threading.Lock()
 
 
-def _saved_quiz_session(handler, stem, path, qs):
+def _saved_quiz_session(handler, stem, path, qs, cfg=None):
     """Resolve the newest persisted sitting without starting or advancing it.
 
-    Reuse the report index's bank matching and recency rule. Validate the
-    saved shape and selection against current items before handing its cursor
-    to the runtime. A finished sitting stays finished, including on restart.
+    Reuse the report index's bank matching and recency rule, narrowing to the
+    requested mode for an explicit course-area launch. Validate the saved
+    shape and selection against current items before handing its cursor to the
+    runtime. A finished sitting stays finished, including on restart.
     """
     from schema_validate import validate
 
     try:
         index = session_index(handler.root)
-        session_id = sessions_by_bank(handler.root, {stem: path}).get(stem)
+        cfg = cfg or handler.sessions[stem]
+        expected_mode = cfg.get("mode", "practice")
+        candidates = []
+        for session_id, candidate_path in index.items():
+            try:
+                data = read_session(candidate_path)
+                mtime = os.path.getmtime(candidate_path)
+            except (OSError, ValueError, SystemExit):
+                continue
+            if (data.get("bank") == os.path.abspath(path)
+                    and (not cfg.get("mode_specific")
+                         or data.get("mode") == expected_mode)):
+                candidates.append((mtime, session_id, candidate_path, data))
+        selected = max(candidates, key=lambda row: (row[0], row[1]),
+                       default=None)
+        session_id = selected[1] if selected else None
         attempts = os.path.join(os.path.abspath(handler.root), "_attempts")
         try:
             files = {os.path.join(attempts, name) for name in os.listdir(attempts)
@@ -2994,15 +3251,15 @@ def _saved_quiz_session(handler, stem, path, qs):
             raise ValueError("A saved session is unreadable. Review the session files before starting another sitting.")
         if session_id is None:
             return None
-        saved = index.get(session_id)
+        saved = selected[2] if selected else None
         if saved is None:
             raise ValueError("Saved session changed while opening. Try again.")
-        data = read_session(saved)
+        data = selected[3]
         schema = json.loads(resources.read_text("schemas/session.schema.json"))
         if validate(data, schema):
             raise ValueError("Saved session is invalid. Review the session files before continuing.")
         if (data["bank"] != os.path.abspath(path)
-                or data["mode"] != handler.sessions[stem].get("mode", "practice")
+                or data["mode"] != expected_mode
                 or not 0 <= data["cursor"] <= len(data["items"])
                 or any(not 0 <= i < len(qs) for i in data["items"])):
             raise ValueError("Saved session does not match this quiz. Open its report before continuing.")
@@ -3026,7 +3283,7 @@ def _saved_quiz_session(handler, stem, path, qs):
         raise ValueError("Saved session is unavailable. Review the session files before continuing.") from exc
 
 
-def _ensure_quiz_session(handler, stem, path, qs):
+def _ensure_quiz_session(handler, stem, path, qs, cfg=None):
     """The one session `GET /quiz/<stem>` reads, created once per bank.
 
     Held under `QUIZ_SESSION_LOCK` because the check and the create are one
@@ -3041,7 +3298,7 @@ def _ensure_quiz_session(handler, stem, path, qs):
     create.
     """
     with QUIZ_SESSION_LOCK:
-        cfg = handler.sessions[stem]
+        cfg = cfg or handler.sessions[stem]
         api_id = cfg.get("api_session_id")
         found = api_session_path(handler, api_id) if api_id else None
         if found:
@@ -3049,7 +3306,7 @@ def _ensure_quiz_session(handler, stem, path, qs):
         # An explicit `serve` launch owns its announced mode, seed and id.
         # Automatic restart recovery belongs to the workspace daemon only.
         saved = (None if cfg.get("progress") else
-                 _saved_quiz_session(handler, stem, path, qs))
+                 _saved_quiz_session(handler, stem, path, qs, cfg))
         if saved:
             found, data = saved
             cfg["api_session_id"] = data["session_id"]
@@ -3154,7 +3411,7 @@ def _form_answer(item, fields):
 
 
 def _echo_quiz_failure(handler, stem, path, qs, session_file, fields, message,
-                      status=403):
+                      status=403, sess=None, launch_mode=None):
     """A quiz POST that did not go through, answered with the quiz page rather
     than a bare error document: same item, a fresh token, the learner's own
     submitted fields echoed back into the controls, and `message` shown in the
@@ -3169,7 +3426,7 @@ def _echo_quiz_failure(handler, stem, path, qs, session_file, fields, message,
     Nothing echoed is authority: `prefill` reaches the rendered controls and
     nothing else, and the answer is not recorded until a submit succeeds.
     """
-    sess = handler.sessions.get(stem) or {}
+    sess = sess or handler.sessions.get(stem) or {}
     lesson = parse_lesson(path)
     lesson_slugs = set(h["slug"] for h in lesson["headings"]) if lesson else set()
     try:
@@ -3179,7 +3436,8 @@ def _echo_quiz_failure(handler, stem, path, qs, session_file, fields, message,
         handler.send_error(status, message)
         return
     _send_quiz_page(handler, stem, path, qs, sess, view, teaching, lesson_slugs,
-                    flash={"refused": message}, prefill=fields, status=status)
+                    flash={"refused": message}, prefill=fields, status=status,
+                    launch_mode=launch_mode)
 
 
 def handle_quiz_answer(handler, stem):
@@ -3202,6 +3460,12 @@ def handle_quiz_answer(handler, stem):
         handler.send_not_found(stem)
         return
     try:
+        launch_mode = _quiz_launch_mode(handler)
+        sess = _quiz_session_config(handler, stem, launch_mode, path)
+    except ValueError as exc:
+        handler.send_error(400, str(exc))
+        return
+    try:
         qs = load(path)
         by_id = dict((q["id"], q) for q in qs)
         if media == "application/json":
@@ -3218,7 +3482,7 @@ def handle_quiz_answer(handler, stem):
             token = (fields.get("form_token") or [""])[-1]
             if action not in ("submit", "hint", "stumped"):
                 handler.send_error(400, "unknown quiz form action"); return
-            session_file = _ensure_quiz_session(handler, stem, path, qs)
+            session_file = _ensure_quiz_session(handler, stem, path, qs, sess)
             before = session.do_next(session_file)
             with handler.quiz_state_lock:
                 _prune_quiz_store(handler.quiz_form_tokens)
@@ -3235,7 +3499,7 @@ def handle_quiz_answer(handler, stem):
                     "That submission did not go through: this page's form token "
                     "was expired, already used, or minted for a different item. "
                     "Your answer is still here, exactly as you wrote it. "
-                    "Submit it again.")
+                    "Submit it again.", sess=sess, launch_mode=launch_mode)
                 return
             q = by_id.get(expected["item_id"])
             refusal = _check_refusal_body(handler, q) if action == "submit" else None
@@ -3251,7 +3515,8 @@ def handle_quiz_answer(handler, stem):
                 result = _refusal_from_exit(exc.code, q)
                 if result is None:
                     _echo_quiz_failure(handler, stem, path, qs, session_file,
-                                       fields, str(exc.code), status=400)
+                                       fields, str(exc.code), status=400,
+                                       sess=sess, launch_mode=launch_mode)
                     return
             # The action ran and produced a result, so the token is spent
             # now: a replay finds it gone, and every path that bailed out
@@ -3264,11 +3529,11 @@ def handle_quiz_answer(handler, stem):
                 # only from the JSON route, so every `serve` sitting printed
                 # an attempt path it never wrote (found 2026-08-24 after the
                 # 13.9 sitting finished with an empty `_attempts/` markdown).
-                cfg = handler.sessions[stem]
+                cfg = sess
                 _refresh_attempt_view(cfg, cfg.get("api_session_id"), qs, path)
             after = session.do_next(session_file)
             receipt = _mint_quiz_flash(handler, before, after, result)
-            handler.send_redirect("/quiz/%s?receipt=%s" % (stem, urllib.parse.quote(receipt)))
+            handler.send_redirect(_quiz_path(stem, launch_mode, receipt=receipt))
             return
         q = by_id.get(data.get("id"))
         if q is None:
@@ -3284,7 +3549,6 @@ def handle_quiz_answer(handler, stem):
             # the field at all: record an honest null rather than a
             # fabricated number, matching `cmd_serve`'s own type guard.
             elapsed_ms = None
-        sess = handler.sessions[stem]
         # Resolve the JSON session the served page started through
         # /api/start (its session_id was registered against this stem), so
         # the legacy route and the API route share one session file.
@@ -6191,6 +6455,9 @@ def serve_scoped(root, banks, plans, port, host="127.0.0.1", open_path="/",
     DaemonHandler.collisions = extra.get("collisions", [])
     DaemonHandler.root = root
     DaemonHandler.sessions = extra.get("sessions", {})
+    # Explicit Practice and Test launches keep separate runtime configurations
+    # for the same bank. One must never reuse or mutate the other's sitting.
+    DaemonHandler.quiz_mode_sessions = {}
     DaemonHandler.day_states = {}                  # built lazily, one per served plan
     DaemonHandler.day_extra = extra.get("day_extra", {})
     DaemonHandler.day_force_tokens = {}            # one-use edit-conflict gates
@@ -6242,7 +6509,13 @@ def _port_silent(port, host="127.0.0.1", timeout=0.4):
 
 
 def _build_sessions(banks):
-    """One session per bank, opened for the life of this process -- the same
+    """One session configuration per bank for the life of this process.
+
+    Configuration is read-only. The runtime creates `_attempts` only when a
+    learner actually opens a sitting, so discovery and page refresh do not
+    mutate a linked course.
+
+    This uses the same
     session-id-printed-so-a-marker-can-find-it precedent `cmd_serve` sets,
     extended to every bank the daemon found rather than the one bank a single
     `serve` process used to hold. Shared by `cmd_daemon` and `cmd_sidecar`.
@@ -6252,7 +6525,6 @@ def _build_sessions(banks):
         bank_dir = os.path.dirname(os.path.abspath(path)) or "."
         out = os.path.join(bank_dir, "_attempts", "%s_attempt_%s.md" %
                            (stem, datetime.datetime.now().strftime("%Y-%m-%d_%H%M")))
-        os.makedirs(os.path.dirname(out), exist_ok=True)
         sessions[stem] = {
             "session_id": uuid.uuid4().hex,
             "log": evidence.log_path(bank_dir),

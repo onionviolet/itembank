@@ -101,6 +101,86 @@ any shipped profile is removed.
 **Owner:** Weibao selects the experience direction. Phase 20 owns the audit and
 any resulting migration proposal.
 
+### P-20260913-01: course Practice and Test hide available learner content
+
+**Reported by:** Weibao, 2026-09-13
+**Status:** Deterministically fixed and installed; human acceptance pending
+**Area:** installed macOS app, course Practice and Test
+**Severity:** High, current-course learning-flow blocker
+
+**Verbatim observation:**
+
+> I dont see practice or test content in app yet for some reason, thoughts and suggesrtions?
+
+**Observed environment:** Itembank 0.4.0 was running its sidecar against
+`/Users/weiwei/Documents/itembank`. The live CSCI 1100 Practice area said
+"Nothing has been added to Practice for this course yet." The workspace course
+entries are directory symlinks. The CSCI target already contains
+`selection-and-boolean-practice.md`, a six-item formative bank, and its course
+graph records that practice treatment.
+
+**Diagnosis, separate from the observation:** Reproduced as two defects. First,
+the course shelf discovers immediate symlinked course directories, while the
+daemon's startup bank scan uses `os.walk(root)` without following those links.
+The Practice area only displays banks admitted by that startup scan, so it sees
+none inside symlinked courses. The running daemon also started before the
+current symlinks were created, which independently requires a rescan or restart.
+Second, `_course_area_rows` implements Learn and Practice rows but has no Test
+branch. Test therefore resolves to the generic empty state even when a course
+contains banks. This is presentation and discovery failure. No scoring-runtime
+failure was observed.
+
+**Owner:** `surfaces/daemon.py` owns startup bank discovery and course-area
+projection. Workspace-root and symlink policy must remain consistent with the
+identity and containment rules in `surfaces/ia.py`.
+
+**Suggested repair order:** Add a safe course-aware scan that resolves approved
+course entries without escaping the workspace. Refresh that allowlist when the
+workspace changes or expose an explicit rescan action. Then implement Test as a
+separate fixed-sitting launcher backed by the existing runtime rather than a
+second scorer. Finally, test the installed app with a symlinked course that
+contains one lesson bank and one practice-only bank.
+
+**Evidence required to close:** In a fresh installed-app process, the CSCI
+Practice area visibly lists the existing six-item bank and opens a scored
+practice sitting. Test visibly lists an eligible fixed test and starts it under
+formal conditions. A newly added approved course artifact appears after the
+documented refresh action. Containment tests prove that out-of-root symlink
+targets remain refused. Human acceptance remains required.
+
+**2026-09-13 implementation record:** `surfaces/daemon.py` now rescans immediate
+approved course links without following nested escapes. Practice publishes only
+explicit `practice` treatment bindings. Test publishes only explicit
+`formal-test` bindings and launches the existing runtime in a separate fixed
+exam-mode sitting. `tests/daemon_discovery_roundtrip.py` and
+`tests/course_assessment_area_roundtrip.py` cover the new contracts, and
+`tests/ia_route_roundtrip.py` covers the course route. Focused daemon, course,
+serve, and math-offline suites pass. Quick preflight passes every runnable gate
+except pre-existing skill-mirror drift at `.agents/skills/author-bank/_attempts`.
+
+The signed macOS bundle and DMG were rebuilt. The previous installed bundle is
+recoverable at `/Applications/itembank.app.backup-20260913`. In the fresh
+installed process, CSCI Practice visibly listed its six-item bank and opened
+Item 1 of 6. A distinct MATH 1400 Discrete Mathematics course visibly listed
+the accepted 12-item §§1.1-1.2 formative bank after IDs, source rights, graph
+bindings, and the workspace link were recorded. Its Test area remained empty,
+which is correct until a reviewed bank receives a `formal-test` binding. The
+synthetic fixed-exam contract is deterministically verified, but the real-test
+content and human acceptance parts of this problem remain open.
+
+The same installed process refreshed without a restart after later course
+writes. CHIN 3101 Practice visibly listed a 22-item eligible-vocabulary pool.
+POL 1005 Practice visibly listed a six-item independent general-IR enrichment
+bank. CHIN does not guess the instructor-selected ten words. POL uses no
+assigned course material. Both remain formative only, with Test empty.
+
+MATH 1400 Test then visibly listed an eight-item Quiz 1 readiness self-test
+covering the locally verified §0 and §1.1 scope. Opening it showed Item 1 of 8
+in runtime `exam` mode and stated that feedback is held until the attempt is
+marked. No answer was submitted during verification. This supplies the real
+formal-test acceptance fixture that was previously missing. Only the learner's
+human acceptance of the installed experience remains open.
+
 ## Link audit, 2026-09-08
 
 ### P-20260908-04: selected course navigation text disappears

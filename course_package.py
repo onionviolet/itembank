@@ -1020,8 +1020,53 @@ def _check_duplicate_relpaths(entries):
             seen.add(relpath)
 
 
-def _capture_reading_transport(base, course_root, manifest, payloads, evidence_raw):
-    """Capture only the course and packaged reading sources, never private notes."""
+def _capture_private_notes(base, course_id, include_current, include_history):
+    """Capture an explicitly requested personal backup of the private note pair."""
+    if include_history and not include_current:
+        raise PackageError('package.invalid_note_backup',
+                           'Private recovery history requires current private notes.')
+    if not include_current:
+        return None
+    import notes
+    root = os.path.join(base, notes.NOTES_DIRNAME)
+    document = notes.read_note_document(root, course_id)
+    if document is None:
+        return {'version': 1, 'include_history': include_history, 'files': {}}
+    allowed = {'notes.md', 'notes.md.json'}
+    if include_history:
+        for directory, dirs, names in os.walk(root):
+            dirs[:] = [name for name in dirs if not os.path.islink(os.path.join(directory, name))]
+            for name in names:
+                relative = os.path.relpath(os.path.join(directory, name), root).replace(os.sep, '/')
+                if relative.endswith('.tmp') or relative == journal.JOURNAL_DIRNAME + '/' + journal.LOCK_FILENAME:
+                    continue
+                if relative == journal.JOURNAL_DIRNAME + '/' + journal.LOG_FILENAME or \
+                        relative == journal.JOURNAL_DIRNAME + '/' + journal.REGISTRY_FILENAME or \
+                        relative.startswith(journal.JOURNAL_DIRNAME + '/' + journal.BEFORE_DIRNAME + '/'):
+                    allowed.add(relative)
+    files = {}
+    with _directory_handle(os.path.realpath(root)) as directory:
+        for relative in sorted(allowed):
+            try:
+                files[relative] = base64.b64encode(_read_relative(directory, relative)).decode('ascii')
+            except FileNotFoundError:
+                if relative in ('notes.md', 'notes.md.json'):
+                    raise PackageError('package.invalid_note_backup',
+                                       'The accepted private note pair is incomplete.') from None
+    after = notes.read_note_document(root, course_id)
+    if after is None or after['fingerprint'] != document['fingerprint']:
+        raise PackageError('package.stale_course',
+                           'Private notes changed during export capture.')
+    return {'version': 1, 'include_history': include_history, 'files': files}
+
+
+def _capture_reading_transport(base, course_root, manifest, payloads, evidence_raw,
+                               include_private_notes=False,
+                               include_private_note_history=False):
+    """Capture reading closure and only explicitly requested private notes."""
+    if include_private_note_history and not include_private_notes:
+        raise PackageError('package.invalid_note_backup',
+                           'Private recovery history requires current private notes.')
     import course
     import graph
     cid = manifest['course_object_id']
@@ -1029,11 +1074,19 @@ def _capture_reading_transport(base, course_root, manifest, payloads, evidence_r
     if not doc.get('reading_occurrences') and b'"reading_declared"' not in evidence_raw:
         return None, []
     losses = []
+    personal = _capture_private_notes(base, cid, include_private_notes,
+                                      include_private_note_history)
     transport = {'version': 1, 'objects': [], 'entries': [], 'files': {},
                  'history_state': 'known' if os.path.isfile(evidence.log_path(course_root)) else 'unavailable',
                  'losses': losses}
     def loss(target, reason):
         losses.append(_loss_row('reading-transport-loss', target, reason))
+    if personal is None:
+        import notes
+        note_root = os.path.join(base, notes.NOTES_DIRNAME)
+        if any(os.path.isfile(os.path.join(note_root, name))
+               for name in ('notes.md', 'notes.md.json')):
+            loss('private-notes', 'Private notes stay local unless this personal backup explicitly includes them.')
     try:
         occurrences = graph.validate_reading_graph(doc)['occurrences']
         refs = {row['source_ref']['source_object_id'] for row in occurrences}
@@ -1092,6 +1145,8 @@ def _capture_reading_transport(base, course_root, manifest, payloads, evidence_r
                 loss(relative, 'Accepted locator companion is missing.')
         transport.update(objects=sorted(ids), entries=ordered,
                          files={path: base64.b64encode(raw).decode('ascii') for path, raw in sorted(files.items())})
+        if personal is not None:
+            transport['personal_notes'] = personal
         _validate_reading_transport(transport, manifest, payloads)
         intents = {(e.get('agent') or {}).get('operation_id') for e in ordered}
         current = {(r['occurrence_id'], r['revision_id']) for r in occurrences}
@@ -1112,8 +1167,9 @@ def _capture_reading_transport(base, course_root, manifest, payloads, evidence_r
 
 def _validate_reading_transport(transport, manifest, payloads):
     """Validate original heads, recovery digests and the closed companion scope."""
-    if (not isinstance(transport, dict) or set(transport) !=
-            {'version', 'objects', 'entries', 'files', 'history_state', 'losses'} or
+    required = {'version', 'objects', 'entries', 'files', 'history_state', 'losses'}
+    if (not isinstance(transport, dict) or not required <= set(transport) or
+            set(transport) - required - {'personal_notes'} or
             transport['version'] != 1 or transport['history_state'] not in ('known', 'unavailable')):
         raise PackageError('package.invalid_transport', 'Unsupported reading transport.')
     selected = set(transport['objects'])
@@ -1163,6 +1219,29 @@ def _validate_reading_transport(transport, manifest, payloads):
             raise PackageError('package.invalid_transport', 'Accepted locator companion differs.')
     if set(files) - allowed:
         raise PackageError('package.invalid_transport', 'Unreferenced recovery bytes refused.')
+    personal = transport.get('personal_notes')
+    if personal is not None:
+        if (not isinstance(personal, dict) or set(personal) !=
+                {'version', 'include_history', 'files'} or personal['version'] != 1 or
+                not isinstance(personal['include_history'], bool) or
+                not isinstance(personal['files'], dict)):
+            raise PackageError('package.invalid_transport', 'Invalid private note backup.')
+        note_files = set(personal['files'])
+        fixed = {'notes.md', 'notes.md.json'}
+        if note_files and not fixed <= note_files:
+            raise PackageError('package.invalid_transport', 'Private note pair is incomplete.')
+        for relative, encoded in personal['files'].items():
+            history_path = (relative == journal.JOURNAL_DIRNAME + '/' + journal.LOG_FILENAME or
+                            relative == journal.JOURNAL_DIRNAME + '/' + journal.REGISTRY_FILENAME or
+                            relative.startswith(journal.JOURNAL_DIRNAME + '/' + journal.BEFORE_DIRNAME + '/'))
+            if relative not in fixed and (not personal['include_history'] or not history_path):
+                raise PackageError('package.invalid_transport', 'Private note backup contains an unapproved path.')
+            if not _valid_relpath(relative):
+                raise PackageError('package.invalid_transport', 'Private note backup path is unsafe.')
+            try:
+                base64.b64decode(encoded, validate=True)
+            except (ValueError, TypeError):
+                raise PackageError('package.invalid_transport', 'Private note backup bytes are invalid.') from None
     for oid, head in heads.items():
         entry = entries[oid]
         if entry['kind'] == 'source' and not identity.rights_granted(head.get('rights'), PACKAGE_RIGHT):
@@ -1191,7 +1270,9 @@ def export_guard(base, course_root):
             yield
 
 
-def capture_export(base, course_root, expected_fingerprint=None, manifest=None):
+def capture_export(base, course_root, expected_fingerprint=None, manifest=None,
+                   include_private_notes=False,
+                   include_private_note_history=False):
     """Capture payloads, rights, evidence and loss inputs under export_guard."""
     current = build_manifest(base, course_root)
     course_entry = next(
@@ -1223,7 +1304,9 @@ def capture_export(base, course_root, expected_fingerprint=None, manifest=None):
     raw = (("\n".join(lines) + "\n") if lines else "").encode("utf-8")
     _validated_evidence_events(raw)
     current["evidence_fingerprint"] = _digest(raw)
-    transport, transport_losses = _capture_reading_transport(base, course_root, current, payloads, raw)
+    transport, transport_losses = _capture_reading_transport(
+        base, course_root, current, payloads, raw, include_private_notes,
+        include_private_note_history)
     if transport is not None:
         current['reading_transport_fingerprint'] = _digest(transport)
         closure = json.loads(transport)
@@ -1238,24 +1321,34 @@ def capture_export(base, course_root, expected_fingerprint=None, manifest=None):
         if manifest is not None and 'reading_transport_fingerprint' in manifest and current['loss_report'] != manifest['loss_report']:
             raise PackageError('package.stale_course', 'Reading transport losses changed during export.')
     return {"manifest": current, "payloads": payloads, "evidence_raw": raw,
-            "reading_transport_raw": transport, "reading_transport_losses": transport_losses}
+            "reading_transport_raw": transport, "reading_transport_losses": transport_losses,
+            "include_private_notes": include_private_notes,
+            "include_private_note_history": include_private_note_history}
 
 
 def recheck_export(base, course_root, snapshot):
     """Refuse changes to any inclusion, rights, evidence or loss input."""
-    current = capture_export(base, course_root, manifest=snapshot["manifest"])
+    current = capture_export(
+        base, course_root, manifest=snapshot["manifest"],
+        include_private_notes=snapshot.get('include_private_notes', False),
+        include_private_note_history=snapshot.get('include_private_note_history', False))
     if current["payloads"] != snapshot["payloads"] or \
             current["evidence_raw"] != snapshot["evidence_raw"] or \
             current.get('reading_transport_raw') != snapshot.get('reading_transport_raw'):
         raise PackageError("package.stale_course", "the export snapshot changed before publication")
 
 
-def export_package(base, course_root, dest, archive=None, manifest=None, _snapshot=None):
+def export_package(base, course_root, dest, archive=None, manifest=None, _snapshot=None,
+                   include_private_notes=False,
+                   include_private_note_history=False):
     """Capture under writer locks, then emit and verify one coherent export."""
     if _snapshot is not None:
         return _export_package(base, course_root, dest, archive, _snapshot)
     with export_guard(base, course_root):
-        snapshot = capture_export(base, course_root, manifest=manifest)
+        snapshot = capture_export(
+            base, course_root, manifest=manifest,
+            include_private_notes=include_private_notes,
+            include_private_note_history=include_private_note_history)
         return _export_package(base, course_root, dest, archive, snapshot)
 
 
@@ -1532,6 +1625,8 @@ def _restore_reading_transport(snapshot, dest, actor_kind, actor_name):
             journal._write_bytes_atomic(evidence.log_path(stage), b'')
         if transport['history_state'] == 'unavailable' and snapshot['evidence']:
             raise PackageError('package.invalid_transport', 'Unavailable history cannot carry claimed events.')
+        _restore_private_notes(stage, manifest['course_object_id'],
+                               transport.get('personal_notes'))
         import course
         accepted = False
         try:
@@ -1594,6 +1689,37 @@ def _restore_reading_transport(snapshot, dest, actor_kind, actor_name):
             'course_object_id': manifest['course_object_id'],
             'losses': list(manifest['loss_report']), 'restore_losses': [],
             'evidence_recorded': recorded, 'evidence_already_recorded': already}
+
+
+def _restore_private_notes(stage, course_id, personal):
+    """Restore the opted-in private note pair, with exact history only on request."""
+    if personal is None or not personal['files']:
+        return
+    import notes
+    files = {relative: base64.b64decode(encoded, validate=True)
+             for relative, encoded in personal['files'].items()}
+    root = os.path.join(stage, notes.NOTES_DIRNAME)
+    os.makedirs(root, mode=0o700, exist_ok=True)
+    if personal['include_history']:
+        for relative, raw in files.items():
+            journal._write_bytes_atomic(safe_target(root, relative), raw)
+        try:
+            document = notes.read_note_document(root, course_id)
+        except (journal.JournalError, OSError, ValueError) as err:
+            raise PackageError('package.invalid_transport',
+                               'Private note recovery history did not validate.') from err
+        if document is None:
+            raise PackageError('package.invalid_transport',
+                               'Private note recovery history has no current document.')
+        return
+    try:
+        sidecar = json.loads(files['notes.md.json'].decode('utf-8'))
+        markdown = files['notes.md'].decode('utf-8')
+        notes.write_note_document(root, course_id, markdown, sidecar,
+                                  expected_fingerprint=None)
+    except (KeyError, ValueError, UnicodeError, journal.JournalError) as err:
+        raise PackageError('package.invalid_transport',
+                           'Current private notes did not validate.') from err
 
 
 def _restore_evidence(events, dest, course_id=None):

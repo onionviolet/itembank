@@ -1243,6 +1243,8 @@
         "operation": {"const": "export_package"},
         "course_id": {"$ref": "#/$defs/course_id"},
         "expected_fingerprint": {"$ref": "#/$defs/expected_fingerprint"},
+        "include_private_notes": {"type": "boolean", "default": false, "description": "Explicit personal-backup consent to include the current private note document."},
+        "include_private_note_history": {"type": "boolean", "default": false, "description": "Separate consent to include deleted and previous private note wording. Requires include_private_notes."},
         "actor": {"$ref": "#/$defs/actor"}
       }
     },

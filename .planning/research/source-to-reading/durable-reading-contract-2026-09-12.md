@@ -1450,3 +1450,35 @@ browser journey. Run full candidate preflight once after that closure is
 implemented. No successor is dispatched while the material decision is
 pending. Exact cursor, multiple spans, occurrence-private notes, human and
 real-course acceptance remain deferred rather than passed.
+
+### Link 5B private-note policy implementation, 2026-09-12
+
+Weibao approved the proposed two-switch personal-backup policy. Both controls
+are explicit and default off. `include_private_notes` includes the current
+accepted learner-owned note pair. `include_private_note_history` separately
+includes the original private note journal, registry and before-images, and is
+refused unless current notes are also included. The published course-operation
+schema, CLI and shared course operation route expose the same controls.
+
+Default export still carries no private wording. When a private note document
+exists, its omission is named as `reading-transport-loss/private-notes` without
+putting wording in the loss report. Current-only restore validates the pair and
+mints a fresh private note journal. History restore validates and reproduces
+the original private journal. The reading transport fingerprint binds either
+opted-in form. Closed path validation refuses unrelated files, unsafe paths,
+invalid base64, incomplete pairs and history-only requests.
+
+The focused reading-package suite now has thirteen tests. It proves default
+byte exclusion, named loss, current-only restore, exact-history restore and
+the history dependency refusal. Course-operation, course-package,
+reading-desk and protocol regressions pass. All 28 schemas self-check. Quick
+preflight and `git diff --check` pass.
+
+The full candidate preflight ran all 128 Python files. The only named Python
+failure is the existing local-model parity `ok / unavailable`. The clean gate
+fails because this authorized implementation is uncommitted. Fast and JS gates
+pass. CI-only setup and runtime-output pipeline remain unperformed. No actual
+restored-root browser journey ran in this link, so G8 and final A3 acceptance
+remain open. Human, real-course, exact cursor, multiple-span and
+occurrence-private-note checks remain deferred. No commit, push or release was
+performed.

@@ -848,6 +848,20 @@ def check_course_areas_carry_content():
         shutil.copytree(source, dest,
                         ignore=shutil.ignore_patterns("_journal", "_evidence",
                                                       "_attempts"))
+        # The original 17B fixture predates artifact locators and binds its
+        # practice treatment only to source passages. Add the current explicit
+        # assessment locator to this temporary copy so the area can classify
+        # the bank without treating every discovered bank as practice.
+        sidecar = os.path.join(dest, "course-graph.md")
+        with open(sidecar, encoding="utf-8") as fh:
+            doc = graph.parse_course(fh.read())
+        graph.add_binding(
+            doc, "treatment", doc["objectives"][0]["id"],
+            doc["sources"][0]["source_object_id"], treatment_kind="practice",
+            locator="unit3_bank.md, Q1-Q8", state="covered", confidence="high",
+            rights_snapshot="granted")
+        with open(sidecar, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write(graph.serialize_course(doc))
         course_id = _shelf_course_ids(workdir)[0]
         proc, url, lines = start_daemon(workdir)
 
@@ -862,8 +876,12 @@ def check_course_areas_carry_content():
                  "in the course")
 
         status, body = get(url + "course/%s/practice" % course_id)
-        if "/quiz/unit3_bank" not in html.unescape(body):
-            fail("Practice did not link the course's own quiz route")
+        if "/quiz/unit3_bank?mode=practice" not in html.unescape(body):
+            fail("Practice did not link the course's own practice-mode route")
+
+        status, body = get(url + "course/%s/test" % course_id)
+        if "/quiz/unit3_bank?mode=exam" in html.unescape(body):
+            fail("Test silently promoted a practice bank to a formal test")
 
         status, body = get(url + "course/%s/build" % course_id)
         if "Nothing has been added" not in html.unescape(body):

@@ -1650,6 +1650,10 @@ def build_parser():
                     help="the course fingerprint expected before export")
     pe.add_argument("--actor", default="",
                     help="who requested the local export")
+    pe.add_argument("--include-private-notes", action="store_true", default=None,
+                    help="include current learner-owned notes in this personal backup")
+    pe.add_argument("--include-private-note-history", action="store_true", default=None,
+                    help="also include deleted and previous private note wording")
     pe.add_argument("--json", action="store_true",
                     help="emit the complete package result as JSON")
     pe.set_defaults(fn=course_ops.cmd_course)

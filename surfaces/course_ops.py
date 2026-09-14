@@ -1327,7 +1327,10 @@ def _op_export_package(root, body, actor_kind, actor_name, base=None):
     base = base or resolve_course(root, body["course_id"])
     with course_package.export_guard(base, base):
         snapshot = course_package.capture_export(
-            base, base, expected_fingerprint=body.get("expected_fingerprint"))
+            base, base, expected_fingerprint=body.get("expected_fingerprint"),
+            include_private_notes=body.get("include_private_notes", False),
+            include_private_note_history=body.get(
+                "include_private_note_history", False))
         # A separate workspace journal lock serializes identity publication.
         # The source lock is already held if the course is the workspace root.
         if os.path.realpath(base) == os.path.realpath(root):

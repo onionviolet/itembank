@@ -14,6 +14,7 @@ import course_package
 import evidence
 import graph
 import journal
+import notes
 import reading
 import reading_desk
 import identity
@@ -40,13 +41,63 @@ class ReadingPackage(unittest.TestCase):
         latest = self.declare(self.confirmation(first))
         return first, second, [receipt['event'], correction, latest['event']]
 
-    def restore(self, name='package'):
+    def restore(self, name='package', **options):
         package = str(Path(self.root, name))
         dest = str(Path(self.root, name + '-restored'))
         Path(dest).mkdir()
-        course_package.export_package(self.base, self.base, package)
+        course_package.export_package(self.base, self.base, package, **options)
         result = course_package.restore_package(package, dest, 'human', 'test')
         return package, dest, result
+
+    def private_note(self):
+        occurrence = self.create()['occurrence']
+        body = dict(expected_fingerprint=self.read()['fingerprint'],
+                    occurrence_id=occurrence['occurrence_id'],
+                    revision_id=occurrence['revision_id'], note_id='a' * 32,
+                    wording='Current private wording', notes_fingerprint=None)
+        reading_desk.save_note(self.base, body)
+        root = reading_desk.note_root(self.base)
+        document = notes.read_note_document(root, self.read()['object_id'])
+        revised = copy.deepcopy(document['sidecar'])
+        revised['notes'][0]['learner_wording'] = 'Current private wording, revised'
+        notes.write_note_document(
+            root, self.read()['object_id'],
+            document['markdown'] + '\nPrevious private wording was revised.\n',
+            revised, expected_fingerprint=document['fingerprint'])
+        return occurrence, root
+
+    def test_private_note_backup_is_explicit_and_history_has_separate_consent(self):
+        _occurrence, note_root = self.private_note()
+        original_entries = list(journal.entries(note_root))
+
+        default_package, default_dest, default_result = self.restore('notes-default')
+        self.assertIsNone(notes.read_note_document(
+            reading_desk.note_root(default_dest), self.read()['object_id']))
+        self.assertTrue(any(row['target'] == 'private-notes'
+                            for row in default_result['losses']))
+        self.assertNotIn(b'Current private wording', b''.join(
+            path.read_bytes() for path in Path(default_package).rglob('*')
+            if path.is_file()))
+
+        _package, current_dest, _result = self.restore(
+            'notes-current', include_private_notes=True)
+        current = notes.read_note_document(
+            reading_desk.note_root(current_dest), self.read()['object_id'])
+        self.assertIn('Current private wording', current['markdown'])
+        self.assertNotEqual(list(journal.entries(reading_desk.note_root(current_dest))),
+                            original_entries)
+
+        _package, history_dest, _result = self.restore(
+            'notes-history', include_private_notes=True,
+            include_private_note_history=True)
+        restored_root = reading_desk.note_root(history_dest)
+        self.assertEqual(list(journal.entries(restored_root)), original_entries)
+        self.assertEqual(Path(restored_root, 'notes.md').read_bytes(),
+                         Path(note_root, 'notes.md').read_bytes())
+
+        with self.assertRaises(course_package.PackageError) as raised:
+            self.restore('notes-invalid', include_private_note_history=True)
+        self.assertEqual(raised.exception.code, 'package.invalid_note_backup')
 
     def test_exact_history_rights_omission_and_repeated_restore(self):
         first, second, rows = self.history()

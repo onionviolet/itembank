@@ -2366,3 +2366,96 @@ authoring owners carry this through the existing route. First correct CSCI
 Q1 and Q5, then verify syntax and code-block rendering across quiz surfaces.
 The broader environment comparison remains Prototype. This capture implements
 no renderer or bank change.
+
+### IL-20260913-01: course-aligned pacing modes
+
+- **Idea:** let each applicable course follow the current class material,
+  supplement it, or stay slightly ahead. Use the selected mode and a reviewed
+  current course position to choose and adjust the next treatments.
+- **Disposition:** Registered. The behavior is optional per course. Self-paced
+  courses remain valid without a live-class position.
+- **Owner:** the course builder owns treatment and sequence proposals. The
+  learner owns the mode choice. Current instructor material, syllabus or other
+  declared course authority owns the live position.
+- **Evidence class:** direct user direction establishes the desired modes.
+  Exact freshness, source precedence and the useful distance represented by
+  "slightly ahead" remain open design questions.
+- **Dependency and cost driver:** depends on course position, source freshness,
+  treatment bindings, staleness and next-action projection. Cost comes from
+  reconciling changed course material without silently rewriting accepted work.
+- **Next action and promotion gate:** exercise the three modes on one synthetic
+  live course and one self-paced course. Change the live course position and
+  verify current, supplement and ahead placement, stale treatment review and a
+  truthful next action. Replace the synthetic authority with a real course only
+  after its governing source and update route are approved.
+- **Boundary and recovery:** pacing never changes assessment authority or
+  treats an unpublished forecast as current course truth. A missing or stale
+  live position is shown as unknown and falls back to learner choice over the
+  last reviewed course map. Accepted artifacts remain recoverable revisions.
+- **Origin and relationship:** [September 13 vision entry](USER-VISION.md#2026-09-13-course-aligned-pacing-and-visible-generated-study-material).
+  Extends IL-20260826-07's time axis and the September 11 exam-orientation
+  direction. It does not replace paced lesson presentation in IL-20260828-01.
+
+### IL-20260913-02: app-visible learner artifacts
+
+- **Idea:** anything created or accepted for learner use, including study
+  material, must appear in the fitting course area and normal app journey.
+- **Disposition:** Core. Artifact creation without course visibility is an
+  incomplete learner-facing result.
+- **Owner:** the app owns route and presentation reachability. Course records
+  own artifact membership and intended use. The artifact's existing authority
+  continues to own its content and state.
+- **Evidence class:** direct user direction establishes the required outcome.
+  Current code inspection confirms that course areas enumerate accepted lessons,
+  readings and practice banks, while the standalone Study route is not yet a
+  distinct course-area artifact mapping. This is a bounded inspection, not a
+  complete app acceptance test.
+- **Dependency and cost driver:** depends on stable artifact identity, course
+  membership, treatment and intended-use metadata, app routes, next-action
+  projection and degraded states. Cost comes from maintaining a complete mapping
+  as artifact kinds and capability adapters expand.
+- **Next action and promotion gate:** build a synthetic course containing one
+  accepted reading, lesson, study aid, practice set and test. Prove each appears
+  in the correct course area with its state and intended use, opens through a
+  stable route, returns to the course and enters next action only when relevant.
+- **Boundary and recovery:** visibility does not make a draft accepted, a note
+  authoritative, or a study interaction scored. Invalid, stale, unavailable and
+  unsupported artifacts remain visible with the next safe action and plain-file
+  access when applicable. Removing a derived app index cannot remove the
+  canonical artifact.
+- **Origin and relationship:** [September 13 vision entry](USER-VISION.md#2026-09-13-course-aligned-pacing-and-visible-generated-study-material).
+  Tightens APP-01, FLOW-01 and the August 13 complete-app-flow direction. It
+  confirms rather than replaces the course-first information architecture.
+
+### IL-20260914-01: fictional analogy and contextual enrichment treatment
+
+- **Idea:** make a clear fictional modern analogy an optional learning
+  treatment when direct explanation is restricted or the original material is
+  difficult. Let scenarios, lessons, reading companions and similar pieces add
+  an outcome or ending explanation and relevant facts when they improve the
+  learner's understanding.
+- **Disposition:** Registered. The treatment is available for later authoring
+  and prototype work, but it is not a required block or implemented feature.
+- **Owner:** the course or lesson author chooses the treatment under the
+  governing policy and source rights. Existing semantic lesson roles and the
+  case-scenario presentation owner carry its content and display. The runtime
+  retains scoring, keyed disclosure and evidence authority.
+- **Evidence class:** direct user direction establishes the desired learning
+  option. Its efficacy, spoiler behavior and best presentation remain untested.
+- **Dependency and cost driver:** depends on policy-aware treatment selection,
+  clear separation between source fact and invented analogy, provenance for
+  factual sidebars, and useful plain Markdown and app renderings. Cost comes
+  from authoring and review, not from a new scoring or content authority.
+- **Next action and promotion gate:** prototype one synthetic difficult source
+  with a fictional modern analogy, a labeled outcome block and one cited useful
+  fact. Verify that each block is optional, coherent in plain Markdown, visible
+  in the fitting app area, accessible without hover, and removable without
+  changing the source or assessment meaning. Compare automatic versus
+  learner-controlled ending disclosure before choosing a default.
+- **Boundary and recovery:** never disguise a protected-source explanation as
+  fiction, map the analogy back into prohibited coursework, expose an answer
+  key, or present invented detail as fact. A fun fact must be relevant and
+  sourced. Removing the optional enrichment leaves the core artifact coherent.
+- **Origin and relationship:** [September 14 vision entry](USER-VISION.md#2026-09-14-fictional-modern-cases-endings-and-useful-facts).
+  Extends IL-20260912-02's case environment and the contract's niche or expert
+  tips without weakening source, rights, course-policy or assessment controls.
