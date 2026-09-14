@@ -842,6 +842,20 @@ relevant sourced facts as optional learning roles. Existing policy, source,
 rights, scoring and disclosure authorities remain unchanged. This capture does
 not claim implementation or authorize prohibited course-specific analysis.
 
+### 2026-09-14: learner-organized course shelf and class-grounded MATH 1400
+
+> push and commit accordingly with lesser agent, consider implementing dragging to organize courses, and also removing the non discrete math 1400s, ofcoursem build the course around the in class learnings
+
+**Disposition:** Split, route, and hold the interaction (2026-09-14).
+
+The MATH 1400 clause restates the accepted course-aligned pacing direction in
+the 2026-09-13 entry and routes to the canonical `MATH_1400` course. The two
+older linear-equations shelf links are an operational cleanup, not product
+vision. Dragging to organize courses is held for the FILE-04 workspace slice,
+because persistent learner order needs the workspace record and operation
+journal before pointer or keyboard controls can share one durable authority.
+This capture does not schedule FILE-04 or claim that dragging is implemented.
+
 ## Disposition vocabulary
 
 - **Promote:** add the verbatim statement and interpretation to `USER-VISION`.
