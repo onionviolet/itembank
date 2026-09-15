@@ -1321,6 +1321,10 @@ def build_parser():
                        "action (the POST /api/shelf CLI twin)")
     s.add_argument("action", choices=list(SHELF_ACTIONS))
     s.add_argument("dir", nargs="?", default=".")
+    s.add_argument("--course-id", action="append",
+                   help="course id in desired order (reorder_courses only)")
+    s.add_argument("--expected-fingerprint",
+                   help="saved workspace fingerprint, omitted for first order")
     s.set_defaults(fn=cmd_shelf)
 
     s = sub.add_parser("source", help="import a book, document, page, or "

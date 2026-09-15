@@ -18,8 +18,8 @@ and no attacker in its threat model.
 different fingerprints for two different jobs, and they are never unified:
 `model.content_fingerprint` stays byte-exact over tested item fields so a
 scoring-relevant change is never masked, while `identity.object_fingerprint`
-tolerates a cosmetic reformat of a course, objective, source, or lesson
-record. Mixing the two would let a cosmetic normalization mask a
+tolerates a cosmetic reformat of a course, objective, source, lesson, or
+workspace record. Mixing the two would let a cosmetic normalization mask a
 scoring-relevant change, which D-14A-2 forbids by name.
 """
 import hashlib
@@ -29,7 +29,8 @@ import datetime
 
 IDENTITY_SCHEMA_VERSION = 1
 
-OBJECT_KINDS = ("course", "objective", "source", "lesson", "bank", "component")
+OBJECT_KINDS = ("course", "objective", "source", "lesson", "bank", "component",
+                "workspace")
 
 # `bank` and `lesson` are the only two 14A object kinds whose storage bytes
 # can carry keyed assessment content: a bank's `CORRECT:` lines, a lesson's
@@ -79,7 +80,7 @@ def _unknown_kind_error(kind):
     return IdentityError(
         "identity.unknown_kind",
         "%s is not a known object kind; known kinds are: course, "
-        "objective, source, lesson, bank, component" % kind)
+        "objective, source, lesson, bank, component, workspace" % kind)
 
 
 def utc_now():
@@ -142,7 +143,8 @@ def object_fingerprint(raw, kind):
     `model.content_fingerprint`, which stays byte-exact over tested item
     fields and never applies cosmetic normalization. The two fingerprints
     exist for two different jobs: this one detects that a course, objective,
-    source, lesson, or bank record changed at all; `model.content_fingerprint`
+    source, lesson, bank, or workspace record changed at all;
+    `model.content_fingerprint`
     detects that what an item asks changed.
 
     No Unicode normalization (NFC or NFD) is ever applied: a name written

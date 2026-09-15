@@ -846,15 +846,21 @@ not claim implementation or authorize prohibited course-specific analysis.
 
 > push and commit accordingly with lesser agent, consider implementing dragging to organize courses, and also removing the non discrete math 1400s, ofcoursem build the course around the in class learnings
 
-**Disposition:** Split, route, and hold the interaction (2026-09-14).
+**Disposition:** Split, route, and implement the interaction (updated
+2026-09-15).
 
 The MATH 1400 clause restates the accepted course-aligned pacing direction in
 the 2026-09-13 entry and routes to the canonical `MATH_1400` course. The two
 older linear-equations shelf links are an operational cleanup, not product
-vision. Dragging to organize courses is held for the FILE-04 workspace slice,
-because persistent learner order needs the workspace record and operation
-journal before pointer or keyboard controls can share one durable authority.
-This capture does not schedule FILE-04 or claim that dragging is implemented.
+vision. Dragging to organize courses was initially held for the FILE-04
+workspace slice because persistent learner order needed the workspace record
+and operation journal before pointer or keyboard controls could share one
+durable authority. The bounded shelf-order slice shipped in the working tree
+on 2026-09-15: learner order is primary after the first save, attention remains
+a badge, and pointer, touch, and keyboard controls use one journaled
+compare-and-swap operation with undo and conflict refusal. Broader approved-root
+management remains pending and this entry does not claim all of FILE-04 is
+complete.
 
 ## Disposition vocabulary
 

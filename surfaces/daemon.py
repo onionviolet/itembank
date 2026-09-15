@@ -265,12 +265,12 @@ DAY_EDIT_ALLOWED_FIELDS = ("revision", "edits", "force_token", "confirmation",
 # the same authority-shaped-field discipline every mutating route here takes.
 SEED_ACCEPT_ALLOWED_FIELDS = ("bank", "action", "draft")
 
-# Plan 16B-09's one mutating route accepts exactly one field. A raw filesystem
-# path, an object id, and a full-document replacement are all refused by name:
-# the only path `ia.apply_shelf_action` ever deletes is the daemon root joined
-# with `sample_course.SAMPLE_COURSE_DIRNAME`, so a body carrying a path would
-# be a field nothing reads and an invitation to try.
-SHELF_ALLOWED_FIELDS = ("action",)
+# The shelf route accepts the original action-only body, or one exact reorder
+# body. A request never supplies a path, root, member record, or replacement
+# document. The server derives those authority-shaped values from the shelf it
+# just rendered and accepts only a permutation of those stable course ids.
+SHELF_ACTION_ALLOWED_FIELDS = ("action",)
+SHELF_REORDER_ALLOWED_FIELDS = ("action", "course_ids", "expected_fingerprint")
 
 # The only body fields `POST /api/source/import` reads (plan 14C-01). An
 # adapter name and an opaque object id, never a filesystem path: `path` and
@@ -1625,26 +1625,47 @@ def handle_course_read_get(handler, operation, course_id):
 def handle_api_shelf(handler):
     """`POST /api/shelf` -- the one mutating route Phase 16B adds.
 
-    Four small first-run and shelf actions behind one route, so the parity
-    tables gain one row for one capability rather than four rows. The body may
-    carry exactly one field, `action`, and its value must be a member of
-    `ia.SHELF_ACTIONS`; anything else is refused with 400 before any helper
-    runs. Loopback-only and same-origin, like every other mutating route.
+    First-run actions keep their action-only body. ``reorder_courses`` carries
+    only the ordered stable ids and the expected workspace fingerprint. The
+    server resolves paths and members from the current shelf, never from the
+    request. Loopback-only and same-origin, like every other mutating route.
     """
     if _reject_cross_origin_write(handler):
         return
     data, failed = api_read_json(handler)
     if failed:
         return
-    extra = sorted(k for k in data if k not in SHELF_ALLOWED_FIELDS)
+    action = data.get("action")
+    allowed = (SHELF_REORDER_ALLOWED_FIELDS
+               if action == ia.SHELF_REORDER_ACTION
+               else SHELF_ACTION_ALLOWED_FIELDS)
+    extra = sorted(k for k in data if k not in allowed)
     if extra:
         handler.send_error(400, "body may carry only: %s"
-                                % ", ".join(SHELF_ALLOWED_FIELDS))
+                                % ", ".join(allowed))
         return
-    action = data.get("action")
     if action not in ia.SHELF_ACTIONS:
         handler.send_error(400, "action must be one of %s"
                                 % "|".join(ia.SHELF_ACTIONS))
+        return
+    if action == ia.SHELF_REORDER_ACTION:
+        if set(data) != set(SHELF_REORDER_ALLOWED_FIELDS):
+            handler.send_error(
+                400, "reorder_courses requires course_ids and expected_fingerprint")
+            return
+        try:
+            result = ia.reorder_shelf(
+                handler.root, data.get("course_ids"),
+                data.get("expected_fingerprint"))
+        except Exception as exc:
+            code = getattr(exc, "code", "workspace.invalid_order")
+            status = 409 if code in (
+                "workspace.conflict", "workspace.stale_preflight",
+                "workspace.stale_courses", "journal.conflict",
+                "journal.stale_preflight") else 400
+            handler.send_error(status, "%s: %s" % (code, str(exc)))
+            return
+        handler.send_json(result)
         return
     handler.send_bytes(
         json.dumps(ia.apply_shelf_action(handler.root, action)).encode("utf-8"),
@@ -2437,8 +2458,9 @@ def banner_markup(banner):
                                      "actions": banner["actions"]})
 
 
-SHELF_NOSCRIPT = ("The walkthrough and sample-course controls need scripting. "
-                  "Their offline CLI twin is itembank shelf <action> .")
+SHELF_NOSCRIPT = ("The walkthrough, sample-course, and course-order controls "
+                  "need scripting. Their offline CLI twin is itembank shelf "
+                  "<action> .")
 
 SHELF_SCRIPT = """<script>
 (function () {
@@ -2460,6 +2482,150 @@ SHELF_SCRIPT = """<script>
       });
     });
   });
+
+  var shelf = document.querySelector("[data-course-shelf]");
+  if (!shelf) { return; }
+  var fingerprint = shelf.getAttribute("data-workspace-fingerprint") || null;
+  var dragging = null;
+  var dragStartOrder = null;
+  var pointerStartOrder = null;
+  var saving = false;
+
+  function cards() { return Array.from(shelf.querySelectorAll("[data-course-id]")); }
+  function ids() { return cards().map(function (card) { return card.dataset.courseId; }); }
+  function sameOrder(left, right) {
+    return left.length === right.length && left.every(function (id, index) {
+      return id === right[index];
+    });
+  }
+  function restore(order) {
+    order.forEach(function (id) {
+      var card = shelf.querySelector('[data-course-id="' + CSS.escape(id) + '"]');
+      if (card) { shelf.appendChild(card); }
+    });
+    syncButtons();
+  }
+  function syncButtons() {
+    var rows = cards();
+    rows.forEach(function (card, index) {
+      var up = card.querySelector('[data-move="up"]');
+      var down = card.querySelector('[data-move="down"]');
+      if (up) { up.disabled = saving || index === 0; }
+      if (down) { down.disabled = saving || index === rows.length - 1; }
+    });
+  }
+  function saveOrder(previous) {
+    if (sameOrder(previous, ids())) { syncButtons(); return Promise.resolve(); }
+    saving = true;
+    syncButtons();
+    if (status) { status.textContent = "Saving course order..."; }
+    return fetch("/api/shelf", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({action: "reorder_courses", course_ids: ids(),
+                           expected_fingerprint: fingerprint})
+    }).then(function (response) {
+      if (!response.ok) { throw new Error("Course order changed elsewhere. Reload and try again."); }
+      return response.json();
+    }).then(function (result) {
+      fingerprint = result.fingerprint;
+      shelf.setAttribute("data-workspace-fingerprint", fingerprint);
+      saving = false;
+      if (status) { status.textContent = "Course order saved."; }
+      syncButtons();
+    }).catch(function (error) {
+      saving = false;
+      restore(previous);
+      if (status) { status.textContent = error.message; }
+    });
+  }
+
+  shelf.addEventListener("click", function (event) {
+    var button = event.target.closest("button[data-move]");
+    if (!button || saving) { return; }
+    var card = button.closest("[data-course-id]");
+    var rows = cards();
+    var index = rows.indexOf(card);
+    var target = button.dataset.move === "up" ? rows[index - 1] : rows[index + 1];
+    if (!target) { return; }
+    var previous = ids();
+    if (button.dataset.move === "up") { shelf.insertBefore(card, target); }
+    else { shelf.insertBefore(target, card); }
+    syncButtons();
+    saveOrder(previous);
+  });
+
+  shelf.addEventListener("dragstart", function (event) {
+    var card = event.target.closest("[data-course-id]");
+    if (!card) { return; }
+    if (saving) { event.preventDefault(); return; }
+    dragging = card;
+    dragStartOrder = ids();
+    card.classList.add("is-dragging");
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", card.dataset.courseId);
+  });
+  shelf.addEventListener("dragover", function (event) {
+    if (!dragging) { return; }
+    var target = event.target.closest("[data-course-id]");
+    if (!target || target === dragging) { return; }
+    event.preventDefault();
+    var box = target.getBoundingClientRect();
+    shelf.insertBefore(dragging, event.clientY < box.top + box.height / 2
+                       ? target : target.nextSibling);
+  });
+  shelf.addEventListener("drop", function (event) {
+    if (!dragging) { return; }
+    event.preventDefault();
+    var previous = dragStartOrder;
+    dragging.classList.remove("is-dragging");
+    dragging = null;
+    dragStartOrder = null;
+    saveOrder(previous);
+  });
+  shelf.addEventListener("dragend", function () {
+    if (!dragging) { return; }
+    dragging.classList.remove("is-dragging");
+    dragging = null;
+    if (dragStartOrder) { restore(dragStartOrder); }
+    dragStartOrder = null;
+  });
+
+  shelf.querySelectorAll("[data-drag-handle]").forEach(function (handle) {
+    handle.addEventListener("pointerdown", function (event) {
+      if (event.pointerType === "mouse" || saving) { return; }
+      dragging = handle.closest("[data-course-id]");
+      pointerStartOrder = ids();
+      dragging.classList.add("is-dragging");
+      handle.setPointerCapture(event.pointerId);
+      event.preventDefault();
+    });
+    handle.addEventListener("pointermove", function (event) {
+      if (!dragging || pointerStartOrder === null) { return; }
+      var under = document.elementFromPoint(event.clientX, event.clientY);
+      var target = under && under.closest("[data-course-id]");
+      if (!target || target === dragging) { return; }
+      var box = target.getBoundingClientRect();
+      shelf.insertBefore(dragging, event.clientY < box.top + box.height / 2
+                         ? target : target.nextSibling);
+      event.preventDefault();
+    });
+    handle.addEventListener("pointerup", function (event) {
+      if (!dragging || pointerStartOrder === null) { return; }
+      var previous = pointerStartOrder;
+      dragging.classList.remove("is-dragging");
+      dragging = null;
+      pointerStartOrder = null;
+      handle.releasePointerCapture(event.pointerId);
+      saveOrder(previous);
+    });
+    handle.addEventListener("pointercancel", function () {
+      if (pointerStartOrder) { restore(pointerStartOrder); }
+      if (dragging) { dragging.classList.remove("is-dragging"); }
+      dragging = null;
+      pointerStartOrder = null;
+    });
+  });
+  syncButtons();
 })();
 </script>"""
 
@@ -2525,7 +2691,7 @@ def _course_shelf_body(shelf, walkthrough=None, sample=None):
     hooks for tests and for Phase 17A, not styling; this plan adds no CSS rule
     and no inline style."""
     cards = []
-    for card in shelf["cards"]:
+    for index, card in enumerate(shelf["cards"]):
         links = ['<a class="go" aria-label="%s" href="%s">Open &nearr;</a>'
                  % (presentation.esc(card["cta_label"]),
                     presentation.esc(card["cta_href"]))]
@@ -2533,13 +2699,26 @@ def _course_shelf_body(shelf, walkthrough=None, sample=None):
             links.append('<a class="go secondary" href="%s">%s</a>'
                          % (presentation.esc(action["href"]),
                             presentation.esc(action["label"])))
+        order_controls = ""
+        if shelf.get("reorderable"):
+            order_controls = (
+                '<div class="shelf-order-controls" aria-label="Order %s">'
+                '<button type="button" data-drag-handle draggable="true" '
+                'aria-label="Drag %s to a new position" title="Drag to reorder">&#8597;</button>'
+                '<button type="button" data-move="up" aria-label="Move %s up"%s>&#8593;</button>'
+                '<button type="button" data-move="down" aria-label="Move %s down"%s>&#8595;</button>'
+                '</div>'
+                % (presentation.esc(card["name"]), presentation.esc(card["name"]),
+                   presentation.esc(card["name"]), " disabled" if index == 0 else "",
+                   presentation.esc(card["name"]),
+                   " disabled" if index == len(shelf["cards"]) - 1 else ""))
         cards.append(
             '<article class="course-card" data-course-id="%s" '
             'data-attention="%s" data-ia-token="%s">'
             "<h2>%s</h2>"
             '<span class="chip">%s</span>'
             '<p class="resume-cue">%s</p>'
-            '<p class="actions">%s</p>%s</article>'
+            '<p class="actions">%s</p>%s%s</article>'
             % (presentation.esc(card["course_id"]),
                presentation.esc(card["attention"]),
                presentation.esc(card["token"]),
@@ -2547,6 +2726,7 @@ def _course_shelf_body(shelf, walkthrough=None, sample=None):
                presentation.esc(card["chip"]),
                presentation.esc(card["resume_cue"]),
                "".join(links),
+               order_controls,
                (_sample_course_controls(sample)
                 if sample and card["course_id"] == sample["course_id"]
                 else "")))
@@ -2560,7 +2740,13 @@ def _course_shelf_body(shelf, walkthrough=None, sample=None):
             ["course_corrupted"], course_id=degraded[0]["course_id"]))
     offer = _walkthrough_offer(walkthrough) if walkthrough else ""
     if cards:
-        content = '<div class="course-shelf">%s</div>' % "".join(cards)
+        help_copy = ("<p class=\"shelf-order-help\">Drag courses into your order, "
+                     "or use Move up and Move down.</p>"
+                     if shelf.get("reorderable") else "")
+        fingerprint = shelf.get("workspace_fingerprint") or ""
+        content = ('%s<div class="course-shelf" data-course-shelf '
+                   'data-workspace-fingerprint="%s">%s</div>'
+                   % (help_copy, presentation.esc(fingerprint), "".join(cards)))
     else:
         content = ('<section class="empty shelf-empty">'
                    '<h2>%s</h2><p>%s</p>'

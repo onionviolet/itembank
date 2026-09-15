@@ -194,8 +194,11 @@ def check_thin_slice():
         eq(rec2["parent_revision"], 1, "revision 2's parent is revision 1")
         eq(rec2["object_id"], rec["object_id"], "the object id is stable")
 
-        # 14B mints no new object kind.
-        eq(len(identity.OBJECT_KINDS), 6, "14B mints no new object kind")
+        # 14B still mints no graph-member object kind. FILE-04 later adds the
+        # machine-local workspace that owns roots and shelf order.
+        eq(len(identity.OBJECT_KINDS), 7, "FILE-04 adds only workspace")
+        if "workspace" not in identity.OBJECT_KINDS:
+            fail("FILE-04's durable workspace kind is absent")
         if "edge" in identity.OBJECT_KINDS:
             fail("an edge must never become an object kind")
 

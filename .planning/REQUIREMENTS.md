@@ -1327,7 +1327,7 @@ Populated during roadmap creation. See `.planning/ROADMAP.md` for phase goals an
 | FILE-01 | Phase 14A | Complete; advanced 2026-08-28 by Phase 14C, which made ten media addressable objects through one import boundary |
 | FILE-02 | Phase 14A | Complete |
 | FILE-03 | Phase 14A | Complete; advanced 2026-08-28 by Phase 14C, whose two-file source pair is proven atomic by three injected faults (check_two_file_pair_atomicity) |
-| FILE-04 | Unscheduled (phase chosen after the 14B freeze) | Pending |
+| FILE-04 | Phase 20 bounded shelf-order slice | Partial: journaled learner order, multi-root read, move reconciliation, and unavailable-root retention implemented 2026-09-15; root approval and management UI remains pending |
 | ID-01 | Phase 14A | Complete |
 | ID-02 | Phase 14A | Complete |
 | TREAT-01 | Phase 15A | Pending |

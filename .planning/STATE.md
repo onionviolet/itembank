@@ -4,11 +4,11 @@ milestone: reach
 milestone_name: reach
 current_phase_name: 20-extensible-ui-foundation-and-interaction-clarity-pass
 current_phase: 20
-status: "A3 private-note backup policy is implemented with two explicit default-off controls. Focused gates pass. Full preflight retains only local-model parity unavailable and the expected dirty tree."
-stopped_at: "Private-note transport is stable in focused tests. An actual restored-root browser journey remains before final A3 acceptance."
-last_updated: "2026-09-12"
-last_activity: 2026-09-12
-last_activity_desc: "Added explicit current-note and recovery-history personal-backup controls, validated exact restore, and ran the full candidate preflight."
+status: "FILE-04's bounded shelf-order slice is implemented with journaled learner order plus pointer, touch, and keyboard controls. Full preflight reached all 131 tests; only the existing local-model parity unavailable and expected dirty-tree gates fail."
+stopped_at: "Rendered pointer drag and keyboard reorder both saved and survived reload in a disposable live daemon. Installed-app verification remains."
+last_updated: "2026-09-15"
+last_activity: 2026-09-15
+last_activity_desc: "Implemented learner-controlled course order through a machine-local workspace record and the shared journal authority."
 progress:
   total_phases: 41
   completed_phases: 40
@@ -17,6 +17,24 @@ progress:
   counting_rule: "phase directories under .planning/phases; a phase counts complete when frozen or when its execution gate is complete, human legs owed being a label rather than an open state after the 2026-09-05 waiver. Open are 19B, 19D, and 19E. 19C's diagnostic gate is complete, with two repairs required before dependent 19D work. A plan is complete only when its required gate passes; a summary file alone does not close it."
 ---
 # Project State
+
+**Active FILE-04 shelf-order slice, 2026-09-15:** Learner course order becomes
+primary after the first saved move. A fresh or conflicted workspace retains the
+existing deterministic attention order. The machine-local workspace record is
+keyed by stable course ids, lists approved roots, and mutates only through the
+shared compare-and-swap journal. The shelf exposes one permutation endpoint to
+pointer drag, touch drag, and keyboard Move up or Move down controls. Focused
+workspace, IA route, identity, and graph gates pass, including restart, undo,
+stale-tab refusal, external-edit conflict, two-root resolution, moved-course
+reconciliation, identity disagreement, and unavailable-root retention.
+Full preflight reached all 131 Python checks. Its only test failure is the
+pre-existing local-model parity `ok / unavailable`; the clean gate reports this
+authorized uncommitted tree, and the JavaScript runner passes. A disposable
+live daemon verified the rendered pointer drag and keyboard button paths, the
+saved status announcement, and persistence after reload. Installed-app and
+physical touch-device interaction remain unverified. FILE-04 stays partial
+because learner-facing root approval and management are not part of this
+bounded slice. No commit or push was made.
 
 **Active A3 private-note closure, 2026-09-12:** Weibao approved two explicit
 personal-backup controls. Both default off. `include_private_notes` carries the

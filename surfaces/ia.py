@@ -33,6 +33,7 @@ import os
 
 import model
 import sample_course
+import workspace
 
 
 # The twelve offline help codes this phase can route to. Sorted so the tuple
@@ -542,14 +543,11 @@ def course_shelf_state(root, course=_UNSET):
     missing the field reports indeterminate rather than an invented percent. A
     degraded card carries no ratio at all, because its record did not read.
 
-    Amended 2026-08-27, FILE-04 accepted (IL-20260826-01): the set of courses
-    belongs to a workspace record, read by pinned `course_object_id`.
-    `REQUIREMENTS.md` records FILE-04 as unscheduled and pending, and no
-    workspace module exists in this tree, so this function runs FILE-04's
-    documented degraded mode: an immediate-subdirectory scan of `root`. A
-    sidecar that will not read is a degraded card and is never promoted to a
-    course keyed by its folder name, which is the name-based identity FILE-03
-    forbids.
+    FILE-04: once the learner saves an order, the workspace record supplies
+    approved roots and the primary course order. With no record, or with a
+    conflicting record, the shelf safely degrades to an immediate-subdirectory
+    scan of `root` and the established attention order. Viewing never creates
+    or repairs the workspace record.
     """
     if course is _UNSET:
         if os.environ.get(_NO_COURSE_ENV) == "1":
@@ -569,36 +567,93 @@ def course_shelf_state(root, course=_UNSET):
         result.update(empty)
         return result
 
+    workspace_state = workspace.read_workspace(root)
+    accepted_workspace = workspace_state["state"] == "clean"
+    roots = (list(workspace_state["doc"]["roots"])
+             if accepted_workspace else [os.path.abspath(root)])
+    if not roots:
+        roots = [os.path.abspath(root)]
+    expected_by_path = {}
+    if accepted_workspace:
+        stored_roots = workspace_state["doc"]["roots"]
+        for member in workspace_state["doc"]["courses"]:
+            member_root = stored_roots[member["root_index"]]
+            expected_by_path[os.path.realpath(os.path.join(
+                member_root, member["path"]))] = member
     sidecar = getattr(_c, "COURSE_SIDECAR_FILENAME", "")
-    try:
-        names = sorted(os.listdir(root))
-    except OSError:
-        names = []
-
-    cards = []
-    for entry in names:
-        course_dir = os.path.join(root, entry)
-        if not os.path.isdir(course_dir):
-            continue
-        if not os.path.exists(os.path.join(course_dir, sidecar)):
-            continue
+    cards_by_id = {}
+    root_availability = {}
+    for approved_root in roots:
+        root_availability[approved_root] = os.path.isdir(approved_root)
         try:
-            record = _c.read_course(course_dir)
-        except Exception:
-            cards.append(_degraded_card(os.path.basename(course_dir)))
-            continue
-        # Explicit projections supplied by other clients remain supported.
-        # Landed course records have none, so read their canonical sittings.
-        if _record_field(record, "resume_cue") is None:
+            names = sorted(os.listdir(approved_root))
+        except OSError:
+            names = []
+        for entry in names:
+            course_dir = os.path.join(approved_root, entry)
+            if not os.path.isdir(course_dir):
+                continue
+            if not os.path.exists(os.path.join(course_dir, sidecar)):
+                continue
             try:
-                cue = _course_resume_cue(root, course_dir)
+                record = _c.read_course(course_dir)
             except Exception:
-                cue = "Session status unavailable"
-            record = dict(record, resume_cue=cue)
-        cards.append(_healthy_card(record, os.path.basename(course_dir)))
+                key = "degraded:" + os.path.basename(course_dir)
+                cards_by_id.setdefault(
+                    key, _degraded_card(os.path.basename(course_dir),
+                                        approved_root, course_dir))
+                continue
+            if _record_field(record, "resume_cue") is None:
+                try:
+                    cue = _course_resume_cue(root, course_dir)
+                except Exception:
+                    cue = "Session status unavailable"
+                record = dict(record, resume_cue=cue)
+            card = _healthy_card(record, os.path.basename(course_dir),
+                                 approved_root, course_dir)
+            course_id = card["course_id"]
+            pinned = expected_by_path.get(os.path.realpath(course_dir))
+            if pinned is not None and pinned["course_object_id"] != course_id:
+                expected_id = pinned["course_object_id"]
+                cards_by_id[expected_id] = _duplicate_conflict_card(
+                    expected_id, pinned["name"] or expected_id,
+                    approved_root, course_dir,
+                    "The pinned course identity disagrees with its sidecar")
+                continue
+            prior = cards_by_id.get(course_id)
+            if prior is None:
+                cards_by_id[course_id] = card
+            elif prior.get("fingerprint") != record.get("fingerprint"):
+                cards_by_id[course_id] = _duplicate_conflict_card(
+                    course_id, card["name"], approved_root, course_dir)
 
+    cards = list(cards_by_id.values())
     cards.sort(key=_shelf_sort_key)
-    result = {"available": True, "cards": cards}
+    if accepted_workspace:
+        members = workspace_state["doc"]["courses"]
+        order = {row["course_object_id"]: index
+                 for index, row in enumerate(members)}
+        present = {card["course_id"] for card in cards}
+        for member in members:
+            if member["course_object_id"] in present:
+                continue
+            member_root = roots[member["root_index"]]
+            if not root_availability.get(member_root, False):
+                cards.append(_unavailable_card(member, member_root))
+        cards.sort(key=lambda card: (
+            0, order[card["course_id"]])
+            if card["course_id"] in order else
+            (1, _shelf_sort_key(card)))
+    reorderable = (len(cards) > 1
+                   and workspace_state["state"] in ("absent", "clean")
+                   and all(not card["degraded"] and card["available"]
+                           for card in cards))
+    result = {"available": True, "cards": cards,
+              "workspace_state": workspace_state["state"],
+              "workspace_fingerprint": (workspace_state["fingerprint"]
+                                         if accepted_workspace else None),
+              "order_source": "learner" if accepted_workspace else "attention",
+              "reorderable": reorderable}
     result.update(empty)
     return result
 
@@ -684,7 +739,7 @@ def _course_resume_cue(root, course_dir):
     return NOT_STARTED_CUE
 
 
-def _healthy_card(record, basename):
+def _healthy_card(record, basename, approved_root=None, course_dir=None):
     course_id = _record_field(record, "course_id", basename)
     name = _record_field(record, "name", basename)
     attention = _attention_of(record)
@@ -706,10 +761,14 @@ def _healthy_card(record, basename):
         "help_code": None,
         "actions": (),
         "last_activity": _record_field(record, "last_activity"),
+        "available": True,
+        "root": approved_root,
+        "path": course_dir,
+        "fingerprint": record.get("fingerprint") if isinstance(record, dict) else None,
     }
 
 
-def _degraded_card(basename):
+def _degraded_card(basename, approved_root=None, course_dir=None):
     """A card for a record that would not read. Built from the directory
     basename only, so nothing from an untrusted record reaches a page, and it
     still offers two real ways forward rather than being a dead end."""
@@ -729,7 +788,59 @@ def _degraded_card(basename):
                     {"label": "View files",
                      "href": "/course/" + basename + "/sources"}),
         "last_activity": None,
+        "available": True,
+        "root": approved_root,
+        "path": course_dir,
+        "fingerprint": None,
     }
+
+
+def _duplicate_conflict_card(course_id, name, approved_root, course_dir,
+                             cue="Two course locations claim this identity"):
+    card = _degraded_card(course_id, approved_root, course_dir)
+    card.update({"course_id": course_id, "name": name,
+                 "attention": "needs_reconciliation",
+                 "chip": ATTENTION_COPY["needs_reconciliation"],
+                 "token": ATTENTION_TOKENS["needs_reconciliation"],
+                 "resume_cue": cue,
+                 "cta_label": "Reconcile " + name,
+                 "help_code": "ia.course_corrupted"})
+    return card
+
+
+def _unavailable_card(member, approved_root):
+    course_id = member["course_object_id"]
+    name = member["name"] or course_id
+    return {"course_id": course_id, "name": name,
+            "attention": "needs_input", "chip": "Root unavailable",
+            "token": ATTENTION_TOKENS["needs_input"],
+            "resume_cue": "The approved course root is unavailable",
+            "cta_label": "Open last known " + name,
+            "cta_href": "/course/" + course_id,
+            "degraded": False, "help_code": "ia.offline", "actions": (),
+            "last_activity": None, "available": False,
+            "root": approved_root,
+            "path": os.path.join(approved_root, member["path"]),
+            "fingerprint": None}
+
+
+def shelf_members(state):
+    """The trusted member projection used by the reorder operation."""
+    return [{"course_object_id": card["course_id"], "name": card["name"],
+             "root": card["root"], "path": card["path"]}
+            for card in state["cards"]
+            if not card["degraded"] and card["available"]]
+
+
+def reorder_shelf(root, course_ids, expected_fingerprint):
+    """Persist a permutation of the rendered shelf through FILE-04."""
+    state = course_shelf_state(root)
+    if not state["reorderable"]:
+        raise workspace.WorkspaceError(
+            "workspace.reorder_unavailable",
+            "course order cannot change until every card has a stable, available identity")
+    return workspace.reorder(root, course_ids, shelf_members(state),
+                             expected_fingerprint)
 
 
 def _shelf_sort_key(card):
@@ -867,25 +978,26 @@ def _course_dir_for(root, course_id, module):
     record already declares.
     """
     sidecar = getattr(module, "COURSE_SIDECAR_FILENAME", "")
-    try:
-        names = sorted(os.listdir(root))
-    except OSError:
-        return None
     fallback = None
-    for entry in names:
-        path = os.path.join(root, entry)
-        if not os.path.isdir(path):
-            continue
-        if not os.path.exists(os.path.join(path, sidecar)):
-            continue
-        if entry == course_id:
-            fallback = path
+    for approved_root in workspace.approved_roots(root):
         try:
-            record = module.read_course(path)
-        except Exception:
+            names = sorted(os.listdir(approved_root))
+        except OSError:
             continue
-        if _record_field(record, "course_id") == course_id:
-            return path
+        for entry in names:
+            path = os.path.join(approved_root, entry)
+            if not os.path.isdir(path):
+                continue
+            if not os.path.exists(os.path.join(path, sidecar)):
+                continue
+            if entry == course_id and fallback is None:
+                fallback = path
+            try:
+                record = module.read_course(path)
+            except Exception:
+                continue
+            if _record_field(record, "course_id") == course_id:
+                return path
     return fallback
 
 
@@ -1277,8 +1389,9 @@ WALKTHROUGH_STEPS = (
              "itembank always decides for itself."},
 )
 
+SHELF_REORDER_ACTION = "reorder_courses"
 SHELF_ACTIONS = ("add_sample_course", "advance_walkthrough", "remove_sample_course",
-                 "replay_walkthrough", "skip_walkthrough")
+                 "reorder_courses", "replay_walkthrough", "skip_walkthrough")
 
 
 def walkthrough_state(root):
@@ -1323,6 +1436,8 @@ def apply_shelf_action(root, action):
     """
     if action not in SHELF_ACTIONS:
         raise ValueError("unknown shelf action: %r" % action)
+    if action == SHELF_REORDER_ACTION:
+        raise ValueError("reorder_courses requires course_ids and a fingerprint")
 
     if action == "add_sample_course":
         directory = os.path.join(root, sample_course.SAMPLE_COURSE_DIRNAME)
@@ -1416,7 +1531,11 @@ def _remove_sample_dir(directory):
 
 def cmd_shelf(a):
     """`itembank shelf <action> <dir>` -- the POST /api/shelf CLI twin."""
-    print(json.dumps(apply_shelf_action(a.dir, a.action),
+    result = (reorder_shelf(a.dir, list(a.course_id or ()),
+                            a.expected_fingerprint)
+              if a.action == SHELF_REORDER_ACTION
+              else apply_shelf_action(a.dir, a.action))
+    print(json.dumps(result,
                      ensure_ascii=False, indent=2))
     return 0
 

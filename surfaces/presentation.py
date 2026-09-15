@@ -533,6 +533,13 @@ button.go.primary,a.go.primary{background:var(--product-ink);border-color:var(--
 .course-card .actions a.go{background:transparent;border:0;color:var(--product-ink);
   padding:var(--space-2);min-width:44px}
 .course-card .actions .secondary{display:none}.course-card .sample-note,.course-card form{display:none}
+.shelf-order-help{font-size:var(--text-xs);color:var(--product-muted);margin:var(--space-3) 0}
+.shelf-order-controls{grid-column:2;display:flex;gap:var(--space-2);align-items:center}
+.shelf-order-controls button{min-width:44px;min-height:44px;border:1px solid var(--product-line);
+  border-radius:var(--r-1);background:transparent;color:var(--product-ink);font:inherit}
+.shelf-order-controls [data-drag-handle]{cursor:grab;touch-action:none}
+.course-card.is-dragging{opacity:.55;background:var(--product-active)}
+.shelf-order-controls button:disabled{opacity:.35}
 .desk-next{padding:var(--space-4) 0}.desk-next h3{font-size:var(--text-body);margin:var(--space-2) 0}
 .desk-next p{font-size:var(--text-xs);color:var(--product-muted)}
 .course-areas ul{display:flex;flex-wrap:wrap;gap:var(--space-2) var(--space-4);

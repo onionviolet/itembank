@@ -1347,7 +1347,7 @@ def check_ia_state_is_atomic():
 
 
 def check_shelf_action_allowed_fields():
-    """One route, one allowed field, four allowed actions, loopback only."""
+    """One route, bounded action shapes, and loopback-only mutation."""
     workdir = tempfile.mkdtemp(prefix="ia_shelf_route_")
     proc = None
     try:
@@ -1384,6 +1384,62 @@ def check_shelf_action_allowed_fields():
         status, body = json_request(url + "api/shelf", method="GET")
         if status != 404:
             fail("GET /api/shelf returned %d, expected 404" % status)
+    finally:
+        if proc is not None:
+            proc.terminate()
+            proc.wait(timeout=5)
+        shutil.rmtree(workdir, ignore_errors=True)
+
+
+def check_shelf_reorder_route_and_controls():
+    """Pointer and keyboard controls save one durable, restart-safe order."""
+    workdir = suppress_sample_course(tempfile.mkdtemp(prefix="ia_reorder_"))
+    proc = None
+    try:
+        corpus.build_two_course_shelf(workdir)
+        original = _shelf_course_ids(workdir)
+        desired = list(reversed(original))
+        proc, url, lines = start_daemon(workdir)
+        status, body = get(url)
+        if status != 200:
+            fail("reorder shelf returned %d" % status)
+        for needle in ('data-course-shelf', 'data-drag-handle draggable="true"',
+                       'data-move="up"', 'data-move="down"',
+                       "pointerdown", "dragstart", "reorder_courses"):
+            if needle not in body:
+                fail("reorder shelf omitted %r" % needle)
+        status, result = _post_shelf(
+            url, {"action": "reorder_courses", "course_ids": desired,
+                  "expected_fingerprint": None})
+        if status != 200 or result.get("course_ids") != desired:
+            fail("valid reorder returned %d %r" % (status, result))
+        fingerprint = result.get("fingerprint")
+        if not fingerprint or not result.get("entry_id") or not result.get("undo"):
+            fail("reorder response omitted fingerprint, receipt, or undo")
+
+        status, stale = _post_shelf(
+            url, {"action": "reorder_courses", "course_ids": original,
+                  "expected_fingerprint": "sha256:" + "0" * 64})
+        if status != 409:
+            fail("stale reorder returned %d, expected 409: %r" % (status, stale))
+        status, duplicate = _post_shelf(
+            url, {"action": "reorder_courses",
+                  "course_ids": [desired[0], desired[0]],
+                  "expected_fingerprint": fingerprint})
+        if status not in (400, 409):
+            fail("duplicate reorder returned %d" % status)
+
+        proc.terminate()
+        proc.wait(timeout=5)
+        proc = None
+        proc, url, lines = start_daemon(workdir)
+        status, restarted = get(url)
+        positions = [restarted.find('data-course-id="%s"' % course_id)
+                     for course_id in desired]
+        if any(position < 0 for position in positions) or positions != sorted(positions):
+            fail("saved order did not survive daemon restart: %r" % positions)
+        if ('data-workspace-fingerprint="%s"' % fingerprint) not in restarted:
+            fail("restarted page omitted the accepted workspace fingerprint")
     finally:
         if proc is not None:
             proc.terminate()
@@ -1556,6 +1612,7 @@ CHECKS = (check_activity_route_end_to_end,
           check_sample_course_suffix,
           check_ia_state_is_atomic,
           check_shelf_action_allowed_fields,
+          check_shelf_reorder_route_and_controls,
           check_first_launch_offline,
           check_walkthrough_interruption)
 

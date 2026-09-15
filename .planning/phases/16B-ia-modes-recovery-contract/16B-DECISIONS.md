@@ -271,6 +271,15 @@ attention states and the course ID is the only field guaranteed unique and
 stable, and `ATTENTION_ORDER` puts the states that need a human first without
 ever synthesizing a score.
 
+**Amended 2026-09-15 by direct learner decision.** D-16B-10 remains the
+degraded and first-use order when no accepted FILE-04 workspace record exists.
+After the learner saves a course order, the ordered `course_object_id` members
+in that record become the shelf's primary order. Attention remains visible as
+a badge and does not move a learner-positioned card. A newly discovered course
+that is not yet a workspace member follows the saved members using D-16B-10's
+total order until the learner saves another order. Pointer, touch, and keyboard
+controls submit the same permutation to one compare-and-swap operation.
+
 ## D-16B-11. The subphase marker on new settings keys
 
 Recorded 2026-08-28. Locked by plan `16B-06`.
