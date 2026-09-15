@@ -3009,10 +3009,15 @@ def check_settings_page():
             fail("settings page is missing the Reset action")
         if "Reset accent to the app default? Your current custom source color will be replaced." not in body:
             fail("settings page is missing the locked reset-confirmation copy")
-        if 'data-preview="light"' not in body or 'data-preview="dark"' not in body:
-            fail("settings page is missing the side-by-side light/dark preview samples")
-        if "Light mode" not in body or "Dark mode" not in body:
+        if any('data-preview="%s"' % mode not in body
+               for mode in ("light", "dark", "oled")):
+            fail("settings page is missing the light/dark/OLED preview samples")
+        if any(label not in body
+               for label in ("Light mode", "Dark mode", "OLED mode")):
             fail("each settings preview card does not name its mode")
+        for mode in ("system", "light", "dark", "oled"):
+            if 'data-mode-choice="%s"' % mode not in body:
+                fail("settings page cannot select %s mode" % mode)
         if "contrast" not in body.lower():
             fail("settings page carries no contrast disclosure text")
         if "Adjusted for readable contrast. Your chosen color is saved; this preview shows the accessible rendered color." not in body:
@@ -3086,6 +3091,17 @@ def check_theme_route_contract():
             fail("save returned no generated preview")
         if settings_source(workdir) != "#123abc":
             fail("save persisted %r, expected #123abc" % settings_source(workdir))
+
+        status, body = theme_request(endpoint, {"action": "mode", "mode": "oled"})
+        if status != 200 or body.get("theme") != "oled":
+            fail("OLED mode save returned %d / %r" % (status, body))
+        if json.load(open(base, encoding="utf-8")).get("theme") != "oled":
+            fail("OLED mode was not persisted")
+        status, _ = theme_request(endpoint, {"action": "mode", "mode": "sepia"})
+        if status != 400:
+            fail("an unsupported mode returned %d, expected 400" % status)
+        if json.load(open(base, encoding="utf-8")).get("theme") != "oled":
+            fail("a rejected mode changed the persisted theme")
 
         status, _ = theme_request(endpoint, {"action": "reset", "confirm": "RESETX"})
         if status != 400:

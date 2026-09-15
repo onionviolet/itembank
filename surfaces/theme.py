@@ -26,6 +26,7 @@ from surfaces.settings import load_settings, write_settings
 # The learner-facing persisted source accent, and the document the existing
 # `THEME_CSS` constant is computed from (the additive schema default).
 DEFAULT_ACCENT = "#0e6e62"
+THEME_MODES = ("system", "light", "dark", "oled")
 DEFAULT_THEME_CONFIG = {"theme": "system", "accent": {"source": DEFAULT_ACCENT},
                         "look": looks.DEFAULT_LOOK}
 
@@ -237,7 +238,7 @@ def derive_theme(source):
 
 
 def theme_preview(source):
-    """JSON-safe preview payload: original source, rendered light/dark accent
+    """JSON-safe preview payload: original source, rendered mode accents,
     pairs, measured ratios, and human-readable adjustment notices. Read-only:
     never loads or writes a settings file (D-06 disclosure before save).
     """
@@ -247,7 +248,7 @@ def theme_preview(source):
                  % (source,))
     derived = derive_theme(src)
     ratios = {}
-    for mode in ("light", "dark"):
+    for mode in ("light", "dark", "oled"):
         d = derived[mode]
         pairs = (
             ("%s_accent_on_card" % mode, d["accent"], d["card"]),
@@ -265,6 +266,8 @@ def theme_preview(source):
                   "accent_soft": derived["light"]["accent_soft"]},
         "dark": {"accent": derived["dark"]["accent"],
                  "accent_soft": derived["dark"]["accent_soft"]},
+        "oled": {"accent": derived["oled"]["accent"],
+                 "accent_soft": derived["oled"]["accent_soft"]},
         "ratios": ratios,
         "adjusted_modes": derived["adjusted_modes"],
         "notices": [ADJUST_NOTICE] if derived["adjusted_modes"] else [],
@@ -357,7 +360,7 @@ THEME_CSS = theme_css(DEFAULT_THEME_CONFIG)
 
 def _print_preview(payload):
     print("source: %s" % payload["source"])
-    for mode in ("light", "dark"):
+    for mode in ("light", "dark", "oled"):
         pair = payload[mode]
         print("%s: accent %s, soft %s" % (mode, pair["accent"], pair["accent_soft"]))
     print("ratios:")
@@ -382,6 +385,17 @@ def persist_source(base, source):
     source-only atomic writer, never a second one in a route handler.
     """
     _write_source(base, source)
+
+
+def persist_mode(base, mode):
+    """Persist one supported color mode without changing look or accent."""
+    if mode not in THEME_MODES:
+        sys.exit("settings.invalid_value: %r is not a supported theme mode"
+                 % mode)
+    data = load_settings(base)
+    data["theme"] = mode
+    write_settings(base, data)
+    return mode
 
 
 def persist_look(base, look_id):
@@ -443,9 +457,17 @@ SETTINGS_CSS = r"""
 .profile-preview{border:1px solid var(--line);padding:var(--space-3);margin:var(--space-3) 0}
 .profile-preview [data-profile-preview]{display:none}.profile-preview [data-profile-preview].active{display:block}
 .profile-choice[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft)}
-.previews{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:0 0 24px}
-.preview-card{background:var(--card);border:1px solid var(--line);
-  border-radius:12px;padding:16px}
+.mode-actions{margin:0 0 12px}
+.mode-actions button[aria-pressed="true"]{background:var(--accent-soft);
+  border-color:var(--accent);color:var(--accent)}
+.previews{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;
+  margin:0 0 24px}
+.preview-card{background:var(--card);color:var(--ink);border:1px solid var(--line);
+  border-radius:12px;padding:16px;text-align:left;font:inherit;cursor:pointer}
+.preview-card[aria-pressed="true"]{outline:3px solid var(--accent);
+  outline-offset:2px}
+.preview-card:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.preview-title{display:block;font-size:18px;font-weight:650;margin:0 0 12px}
 .swatch{height:44px;border-radius:8px;border:1px solid var(--line);
   margin:0 0 8px}
 .rendered{font-size:14px;color:var(--mut);margin:0 0 12px}
@@ -490,16 +512,18 @@ details.accessibility p{font-size:14px;color:var(--mut)}
 """
 
 
-def _settings_preview_card(mode, pair):
-    """One labelled light/dark preview card: names its mode, shows the
+def _settings_preview_card(mode, pair, active):
+    """One labelled mode preview card: names its mode, shows the
     rendered accent swatch and tokens separately from the preserved source,
     and carries labelled Correct/Incorrect/Warning/Selected/Focus samples so
     no meaning is carried by color alone (D-03, D-06).
     """
-    label = "Light mode" if mode == "light" else "Dark mode"
+    label = {"light": "Light mode", "dark": "Dark mode",
+             "oled": "OLED mode"}[mode]
     return (
-        '<section class="preview-card" data-preview="%s">'
-        "<h3>%s</h3>"
+        '<button type="button" class="preview-card" data-preview="%s" '
+        'data-mode-choice="%s" aria-pressed="%s">'
+        '<span class="preview-title">%s</span>'
         '<div class="swatch" data-swatch="%s"></div>'
         '<p class="rendered">accent <span class="mono" '
         'data-rendered-accent="%s">%s</span> &middot; soft <span class="mono" '
@@ -510,8 +534,31 @@ def _settings_preview_card(mode, pair):
         '<span class="sample state-warn">Warning</span>'
         '<span class="sample state-selected">Selected</span>'
         '<span class="sample state-focus">Focus</span>'
-        "</div></section>"
-        % (mode, label, mode, mode, pair["accent"], mode, pair["accent_soft"]))
+        "</div></button>"
+        % (mode, mode, "true" if active else "false", label, mode, mode,
+           pair["accent"], mode, pair["accent_soft"]))
+
+
+def _settings_preview_css(config):
+    """Scope each preview card to the palette named by its heading.
+
+    The settings page itself still follows the saved mode. These local token
+    blocks let every mode sample remain honest regardless of which
+    mode currently styles the surrounding page.
+    """
+    accent = DEFAULT_ACCENT
+    look = looks.DEFAULT_LOOK
+    if isinstance(config, dict):
+        raw = config.get("accent")
+        if isinstance(raw, dict) and normalize_source(raw.get("source")) is not None:
+            accent = raw["source"]
+        look = looks.resolve(config.get("look"))
+    derived = derive_theme(accent)
+    return "\n".join(
+        '.preview-card[data-preview="%s"]{%s}'
+        % (mode, _tokens_css(_grounded(derived[mode], look, mode)))
+        for mode in ("light", "dark", "oled")
+    )
 
 
 def theme_page(config, sections="", palette=False, product=False):
@@ -537,14 +584,19 @@ def theme_page(config, sections="", palette=False, product=False):
         if isinstance(raw, dict) and normalize_source(raw.get("source")) is not None:
             src = normalize_source(raw["source"])
     preview = theme_preview(src)
+    active_mode = (config.get("theme", "system")
+                   if isinstance(config, dict) else "system")
+    if active_mode not in THEME_MODES:
+        active_mode = "system"
     adjust_copy = (ADJUST_BROWSER_COPY if preview["adjusted_modes"]
                    else NO_ADJUST_COPY)
     ratio_rows = "".join(
         '<div class="ratio"><span>%s</span><span class="mono">%.2f:1</span></div>'
         % (html.escape(label.replace("_", " ")), value)
         for label, value in sorted(preview["ratios"].items()))
-    cards = "".join(_settings_preview_card(mode, preview[mode])
-                    for mode in ("light", "dark"))
+    cards = "".join(_settings_preview_card(mode, preview[mode],
+                                            active_mode == mode)
+                    for mode in ("light", "dark", "oled"))
     reset_disabled = ' disabled' if src == DEFAULT_ACCENT else ""
     selected_look = looks.resolve(config.get("look")
                                   if isinstance(config, dict) else None)
@@ -555,12 +607,14 @@ def theme_page(config, sections="", palette=False, product=False):
         "__ADJUST_COPY__", adjust_copy).replace(
         "__RATIO_ROWS__", ratio_rows).replace(
         "__PREVIEW_CARDS__", cards).replace(
+        "__SYSTEM_PRESSED__", "true" if active_mode == "system" else "false").replace(
         "__RESET_DISABLED__", reset_disabled)
     from surfaces import settings as settings_mod
     active_profile, _notice = settings_mod.resolve_presentation_profile(config or {})
     return presentation.surface_shell(
         "Settings", profile_body + look_body + body + sections, palette=palette,
-        theme_css=theme_css(config) + "\n" + SETTINGS_CSS,
+        theme_css=(theme_css(config) + "\n" + _settings_preview_css(config)
+                   + "\n" + SETTINGS_CSS),
         back={"href": "/", "label": "itembank"},
         noscript=SETTINGS_NOSCRIPT, presentation_profile=active_profile,
         product=product)
@@ -686,6 +740,9 @@ source colour and renders an accessible light/dark pair from it.</p>
 <button type="button" id="save-accent" data-action-save data-primary disabled>Save accent</button>
 <button type="button" id="reset-accent" data-action-reset__RESET_DISABLED__>Reset accent</button>
 </div>
+<div class="actions mode-actions" role="group" aria-label="Color mode">
+<button type="button" data-mode-choice="system" aria-pressed="__SYSTEM_PRESSED__">Follow system appearance</button>
+</div>
 <div class="previews">
 __PREVIEW_CARDS__
 </div>
@@ -710,15 +767,19 @@ __RATIO_ROWS__
   var status = document.getElementById("theme-status");
   var adjust = document.getElementById("adjust-notice");
   var ratios = document.getElementById("ratio-list");
+  var modeChoices = document.querySelectorAll("[data-mode-choice]");
   var swatches = {
     light: document.querySelector('[data-swatch="light"]'),
-    dark: document.querySelector('[data-swatch="dark"]')
+    dark: document.querySelector('[data-swatch="dark"]'),
+    oled: document.querySelector('[data-swatch="oled"]')
   };
   var rendered = {
     light: {accent: document.querySelector('[data-rendered-accent="light"]'),
             soft: document.querySelector('[data-rendered-soft="light"]')},
     dark: {accent: document.querySelector('[data-rendered-accent="dark"]'),
-           soft: document.querySelector('[data-rendered-soft="dark"]')}
+           soft: document.querySelector('[data-rendered-soft="dark"]')},
+    oled: {accent: document.querySelector('[data-rendered-accent="oled"]'),
+           soft: document.querySelector('[data-rendered-soft="oled"]')}
   };
   var saved = input.value;
   var dirty = false;
@@ -744,8 +805,11 @@ __RATIO_ROWS__
     rendered.light.soft.textContent = p.light.accent_soft;
     rendered.dark.accent.textContent = p.dark.accent;
     rendered.dark.soft.textContent = p.dark.accent_soft;
+    rendered.oled.accent.textContent = p.oled.accent;
+    rendered.oled.soft.textContent = p.oled.accent_soft;
     swatches.light.style.background = p.light.accent;
     swatches.dark.style.background = p.dark.accent;
+    swatches.oled.style.background = p.oled.accent;
     adjust.textContent = p.adjusted_modes.length
       ? "Adjusted for readable contrast. Your chosen color is saved; this preview shows the accessible rendered color."
       : "Your chosen colour already meets the readable-contrast floor in both modes.";
@@ -761,6 +825,20 @@ __RATIO_ROWS__
       row.appendChild(name);
       row.appendChild(value);
       ratios.appendChild(row);
+    });
+  }
+
+  for (var m = 0; m < modeChoices.length; m++) {
+    modeChoices[m].addEventListener("click", function (event) {
+      var choice = event.currentTarget;
+      if (choice.getAttribute("aria-pressed") === "true") { return; }
+      var mode = choice.getAttribute("data-mode-choice");
+      say("Applying " + mode + " mode…");
+      post("mode", {mode: mode}).then(function () {
+        window.location.reload();
+      }).catch(function () {
+        say("Could not change the color mode. Nothing was changed.");
+      });
     });
   }
 

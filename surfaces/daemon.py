@@ -3069,8 +3069,8 @@ def _lan_refused(handler):
 # `look` joined the actions on 2026-09-05: the look axis is switchable from
 # the settings page, and it saves through `theme.persist_look`, the same
 # single writer `itembank theme look` uses.
-THEME_ACTIONS = ("preview", "pick", "save", "reset", "look", "profile")
-THEME_ALLOWED_FIELDS = ("action", "source", "confirm", "look", "profile")
+THEME_ACTIONS = ("preview", "pick", "save", "reset", "look", "profile", "mode")
+THEME_ALLOWED_FIELDS = ("action", "source", "confirm", "look", "profile", "mode")
 
 
 def _mode_layer_section():
@@ -3192,6 +3192,10 @@ def handle_theme_post(handler):
                                "theme": written["theme"],
                                "preview": theme.theme_preview(
                                    written["accent"])})
+            return
+        if action == "mode":
+            written = theme.persist_mode(handler.root, data.get("mode"))
+            handler.send_json({"saved": True, "theme": written})
             return
         if action == "profile":
             written = theme.persist_presentation_profile(handler.root,

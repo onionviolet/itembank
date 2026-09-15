@@ -298,7 +298,7 @@ def test_derive_theme_deterministic_and_normalized():
              % d1["source"])
     if d1 != derive_theme("#0e6e62"):
         fail("derive_theme is not deterministic for the same input")
-    for mode in ("light", "dark"):
+    for mode in ("light", "dark", "oled"):
         for token in ("accent", "accent_soft", "bg", "ink", "card", "chip",
                       "line", "ok", "ok_bg", "bad", "bad_bg", "warn"):
             if token not in d1[mode]:
@@ -310,7 +310,7 @@ def test_derived_accents_meet_contrast_and_report_correction():
     from surfaces.theme import derive_theme, theme_preview
     for source in ("#0e6e62", "#ffff00", "#000000", "#ffffff", "#c00040"):
         d = derive_theme(source)
-        for mode in ("light", "dark"):
+        for mode in ("light", "dark", "oled"):
             acc = d[mode]["accent"]
             for bg_name in ("card", "bg"):
                 ratio = contrast_ratio(acc, d[mode][bg_name])
@@ -343,7 +343,7 @@ def test_semantic_tokens_independent_and_contrast_checked():
     from surfaces.theme import derive_theme
     a = derive_theme("#0e6e62")
     b = derive_theme("#c00040")
-    for mode in ("light", "dark"):
+    for mode in ("light", "dark", "oled"):
         for tok in ("ok", "ok_bg", "bad", "bad_bg", "warn"):
             if a[mode][tok] != b[mode][tok]:
                 fail("semantic token %s/%s differs across unrelated accents"
@@ -381,6 +381,35 @@ def test_theme_css_modes():
         fail("forced dark tokens differ from the system dark branch")
     if parsed_light[":root"]["--accent"] != parsed_sys[":root"]["--accent"]:
         fail("forced light accent differs from the system light branch")
+
+
+def test_settings_previews_use_their_named_mode_tokens():
+    from surfaces.theme import derive_theme, theme_page
+    source = "#c00040"
+    page = theme_page({"theme": "light", "accent": {"source": source}})
+    parsed = {}
+    for block in theme_blocks(page):
+        parsed.update(block)
+    derived = derive_theme(source)
+    for mode in ("light", "dark", "oled"):
+        selector = '.preview-card[data-preview="%s"]' % mode
+        if selector not in parsed:
+            fail("settings page does not locally scope the %s preview" % mode)
+        tokens = parsed[selector]
+        for name in ("bg", "card", "ink", "mut", "line", "accent",
+                     "accent_soft", "ok", "ok_bg", "bad", "bad_bg",
+                     "warn", "warn_bg"):
+            css_name = "--%s" % name.replace("_", "-")
+            if tokens.get(css_name) != derived[mode][name]:
+                fail("%s preview %s = %r, expected %r"
+                     % (mode, css_name, tokens.get(css_name),
+                        derived[mode][name]))
+    for mode in ("light", "dark", "oled"):
+        if ('data-mode-choice="%s" aria-pressed="%s"'
+                % (mode, "true" if mode == "light" else "false")) not in page:
+            fail("settings page does not expose %s as a selectable mode" % mode)
+    if ('data-mode-choice="system" aria-pressed="false"' not in page):
+        fail("settings page does not expose the system appearance choice")
 
 
 def test_palette_matches_binding_values():
@@ -631,6 +660,7 @@ def main():
     test_derived_accents_meet_contrast_and_report_correction()
     test_semantic_tokens_independent_and_contrast_checked()
     test_theme_css_modes()
+    test_settings_previews_use_their_named_mode_tokens()
     test_palette_matches_binding_values()
     test_theme_preview_cli_readonly()
     test_pick_native_accent_selection_preview_only()

@@ -59,12 +59,20 @@ class NavigationColorTests(unittest.TestCase):
                         self.assertIn("color:var(--product-ink)", base_rules[-1])
 
     def test_selected_pair_contrast(self):
-        tokens = dict(re.findall(r"--([\w-]+):\s*(#[0-9a-fA-F]{6})", presentation.product_theme_css()))
-        self.assertGreaterEqual(theme.contrast_ratio(tokens["paper"], tokens["product-ink"]), 4.5)
-        self.assertGreaterEqual(theme.contrast_ratio(tokens["chip"], tokens["product-ink"]), 4.5)
-        print("Selected contrast: %.2f:1. Existing muted pill contrast: %.2f:1." % (
-            theme.contrast_ratio(tokens["paper"], tokens["product-ink"]),
-            theme.contrast_ratio(tokens["chip"], tokens["product-muted"])))
+        css = presentation.product_theme_css()
+        expected = {"paper": "bg", "product-ink": "ink",
+                    "product-muted": "mut", "product-line": "line",
+                    "product-green": "accent", "product-wash": "accent-soft",
+                    "product-active": "chip"}
+        for product_token, shared_token in expected.items():
+            self.assertIn("--%s:var(--%s)" % (product_token, shared_token), css)
+        derived = theme.derive_theme(theme.DEFAULT_ACCENT)
+        for mode in ("light", "dark", "oled"):
+            tokens = derived[mode]
+            self.assertGreaterEqual(
+                theme.contrast_ratio(tokens["bg"], tokens["ink"]), 4.5)
+            self.assertGreaterEqual(
+                theme.contrast_ratio(tokens["chip"], tokens["ink"]), 4.5)
 
 
 if __name__ == "__main__":

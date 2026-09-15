@@ -578,16 +578,15 @@ button.go.primary,a.go.primary{background:var(--product-ink);border-color:var(--
 
 
 def product_theme_css():
-    """The accepted fixed learner palette, separate from admin theme preview."""
+    """Map product identity roles onto the selected shared theme.
+
+    Product pages keep their typography and layout, while Light, Dark, OLED,
+    and System remain the only owners of color tokens.
+    """
     return """
-:root{--paper:#f6f5f0;--product-ink:#243a44;--product-muted:#65716f;
-  --product-line:#dcded4;--product-green:#365e4c;--product-wash:#e9eddf;
-  --product-active:#e6eade;--bg:#f6f5f0;--card:#fffef9;--ink:#243a44;
-  --mut:#65716f;--line:#dcded4;--accent:#365e4c;--edge:#68805b;
-  --chip:#e6eade;--ok:#365e4c;--ok-bg:#e9eddf;--warn:#75531f;
-  --warn-bg:#f3ecdb;--bad:#7f3b32;--bad-bg:#f3e9e4;
-  --unknown:#58636a;--unknown-bg:#eceeea;--pending:#705b2d;
-  --pending-bg:#f3ecdb}
+:root{--paper:var(--bg);--product-ink:var(--ink);--product-muted:var(--mut);
+  --product-line:var(--line);--product-green:var(--accent);
+  --product-wash:var(--accent-soft);--product-active:var(--chip)}
 """
 
 
