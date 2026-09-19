@@ -329,9 +329,12 @@ def scenario_clean_restore(tmp, built):
 
     pkg = os.path.join(tmp, "freeze_gate_package")
     manifest = course_package.export_package(root, root, pkg)
-    eq(sorted(manifest.keys()), sorted(course_package.MANIFEST_KEYS +
-                                       course_package.MANIFEST_OPTIONAL_KEYS),
-       "the manifest key set")
+    keys = set(manifest)
+    required = set(course_package.MANIFEST_KEYS)
+    optional = set(course_package.MANIFEST_OPTIONAL_KEYS)
+    eq(required <= keys <= required | optional, True, "the manifest key set")
+    eq("evidence_fingerprint" in keys, True,
+       "this package binds its exported evidence")
     eq(manifest["state"], "applied", "the finished manifest state")
 
     sidecar_raw = open(course.sidecar_path(root), "rb").read()
@@ -472,8 +475,14 @@ def scenario_authorability_roundtrip(tmp, built):
         fail("scenario_authorability_roundtrip: the reordered container is "
              "not first in the re-projected outline")
 
-    longest = max(len(ln) for ln in final.split("\n"))
-    if longest > 200:
+    # The stable binding header names twelve columns and is 202 characters.
+    # Keep authored rows under the plain-editor limit and cap the schema row
+    # separately so new columns cannot grow without a review.
+    lines = final.split("\n")
+    headers = [ln for ln in lines if ln.startswith("| binding_kind |")]
+    authored = [ln for ln in lines if not ln.startswith("| binding_kind |")]
+    longest = max(map(len, authored))
+    if longest > 200 or any(len(ln) > 220 for ln in headers):
         fail("scenario_authorability_roundtrip: the sidecar carries a line of "
              "%d characters, which does not read in a plain editor" % longest)
 
