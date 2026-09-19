@@ -163,6 +163,8 @@ def parse_lanes(path, known_lanes=DAY_LANES):
                     cols["glob"] = i
                 elif "note" in h:
                     cols["notes"] = i
+                elif "assignment" in h or "ledger" in h:
+                    cols["assignments"] = i
                 elif "fuse" in h and "date" in h:
                     cols["fuse_date"] = i
                 elif "fuse" in h:
@@ -589,6 +591,55 @@ def today_section(today, info):
     return '<section class="today">%s</section>' % "".join(parts)
 
 
+def task_section(snapshot, base):
+    """Rank owner-backed assignment rows without turning them into evidence."""
+    tasks = snapshot.get("tasks") or []
+    issues = snapshot.get("issues") or []
+    if not tasks and not issues:
+        return ""
+    parts = [
+        '<section class="task-list" aria-labelledby="task-list-heading">',
+        '<div class="task-list-head"><div><p class="eyebrow">Owner-backed to-do</p>',
+        '<h2 id="task-list-heading">Assignments</h2></div>',
+        '<p>Checking a task edits its declared assignment ledger. Lane ticks stay separate.</p></div>',
+        '<p id="task-status" class="task-status" role="status" aria-live="polite"></p>',
+    ]
+    for bucket in ("Now", "Next", "Later"):
+        grouped = [task for task in tasks if task["bucket"] == bucket]
+        if not grouped:
+            continue
+        parts.append('<section class="task-group" aria-labelledby="tasks-%s"><h3 id="tasks-%s">%s</h3>' %
+                     (bucket.lower(), bucket.lower(), bucket))
+        for task in grouped:
+            checked = " checked" if task["checked"] else ""
+            parts.append(
+                '<article class="task-card%s" data-task-id="%s">'
+                '<label class="task-check"><input type="checkbox" class="owner-task"%s '
+                'data-task-id="%s" data-revision="%s" '
+                'aria-describedby="task-meta-%s"><span><strong>%s</strong>'
+                '<small>%s</small></span></label>'
+                '<div class="task-quick"><span>%s</span><span>%s</span></div>'
+                '<details id="task-meta-%s"><summary>Details</summary><dl>'
+                '<div><dt>Purpose</dt><dd>%s</dd></div>'
+                '<div><dt>Completion gate</dt><dd>%s</dd></div>'
+                '<div><dt>Authoritative source</dt><dd>%s</dd></div>'
+                '<div><dt>Owner</dt><dd><code>%s</code>, row %d</dd></div>'
+                '</dl></details></article>' % (
+                    " done" if task["checked"] else "", esc(task["task_id"]), checked,
+                    esc(task["task_id"]), esc(task["revision"]), esc(task["task_id"]),
+                    esc(task["name"]), esc(task["course"]), esc(task["due_label"]),
+                    esc(task["estimate"]), esc(task["task_id"]), esc(task["purpose"]),
+                    esc(task["completion_gate"]), esc(task["source"]),
+                    esc(task["owner"]), task["line"]))
+        parts.append("</section>")
+    for issue in issues:
+        parts.append('<div class="task-issue" role="alert"><strong>%s owner</strong>: %s '
+                     '<code>%s</code></div>' % (esc(issue["state"]), esc(issue["reason"]),
+                                                esc(issue["owner"])))
+    parts.append("</section>")
+    return "".join(parts)
+
+
 def lesson_complete_form(stem, headings, claim):
     """The explicit `Mark lesson complete` affordance (10-05 Task 2,
     SCHED-04): a native select of server-resolved lesson headings and a
@@ -884,9 +935,35 @@ color:var(--accent);font-weight:600}
 .drawer{display:grid;grid-template-columns:auto 1fr;gap:2px 12px;font-size:.85rem}
 .drawer dt{font-weight:600;color:var(--mut)}
 .drawer dd{margin:0}
+.task-list{margin:18px 0;padding-top:14px;border-top:1px solid var(--line)}
+.task-list-head{display:flex;justify-content:space-between;gap:18px;align-items:end}
+.task-list-head h2{margin:0;font-size:1.2rem}
+.task-list-head p{margin:0;max-width:520px;color:var(--mut);font-size:.82rem}
+.task-list-head .eyebrow{color:var(--accent);font-size:.7rem;font-weight:700;
+text-transform:uppercase;letter-spacing:.08em}
+.task-status{min-height:20px;margin:6px 0;color:var(--mut);font-size:.82rem}
+.task-status.error{color:var(--bad);font-weight:600}
+.task-group{margin:12px 0}.task-group>h3{margin:0 0 6px;font-size:.82rem;
+text-transform:uppercase;letter-spacing:.08em;color:var(--mut)}
+.task-card{border:1px solid var(--line);border-radius:12px;background:var(--card);
+padding:11px 13px;margin:0 0 7px}.task-card.done{opacity:.68}
+.task-check{display:flex;gap:10px;align-items:flex-start;cursor:pointer}
+.task-check input{width:22px;height:22px;flex:0 0 auto;accent-color:var(--accent)}
+.task-check span{display:flex;flex-direction:column}.task-check strong{font-size:.95rem}
+.task-check small{color:var(--mut);font-size:.78rem}.task-card.done strong{text-decoration:line-through}
+.task-quick{display:flex;gap:8px;flex-wrap:wrap;margin:7px 0 0 32px}
+.task-quick span{font-size:.72rem;border:1px solid var(--line);border-radius:999px;
+padding:2px 8px;color:var(--mut)}
+.task-card details{margin:7px 0 0 32px}.task-card summary{cursor:pointer;color:var(--accent);
+font-size:.78rem}.task-card dl{display:grid;grid-template-columns:max-content 1fr;
+gap:4px 12px;font-size:.78rem}.task-card dl div{display:contents}.task-card dt{font-weight:600;
+color:var(--mut)}.task-card dd{margin:0;overflow-wrap:anywhere}.task-card code{font-size:.72rem}
+.task-issue{padding:10px 12px;margin:7px 0;border:1px solid var(--bad);border-radius:10px;
+background:var(--bad-bg);font-size:.82rem;overflow-wrap:anywhere}
 @media (max-width:520px){
 .cap .acts,.override-dialog .acts,.lesson-complete{flex-direction:column;
-align-items:stretch}
+align-items:stretch}.task-list-head{display:block}.task-list-head>p{margin-top:6px}
+.task-card dl{grid-template-columns:1fr}.task-card details,.task-quick{margin-left:0}
 .cap .acts .go,.override-dialog .acts button{width:100%}}
 """
 
@@ -1172,8 +1249,38 @@ function saveTicks(){
  };
  r.send(JSON.stringify({date:D.date,done:on}));
 }
+function saveOwnerTask(el){
+ var wanted=el.checked;
+ el.disabled=true;
+ var status=document.getElementById('task-status');
+ status.className='task-status';status.textContent=wanted?'Checking task...':'Reopening task...';
+ var r=new XMLHttpRequest();
+ r.open('POST',D.base+'/task');
+ r.setRequestHeader('Content-Type','application/json');
+ r.onload=function(){
+  var d={};
+  try{d=JSON.parse(r.responseText);}catch(e){}
+  if(r.status>=200&&r.status<300&&d.status==='saved'){
+   el.setAttribute('data-revision',d.revision);
+   el.closest('.task-card').classList.toggle('done',wanted);
+   status.textContent=wanted?'Task checked in its assignment ledger.':'Task reopened in its assignment ledger.';
+  }else if(r.status>=200&&r.status<300&&d.status==='unchanged'){
+   status.textContent='Task already matched its assignment ledger.';
+  }else{
+   el.checked=!wanted;
+   status.className='task-status error';
+   status.textContent=(d.reason||'Task owner unavailable. Nothing was overwritten.');
+  }
+  el.disabled=false;
+ };
+ r.onerror=function(){el.checked=!wanted;el.disabled=false;status.className='task-status error';
+  status.textContent='Task owner unavailable. Nothing was overwritten.';};
+ r.send(JSON.stringify({task_id:el.getAttribute('data-task-id'),
+  revision:el.getAttribute('data-revision'),checked:wanted}));
+}
 document.addEventListener('change',function(ev){
  var el=ev.target;
+ if(el.classList&&el.classList.contains('owner-task')){saveOwnerTask(el);return;}
  if(el.classList&&el.classList.contains('open')){
   if(el.value!==''){openFile(el.getAttribute('data-lane'),parseInt(el.value,10));el.value='';}
   return;
@@ -1337,6 +1444,7 @@ def day_page(iso, weekday, plan_row, done, streak, hist, plan_path, info=None,
     today_html = ""
     if info.get("today"):
         today_html = today_section(info["today"], info)
+    tasks_html = task_section(info.get("tasks") or {}, base)
     # 10-04: the itembank pacing block (per-subject count/cap + due
     # objectives from ONE snapshot, owner-labelled) and the separate
     # owner-labelled Anki line -- two owners, never summed (D-05). The
@@ -1463,7 +1571,7 @@ def day_page(iso, weekday, plan_row, done, streak, hist, plan_path, info=None,
             "<small><span id=streakword>%s</span> unbroken</small></div>"
             "<div class=hist id=hist>%s</div></div>"
             "%s<div class=verdict id=verdict></div>"
-            "%s"
+            "%s%s"
             "%s"
             "%s"
             "%s%s"
@@ -1474,7 +1582,7 @@ def day_page(iso, weekday, plan_row, done, streak, hist, plan_path, info=None,
                "".join('<i class="%s" title="%s: %s"></i>'
                        % ("" if h["status"] == "miss" else h["status"], h["date"], h["status"])
                        for h in hist),
-               "".join(lanes), today_html, editor, empty_row, pacing, anki,
+               "".join(lanes), today_html, tasks_html, editor, empty_row, pacing, anki,
                notes, e(plan_path)))
     tail = ("<script>window.__day__=%s;\n%s</script>"
             % (presentation.script_safe_json(boot), DAY_JS))
@@ -1558,6 +1666,23 @@ def day_info(plan, log, iso, plan_path, lanes_path):
         if w.get("notes") and touched:
             li["evidence"] = w["notes"].replace("\\", "/").lower() in touched
         info["lanes"][lane] = li
+    from surfaces import task_ledger
+    assignment_paths = []
+    for w in wiring.values():
+        declared = w.get("assignments")
+        if not declared:
+            continue
+        resolved = resolve_notes(declared, lanes_path)
+        if resolved and resolved not in assignment_paths:
+            assignment_paths.append(resolved)
+        elif not resolved:
+            intended = os.path.expanduser(declared)
+            if not os.path.isabs(intended):
+                intended = os.path.join(wiring_bases(lanes_path)[0], intended)
+            intended = os.path.abspath(intended)
+            if intended not in assignment_paths:
+                assignment_paths.append(intended)
+    info["tasks"] = task_ledger.snapshot(assignment_paths, iso)
     return info
 
 
@@ -1585,6 +1710,22 @@ def day_text(iso, weekday, row, log, streak, info):
         L.append("  " + ANKI_UNAVAILABLE_COPY)
     elif info.get("anki_line"):
         L.append("  " + info["anki_line"])
+    tasks = (info.get("tasks") or {}).get("tasks") or []
+    if tasks:
+        L.append("  Tasks, owned by their assignment ledgers:")
+        for bucket in ("Now", "Next", "Later"):
+            grouped = [task for task in tasks if task["bucket"] == bucket]
+            if grouped:
+                L.append("    %s" % bucket)
+                for task in grouped:
+                    L.append("      [%s] %s: %s, %s, estimate %s" % (
+                        "x" if task["checked"] else " ", task["course"],
+                        task["name"], task["due_label"], task["estimate"]))
+                    L.append("          purpose: %s; gate: %s; source: %s" % (
+                        task["purpose"], task["completion_gate"], task["source"]))
+    for issue in (info.get("tasks") or {}).get("issues") or []:
+        L.append("  task %s: %s (%s)" % (
+            issue["state"], issue["reason"], issue["owner"]))
     for m in info["notes"]:
         L.append("  note: %s" % m)
     if not row:
@@ -1719,6 +1860,35 @@ def apply_day_edit(state, data, force=False):
         state["cache"]["info"] = None
         state["cache"]["at"] = 0.0
         result["row"] = state["plan"].get(state["iso"], {})
+    return result
+
+
+def apply_task_post(state, data):
+    """Resolve a browser task id against a fresh owner snapshot and toggle it."""
+    from surfaces import task_ledger
+    if not isinstance(data, dict):
+        return {"status": "invalid", "reason": "a JSON object is required"}
+    if set(data) - {"task_id", "revision", "checked"}:
+        return {"status": "invalid", "reason": "unexpected task fields"}
+    if not isinstance(data.get("task_id"), str) or not data["task_id"]:
+        return {"status": "invalid", "reason": "task_id is required"}
+    if not isinstance(data.get("revision"), str) or not data["revision"]:
+        return {"status": "invalid", "reason": "revision is required"}
+    if not isinstance(data.get("checked"), bool):
+        return {"status": "invalid", "reason": "checked must be true or false"}
+    state["cache"]["info"] = None
+    state["cache"]["at"] = 0.0
+    info = day_info(state["plan"], state["log"], state["iso"],
+                    state["plan_path"], state["lanes_path"])
+    matches = [task for task in (info.get("tasks") or {}).get("tasks", [])
+               if task["task_id"] == data["task_id"]]
+    if len(matches) != 1:
+        return {"status": "conflict",
+                "reason": "task is missing or ambiguous; nothing was overwritten"}
+    result = task_ledger.set_checked(matches[0], data["checked"],
+                                     data["revision"], state["iso"])
+    state["cache"]["info"] = None
+    state["cache"]["at"] = 0.0
     return result
 
 
