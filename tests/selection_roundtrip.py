@@ -531,11 +531,16 @@ def check_cooldown_is_bank_scoped():
 
 def check_explain_renders_plain_text():
     qs = model.load(BANK)
-    r = subprocess.run(
-        [sys.executable, os.path.join(ROOT, "itembank.py"), "select", BANK,
-         "--selection-mode", "practice", "--count", "4", "--seed", "3",
-         "--explain"],
-        cwd=ROOT, capture_output=True, text=True)
+    # Selection reads evidence beside the bank. Keep this probe independent
+    # of other fixture sittings and any local ignored evidence directory.
+    with tempfile.TemporaryDirectory() as work:
+        bank = os.path.join(work, "selection_bank.md")
+        shutil.copyfile(BANK, bank)
+        r = subprocess.run(
+            [sys.executable, os.path.join(ROOT, "itembank.py"), "select", bank,
+             "--selection-mode", "practice", "--count", "4", "--seed", "3",
+             "--explain"],
+            cwd=ROOT, capture_output=True, text=True)
     if r.returncode != 0:
         fail("select --explain failed: %r" % (r.stdout + r.stderr)[-400:])
     out = r.stdout
