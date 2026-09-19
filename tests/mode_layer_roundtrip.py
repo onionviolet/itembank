@@ -62,8 +62,14 @@ BANK = os.path.join(ROOT, "fixtures", "sample_bank.md")
 # deliberate rendered-settings compatibility revision, not a change to the
 # no-sections call signature or its authority boundary. The pre-change value
 # was 5c7e2cb5c3fb1e1591154adea102c965c1e6f401c270229459f376fb20cf1c1a.
+# Re-taken 2026-09-18, same command, after the shared activity frame moved
+# secondary purpose, response-format, and disclosure facts into a native
+# details element. The settings page embeds the same shared CSS. This changes
+# presentation bytes only and does not change the no-sections call signature,
+# mode resolution, or authority. The pre-change value was
+# 6ab4db9327513222b9ccbad267f2afa4d12e17c00e5362b1a065b3674628e0e6.
 THEME_PAGE_BASELINE = \
-    "6ab4db9327513222b9ccbad267f2afa4d12e17c00e5362b1a065b3674628e0e6"
+    "b3b398e86ca521dd85a5dedbe39047f2c8354df4fcb235d76c0dbd10f161db9d"
 
 # Phase 16C appends rows here rather than creating a second fixture. Each row
 # is (setting_name, requests, expected_winning_layer, expected_value).

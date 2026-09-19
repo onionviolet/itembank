@@ -723,7 +723,10 @@ GLOSS_ENHANCEMENT_JS = """<script>
     if (!t) { return; }
     var panel = document.getElementById(t.getAttribute("aria-details"));
     var def = panel && panel.querySelector(".gloss-def");
-    if (!def || def.getAttribute("data-gloss-state") === "done") { return; }
+    if (!def) { return; }
+    ev.preventDefault();
+    if (panel.showPopover) { panel.showPopover(); }
+    if (def.getAttribute("data-gloss-state") === "done") { return; }
     def.textContent = LOADING;
     def.setAttribute("data-gloss-state", "loading");
     fetch(t.getAttribute("data-gloss-fetch"))
@@ -3120,19 +3123,20 @@ def gloss_lookup(bank_path, term):
     return "ok", record
 
 
-def gloss_page(stem, record, slug):
+def gloss_page(stem, record, slug, return_href=None):
     """The served gloss page for the navigation path (03.1-UI-SPEC §8.3
     degraded): the definition plus a real `Back to the question` link whose
     href is the lesson anchor -- never a dead control, never a spinner."""
+    back_href = return_href or "/lesson/%s#term-%s" % (stem, slug)
     return ('<!doctype html><html lang="en"><head><meta charset="utf-8">'
             "<title>%s</title></head><body>"
             "<p>%s</p><p>%s</p>"
-            '<p><a href="/lesson/%s#term-%s">%s</a></p>'
+            '<p><a href="%s">%s</a></p>'
             "</body></html>"
             % (html.escape(record["canonical"]),
                html.escape(record["canonical"]),
                _inline(record["def"]),
-               html.escape(stem), slug,
+               html.escape(back_href, quote=True),
                html.escape(BACK_TO_QUESTION_COPY)))
 
 

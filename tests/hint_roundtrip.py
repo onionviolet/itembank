@@ -30,6 +30,7 @@ import evidence
 import model
 import runtime
 import schema_validate
+from surfaces import quiz_page
 
 BANK = os.path.join(ROOT, "fixtures", "lesson_bank.md")
 SESSION_SCHEMA = os.path.join(ROOT, "schemas", "session.schema.json")
@@ -395,8 +396,9 @@ def test_tier_zero_display_is_authored_prose_not_the_slug():
         fail("the fixture item must carry a lesson reference whose prose "
              "differs from its slug (ref=%r slug=%r)" % (ref, slug))
     t = runtime.authored_hint(q, 0, None)
-    if t.get("display") != ref:
-        fail("tier 0 must show the author-written lesson reference, got %r "
+    if ref not in (t.get("display") or "") or "Read the lesson" not in t["display"]:
+        fail("tier 0 must show the author-written lesson reference with an "
+             "actionable reader cue, got %r "
              "(the slug is a derived identifier for anchors and lookups, "
              "never learner-facing text)" % t.get("display"))
     if slug in (t.get("display") or ""):
@@ -411,6 +413,27 @@ def test_tier_zero_display_is_authored_prose_not_the_slug():
     if runtime.authored_hint(bare, 0, None)["available"]:
         fail("tier 0 must report unavailable when no lesson reference is "
              "authored")
+
+
+def test_hint_display_is_plain_language_and_actionable():
+    q = q1()
+    shown = [runtime.authored_hint(q, i, "B")["display"] for i in range(5)]
+    if shown[1].startswith(q["objective"].split(":", 1)[0] + ":"):
+        fail("the objective hint exposed its internal namespace: %r" % shown[1])
+    for index, prefix in ((1, "Focus:"), (2, "Common wrong turn:"),
+                          (3, "Why your last choice is tempting:"),
+                          (4, "Deciding test:")):
+        if not shown[index].startswith(prefix):
+            fail("tier %d lacks its learner-facing purpose cue: %r"
+             % (index, shown[index]))
+
+
+def test_numeric_objective_hint_keeps_reference():
+    q = q1()
+    q["objective"] = "math:1.2"
+    hint = runtime.authored_hint(q, 1, None)
+    if not hint.get("available") or "1.2" not in hint.get("display", ""):
+        fail("numeric objective reference was lost from the hint: %r" % hint)
 
 
 def test_every_available_tier_carries_learner_text():
@@ -608,6 +631,37 @@ def test_teaching_payload_locked_preview_full_and_next():
     if done["exhausted"] is not True or len(done["shown"]) != 6:
         fail("the exhausted payload is wrong: %r"
              % {k: v for k, v in done.items() if k != "shown"})
+
+
+def test_disclosed_hints_augment_the_stable_question():
+    """Shown tiers sit beside the unchanged stem while locked help stays below."""
+    q = q1()
+    teaching = runtime.teaching_payload(
+        q, held_then_shown(q, 2), "practice", "next")
+    page = quiz_page.baseline_for(
+        {"item": runtime.page_item(q), "session_id": "synthetic"},
+        {"teaching": teaching}, "/answer",
+        {"submit": "submit", "hint": "hint", "stumped": "stumped"})
+    stem_at = page.find('<h1 class="stem"')
+    assist_at = page.find('data-question-assist')
+    form_at = page.find('data-answer-form')
+    if not (0 <= stem_at < assist_at < form_at):
+        fail("assisted question is not layered between the stable stem and response")
+    assist_end = page.find("</details>", assist_at)
+    assisted = page[assist_at:assist_end]
+    for token in ('open', '2 cues', 'data-hint-kind="lesson"',
+                  'data-hint-kind="objective"',
+                  'Collapse this layer to reread the untouched wording.'):
+        if token not in assisted:
+            fail("assisted question omitted %r" % token)
+    if 'data-hint-kind="trap"' in assisted:
+        fail("the next locked tier entered the assisted question")
+    if page.count(runtime.authored_hint(q, 0, q1_wrong())["display"]) != 1:
+        fail("a disclosed hint was duplicated outside the assisted question")
+    if teaching["next_locked"]["unlock_copy"][0] not in page[assist_end:]:
+        fail("the next locked hint did not remain in the Help region")
+    if q["stem"] not in page:
+        fail("the original question wording disappeared from the page")
 
 
 def test_teaching_payload_tier_three_header_names_the_picked_option():
@@ -1271,11 +1325,14 @@ def main():
     test_practice_tier_three_is_response_specific()
     test_six_fixed_tiers_and_unavailable_slots()
     test_tier_zero_display_is_authored_prose_not_the_slug()
+    test_hint_display_is_plain_language_and_actionable()
+    test_numeric_objective_hint_keeps_reference()
     test_every_available_tier_carries_learner_text()
     test_unavailable_tier_carries_empty_learner_text()
     test_tier_selection_and_existing_payload_unchanged()
     test_teaching_payload_never_leaks_an_unshown_tier()
     test_teaching_payload_locked_preview_full_and_next()
+    test_disclosed_hints_augment_the_stable_question()
     test_teaching_payload_tier_three_header_names_the_picked_option()
     test_teaching_payload_unavailable_shown_tier_says_so()
     test_teaching_payload_non_ladder_modes_are_absent_with_a_reason()

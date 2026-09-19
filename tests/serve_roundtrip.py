@@ -323,6 +323,8 @@ def check_redirect_pauses_for_feedback_before_current_position():
         page = urllib.request.urlopen(quiz_url, timeout=5).read().decode("utf-8")
         if '<b id="pos">1</b>' not in page:
             fail("the first served page did not render Item 1")
+        if '<h1 class="stem" tabindex="-1">' not in page:
+            fail("the server-rendered prompt is not a programmatic focus target")
         if page.count('class="hint-card locked"') != 1:
             fail("the first served page exposed more than one locked hint tier")
         item_id = re.search(r'data-item-id="([^"]+)"', page).group(1)
@@ -346,6 +348,9 @@ def check_redirect_pauses_for_feedback_before_current_position():
             fail("a wrong retry changed the rendered position")
         if "Not correct" not in held:
             fail("a wrong retry lost its verdict")
+        selected = re.findall(r'<input type="radio" name="option" value="([^"]+)" checked', held)
+        if selected != [wrong_answer(q)]:
+            fail("a held MC response lost its selected radio: %r" % selected)
         # A browser Back returns to a GET route. It must not replay the form
         # POST, advance the cursor, or append a second response event.
         log = evidence.log_path(work_root)
@@ -373,11 +378,13 @@ def check_redirect_pauses_for_feedback_before_current_position():
         if "Correct. Your answer was recorded." not in feedback_pause:
             fail("the feedback pause did not identify the correct answer")
         if ('data-feedback-continue href="/quiz/sample_bank"' not in feedback_pause or
-                "Continue to item 2" not in feedback_pause):
+                "Next question, 2 of 6" not in feedback_pause):
             fail("the feedback pause did not provide an explicit next-item action")
         advanced = urllib.request.urlopen(quiz_url, timeout=5).read().decode("utf-8")
         if '<b id="pos">2</b>' not in advanced:
             fail("Continue did not render Item 2")
+        if re.search(r'<input type="(?:radio|checkbox)" name="option"[^>]* checked', advanced):
+            fail("Continue carried the previous response into the next question")
     finally:
         proc.terminate()
     print("  served redirects keep Item 1 for feedback, then Continue renders Item 2")
@@ -649,6 +656,9 @@ def check_multi_hold_shows_which_of_my_picks_were_right():
         fail("the card named a keyed option the learner did not pick")
     if "Not correct" not in held:
         fail("a partially correct multi stopped being marked wrong as a whole")
+    selected = re.findall(r'<input type="checkbox" name="option" value="([^"]+)" checked', held)
+    if set(selected) != {keyed[0], decoy}:
+        fail("a held multi response lost its selected checkboxes: %r" % selected)
     print("  a held multi attempt rules out the learner's own wrong pick "
           "without touching an option he did not choose")
 

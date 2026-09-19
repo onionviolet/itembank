@@ -74,6 +74,10 @@ def check_activity_separation():
             fail("response type %s lacks %s" % (response_type, label))
     if "Activity" in presentation.activity_frame(fixture()):
         fail("learner activity frame must not borrow capitalized durable-job Activity")
+    frame = presentation.activity_frame(fixture())
+    if '<details class="ib-activity-details">' not in frame or \
+       frame.index("Task details") > frame.index("Purpose"):
+        fail("secondary task metadata is not in its accessible disclosure")
     ok("all purpose values remain separate from all shipped response formats")
 
 

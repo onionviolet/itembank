@@ -425,7 +425,10 @@ PRIMITIVE_CSS = r"""
   margin:0 0 var(--space-3)}
 .ib-walkthrough p{max-width:var(--measure-prose)}
 .ib-activity-frame{margin:var(--space-4) 0}
-.ib-activity-facts{display:flex;flex-wrap:wrap;gap:var(--space-2) var(--space-4);margin:0 0 var(--space-3)}
+.ib-activity-details{margin:0 0 var(--space-3);color:var(--mut)}
+.ib-activity-details summary{cursor:pointer;min-height:44px;display:flex;align-items:center;
+  font:var(--text-body)/1.5 var(--font-chrome)}
+.ib-activity-facts{display:flex;flex-wrap:wrap;gap:var(--space-2) var(--space-4);margin:var(--space-2) 0 var(--space-3)}
 .ib-activity-facts div{min-width:10rem}.ib-activity-facts dt{font-size:12px;color:var(--mut)}
 .ib-activity-facts dd{margin:2px 0 0;font-size:16px}.ib-course-identity p,.ib-source{color:var(--mut)}
 .ib-profile-trajectory-deck .ib-activity-frame{border-top:2px solid var(--edge);padding-top:var(--space-3)}
@@ -966,7 +969,8 @@ def activity_frame(view):
     instruction = RESPONSE_FORMAT_INSTRUCTIONS.get(
         view.get("response_type"), "Follow the response instructions below.")
     return ('<section class="ib-activity-frame" aria-label="Learner activity">'
-            '%s<p class="ib-activity-instructions">%s</p>%s</section>'
+            '<details class="ib-activity-details"><summary>Task details</summary>'
+            '%s<p class="ib-activity-instructions">%s</p></details>%s</section>'
             % (facts, esc(instruction), view.get("content", "")))
 
 

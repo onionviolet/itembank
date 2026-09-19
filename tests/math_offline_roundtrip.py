@@ -33,7 +33,7 @@ import model                                                 # noqa: E402
 import resources                                            # noqa: E402
 import subjects                                             # noqa: E402
 import daemon_roundtrip                                      # noqa: E402
-from surfaces import daemon, lesson                          # noqa: E402
+from surfaces import daemon, lesson, quiz                    # noqa: E402
 
 get = daemon_roundtrip.get
 json_request = daemon_roundtrip.json_request
@@ -293,6 +293,56 @@ def test_emt_and_plain_profiles_emit_no_math_adapter():
         shutil.rmtree(workdir, ignore_errors=True)
 
 
+def test_math_quiz_uses_local_renderer_and_compact_question_layout():
+    """Math quiz items use the same local asset channel as lessons, enhance
+    both delimiter and backtick expressions, and keep ordinary quiz pages
+    free of the adapter."""
+    workdir = write_math_workdir()
+    try:
+        bank = os.path.join(workdir, "math_bank.md")
+        math_items = model.load(bank)
+        _, page = quiz.page_for(bank, math_items, serve=True,
+                                bank_stem="math_bank", mode="practice")
+        for asset in ("/assets/katex/katex.min.css",
+                      "/assets/katex/katex.min.js",
+                      "/assets/katex/contrib/auto-render.min.js"):
+            if asset not in page:
+                fail("math quiz is missing local asset %r" % asset)
+        for contract in ('id="quiz-math-adapter"',
+                         'document.getElementById("host")',
+                         'left: "$$", right: "$$", display: true',
+                         'left: "$", right: "$", display: false',
+                         'trust: false', 'throwOnError: false',
+                         'maxExpand: 1000', 'maxSize: 50',
+                         'quiz-math-source', 'MutationObserver',
+                         'font-size:var(--text-heading)'):
+            if contract not in page:
+                fail("math quiz is missing display contract %r" % contract)
+        if re.search(r'(?:src|href)=["\']https?://', page) or any(
+                x in page for x in ("unpkg", "jsdelivr")):
+            fail("math quiz carries a network asset reference")
+
+        course_bank = MATH_BANK.replace(
+            "[OBJECTIVE: math:power-rule]",
+            "[OBJECTIVE: math1400:power-rule]")
+        with open(bank, "w", encoding="utf-8") as fh:
+            fh.write(course_bank)
+        _, course_page = quiz.page_for(
+            bank, model.load(bank), serve=True,
+            bank_stem="math_course_bank", mode="practice")
+        if 'id="quiz-math-adapter"' not in course_page:
+            fail("math course namespace did not enable quiz math display")
+
+        plain = os.path.join(ROOT, "fixtures", "sample_bank.md")
+        _, plain_page = quiz.page_for(
+            plain, model.load(plain), serve=True,
+            bank_stem="sample_bank", mode="practice")
+        if "/assets/katex/" in plain_page or "quiz-math-adapter" in plain_page:
+            fail("ordinary quiz page emitted the math adapter")
+    finally:
+        shutil.rmtree(workdir, ignore_errors=True)
+
+
 def test_offline_page_writes_no_evidence_and_no_session_delta():
     """Test 5: fetching a math lesson and its assets writes no evidence and
     touches no session -- the enhancement is presentation only (D-08)."""
@@ -416,6 +466,7 @@ def main():
     test_asset_route_exact_mime_and_checkout_bytes()
     test_hostile_asset_names_are_404()
     test_emt_and_plain_profiles_emit_no_math_adapter()
+    test_math_quiz_uses_local_renderer_and_compact_question_layout()
     test_offline_page_writes_no_evidence_and_no_session_delta()
     test_packaged_artifact_serves_the_same_assets()
     test_profile_snapshot_drives_the_presentation_seam()

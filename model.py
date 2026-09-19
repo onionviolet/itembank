@@ -2198,6 +2198,13 @@ SHARED FIELDS (all types)
   TRAP:                the misconception this item weaponises
   CONFIDENCE:          high | medium | low
 
+  A stem may continue across lines until the first structural marker. Use one
+  deliberate line per premise, conclusion, derivation step, event, speaker
+  turn, procedure step, or other independently scanned unit. Quiz renderers
+  preserve those line breaks. They may progressively enhance an explicitly
+  signaled structure, but the exact authored text remains the readable fallback
+  and unlabeled prose is never assigned semantic roles by presentation code.
+
   [ID:] and [HASH:] are both optional; a bank without them parses exactly as it
   did before these fields existed. [ID:] is assigned once by `itembank id-assign`
   and is never edited by hand. [HASH:] is a fingerprint of the tested content,

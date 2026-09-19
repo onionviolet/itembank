@@ -247,7 +247,6 @@ def check_question_hierarchy():
         fail("context line missing the objective slot")
     if not dom.find("span", id="cx-mode"):
         fail("context line missing the session-mode slot")
-
     # Secondary metadata lives in exactly one native details disclosure.
     det = dom.details()
     if len(det) != 1:
@@ -266,7 +265,7 @@ def check_question_hierarchy():
     if rstart < 0:
         fail("served client has no renderItem function")
     body_js = served_js[rstart:]
-    h1_at = body_js.find('<h1 class="stem">')
+    h1_at = body_js.find('<h1 class="stem" tabindex="-1">')
     fb_at = body_js.find('fb.className = "feedback"')
     fb_role_at = body_js.find('fb.setAttribute("role", "status")')
     fb_append_at = body_js.find("card.appendChild(fb)")
@@ -321,11 +320,25 @@ def check_question_hierarchy():
     # One primary next action per state, and the locked state copy.
     for marker in ('b.textContent="Submit answer"',
                    "Checking answer&hellip;",
-                   "Couldn't check that answer. Your selection",
+                   "Couldn't confirm whether your answer",
                    "This session has no question ready.",
-                   'b.textContent = "Try again"'):
+                   'b.textContent = "Check saved state"',
+                   'Next question, ${nextPosition} of ${nextTotal}'):
         if marker not in served_js:
             fail("served client missing state copy/action: %r" % marker)
+
+    # Every new item begins at its prompt. Reduced motion changes scrolling,
+    # never focus continuity or what a screen reader announces.
+    for marker in ('<h1 class="stem" tabindex="-1">',
+                   'const heading = card.querySelector("h1.stem")',
+                   'if(heading) heading.focus({preventScroll:true})',
+                   '!baseline.hasAttribute("data-feedback-pause")',
+                   'baseline.querySelector("h1.stem")'):
+        if marker not in served_js:
+            fail("served client does not restore question-start focus: %r"
+                 % marker)
+    if "if(heading && !REDUCED)" in served_js:
+        fail("reduced motion incorrectly disables question-start focus")
 
     # The h1 is the only heading in the shell (the old page title is gone).
     hs = dom.headings()
@@ -502,11 +515,12 @@ def check_quiz_script_safety():
         _, served = page_for(bank, qs, serve=True, post_path="/quiz/x/answer",
                              lesson_base="", lesson_slugs=set(),
                              bank_stem="hostile_bank", mode="practice")
-    # The shared template carries three script slots (offline + served +
-    # assist); the inactive slots are emptied, so the benign baseline is
-    # exactly three tags.
+    # The shared template carries offline, served, assist, structured-text,
+    # and question-symbol scripts. Served mode also carries the fetch-on-open
+    # glossary enhancer. The inactive client slot remains empty.
     for label, page in (("offline", offline), ("served", served)):
-        if page.count("<script") != 3 or page.count("</script>") != 3:
+        expected = 6 if label == "offline" else 7
+        if page.count("<script") != expected or page.count("</script>") != expected:
             fail("%s quiz page gained or lost a script element from hostile "
                  "bank text (<script count %d, </script> count %d)"
                  % (label, page.count("<script"), page.count("</script>")))
@@ -516,6 +530,121 @@ def check_quiz_script_safety():
         fail("offline quiz page did not escape the script terminator")
     if "<script>window.__pwned__=1</script>" in offline:
         fail("hostile option text reached the quiz page as raw markup")
+
+
+def check_quiz_structured_text_presentation():
+    """Explicit argument signals and authored line breaks get a readable,
+    presentation-only structure without changing item text or authority."""
+    from surfaces.quiz import page_for
+    bank_text = ("# Structured quiz bank (synthetic)\n\n"
+                 "Q1. Consider the argument: \"Every fern is a plant. "
+                 "Every plant is alive. Therefore, every fern is alive.\" "
+                 "How should it be classified?   (difficulty: analysis)\n"
+                 "[OBJECTIVE: logic:argument.structure]\n\n"
+                 "A) Valid\nB) Invalid\nC) Unknown\n"
+                 "CORRECT: A\nWHY BEST: The conclusion follows.\n"
+                 "CONFIDENCE: high\n\n"
+                 "Q2. Evaluate each stage:\nObserve the input.\nApply the rule.\n"
+                 "State the result.\n[OBJECTIVE: science:procedure]\n\n"
+                 "A) Complete\nB) Incomplete\nC) Unknown\n"
+                 "CORRECT: A\nWHY BEST: Every stage is present.\n"
+                 "CONFIDENCE: high\n")
+    with tempfile.TemporaryDirectory() as tmp:
+        bank = os.path.join(tmp, "structured_bank.md")
+        with open(bank, "w", encoding="utf-8") as fh:
+            fh.write(bank_text)
+        import itembank
+        qs = itembank.parse_bank(bank_text)
+        if "\n" not in qs[1]["stem"]:
+            fail("the canonical parser did not preserve authored stem lines")
+        _, page = page_for(bank, qs, serve=True, bank_stem="structured_bank",
+                           mode="practice")
+    for contract in ('id="quiz-structure-adapter"',
+                     'className = "quiz-argument"',
+                     '"Premise " + (index + 1)',
+                     'label.textContent = index === lines.length - 1 ? "Conclusion"',
+                     'setAttribute("role", "list")',
+                     'setAttribute("role", "listitem")',
+                     'white-space:pre-line'):
+        if contract not in page:
+            fail("structured quiz presentation lost contract %r" % contract)
+    for forbidden in ("/api/submit", "score_response", "evidence.append_event"):
+        adapter = page[page.find('<script id="quiz-structure-adapter">'):
+                       page.find("</script>", page.find(
+                           '<script id="quiz-structure-adapter">'))]
+        if forbidden in adapter:
+            fail("structured presentation reached authority path %r" % forbidden)
+
+
+def check_question_symbol_help_and_gating():
+    """Question symbols reuse TERMS and glossable, never a second dictionary
+    or a pre-answer definition payload on the served page."""
+    import itembank
+    from surfaces.quiz import page_for, question_symbol_help
+    bank_text = ("# Symbol help bank (synthetic)\n\n"
+                 "## TERMS\n\n"
+                 "P | A statement variable.\n"
+                 "Q | Another statement variable.\n"
+                 "Logical or | True when one or both statements are true. | ∨\n"
+                 "Held mark | Valid | ★\n\n"
+                 "Q1. Read `P ∨ Q` and the mark ★.   (difficulty: recall)\n"
+                 "[OBJECTIVE: logic:notation.read]\n\n"
+                 "A) Valid\nB) Invalid\nC) Unknown\n"
+                 "CORRECT: A\nWHY BEST: Synthetic rationale.\n"
+                 "CONFIDENCE: high\n")
+    with tempfile.TemporaryDirectory() as tmp:
+        bank = os.path.join(tmp, "symbols.md")
+        with open(bank, "w", encoding="utf-8") as fh:
+            fh.write(bank_text)
+        qs = itembank.load(bank)
+        served = question_symbol_help(bank, qs, "symbols", serve=True)
+        rows = served.get("q1") or []
+        if [row["symbol"] for row in rows] != ["P", "∨", "Q"]:
+            fail("question symbol matching or glossable suppression drifted: %r"
+                 % rows)
+        if [row["label"] for row in rows] != ["statement variable", "or",
+                                                "statement variable"]:
+            fail("question symbol controls lost their useful short labels: %r"
+                 % rows)
+        if any("definition" in row for row in rows):
+            fail("served question symbol metadata shipped definition bodies")
+        _, page = page_for(bank, qs, serve=True, bank_stem="symbols",
+                           mode="practice")
+        for contract in ("Symbols in this question", "Shown in reading order",
+                         "not the answer", "data-gloss-fetch",
+                         'id="question-symbols"', "/gloss/symbols/logical-or"):
+            if contract not in page:
+                fail("served symbol help lost contract %r" % contract)
+        if "True when one or both statements are true." in page:
+            fail("served quiz HTML disclosed a definition before lookup")
+
+        offline = question_symbol_help(bank, qs, "symbols", serve=False)
+        if not any(row.get("definition") for row in offline.get("q1", [])):
+            fail("offline symbol help did not carry its no-server fallback")
+
+
+def check_question_density_keeps_secondary_context_disclosed():
+    """The stem is not pushed down by metadata repeated from the context line."""
+    from surfaces.quiz import page_for
+    with tempfile.TemporaryDirectory() as tmp:
+        bank = os.path.join(tmp, "density.md")
+        with open(bank, "w", encoding="utf-8") as fh:
+            fh.write("# Density\n\nQ1. Stem.\nA) One\nB) Two\nC) Three\nCORRECT: B\n")
+        import itembank
+        qs = itembank.load(bank)
+        _, page = page_for(bank, qs, serve=True, bank_stem="density",
+                           mode="practice")
+    details_at = page.find('<details class="session-details">')
+    host_at = page.find('<div id="host">')
+    if not (0 <= details_at < host_at):
+        fail("secondary question context is not before the activity host")
+    details = page[details_at:host_at]
+    for contract in ("Purpose", "Response format", "Disclosure",
+                     "activity-instructions"):
+        if contract not in details:
+            fail("session details lost secondary context %r" % contract)
+    if 'class="activity-frame"' in page:
+        fail("secondary metadata still occupies an always-visible activity frame")
 
 
 def check_served_report_link_carries_session():
@@ -860,6 +989,9 @@ def main():
     check_study_item_sentinels_reach_reveal()
     check_study_script_safety()
     check_quiz_script_safety()
+    check_quiz_structured_text_presentation()
+    check_question_symbol_help_and_gating()
+    check_question_density_keeps_secondary_context_disclosed()
     check_served_report_link_carries_session()
     check_study_empty_and_error_states()
     check_study_reveal_order()

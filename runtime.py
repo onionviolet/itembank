@@ -1981,6 +1981,28 @@ def _reveal_display(q):
     return " — ".join(p for p in parts if p)
 
 
+def _objective_hint_display(objective):
+    """Turn an internal objective id into learner-facing hint text.
+
+    Objective ids are durable machine references, not teaching copy.  Keep the
+    identifier private to the item and expose only its descriptive tail.  This
+    is deliberately a small, deterministic presentation rule rather than a
+    guessed objective description: authors still own the wording when they
+    want more than the id can honestly say.
+    """
+    tail = str(objective or "").split(":", 1)[-1]
+    words = [part for part in re.split(r"[._-]+", tail)
+             if part and not part.isdigit()]
+    if not words:
+        # Numbered objectives such as ``math:1.2`` still carry a useful
+        # learner-facing reference.  Keep that authored identifier rather
+        # than claiming the tier is unavailable merely because it has no
+        # alphabetic words.
+        return ("Focus: %s." % tail) if tail else ""
+    phrase = " ".join(words)
+    return "Focus: %s." % (phrase[:1].upper() + phrase[1:])
+
+
 def authored_hint(q, tier, canonical):
     """The sole private-tier resolver for the six fixed authored tiers
     (D-07/D-08/D-09). Missing content returns `available: false` at the same
@@ -2005,28 +2027,38 @@ def authored_hint(q, tier, canonical):
         ref = q.get("lesson_ref") or ""
         slug = q.get("lesson_slug") or ""
         return {"index": 0, "name": name, "available": bool(ref),
-                "content": slug, "display": ref if ref else "",
+                "content": slug,
+                "display": ('Review “%s”. Use the Read the lesson link '
+                            'above to open it.' % ref) if ref else "",
                 "slug": slug, "label": t["label"]}
     if tier == 1:
         obj = q.get("objective") or ""
         return {"index": 1, "name": name, "available": bool(obj),
-                "content": obj, "display": obj, "label": t["label"]}
+                "content": obj, "display": _objective_hint_display(obj),
+                "label": t["label"]}
     if tier == 2:
         trap = q.get("trap") or ""
         return {"index": 2, "name": name, "available": bool(trap),
-                "content": trap, "display": trap, "label": t["label"]}
+                "content": trap,
+                "display": ("Common wrong turn: %s" % trap) if trap else "",
+                "label": t["label"]}
     if tier == 3:
         content = ""
         if canonical and q["type"] in ("mc", "multi"):
             option = str(canonical).split(",")[0].strip()
             content = (q.get("da") or {}).get(option, "")
         return {"index": 3, "name": name, "available": bool(content),
-                "content": content, "display": content, "label": t["label"],
+                "content": content,
+                "display": ("Why your last choice is tempting: %s" % content)
+                           if content else "",
+                "label": t["label"],
                 "for_response": canonical}
     if tier == 4:
         disc = q.get("disc") or ""
         return {"index": 4, "name": name, "available": bool(disc),
-                "content": disc, "display": disc, "label": t["label"]}
+                "content": disc,
+                "display": ("Deciding test: %s" % disc) if disc else "",
+                "label": t["label"]}
     # tier == 5: the authored reveal -- the full post-response explanation.
     return {"index": 5, "name": name, "available": True,
             "content": explain_payload(q, reveal=True),

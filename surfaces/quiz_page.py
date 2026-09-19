@@ -102,7 +102,17 @@ body{margin:0;background:var(--bg);color:var(--ink);
 /* The active stem is the page's single dominant h1 (D-02). */
 h1.stem{font-size:32px;font-weight:600;line-height:1.2;margin:0 0 14px;
   font-family:var(--font-paper);
-  text-wrap:pretty}
+  text-wrap:pretty;white-space:pre-line}
+.ot,.rowtext{white-space:pre-line}
+.quiz-argument{display:grid;gap:var(--space-1);margin:var(--space-1) 0;
+  font-size:var(--text-body);font-weight:400;line-height:1.5}
+.quiz-argument-line{display:grid;grid-template-columns:minmax(7rem,auto) 1fr;
+  gap:var(--space-3);align-items:baseline;padding:4px var(--space-3);
+  border-left:3px solid var(--accent);border-radius:0 var(--r-1) var(--r-1) 0;
+  background:var(--chip)}
+.quiz-argument-label{font:var(--text-xs)/1.5 var(--font-ledger);
+  letter-spacing:.06em;text-transform:uppercase;color:var(--mut)}
+.quiz-argument-text{font-family:var(--font-paper);min-width:0}
 /* Response controls: native inputs with a 44px target (D-03). */
 .choices{display:flex;flex-direction:column;gap:7px;border:0;padding:0;
   margin:0 0 6px}
@@ -216,6 +226,19 @@ h1.stem{font-size:32px;font-weight:600;line-height:1.2;margin:0 0 14px;
 .hint-card.locked p{font:12px/1.5 var(--font-ledger)}
 .hint-card.unavailable{color:var(--unknown);background:var(--unknown-bg)}
 .hint-actions{display:flex;gap:var(--space-2);flex-wrap:wrap;margin-top:var(--space-2)}
+.question-assist{margin:0 0 var(--space-4);padding:var(--space-2) var(--space-3);
+  border:1px solid var(--accent);border-radius:var(--r-2);background:var(--accent-soft)}
+.question-assist summary{cursor:pointer;min-height:44px;display:flex;align-items:center;
+  gap:var(--space-2);font:600 var(--text-body)/1.4 var(--font-chrome);color:var(--ink)}
+.question-assist-count{font:var(--text-xs)/1.4 var(--font-ledger);color:var(--accent);
+  text-transform:uppercase;letter-spacing:.06em}
+.question-assist-note{margin:0 0 var(--space-2);font:var(--text-xs)/1.5 var(--font-ledger);
+  color:var(--mut)}
+.question-assist .hint-ladder{margin-bottom:var(--space-1)}
+.question-assist .hint-card{background:var(--card);border-left:4px solid var(--accent)}
+.question-assist .hint-card[data-hint-kind="trap"]{border-left-style:double}
+.question-assist .hint-card[data-hint-kind="rationale"]{border-left-style:dashed}
+.question-assist .hint-card[data-hint-kind="reveal"]{border-left-width:7px}
 .act{margin-top:13px;display:flex;gap:9px;align-items:center;flex-wrap:wrap}
 button.go{font:inherit;font-family:var(--font-chrome);font-weight:600;font-size:16px;padding:11px 17px;
   min-height:44px;min-width:44px;border:1px solid var(--accent);border-radius:9px;
@@ -302,6 +325,28 @@ textarea.ans:disabled{opacity:.75}
 .score{font-size:32px;font-weight:600;letter-spacing:-.02em}
 .score-sub{font-size:20px;color:var(--mut)}
 .empty{text-align:center;padding:28px 10px}
+.quiz-math-source{font-family:var(--font-code);font-size:var(--text-body);
+  background:var(--chip);border:1px solid var(--line);border-radius:var(--r-1);
+  padding:2px 6px;white-space:nowrap}
+.quiz-math-display{max-width:100%;overflow-x:auto;overflow-y:hidden;
+  padding:var(--space-1) 0}
+.quiz-math-note{font:var(--text-xs)/1.5 var(--font-ledger);color:var(--mut);
+  margin:var(--space-2) 0 0}
+.question-symbols{margin:0 0 var(--space-3);padding:var(--space-2) var(--space-3);
+  border:1px solid var(--line);border-radius:var(--r-1);background:var(--chip)}
+.question-symbols h2{margin:0 0 var(--space-2);font:var(--text-xs)/1.5 var(--font-ledger);
+  letter-spacing:.08em;text-transform:uppercase;color:var(--mut)}
+.question-symbol-note{margin:calc(-1 * var(--space-1)) 0 var(--space-2);
+  font:var(--text-xs)/1.5 var(--font-ledger);color:var(--mut)}
+.question-symbol-list{display:flex;gap:var(--space-2);flex-wrap:wrap;margin:0;padding:0;
+  list-style:none}
+.question-symbol-list a,.question-symbol-static{display:inline-flex;align-items:baseline;
+  gap:var(--space-1);min-height:44px;padding:8px 12px;border:1px solid var(--line);
+  border-radius:999px;background:var(--card);color:var(--ink);text-decoration:none}
+.question-symbol-list .symbol{font:600 20px/1 var(--font-code);color:var(--accent)}
+.question-symbol-list .meaning{font:var(--text-xs)/1.4 var(--font-ledger);color:var(--mut)}
+.question-symbol-def{font-family:var(--font-paper);font-size:var(--text-body)}
+__GLOSS_CSS__
 @media (max-width:767px){
   .wrap{max-width:100%;padding:18px 16px 80px}
   .context-line{gap:2px 12px}
@@ -309,6 +354,9 @@ textarea.ans:disabled{opacity:.75}
   .feedback{min-height:120px}
   .feedback:empty{min-height:0}
   .context-line .objective,.context-line .mode,.context-line .lesson{display:none}
+}
+@media (max-width:520px){
+  .quiz-argument-line{grid-template-columns:1fr;gap:var(--space-1)}
 }
 /* AgentAssist (plan 08-05): optional, subordinate, collapsed, opt-in
    generated support. Phase 4 tokens only; no fixed or minimum widths, so
@@ -346,12 +394,14 @@ textarea.ans:disabled{opacity:.75}
   font-family:var(--font-ledger)}
 .provenance summary{cursor:pointer}
 .assist-id{overflow-wrap:anywhere;word-break:break-all}
-.activity-frame{margin:0 0 var(--space-4)}
-.activity-facts{display:flex;flex-wrap:wrap;gap:var(--space-2) var(--space-4);margin:0}
+.activity-facts{display:flex;flex-wrap:wrap;gap:var(--space-2) var(--space-4);
+  margin:var(--space-2) 0 0}
 .activity-facts div{min-width:10rem}.activity-facts dt{font-size:12px;color:var(--mut)}
 .activity-facts dd{margin:2px 0 0;font-size:16px}
 __PRODUCT_CSS__
-</style></head><body><div class="wrap" data-presentation-profile="__PRESENTATION_PROFILE__">__PRODUCT_NAV__
+</style>
+__MATH_ASSETS__
+</head><body><div class="wrap" data-presentation-profile="__PRESENTATION_PROFILE__">__PRODUCT_NAV__
 <nav class="context-line" data-surface-context aria-label="Session context">
   <span class="cx" id="cx-bank">__CTX_BANK__</span>
   <span class="cx objective" id="cx-objective"></span>
@@ -359,15 +409,13 @@ __PRODUCT_CSS__
   <span class="cx mode" id="cx-mode">__CTX_MODE__</span>
   <span class="cx lesson" id="cx-lesson"></span>
 </nav>
-<section class="activity-frame" aria-label="Learner activity">
+<details class="session-details">
+  <summary>Session details</summary>
+  <div id="detail-body" class="detail-body"></div>
   <dl class="activity-facts"><div><dt>Purpose</dt><dd id="activity-purpose">__CTX_MODE__</dd></div>
   <div><dt>Response format</dt><dd id="activity-response">Response</dd></div>
   <div><dt>Disclosure</dt><dd id="activity-disclosure">Feedback follows session policy</dd></div></dl>
   <p class="hint" id="activity-instructions">Follow the response instructions below.</p>
-</section>
-<details class="session-details">
-  <summary>Session details</summary>
-  <div id="detail-body" class="detail-body"></div>
 </details>
 __LTI_FRAMING__
 <div id="host"></div>
@@ -375,6 +423,8 @@ __LTI_FRAMING__
 </div>
 __CM6_TAG__
 __CM6_BOOT__
+<script>window.ItembankQuestionSymbols=__QUESTION_SYMBOLS__;</script>
+__QUESTION_SYMBOLS_SCRIPT__
 <script id="offline">
 __OFFLINE_JS__
 </script>
@@ -384,7 +434,239 @@ __SERVED_JS__
 <script id="assist">
 __ASSIST_JS__
 </script>
+__STRUCTURE_SCRIPT__
+__MATH_SCRIPT__
+__GLOSS_SCRIPT__
 </body></html>"""
+
+
+QUESTION_SYMBOLS_JS = r"""<script id="question-symbols">
+(function () {
+  function esc(s) { var d=document.createElement("div"); d.textContent=String(s||""); return d.innerHTML; }
+  window.renderQuestionSymbols = function (q, card) {
+    var rows = (window.ItembankQuestionSymbols || {})[q && q.id] || [];
+    if (!rows.length || !card) { return; }
+    var section = document.createElement("section");
+    section.className = "question-symbols";
+    section.setAttribute("aria-label", "Symbols in this question");
+    var items = rows.map(function (row) {
+      if (row.definition !== undefined) {
+        return '<li><span class="question-symbol-static"><span class="symbol">' +
+          esc(row.symbol) + '</span><span class="question-symbol-def">' +
+          esc(row.definition) + '</span></span></li>';
+      }
+      var panel = "question-gloss-" + String(q.id || "item") + "-" + row.slug;
+      return '<li><a class="term" href="' + esc(row.href) +
+        '" data-gloss-fetch="' + esc(row.fetch) + '" aria-details="' + panel +
+        '"><span class="symbol">' + esc(row.symbol) +
+        '</span><span class="meaning">' + esc(row.label || "meaning") + '</span></a>' +
+        '<div id="' + panel + '" class="gloss" popover>' +
+        '<p class="gloss-term">' + esc(row.symbol) + '</p>' +
+        '<p class="gloss-def" data-gloss-state="pending">Open to load the definition.</p>' +
+        '<p class="gloss-more"><a href="' + esc(row.href) +
+        '">Open the definition page</a></p></div></li>';
+    }).join("");
+    section.innerHTML = '<h2>Symbols in this question</h2>' +
+      '<p class="question-symbol-note">Shown in reading order. Open one for its course meaning, not the answer.</p>' +
+      '<ul class="question-symbol-list">' + items + '</ul>';
+    var stem = card.querySelector(".stem");
+    if (stem) { stem.insertAdjacentElement("afterend", section); }
+  };
+})();
+</script>"""
+
+
+# Structured question presentation is progressive enhancement over the exact
+# authored text. Deliberate newlines remain visible through CSS. This adapter
+# handles the common logic form whose stem explicitly names an argument and
+# quotes premises followed by Therefore, Thus, or Hence. It never classifies
+# unlabeled prose or changes the stored stem, scoring, or evidence.
+STRUCTURE_ADAPTER_JS = r"""<script id="quiz-structure-adapter">
+(function () {
+  var host = document.getElementById("host");
+  if (!host) { return; }
+  var observer;
+  var scheduled = false;
+  function sentences(text) {
+    var source = String(text || "").trim();
+    if (!source) { return []; }
+    var parts = [];
+    var start = 0;
+    var ambiguous = false;
+    function nextNonSpace(at) {
+      while (at < source.length && /\s/.test(source[at])) { at += 1; }
+      return at;
+    }
+    function isBoundary(at) {
+      var mark = source[at];
+      if (mark !== "." && mark !== "!" && mark !== "?") { return false; }
+      var next = nextNonSpace(at + 1);
+      if (mark === "." && /\d/.test(source[at - 1] || "") &&
+          /\d/.test(source[next] || "")) { return false; }
+      var before = source.slice(0, at + 1);
+      if (mark === "." && /(?:\b(?:mr|mrs|ms|dr|prof|sr|jr|st|vs|etc|e\.g|i\.e))\.$/i.test(before)) {
+        ambiguous = true;
+        return false;
+      }
+      if (next < source.length && !/[A-Z\u00c0-\u024f\u201c\"]/.test(source[next])) {
+        ambiguous = true;
+        return false;
+      }
+      return next >= source.length || /\s/.test(source[at + 1] || "");
+    }
+    for (var index = 0; index < source.length; index += 1) {
+      if (!isBoundary(index)) { continue; }
+      parts.push(source.slice(start, index + 1).trim());
+      start = nextNonSpace(index + 1);
+      index = start - 1;
+    }
+    if (start < source.length) { parts.push(source.slice(start).trim()); }
+    return ambiguous ? [source] : parts.filter(Boolean);
+  }
+  function formatArgument(el) {
+    if (el.dataset.structureRendered === "true") { return; }
+    el.dataset.structureRendered = "true";
+    var text = el.textContent || "";
+    var match = text.match(/^([\s\S]*?\bargument\s*:\s*)["\u201c]([^"\u201d]+)["\u201d]([\s\S]*)$/i);
+    if (!match) { return; }
+    var lines = sentences(match[2]);
+    if (lines.length < 2 || !/^(therefore|thus|hence)\b/i.test(lines[lines.length - 1])) {
+      return;
+    }
+    var fragment = document.createDocumentFragment();
+    if (match[1]) { fragment.appendChild(document.createTextNode(match[1].trim())); }
+    var group = document.createElement("span");
+    group.className = "quiz-argument";
+    group.setAttribute("role", "list");
+    group.setAttribute("aria-label", "Argument structure");
+    lines.forEach(function (line, index) {
+      var row = document.createElement("span");
+      row.className = "quiz-argument-line";
+      row.setAttribute("role", "listitem");
+      var label = document.createElement("span");
+      label.className = "quiz-argument-label";
+      label.textContent = index === lines.length - 1 ? "Conclusion" :
+        "Premise " + (index + 1);
+      var body = document.createElement("span");
+      body.className = "quiz-argument-text";
+      body.textContent = line;
+      row.appendChild(label);
+      row.appendChild(body);
+      group.appendChild(row);
+    });
+    fragment.appendChild(group);
+    if (match[3]) { fragment.appendChild(document.createTextNode(match[3])); }
+    el.replaceChildren(fragment);
+  }
+  function enhance() {
+    scheduled = false;
+    if (observer) { observer.disconnect(); }
+    host.querySelectorAll(".stem").forEach(formatArgument);
+    if (observer) { observer.observe(host, {childList:true, subtree:true}); }
+  }
+  observer = new MutationObserver(function () {
+    if (scheduled) { return; }
+    scheduled = true;
+    window.requestAnimationFrame(enhance);
+  });
+  enhance();
+})();
+</script>"""
+
+
+# Quiz math is a presentation-only extension of the lesson reader's vendored
+# KaTeX path. The observer covers both the server-rendered baseline and later
+# client-rendered items. Backticks already denote expressions in authored math
+# banks, so the adapter upgrades them without changing stored question text.
+# Every failure leaves the raw expression visible.
+MATH_ADAPTER_JS = r"""<script id="quiz-math-adapter">
+(function () {
+  var host = document.getElementById("host");
+  if (!host) { return; }
+  var observer;
+  var scheduled = false;
+  function expressionNodes(root) {
+    root.querySelectorAll(".stem,.ot,.rowtext").forEach(function (el) {
+      if (el.querySelector(".katex,.quiz-math-source")) { return; }
+      Array.from(el.childNodes).forEach(function (node) {
+        if (node.nodeType !== 3 || node.nodeValue.indexOf("`") < 0) { return; }
+        var parts = node.nodeValue.split(/(`[^`\n]+`)/g);
+        if (parts.length < 2) { return; }
+        var frag = document.createDocumentFragment();
+        parts.forEach(function (part) {
+          if (part.length > 1 && part[0] === "`" && part[part.length - 1] === "`") {
+            var code = document.createElement("code");
+            code.className = "quiz-math-source";
+            code.textContent = part.slice(1, -1);
+            frag.appendChild(code);
+          } else if (part) {
+            frag.appendChild(document.createTextNode(part));
+          }
+        });
+        node.parentNode.replaceChild(frag, node);
+      });
+    });
+  }
+  function note(text) {
+    if (host.querySelector(".quiz-math-note")) { return; }
+    var n = document.createElement("p");
+    n.className = "quiz-math-note";
+    n.textContent = text;
+    host.appendChild(n);
+  }
+  function enhance() {
+    scheduled = false;
+    if (observer) { observer.disconnect(); }
+    expressionNodes(host);
+    var hasMath = host.querySelector(".quiz-math-source") ||
+      /\$\$?[\s\S]+?\$\$?/.test(host.textContent || "");
+    if (hasMath && (typeof window.katex === "undefined" ||
+        typeof window.renderMathInElement !== "function")) {
+      note("Math unavailable. Formula source is shown.");
+    } else if (hasMath) {
+      try {
+        renderMathInElement(host, {
+          delimiters: [
+            {left: "$$", right: "$$", display: true},
+            {left: "$", right: "$", display: false}
+          ],
+          ignoredTags: ["pre", "script", "noscript", "style", "textarea"],
+          throwOnError: false,
+          trust: false,
+          maxExpand: 1000,
+          maxSize: 50
+        });
+        host.querySelectorAll(".quiz-math-source:not([data-math-rendered])").forEach(function (el) {
+          var source = el.textContent;
+          try {
+            katex.render(source, el, {throwOnError:false, trust:false,
+              maxExpand:1000, maxSize:50});
+            el.dataset.mathRendered = "true";
+          } catch (e) {
+            el.textContent = source;
+          }
+        });
+        host.querySelectorAll(".katex-display").forEach(function (el) {
+          if (el.parentNode.classList.contains("quiz-math-display")) { return; }
+          var wrap = document.createElement("div");
+          wrap.className = "quiz-math-display";
+          el.parentNode.insertBefore(wrap, el);
+          wrap.appendChild(el);
+        });
+      } catch (e) {
+        note("Math could not be rendered. Formula source is shown.");
+      }
+    }
+    if (observer) { observer.observe(host, {childList:true, subtree:true}); }
+  }
+  observer = new MutationObserver(function () {
+    if (scheduled) { return; }
+    scheduled = true;
+    window.requestAnimationFrame(enhance);
+  });
+  enhance();
+})();
+</script>"""
 
 
 # The locked 08-UI-SPEC Copywriting Contract strings for the assist region
@@ -659,13 +941,73 @@ def _selection_card(picks):
 
 def _hint_card(row, locked=False):
     body = " ".join(row.get("unlock_copy") or []) if locked else row.get("display", "")
-    return '<li class="hint-card %s"><h4>%s</h4><p>%s</p></li>' % (
-        "locked" if locked else "shown", html.escape(str(row.get("header", ""))),
-        html.escape(str(body)))
+    return '<li class="hint-card %s" data-hint-kind="%s"><h4>%s</h4><p>%s</p></li>' % (
+        "locked" if locked else "shown",
+        html.escape(str(row.get("name", "")), quote=True),
+        html.escape(str(row.get("header", ""))), html.escape(str(body)))
+
+
+def _question_assist_html(teaching):
+    """Place only runtime-disclosed help beside the stable question.
+
+    The original stem remains above this native disclosure. Collapsing it is
+    the script-free original-only view. Locked tiers stay in the Help region,
+    so proximity never widens disclosure or lets presentation imply a tier.
+    """
+    shown = list((teaching or {}).get("shown") or [])
+    if not shown:
+        return ""
+    count = len(shown)
+    return ('<details class="question-assist" data-question-assist open>'
+            '<summary>Assisted question <span class="question-assist-count">'
+            '%d %s</span></summary>'
+            '<p class="question-assist-note">These runtime-issued cues add to the question. '
+            'Collapse this layer to reread the untouched wording.</p>'
+            '<ol class="hint-ladder">%s</ol></details>' %
+            (count, "cue" if count == 1 else "cues",
+             "".join(_hint_card(row) for row in shown)))
+
+
+def _question_symbols_html(item, rows):
+    """Script-free served baseline for authored question symbol links."""
+    if not rows:
+        return ""
+    entries = []
+    for row in rows:
+        panel = "question-gloss-%s-%s" % (item.get("id", "item"), row["slug"])
+        if "definition" in row:
+            control = ('<span class="question-symbol-static"><span class="symbol">%s</span>'
+                       '<span class="question-symbol-def">%s</span></span>' %
+                       (html.escape(str(row.get("symbol", ""))),
+                        html.escape(str(row.get("definition", "")))))
+        else:
+            control = ('<a class="term" href="%s" data-gloss-fetch="%s" '
+                       'aria-details="%s"><span class="symbol">%s</span>'
+                       '<span class="meaning">%s</span></a>'
+                       '<div id="%s" class="gloss" popover>'
+                       '<p class="gloss-term">%s</p>'
+                       '<p class="gloss-def" data-gloss-state="pending">'
+                       'Open to load the definition.</p>'
+                       '<p class="gloss-more"><a href="%s">Open the definition page</a></p>'
+                       '</div>' %
+                       (html.escape(str(row.get("href", "")), quote=True),
+                        html.escape(str(row.get("fetch", "")), quote=True),
+                        html.escape(panel, quote=True),
+                        html.escape(str(row.get("symbol", ""))),
+                        html.escape(str(row.get("label", "meaning"))),
+                        html.escape(panel, quote=True),
+                        html.escape(str(row.get("symbol", ""))),
+                        html.escape(str(row.get("href", "")), quote=True)))
+        entries.append("<li>%s</li>" % control)
+    return ('<section class="question-symbols" aria-label="Symbols in this question">'
+            '<h2>Symbols in this question</h2>'
+            '<p class="question-symbol-note">Shown in reading order. Open one for its course meaning, not the answer.</p>'
+            '<ul class="question-symbol-list">%s</ul>'
+            '</section>' % "".join(entries))
 
 
 def baseline_for(view, teaching_result, post_path, tokens, flash=None, prefill=None,
-                 continue_href=None, continue_label=None):
+                 continue_href=None, continue_label=None, symbol_help=None):
     """Pure, key-free HTML adapter over public runtime projections.
 
     `prefill` is the raw form mapping of a submission that did not go through
@@ -676,6 +1018,9 @@ def baseline_for(view, teaching_result, post_path, tokens, flash=None, prefill=N
     if not item:
         return '<div class="done empty" data-server-baseline>Session complete.</div>'
     teaching = (teaching_result or {}).get("teaching") or {}
+    symbols = _question_symbols_html(
+        item, (symbol_help or {}).get(item.get("id"), []))
+    assisted = _question_assist_html(teaching)
     response_type = item.get("type", "")
     format_label = RESPONSE_FORMAT_LABELS.get(response_type, "Response")
     instructions = RESPONSE_FORMAT_INSTRUCTIONS.get(
@@ -726,16 +1071,21 @@ def baseline_for(view, teaching_result, post_path, tokens, flash=None, prefill=N
                   (html.escape(continue_href, quote=True),
                    html.escape(continue_label or "Continue")))
         return ('<div class="card" data-server-baseline data-feedback-pause '
-                'data-session-id="%s" data-item-id="%s">'
-                '<h1 class="stem">%s</h1><p class="hint"><b>%s.</b> %s</p>'
+                'data-session-id="%s" data-item-id="%s" data-response-type="%s" '
+                'data-objective="%s" data-lesson-slug="%s">'
+                '<h1 class="stem" tabindex="-1">%s</h1>%s<p class="hint"><b>%s.</b> %s</p>'
                 '<div class="feedback" role="status" aria-live="polite">%s</div>%s</div>' %
                 (html.escape(str(view.get("session_id", "")), quote=True),
                  html.escape(str(item.get("id", "")), quote=True),
-                 html.escape(str(item.get("stem", ""))), html.escape(format_label),
+                 html.escape(str(response_type), quote=True),
+                 html.escape(str(item.get("objective", "")), quote=True),
+                 html.escape(str(item.get("lesson_slug", "")), quote=True),
+                 html.escape(str(item.get("stem", ""))), symbols,
+                 html.escape(format_label),
                  html.escape(instructions), feedback, action))
     ladder = ""
     if teaching.get("available"):
-        cards = ''.join(_hint_card(x) for x in teaching.get("shown") or [])
+        cards = ""
         if teaching.get("next_locked"):
             cards += _hint_card(teaching["next_locked"], True)
         action = ""
@@ -750,21 +1100,27 @@ def baseline_for(view, teaching_result, post_path, tokens, flash=None, prefill=N
                        kind, kind, html.escape(label)))
         # The runtime owns hint entitlement. The page offers one next help
         # action instead of promoting locked future tiers as competing tasks.
-        ladder = '<section class="support-region"><h3 class="hint-heading">Help</h3>' \
-                 '<ol class="hint-ladder">%s</ol>%s</section>' % (cards, action)
+        if cards or action:
+            ladder = '<section class="support-region"><h3 class="hint-heading">Help</h3>' \
+                     '<ol class="hint-ladder">%s</ol>%s</section>' % (cards, action)
     elif teaching.get("unavailable_reason"):
         ladder = '<section class="support-region"><p class="assist-copy">%s</p></section>' % \
                  html.escape(str(teaching["unavailable_reason"]))
     submit = ('' if response_type == "visual" else
               '<div class="act"><button class="go" type="submit">Submit answer</button></div>')
-    return ('<div class="card" data-server-baseline data-session-id="%s" data-item-id="%s">'
-            '<h1 class="stem">%s</h1><p class="hint"><b>%s.</b> %s</p>'
+    return ('<div class="card" data-server-baseline data-session-id="%s" data-item-id="%s" '
+            'data-response-type="%s" data-objective="%s" data-lesson-slug="%s">'
+            '<h1 class="stem" tabindex="-1">%s</h1>%s%s<p class="hint"><b>%s.</b> %s</p>'
             '<form method="post" action="%s" data-answer-form>%s'
             '<input type="hidden" name="form_token" value="%s"><input type="hidden" name="action" value="submit">'
             '<div class="feedback" role="status" aria-live="polite">%s</div>'
             '%s</form>%s</div>' %
             (html.escape(str(view.get("session_id", "")), quote=True),
-             html.escape(str(item.get("id", "")), quote=True), html.escape(str(item.get("stem", ""))),
+             html.escape(str(item.get("id", "")), quote=True),
+             html.escape(str(response_type), quote=True),
+             html.escape(str(item.get("objective", "")), quote=True),
+             html.escape(str(item.get("lesson_slug", "")), quote=True),
+             html.escape(str(item.get("stem", ""))), symbols, assisted,
              html.escape(format_label), html.escape(instructions),
              html.escape(post_path, quote=True), _form_controls(item, prefill),
              html.escape(tokens["submit"], quote=True), feedback, submit, ladder))
@@ -924,7 +1280,8 @@ function render(){
   setContext(q);
   const card = document.createElement("div");
   card.className = "card";
-  card.innerHTML = `<h1 class="stem">${esc(q.stem)}</h1>`;
+  card.innerHTML = `<h1 class="stem" tabindex="-1">${esc(q.stem)}</h1>`;
+  if(window.renderQuestionSymbols) window.renderQuestionSymbols(q, card);
   const body = document.createElement("div");
   body.className = `response-body response-${q.type}`;
   card.appendChild(body);
@@ -1022,7 +1379,8 @@ function asChoice(q, body, act, card){
   }
   function paint(v){
     const ex = v.explain || {};
-    const correct = ex.correct || [];
+    const correct = Array.isArray(ex.correct) && ex.correct.length ? ex.correct : null;
+    if(!correct){ return; }
     const sole = correct.length === 1 ? correct[0] : null;
     shown.forEach(o=>{
       const {label, input} = boxes[o.key];
@@ -1074,6 +1432,7 @@ function asAssign(q, body, act, card){
       const cats = (v.explain||{}).row_cats || {};
       rows.forEach(r=>{
         const id = String(r.id);
+        if(!Object.prototype.hasOwnProperty.call(cats, id)) return;
         segs[id].forEach(b=>{
           if(b.textContent===cats[id]) b.classList.add("right");
           else if(b.textContent===chosen[id]) b.classList.add("wrong");
@@ -1115,7 +1474,9 @@ function asBuild(q, body, act, card){
     shown.forEach((s,n)=>{ btns[n].disabled = true; });
     submit.remove();
     settle(q, order.slice(), card, act, v=>{
-      const right = (v.explain||{}).steps || [];
+      const right = Array.isArray((v.explain||{}).steps) && (v.explain||{}).steps.length
+        ? (v.explain||{}).steps : null;
+      if(!right) return;
       shown.forEach((s,n)=>{
         const at = right.indexOf(s);
         btns[n].classList.add(order.indexOf(s)===at ? "right" : "wrong");
@@ -1332,7 +1693,9 @@ function close(q, card, act, v){
   fb.appendChild(exp);
   const next = document.createElement("button");
   next.className="go"; next.type="button";
-  next.textContent = (i===Q.length-1) ? "See results" : "Next";
+  next.textContent = (i===Q.length-1)
+    ? "View summary"
+    : `Next question, ${i + 2} of ${Q.length}`;
   next.onclick = ()=>{ i++; render(); };
   act.appendChild(next);
   next.focus();
@@ -1451,7 +1814,10 @@ async function verify(q, response){
   const v = await api("/api/submit", {session_id: sessionId, answer: response});
   if(v.lti_completion) LTI_COMPLETION = v.lti_completion;
   return {action: v.action, score: v.score, explain: v.explain || {},
-          next: v.next};
+          next: v.next, accepted: v.accepted,
+          selection_feedback: v.selection_feedback,
+          refused: v.refused, refused_reason: v.refused_reason,
+          interaction_result: v.interaction_result};
 }
 
 function lessonChip(q){
@@ -1503,22 +1869,49 @@ function feedbackFor(card){
 async function settle(q, response, card, act, paint, revert){
   const fb = feedbackFor(card);
   fb.innerHTML = `<div class="status">Checking answer&hellip;</div>`;
+  let v;
   try {
-    const v = await verify(q, response);
-    if(paint) paint(v);
-    close(q, card, act, v, revert);
+    v = await verify(q, response);
   } catch(err){
-    /* API failure: keep the current item and the entered response visible,
-       offer a retry, and never manufacture a verdict the server did not issue. */
-    fb.innerHTML = `<div class="status">Couldn't check that answer. Your selection
-      is still here.</div>`;
-    if(revert) revert();
+    /* The server may have recorded this answer and advanced already.
+       Never retransmit it against an unknown cursor. Keep the sent draft
+       locked until a read reconciles the runtime's current question. */
+    fb.innerHTML = `<div class="status">Couldn't confirm whether your answer
+      was recorded. Your response is still here. Check the saved state before
+      continuing.</div>`;
+    act.innerHTML = "";
     const b = document.createElement("button");
-    b.className = "go"; b.type = "button"; b.textContent = "Try again";
-    b.onclick = ()=>{ act.innerHTML = ""; settle(q, response, card, act, paint, revert); };
+    b.className = "go"; b.type = "button"; b.textContent = "Check saved state";
+    b.onclick = async ()=>{
+      b.disabled = true;
+      try {
+        const view = await api("/api/next", {session_id: sessionId});
+        if(view && view.item && view.item.id === q.id && revert){
+          act.innerHTML = "";
+          revert();
+          fb.innerHTML = `<div class="status">The session is still on this
+            question. Review your response before submitting again.</div>`;
+        } else {
+          fb.innerHTML = `<div class="status">Saved state retrieved. Continue
+            from the session's current position.</div>`;
+          b.textContent = view && view.summary ? "View summary" : "Continue";
+          b.onclick = ()=>renderItem(view);
+          b.disabled = false;
+        }
+      } catch(recoveryError){
+        fb.innerHTML = `<div class="status">Couldn't reach the saved session.
+          Your response is still here. Check again when the connection returns.</div>`;
+        b.disabled = false;
+      }
+    };
     act.appendChild(b);
     b.focus();
+    return;
   }
+  /* A rendering failure must never turn an acknowledged answer into a
+     network retry. Paint only released verdicts, never a withheld answer. */
+  if(paint && !v.refused && (v.action === "advance" || v.action === "complete")) paint(v);
+  close(q, card, act, v, revert);
 }
 
 function shuffled(a){const b=a.slice();for(let j=b.length-1;j>0;j--){
@@ -1539,7 +1932,8 @@ function renderItem(view){
   setContext(q);
   const card = document.createElement("div");
   card.className = "card";
-  card.innerHTML = `<h1 class="stem">${esc(q.stem)}</h1>`;
+  card.innerHTML = `<h1 class="stem" tabindex="-1">${esc(q.stem)}</h1>`;
+  if(window.renderQuestionSymbols) window.renderQuestionSymbols(q, card);
   const body = document.createElement("div");
   body.className = `response-body response-${q.type}`;
   card.appendChild(body);
@@ -1558,9 +1952,10 @@ function renderItem(view){
   /* AgentAssist (plan 08-05): the assist client resets per item so the
      Get optional guidance control targets the current item's operation. */
   if(window.Assist) window.Assist.onItem(q);
-  /* Restore focus to the first meaningful control of the new item. */
-  const first = card.querySelector("input, button, textarea");
-  if(first && !REDUCED) first.focus({preventScroll:true});
+  /* Announce the new prompt before its answer controls. Focus continuity is
+     accessibility state, not motion, so reduced-motion never disables it. */
+  const heading = card.querySelector("h1.stem");
+  if(heading) heading.focus({preventScroll:true});
   scrollCardIfNeeded(card);
 }
 
@@ -1570,10 +1965,9 @@ const PINNED = /^\s*(all|none)\s+of\s+the\s+above|^\s*both\s+[A-H]\s+and\s+[A-H]
 function asChoice(q, body, act, card){
   const multi = q.type === "multi";
   const want = q.response_schema.select;
-  const free = q.options.filter(o=>!PINNED.test(o.text));
-  const pins = q.options.filter(o=> PINNED.test(o.text));
-  const shown = shuffled(free).concat(pins);
-  shown.forEach((o,n)=> o.label = LETTERS[n]);
+  /* Keep authored letters stable for cross-option references and the
+     runtime's own-selection feedback, as the native form does. */
+  const shown = q.options.map(o=>({...o, label:o.key}));
 
   const fieldset = document.createElement("fieldset");
   fieldset.className = "choices";
@@ -1583,6 +1977,14 @@ function asChoice(q, body, act, card){
   const picked = [];       // holds ORIGINAL keys
   const boxes = {};
   let submit = null;
+  const count = document.createElement("p");
+  count.className = "hint";
+  count.setAttribute("role", "status");
+  count.setAttribute("aria-live", "polite");
+  function updateCount(){
+    if(multi) count.textContent = `Selected ${picked.length} of ${want}.`;
+    if(submit) submit.disabled = multi ? picked.length !== want : picked.length !== 1;
+  }
   shown.forEach(o=>{
     const label = document.createElement("label");
     label.className = "choice";
@@ -1598,28 +2000,34 @@ function asChoice(q, body, act, card){
     input.onchange = ()=>{
       if(!multi){
         picked.length = 0; picked.push(o.key);
-        if(submit) submit.disabled = false;
+        updateCount();
         return;
       }
       if(input.checked){
-        if(picked.length >= want){ input.checked = false; return; }
+        if(picked.length >= want){
+          input.checked = false;
+          count.textContent = `Selected ${want} of ${want}. Deselect an option before choosing another.`;
+          return;
+        }
         picked.push(o.key);
       } else {
         const at = picked.indexOf(o.key);
         if(at >= 0) picked.splice(at, 1);
       }
-      if(submit) submit.disabled = picked.length !== want;
+      updateCount();
     };
     boxes[o.key] = {label, input};
     fieldset.appendChild(label);
   });
   body.appendChild(fieldset);
+  if(multi) body.appendChild(count);
   submit = mkSubmit(act, multi ? `select ${want}` : "choose one");
-  submit.disabled = multi;
+  updateCount();
   submit.onclick = go;
   function revert(){
     shown.forEach(o=>{ boxes[o.key].input.disabled = false; });
-    if(!multi) submit.disabled = false;
+    act.appendChild(submit);
+    updateCount();
   }
   function go(){
     shown.forEach(o=>{ boxes[o.key].input.disabled = true; });
@@ -1628,7 +2036,8 @@ function asChoice(q, body, act, card){
   }
   function paint(v){
     const ex = v.explain || {};
-    const correct = ex.correct || [];
+    const correct = Array.isArray(ex.correct) && ex.correct.length ? ex.correct : null;
+    if(!correct){ return; }
     const sole = correct.length === 1 ? correct[0] : null;
     shown.forEach(o=>{
       const {label, input} = boxes[o.key];
@@ -1674,6 +2083,8 @@ function asAssign(q, body, act, card){
   const submit = mkSubmit(act, "assign every row");
   function revert(){
     rows.forEach(r=>segs[String(r.id)].forEach(b=>{ b.disabled = false; }));
+    act.appendChild(submit);
+    submit.disabled = Object.keys(chosen).length !== q.rows.length;
   }
   submit.onclick = ()=>{
     rows.forEach(r=>segs[String(r.id)].forEach(b=>{ b.disabled = true; }));
@@ -1682,6 +2093,7 @@ function asAssign(q, body, act, card){
       const cats = (v.explain||{}).row_cats || {};
       rows.forEach(r=>{
         const id = String(r.id);
+        if(!Object.prototype.hasOwnProperty.call(cats, id)) return;
         segs[id].forEach(b=>{
           if(b.textContent===cats[id]) b.classList.add("right");
           else if(b.textContent===chosen[id]) b.classList.add("wrong");
@@ -1718,12 +2130,19 @@ function asBuild(q, body, act, card){
   }
   body.appendChild(wrap);
   const submit = mkSubmit(act, "tap the steps in order");
-  function revert(){ shown.forEach((s,n)=>{ btns[n].disabled = false; }); }
+  function revert(){
+    shown.forEach((s,n)=>{ btns[n].disabled = false; });
+    act.appendChild(submit);
+    redraw();
+    submit.disabled = order.length !== q.steps.length;
+  }
   submit.onclick = ()=>{
     shown.forEach((s,n)=>{ btns[n].disabled = true; });
     submit.remove();
     settle(q, order.slice(), card, act, v=>{
-      const right = (v.explain||{}).steps || [];
+      const right = Array.isArray((v.explain||{}).steps) && (v.explain||{}).steps.length
+        ? (v.explain||{}).steps : null;
+      if(!right) return;
       shown.forEach((s,n)=>{
         const at = right.indexOf(s);
         btns[n].classList.add(order.indexOf(s)===at ? "right" : "wrong");
@@ -1741,7 +2160,11 @@ function asShort(q, body, act, card){
   const submit = mkSubmit(act, "your own words, no notes");
   ta.oninput = ()=>{ submit.disabled = ta.value.trim().length < 2; };
   ta.focus();
-  function revert(){ ta.disabled = false; }
+  function revert(){
+    ta.disabled = false;
+    act.appendChild(submit);
+    submit.disabled = ta.value.trim().length < 2;
+  }
   submit.onclick = ()=>{
     ta.disabled = true;
     submit.remove();
@@ -1819,7 +2242,12 @@ function asCheck(q, body, act, card){
     submit.disabled = true;
     submit.textContent = "Running…";
     editor.setReadOnly(true);
-    settle(q, src, card, act, null, ()=>{ submit.textContent = "Submit answer"; submit.disabled = false; editor.setReadOnly(false); });
+    settle(q, src, card, act, null, ()=>{
+      submit.textContent = "Submit answer";
+      editor.setReadOnly(false);
+      act.appendChild(submit);
+      sync();
+    });
   };
   /* The honest-limits line renders from the item card, not from the editor
      branch, so plan 05-06's refusal states replace the editor without
@@ -3193,11 +3621,32 @@ function mkSubmit(act, hint){
 function hintCard(row, locked){
   const lines = locked ? (row.unlock_copy||[]).map(esc).join(" ") : esc(row.display||"");
   const unavailable = !locked && row.available === false ? " unavailable" : "";
-  return `<li class="hint-card ${locked?"locked":"shown"}${unavailable}">
+  return `<li class="hint-card ${locked?"locked":"shown"}${unavailable}"
+    data-hint-kind="${esc(row.name||"")}">
     <h4>${esc(row.header)}</h4><p>${lines}</p></li>`;
+}
+function renderQuestionAssist(card, teaching){
+  let details=card.querySelector("[data-question-assist]");
+  const shown=(teaching.shown||[]);
+  if(!shown.length){ if(details) details.remove(); return; }
+  const wasOpen=details ? details.open : true;
+  if(!details){
+    details=document.createElement("details");
+    details.className="question-assist";
+    details.dataset.questionAssist="";
+    const anchor=card.querySelector(".question-symbols") || card.querySelector(".stem");
+    anchor.insertAdjacentElement("afterend", details);
+  }
+  details.innerHTML=`<summary>Assisted question <span class="question-assist-count">
+    ${shown.length} ${shown.length===1?"cue":"cues"}</span></summary>
+    <p class="question-assist-note">These runtime-issued cues add to the question.
+    Collapse this layer to reread the untouched wording.</p>
+    <ol class="hint-ladder">${shown.map(x=>hintCard(x,false)).join("")}</ol>`;
+  details.open=wasOpen;
 }
 function renderTeaching(card, result){
   const teaching = (result && result.teaching) || {};
+  renderQuestionAssist(card, teaching);
   let region = card.querySelector(".support-region");
   if(!region){ region=document.createElement("section"); region.className="support-region";
     card.querySelector(".act").before(region); }
@@ -3206,18 +3655,39 @@ function renderTeaching(card, result){
       ? `<p class="assist-copy">${esc(teaching.unavailable_reason)}</p>` : "";
     return;
   }
-  const shown=(teaching.shown||[]).map(x=>hintCard(x,false)).join("");
   const next=teaching.next_locked ? hintCard(teaching.next_locked,true) : "";
   const label=teaching.entitled ? "Open the next hint" : "I'm stumped &mdash; show the next hint";
   const action=teaching.exhausted ? "" : `<div class="hint-actions"><button type="button"
     class="go ghost" data-teach="${teaching.entitled?"hint":"stumped"}">${label}</button></div>`;
-  region.innerHTML=`<h3 class="hint-heading">Hints</h3><ol class="hint-ladder">${shown}${next}</ol>${action}`;
+  if(!next && !action){ region.remove(); return; }
+  region.innerHTML=`<h3 class="hint-heading">Help</h3><ol class="hint-ladder">${next}</ol>${action}`;
   const button=region.querySelector("[data-teach]");
   if(button) button.onclick=()=>api("/api/teach",{session_id:sessionId,
     action:{kind:button.dataset.teach}}).then(fresh=>renderTeaching(card,fresh));
 }
 function loadTeaching(card){
-  return api("/api/teach",{session_id:sessionId}).then(result=>renderTeaching(card,result));
+  return api("/api/teach",{session_id:sessionId}).then(result=>renderTeaching(card,result))
+    .catch(()=>{
+      let region = card.querySelector(".support-region");
+      if(!region){
+        region = document.createElement("section");
+        region.className = "support-region";
+        card.querySelector(".act").before(region);
+      }
+      region.textContent = "Hints are unavailable right now. You can still revise your answer.";
+    });
+}
+
+function selectionCard(picks){
+  if(!picks || !picks.display) return "";
+  let rows = "";
+  for(const [name, word] of [["right", "right"], ["wrong", "not right"]]){
+    for(const option of picks[name] || []){
+      rows += `<li class="pick"><span class="mark">${word}</span>
+        <span>${esc(option.key)}) ${esc(option.text)}</span></li>`;
+    }
+  }
+  return `<div class="picks" data-selection-feedback><p>${esc(picks.display)}</p><ul>${rows}</ul></div>`;
 }
 
 function close(q, card, act, v, revert){
@@ -3255,7 +3725,10 @@ function close(q, card, act, v, revert){
   const fb = feedbackFor(card);
   if(v.action === "hold"){
     if(revert) revert();
-    fb.innerHTML = `<div class="verdict n">Not correct. Try a different answer, or open the next hint.</div>`;
+    fb.innerHTML = v.score === false
+      ? `<div class="verdict n">Not correct. Try a different answer, or open the next hint.</div>`
+      : `<div class="status">Review your response before submitting again.</div>`;
+    fb.innerHTML += selectionCard(v.selection_feedback);
     loadTeaching(card);
     return;
   }
@@ -3379,7 +3852,9 @@ function close(q, card, act, v, revert){
   next.className = "go"; next.type = "button";
   const nxt = v.next || {};
   if(nxt.item){
-    next.textContent = "Next";
+    const nextPosition = Number(nxt.position || 0) + 1;
+    const nextTotal = Number(nxt.total || total);
+    next.textContent = `Next question, ${nextPosition} of ${nextTotal}`;
     next.onclick = ()=>{ renderItem(nxt); };
   } else {
     next.textContent = "View summary";
@@ -3413,7 +3888,7 @@ function finish(summary){
     });
     h += `</ul>`;
   } else {
-    h += `<p style="margin-top:14px">Clean sweep. Nothing to harvest.</p>`;
+    h += `<p style="margin-top:14px">Open the report to review the session's recorded results.</p>`;
   }
   if(LTI_COMPLETION && LTI_COMPLETION.line){
     h += `<p class="status" data-field="lti-completion">${esc(LTI_COMPLETION.line)}</p>`;
@@ -3487,7 +3962,16 @@ async function start(){
   if(baseline){
     sessionId = baseline.dataset.sessionId || null;
     if(window.Assist) window.Assist.setSession(sessionId);
+    if(baseline.dataset.responseType) setContext({
+      type: baseline.dataset.responseType,
+      objective: baseline.dataset.objective || "",
+      lesson_slug: baseline.dataset.lessonSlug || ""
+    });
     installDraft(baseline);
+    if(!baseline.hasAttribute("data-feedback-pause")){
+      const heading = baseline.querySelector("h1.stem");
+      if(heading) heading.focus({preventScroll:true});
+    }
     return;
   }
   host.innerHTML = `<div class="card"><div class="feedback" role="status"

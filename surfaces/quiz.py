@@ -5,15 +5,19 @@ and saves nothing. `serve` puts the same page behind a loopback server that
 scores every response and writes the attempt file, so the browser never holds an
 answer. Both are clients of the runtime.
 """
-import collections, html, json, os, sys, uuid
+import collections, html, json, os, re, sys, urllib.parse, uuid
 
 import evidence
-from model import HONEST_LIMITS_NOTE, grab, lint, load, parse_lesson
-from runtime import INTERACTION_VERSION, page_item, score_response
+import subjects
+from model import (HONEST_LIMITS_NOTE, grab, lesson_slug, lint, load,
+                   parse_lesson, parse_terms)
+from runtime import INTERACTION_VERSION, glossable, page_item, score_response
 from surfaces.session import run_check_source
 from surfaces import presentation, settings
 from surfaces.quiz_page import (AGENT_ASSIST_HTML, ASSIST_JS, OFFLINE_JS,
-                                SERVED_JS, TEMPLATE)
+                                MATH_ADAPTER_JS, QUESTION_SYMBOLS_JS, SERVED_JS,
+                                STRUCTURE_ADAPTER_JS, TEMPLATE)
+from surfaces.lesson import GLOSS_ENHANCEMENT_JS, MATH_ASSETS_HTML, gloss_css
 from surfaces.theme import THEME_CSS, theme_css
 
 # The vendored CodeMirror 6 bundle (plan 05-05 Task 2, ruling 5/11 + the
@@ -141,10 +145,121 @@ def cmd_lesson_skip(a):
     return 0
 
 
+
+def _question_text(q):
+    """All learner-visible authored text in one question, without a key."""
+    parts = [q.get("stem") or ""]
+    parts.extend((q.get("opts") or {}).values())
+    parts.extend(r.get("text") or "" for r in (q.get("rows") or []))
+    parts.extend(q.get("cats") or [])
+    parts.extend(q.get("steps") or [])
+    return "\n".join(str(part) for part in parts if part)
+
+
+def _symbol_position(symbol, text):
+    """Return an exact symbol's first position in public question text.
+
+    Punctuation and mathematical glyphs use literal matching.  A letter or
+    digit term uses token boundaries, so an authored `P` term does not match
+    the p in `prime`.  Aliases are intentionally not searched: an alias such
+    as `and` may help a glossary lookup, but it must not make the `∧` entry
+    appear on every English sentence containing the word.
+    """
+    if not symbol:
+        return None
+    if any(ch.isalnum() for ch in symbol):
+        match = re.search(r"(?<!\w)%s(?!\w)" % re.escape(symbol), text)
+        return match.start() if match else None
+    position = text.find(symbol)
+    return position if position >= 0 else None
+
+
+def _symbol_occurs(symbol, text):
+    """True for an exact authored symbol occurrence in public question text."""
+    return _symbol_position(symbol, text) is not None
+
+
+def _matched_symbol(record, text):
+    """Return the exact glyph or letter alias used by this question."""
+    candidates = [record.get("canonical") or ""] + list(record.get("aliases") or [])
+    for candidate in candidates:
+        candidate = str(candidate).strip()
+        if not candidate:
+            continue
+        is_letter_symbol = len(candidate) == 1 and candidate.isalpha() \
+            and candidate == candidate.upper()
+        is_glyph = any(not (ch.isalnum() or ch.isspace()) for ch in candidate)
+        if (is_letter_symbol or is_glyph) and _symbol_occurs(candidate, text):
+            return candidate
+    return ""
+
+
+def _symbol_cue(symbol, record):
+    """A short authored-or-structural label for a question symbol control."""
+    if len(symbol) == 1 and symbol.isalpha() and symbol == symbol.upper():
+        return "statement variable"
+    canonical = str(record.get("canonical") or "").strip()
+    if canonical.lower().startswith("logical "):
+        canonical = canonical[len("logical "):]
+    return canonical[:1].lower() + canonical[1:] if canonical else "meaning"
+
+
+def question_symbol_help(bank_path, qs, bank_stem="", serve=True,
+                         return_path=None):
+    """Return safe authored symbol help keyed by public positional item id.
+
+    The existing TERMS parser owns definitions and runtime.glossable owns
+    disclosure.  This function only finds exact canonical symbols in the
+    learner-visible question text and shapes presentation metadata.  Served
+    pages carry no definition bodies: activation reaches the existing gloss
+    route, which records the lookup.  Static builds may include the already
+    gated definition because no server exists behind them.
+    """
+    terms = parse_terms(bank_path)
+    if terms is None:
+        return {}
+    allowed = []
+    for slug, record in terms.get("terms", {}).items():
+        canonical = str(record.get("canonical") or "").strip()
+        if slug and canonical and glossable(qs, record):
+            allowed.append((slug, record))
+    out = {}
+    for q in qs:
+        text = _question_text(q)
+        rows = []
+        for authored_order, (slug, record) in enumerate(allowed):
+            symbol = _matched_symbol(record, text)
+            if not symbol:
+                continue
+            route = "/gloss/%s/%s" % (
+                urllib.parse.quote(bank_stem, safe=""),
+                urllib.parse.quote(lesson_slug(slug), safe=""))
+            back = (return_path or
+                    ("/quiz/%s#question" %
+                     urllib.parse.quote(bank_stem, safe="")))
+            href = route + "?" + urllib.parse.urlencode({"return": back})
+            row = {"slug": lesson_slug(slug), "symbol": symbol,
+                   "label": _symbol_cue(symbol, record), "href": href,
+                   "_position": _symbol_position(symbol, text),
+                   "_authored_order": authored_order}
+            if serve:
+                row["fetch"] = href + "&format=json"
+            else:
+                row["definition"] = record.get("def") or ""
+            rows.append(row)
+        if rows:
+            rows.sort(key=lambda row: (row["_position"], row["_authored_order"]))
+            for row in rows:
+                row.pop("_position", None)
+                row.pop("_authored_order", None)
+            out[q["id"]] = rows
+    return out
+
+
 def page_for(bank_path, qs, serve=False, reveal=False, post_path="/answer",
              lesson_base="", lesson_slugs=None, bank_stem=None, mode=None,
              theme_css=None, lti_framing="", boot_extra=None, assist=False,
-             home_href="", presentation_profile=""):
+             home_href="", presentation_profile="", symbol_return=None):
     """Render one quiz page. `theme_css`, when given, is the per-render
     generated token block (the daemon passes
     `theme.theme_css(load_settings(root))` so quiz shares the one palette
@@ -211,6 +326,9 @@ def page_for(bank_path, qs, serve=False, reveal=False, post_path="/answer",
                 it["lesson_slug"] = ""
             items.append(it)
         boot = {}
+    symbol_help = question_symbol_help(
+        bank_path, qs, bank_stem or os.path.splitext(os.path.basename(bank_path))[0],
+        serve=serve, return_path=symbol_return)
     # The chip label is the locked string, but it only ships when a reader
     # actually sits behind this page (D-12): a static file:// page has no
     # daemon at /lesson/<stem> to link to, so the label is substituted away
@@ -243,6 +361,27 @@ def page_for(bank_path, qs, serve=False, reveal=False, post_path="/answer",
                      if has_check else "")
     assist_html = AGENT_ASSIST_HTML if (serve and assist) else ""
     assist_js = ASSIST_JS if (serve and assist) else ""
+    math_assets = ""
+    math_script = ""
+    if serve:
+        try:
+            subject_profile = subjects.select_profile(
+                qs, subjects.load_registry(
+                    os.path.dirname(os.path.abspath(bank_path)) or "."))
+        except subjects.SubjectProfileError:
+            subject_profile = None
+        subject_ids = subjects.subject_ids(qs)
+        # Accepted learner courses namespace objectives by course id, such as
+        # `math1400:...`, while the capability registry's reusable profile is
+        # named `math`. Keep the profile as the authority when it resolves,
+        # and recognize the course namespace only as a presentation hint.
+        math_course = (len(subject_ids) == 1
+                       and subject_ids[0].lower().startswith("math"))
+        if math_course or (subject_profile and
+                           ((subject_profile.get("profile") or {})
+                            .get("lesson", {}).get("math"))):
+            math_assets = MATH_ASSETS_HTML
+            math_script = MATH_ADAPTER_JS
     # __THEME__ then __SHARED__ then the page's own layer, in that order and
     # not another: the generated palette, then presentation.SHARED_CSS (the
     # token layer holding the four vendored @font-face rules and the
@@ -253,9 +392,21 @@ def page_for(bank_path, qs, serve=False, reveal=False, post_path="/answer",
                  .replace("__THEME__", THEME_CSS if theme_css is None
                           else theme_css)
                  .replace("__SHARED__", presentation.SHARED_CSS)
+                 .replace("__STRUCTURE_SCRIPT__", STRUCTURE_ADAPTER_JS)
+                 .replace("__GLOSS_CSS__", gloss_css())
+                 .replace("__GLOSS_SCRIPT__", GLOSS_ENHANCEMENT_JS if serve else "")
+                 .replace("__QUESTION_SYMBOLS_SCRIPT__", QUESTION_SYMBOLS_JS)
+                 .replace("__MATH_ASSETS__", math_assets)
+                 .replace("__MATH_SCRIPT__", math_script)
                  .replace("__PRODUCT_CSS__", presentation.product_theme_css()
                           + presentation.PRODUCT_CSS
-                          + ".wrap{max-width:800px;background:var(--paper);color:var(--product-ink)}")
+                          + ".wrap{max-width:860px;background:var(--paper);color:var(--product-ink)}"
+                          + ".card{padding:var(--space-4)}"
+                          + "h1.stem{font-size:var(--text-heading);line-height:1.4;max-width:62ch;margin-bottom:var(--space-3)}"
+                          + ".hint{margin-bottom:var(--space-3)}"
+                          + ".choice{min-height:48px;padding:var(--space-2) var(--space-3)}"
+                          + ".choice .ot{font-size:var(--text-body);line-height:1.4}"
+                          + "@media(max-width:767px){.card{padding:var(--space-3)}}")
                  .replace("__PRODUCT_NAV__", presentation.standalone_product_nav())
                  .replace("__SERVE__", "true" if serve else "false")
                  .replace("__CTX_TOTAL__", str(len(qs)))
@@ -273,6 +424,8 @@ def page_for(bank_path, qs, serve=False, reveal=False, post_path="/answer",
                  .replace("__OFFLINE_JS__", "" if serve else offline_js)
                  .replace("__SERVED_JS__", served_js if serve else "")
                  .replace("__BOOT__", presentation.script_safe_json(boot))
+                 .replace("__QUESTION_SYMBOLS__",
+                          presentation.script_safe_json(symbol_help))
                  .replace("__DATA__", presentation.script_safe_json(items)))
 
 

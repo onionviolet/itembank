@@ -3108,6 +3108,14 @@ def test_gloss_route_and_cli_twin():
             fail("gloss route body missing the definition")
         if "Back to the question" not in body:
             fail("gloss route body missing the back link")
+        status, payload = get(
+            url + "/gloss/gloss_bank/airway?format=json&return=%2Fquiz%2Fgloss_bank%23question")
+        if status != 200:
+            fail("JSON gloss route returned %d" % status)
+        parsed = json.loads(payload)
+        if parsed != {"term": "Airway",
+                      "def": "The passage from mouth to lungs."}:
+            fail("JSON gloss route payload drifted: %r" % parsed)
 
         for slug in ("nope", "one"):
             try:
@@ -3125,8 +3133,8 @@ def test_gloss_route_and_cli_twin():
     lookups = [e for e in itembank.events(log)
                if e["event_type"] == "term_lookup"]
     if len(lookups) != 1 or lookups[0]["term_slug"] != "airway":
-        fail("the route must record exactly one term_lookup for the served "
-             "slug, got %r" % lookups)
+        fail("the route must record the served term lookup idempotently, "
+             "got %r" % lookups)
     if lookups[0]["source"] != "session":
         fail("the route must record source='session': %r" % lookups[0])
 

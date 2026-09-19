@@ -3257,7 +3257,8 @@ def handle_quiz_get(handler, stem):
     receipt = urllib.parse.parse_qs(urllib.parse.urlsplit(handler.path).query).get("receipt", [""])[-1]
     flash = _consume_quiz_flash(handler, receipt, view) if receipt and view else None
     _send_quiz_page(handler, stem, path, qs, sess, view, teaching, lesson_slugs,
-                    flash, launch_mode=launch_mode)
+                    flash, prefill=(flash or {}).get("prefill"),
+                    launch_mode=launch_mode)
 
 
 def _quiz_launch_mode(handler):
@@ -3332,7 +3333,8 @@ def _send_quiz_page(handler, stem, path, qs, sess, view, teaching, lesson_slugs,
                             bank_stem=stem, mode=sess.get("mode", "practice"),
                             lesson_base="/lesson/%s" % stem,
                             lesson_slugs=lesson_slugs, theme_css=theme_block,
-                            assist=True, home_href="/", presentation_profile=profile)
+                            assist=True, home_href="/", presentation_profile=profile,
+                            symbol_return=_quiz_path(stem, launch_mode))
     # A form POST records and moves the runtime cursor before its PRG redirect.
     # Show the just-answered public item and runtime-issued verdict first. The
     # Continue link then renders the live cursor without replaying the answer.
@@ -3346,8 +3348,9 @@ def _send_quiz_page(handler, stem, path, qs, sess, view, teaching, lesson_slugs,
             if flash.get("action") == "advance":
                 continue_href = _quiz_path(stem, launch_mode)
                 try:
-                    continue_label = "Continue to item %d" % (
-                        int(view.get("position", 0) or 0) + 1)
+                    continue_label = "Next question, %d of %d" % (
+                        int(view.get("position", 0) or 0) + 1,
+                        int(view.get("total", 0) or 0))
                 except (AttributeError, TypeError, ValueError):
                     continue_label = "Continue"
             else:
@@ -3365,10 +3368,14 @@ def _send_quiz_page(handler, stem, path, qs, sess, view, teaching, lesson_slugs,
         page = page.replace('<b id="pos">1</b>',
                             '<b id="pos">%d</b>' % position, 1)
     if rendered_view is not None:
+        symbol_help = quiz.question_symbol_help(
+            path, qs, stem, serve=True,
+            return_path=_quiz_path(stem, launch_mode))
         baseline = quiz_page.baseline_for(rendered_view, teaching,
                                           _quiz_path(stem, launch_mode, answer=True),
                                           tokens, flash,
-                                          prefill, continue_href, continue_label)
+                                          prefill, continue_href, continue_label,
+                                          symbol_help)
         page = page.replace('<div id="host"></div>', '<div id="host">%s</div>' % baseline, 1)
     handler.send_html(page.encode("utf-8"), status)
 
@@ -3544,7 +3551,7 @@ def _mint_quiz_token(handler, view, action):
     return token
 
 
-def _mint_quiz_flash(handler, before, after, result):
+def _mint_quiz_flash(handler, before, after, result, prefill=None):
     receipt = secrets.token_urlsafe(24)
     target = ((result.get("next") or {}).get("item") or {}).get("id")
     if target is None:
@@ -3556,6 +3563,9 @@ def _mint_quiz_flash(handler, before, after, result):
             "cursor": after.get("position"), "status": after.get("status"), "target": target,
             "result": result, "before": before,
             "expires": time.monotonic() + QUIZ_TOKEN_TTL}
+        if result.get("action") == "hold" and isinstance(prefill, dict):
+            # Retry controls live only in the expiring in-memory receipt.
+            handler.quiz_flash_receipts[receipt]["prefill"] = dict(prefill)
     return receipt
 
 
@@ -3574,6 +3584,8 @@ def _consume_quiz_flash(handler, receipt, view):
         return None
     payload = dict(rec["result"])
     payload["before"] = rec["before"]
+    if rec.get("prefill") is not None:
+        payload["prefill"] = rec["prefill"]
     return payload
 
 
@@ -3722,7 +3734,9 @@ def handle_quiz_answer(handler, stem):
                 cfg = sess
                 _refresh_attempt_view(cfg, cfg.get("api_session_id"), qs, path)
             after = session.do_next(session_file)
-            receipt = _mint_quiz_flash(handler, before, after, result)
+            receipt = _mint_quiz_flash(
+                handler, before, after, result,
+                prefill=fields if result.get("action") == "hold" else None)
             handler.send_redirect(_quiz_path(stem, launch_mode, receipt=receipt))
             return
         q = by_id.get(data.get("id"))
@@ -4465,8 +4479,17 @@ def handle_gloss_get(handler, stem, slug):
         mode=sess.get("mode", "practice"),
         source="session")
     evidence.append_event(evidence.log_path(bank_dir), event)
-    handler.send_html(lesson.gloss_page(stem, record, lesson_slug(slug))
-                      .encode("utf-8"))
+    query = urllib.parse.parse_qs(urllib.parse.urlsplit(handler.path).query)
+    if query.get("format", [""])[-1] == "json":
+        handler.send_json({"term": record.get("canonical", ""),
+                           "def": record.get("def", "")})
+        return
+    return_href = query.get("return", [""])[-1]
+    if not (return_href.startswith("/quiz/") and
+            not return_href.startswith("//")):
+        return_href = None
+    handler.send_html(lesson.gloss_page(
+        stem, record, lesson_slug(slug), return_href=return_href).encode("utf-8"))
 
 
 def _plan_day_state(handler, stem):

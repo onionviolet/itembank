@@ -25,6 +25,15 @@ test("tier actions cannot name a tier", () => {
   assert.doesNotMatch(source, /tier_index|tier_id|requested_tier/);
 });
 
+test("disclosed hints augment the stable question and locked help stays separate", () => {
+  assert.match(source, /function renderQuestionAssist\(card, teaching\)/);
+  assert.match(source, /dataset\.questionAssist/);
+  assert.match(source, /Collapse this layer to reread the untouched wording/);
+  assert.match(source, /renderQuestionAssist\(card, teaching\);/);
+  assert.match(source, /const next=teaching\.next_locked/);
+  assert.doesNotMatch(source, /renderQuestionAssist[\s\S]*?next_locked[\s\S]*?details\.innerHTML/);
+});
+
 test("served boot adopts the server card in place", () => {
   assert.match(source, /host\.querySelector\("\[data-server-baseline\]"\)/);
   assert.match(source, /sessionId = baseline\.dataset\.sessionId/);

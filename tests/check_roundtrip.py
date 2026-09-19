@@ -1127,7 +1127,7 @@ def check_refusal_states():
     the locked file-refusal sentence + skip control and no code editor for a
     check item; the served page carries the network and language sentences
     (distinct); the skip handler advances without verify/settle/close; the
-    connectivity sentence is unchanged; no generic message covers more than
+    connectivity recovery names the uncertain saved state; no generic message covers more than
     one cause; the honest-limits line survives every refusal state."""
     # Built (offline) page.
     build_out = os.path.join(tempfile.mkdtemp(), "check_file.html")
@@ -1194,13 +1194,13 @@ def check_refusal_states():
     if re.search(r"(something went wrong|an error occurred|unknown error)",
                  page_src, re.IGNORECASE):
         fail("a generic failure message covers more than one cause")
-    # The connectivity copy in the settle catch block is unchanged (the
-    # served client's exact string, written as adjacent JS literals; the
-    # offline client's copy lives in the built page, since the served page
-    # substitutes OFFLINE_JS away).
-    if collapse("Couldn't check that answer. Your selection is still here.") \
-            not in collapse(js_text):
-        fail("served connectivity sentence changed")
+    # A lost acknowledgement may follow a recorded answer. The served client
+    # must ask the learner to read the saved state before another submission.
+    # The offline client's copy lives in the built page, since the served page
+    # substitutes OFFLINE_JS away.
+    if collapse("Couldn't confirm whether your answer was recorded. Your response is still here. Check the saved state before continuing.") \
+            not in collapse(js_text) or "Check saved state" not in srv:
+        fail("served connectivity recovery changed")
     if collapse("Could not reach the process that scores and records") \
             not in collapse(re.sub(r'["+\\]', "", html)):
         fail("offline connectivity sentence changed")
