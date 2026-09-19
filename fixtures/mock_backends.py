@@ -99,7 +99,17 @@ def serve(host="127.0.0.1", port=0):
         def do_POST(self):
             length = int(self.headers.get("Content-Length") or 0)
             request = json.loads(self.rfile.read(length).decode("utf-8"))
-            body = json.dumps(candidate_for(request), ensure_ascii=False,
+            if "messages" in request:
+                # The adapter sends the operation as the final user message.
+                # Return the OpenAI-compatible envelope it actually reads.
+                operation = json.loads(request["messages"][-1]["content"])
+                response = {"choices": [{"message": {"content": json.dumps(
+                    candidate_for(operation), ensure_ascii=False,
+                    sort_keys=True)}}]}
+            else:
+                # The direct fixture probe still exercises candidate_for.
+                response = candidate_for(request)
+            body = json.dumps(response, ensure_ascii=False,
                               sort_keys=True).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
