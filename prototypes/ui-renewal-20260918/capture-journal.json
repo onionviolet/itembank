@@ -1,0 +1,83 @@
+[
+  {
+    "path": ".planning/USER-VISION.md",
+    "before": "57e4b1b28ca8d7a4659e00daa6e540323468471702734dc5d56b8fc968f07688",
+    "after": "deb556be153d115e95f613a2c7de10a1440c62ee4eb81efd60649d7b1f45b317",
+    "backup": ".reasonix/ui-renewal-20260918/USER-VISION.md.before",
+    "operation": "append vision capture",
+    "owner": "root",
+    "status": "applied"
+  },
+  {
+    "path": ".planning/USER-VISION-INBOX.md",
+    "before": "6c97c893b72bc4cf671ef0ba03f6239611ef7ef1494e1e54d3f6e9cfdea39a1c",
+    "after": "576cdc10931916943d26b13032415b00a00190a7d5e1fb257817c80b5c44700d",
+    "backup": ".reasonix/ui-renewal-20260918/USER-VISION-INBOX.md.before",
+    "operation": "append vision capture",
+    "owner": "root",
+    "status": "applied"
+  },
+  {
+    "path": ".planning/USER-VISION.md",
+    "before": "d05e21552029b0fb495edb390b5a620935dd6df50cf2fa690936501514854bac",
+    "after": "9e853ee0972a5ddec287afd9a88d2ef322c7ebb5aea50001daa019cb3664586d",
+    "backup": ".reasonix/ui-renewal-20260918/USER-VISION.md.formats.before",
+    "operation": "append format and reference clarification",
+    "owner": "root",
+    "status": "applied"
+  },
+  {
+    "path": ".planning/USER-VISION-INBOX.md",
+    "before": "0adc3d3af31b1f44635ad26b09e136363c972c9de97bdfb0fa50d8e990578622",
+    "after": "66200f19fa62c851ab98a956f69c7ebf54649724eb7152a9ecc091f11bc2a5c4",
+    "backup": ".reasonix/ui-renewal-20260918/USER-VISION-INBOX.md.formats.before",
+    "operation": "append format and reference clarification",
+    "owner": "root",
+    "status": "applied"
+  },
+  {
+    "path": ".planning/USER-VISION.md",
+    "before": "78272ca9b7ee5160ffec5e051223578364b91c319bff2f505b1fa16e2191fedd",
+    "after": "dae2d0eaffcaeaf0159e4754e82c2cf327f9f263700d5e7e5fc93a6fa3bf1cef",
+    "backup": ".reasonix/ui-renewal-20260918/USER-VISION.md.wip-78272ca9b7.before",
+    "operation": "save improved highly changeable WIP and future execution direction",
+    "owner": "root",
+    "status": "applied"
+  },
+  {
+    "path": ".planning/USER-VISION-INBOX.md",
+    "before": "84dd2b8c900a0d27df9aaf9201b5d635e70623a033192509840b2d64ebb1178c",
+    "after": "1b340478b4145c44f24b38a87571c80b986207715030e410768766e49b77c549",
+    "backup": ".reasonix/ui-renewal-20260918/USER-VISION-INBOX.md.wip-84dd2b8c90.before",
+    "operation": "save improved highly changeable WIP and future execution direction",
+    "owner": "root",
+    "status": "applied"
+  },
+  {
+    "path": "prototypes/ui-renewal-20260918/BRIEF.md",
+    "before": "a31ccdb8d1d1eb7cbe41772b415d570e0d1fb10c09734c30f3626a7aa4ff407a",
+    "after": "938af0df87fb969afcf298385be975d79519082ebfbb9844ecdb8e79e7b607e7",
+    "backup": ".reasonix/ui-renewal-20260918/BRIEF.md.wip-a31ccdb8d1.before",
+    "operation": "save improved highly changeable WIP and future execution direction",
+    "owner": "root",
+    "status": "applied"
+  },
+  {
+    "path": "prototypes/ui-renewal-20260918/README.md",
+    "before": "51fa4c4eaff762019c342270218401257b01605537e8d615cccfe48316812cf2",
+    "after": "86e22a5c2eeae88b02cc6ef99e9587563ecc909a9be8b613ca3e736db827909c",
+    "backup": ".reasonix/ui-renewal-20260918/README.md.wip-51fa4c4eaf.before",
+    "operation": "save improved highly changeable WIP and future execution direction",
+    "owner": "root",
+    "status": "applied"
+  },
+  {
+    "path": ".planning/research/ui-renewal-2026-09-18.md",
+    "before": "5fd0a49dc13fde9cdcd8f863ff08c49f9c7d2849a0cd1760e6f843cad9afe47b",
+    "after": "f134a5dc4d6809aa12eeade0cf124f6e744a178fd2b35dbe95bf20ac566ab481",
+    "backup": ".reasonix/ui-renewal-20260918/ui-renewal-2026-09-18.md.wip-5fd0a49dc1.before",
+    "operation": "save improved highly changeable WIP and future execution direction",
+    "owner": "root",
+    "status": "applied"
+  }
+]
