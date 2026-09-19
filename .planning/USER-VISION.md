@@ -2536,6 +2536,339 @@ environment and the existing niche or expert-tip roles. It does not weaken an
 instructor policy, convert protected material into a fictional paraphrase, or
 authorize course-specific answers that the governing policy forbids.
 
+### 2026-09-15: stacked arguments and equivalent depth across subjects
+
+> for arguments or other stuff, consider diplaying them like bulleted/math style, one below the other?
+
+> upgrade accordingly and audit similar depth based stuff for other genres and courses and more
+
+#### Interpretation recorded 2026-09-15
+
+**Status:** active presentation preference. The bounded argument and authored
+line-break repair is implemented and verified in the installed app. Richer
+genre-specific layouts remain governed by the semantic capability and activity
+contracts.
+
+**Current interpretation:** a learner should not have to unpack a logical,
+symbolic or procedural structure from one dense paragraph when its parts are
+already identifiable. Present premises, conclusions, derivation steps, code
+lines, events, speaker turns, procedure steps, comparison dimensions and
+language layers as separately scannable units. Use bullets, labeled rows,
+mathematical display, code blocks, timelines, tables or paired fields according
+to the content's actual structure.
+
+The shared rule is semantic, not subject decoration. Preserve the author's or
+source's exact words and order. Enhance explicit structure and deliberate line
+breaks. Do not make a renderer guess roles from ordinary prose. Every rich form
+keeps a coherent plain, narrow-screen, keyboard and screen-reader path.
+
+**Open questions:** the first repair can safely recognize an explicitly named
+quoted argument with a therefore-marked conclusion. Code fences, aligned
+derivations, disputed timelines, staged cases, bilingual examples and dense
+comparisons need their existing capability owners and representative fixtures.
+Human visual and screen-reader acceptance remain separate from automated
+checks.
+
+**Planning effect:** [IL-20260915-01](IDEA-LEDGER.md#il-20260915-01-semantic-structure-in-quiz-presentation)
+makes separately scannable explicit structure a Core presentation behavior.
+The [cross-subject audit](research/structured-question-presentation-audit-2026-09-15.md)
+maps the immediate renderer repair and the later semantic routes. The source
+format contract now states that multiline stems preserve authored line breaks.
+`SOURCE-TO-COURSE.md` and ACTIVITY-01 carry the cross-subject obligation.
+
+**Relationship to prior entries:** extends the September 12 code-box and
+thematic-environment entries from one programming example to a shared rule for
+arguments and other structured content. It also applies the accepted Phase 16
+capability contract to quiz stimuli without creating a new scorer, parser or
+subject-specific assessment authority.
+
+### 2026-09-16: symbol meanings and better hints in questions
+
+> give me the meanings of the symbols in questions as well, also work on improving hints as well and more
+
+#### Interpretation recorded 2026-09-16
+
+**Status:** active learner-help preference. The bounded symbol-help and hint-copy
+repair is implemented in the source checkout and rebuilt installed app. Human
+touch and screen-reader acceptance are tracked separately.
+
+**Current interpretation:** a learner should be able to ask what notation in
+the current question means without leaving the question or receiving the
+answer. Definitions should come from the authored course glossary, pass the
+runtime disclosure gate, work with keyboard and touch, and retain a real
+navigation fallback. Hint tiers should explain their purpose in plain language
+instead of exposing internal ids or dropping unexplained text into a card.
+
+**Open questions:** "and more" invites continued review of related question
+help, but does not identify a settled additional feature. Future work should
+use observed learner friction, keep the runtime in charge of hint entitlement,
+and avoid turning assessment questions into answer-bearing reference sheets.
+Human visual, touch and screen-reader acceptance remains open.
+
+**Planning effect:** [IL-20260916-01](IDEA-LEDGER.md#il-20260916-01-question-symbol-help-and-actionable-hints)
+makes the shared behavior Core. The quiz now matches exact authored symbol
+terms, filters them through `glossable()`, fetches their definitions through
+the existing recorded glossary route, and preserves a script-free definition
+page. The runtime now presents lesson, objective, trap, picked-option rationale
+and discriminator tiers with learner-facing purpose cues. The private MATH
+1400 rehearsal bank authors the notation it currently uses.
+
+**Relationship to prior entries:** extends the August 13 and August 20
+hover-definition direction from lessons into active questions. It also extends
+the September 15 structured-question repair from legible notation to available
+meaning, while preserving the existing fixed hint ladder and runtime-owned
+disclosure boundary.
+
+### 2026-09-16: usefulness and formatting for specific content
+
+> consider usefulnees and formatting improvements for specificf stuff and more
+
+#### Interpretation recorded 2026-09-16
+
+**Status:** active presentation-quality preference. The first bounded
+refinement is implemented in the source checkout; installed-app and human
+acceptance are tracked separately.
+
+**Current interpretation:** formatting should help a learner scan and use the
+specific kind of content in front of them. It should not apply one decorative
+layout everywhere. For question notation, usefulness means preserving reading
+order, naming each control with a short content-specific cue, and explaining
+that definitions clarify notation without revealing the answer.
+
+**Open questions:** "and more" leaves future content types open. A new layout
+needs a concrete scanning, comprehension, or interaction problem before it
+becomes Core. Human touch and screen-reader review still need direct evidence.
+
+**Planning effect:** extends
+[IL-20260916-01](IDEA-LEDGER.md#il-20260916-01-question-symbol-help-and-actionable-hints),
+TEACH-10, and the source-to-course presentation contract. Symbol controls now
+follow first appearance in the public question, use concise labels such as
+`statement variable` and `or`, and carry a short boundary note. The hint ladder
+keeps its existing fixed order because disclosure order is assessment policy,
+not a formatting preference.
+
+**Relationship to prior entries:** extends the September 15 semantic-structure
+entry and the September 16 symbol-help entry. It narrows the earlier open-ended
+"and more" language into evidence-led, content-specific presentation rather
+than generic visual novelty.
+
+### 2026-09-16: information density across other areas
+
+> consider other areas where information densitiy/how things are shown can be improved and more?
+
+#### Interpretation recorded 2026-09-16
+
+**Status:** active cross-surface density preference. The repeated secondary
+metadata repair is implemented in the source checkout. Broader audit and human
+acceptance remain open.
+
+**Current interpretation:** each surface should keep the learner's current task
+and progress visible, while preserving secondary policy and format metadata in
+an accessible disclosure. Information density should improve by removing
+repetition and weak hierarchy, not by shrinking type or deleting recovery and
+authority information.
+
+**Open questions:** course overview, evidence, authoring, and maintenance
+surfaces still need task-based review before changing their density. The next
+repair should name the repeated information or obscured action and verify the
+result at narrow width, keyboard, touch, and screen-reader gates.
+
+**Planning effect:** Quiz no longer places a full three-column activity summary
+above every question. The same secondary facts are inside `Session details`.
+Shared profile activities and Study now keep their task content visible while
+placing purpose, response format, disclosure, and generic instructions inside
+native `details` disclosures. The locked context line and runtime behavior are
+unchanged.
+
+**Relationship to prior entries:** extends the September 16 usefulness entry
+from question notation to shared surface hierarchy. It confirms the UI-SPEC
+rule that the context line stays concise and secondary metadata belongs in an
+accessible disclosure.
+
+### 2026-09-16: progressive question emphasis and hint augmentation
+
+> for certain items, perhaps need better ways to show questions, we can use different text styles and more, we can have colors in the text and certain things to focus on and more, so like, maybe as hints gets toggled, the question itself gets more info and more? other stuff to consider? other cool ideas?
+
+#### Interpretation recorded 2026-09-16
+
+**Status:** exploratory. The direction is clear enough for a synthetic
+interaction comparison, but no exact visual grammar or automatic behavior is
+accepted yet.
+
+**Current interpretation:** certain questions should present their meaningful
+structure more clearly through semantic text roles, restrained color, spacing,
+labels, and fitting content layouts. When the runtime grants a hint, the same
+question may gain an additional teaching layer in place, such as an inline
+definition, a marked condition, a grouped argument, a diagram annotation, or a
+cue attached to the relevant clause. The original wording stays available and
+does not silently change beneath the learner.
+
+The useful unit is not arbitrary rich text. Authors identify semantic roles
+such as task, given information, constraint, negation, comparison dimension,
+speaker, code, or conclusion. Presentation maps those roles to accessible
+styles. Color may reinforce a role but cannot carry it alone. Hint-triggered
+augmentation renders only content the runtime has disclosed and remains
+distinguishable from the authored question.
+
+**Open questions:** a prototype should compare inline annotations, a parallel
+assisted view, and a temporary focus lens. It should test whether earlier hints
+accumulate or whether the learner can step between assistance levels. It also
+needs to establish which augmentations help each item family, how the learner
+returns to the untouched view, and whether motion clarifies or distracts. Human
+review must cover comprehension, visual calm, keyboard order, screen readers,
+zoom, narrow widths, contrast themes, and non-color equivalence.
+
+**Planning effect:** extend
+[IL-20260916-01](IDEA-LEDGER.md#il-20260916-01-question-symbol-help-and-actionable-hints)
+with a Prototype comparison owned jointly by shared activity presentation and
+the existing runtime hint ladder. Use synthetic items across at least a logical
+argument, a code trace, a case or passage, and a visual question. Do not add a
+second parser, let the client select or invent a hint, or turn a presentation
+role into assessment evidence.
+
+**Relationship to prior entries:** extends the September 12 thematic quiz and
+code-box entries, the September 15 semantic-structure entry, and the September
+16 symbol-help and content-specific formatting entries. It makes the earlier
+bright-highlighting direction concrete inside questions while preserving the
+fixed hint order and the rule that authors select semantic roles rather than
+raw colors.
+
+#### Prototype result recorded 2026-09-16
+
+**Status:** active prototype. The first stable-question slice is implemented,
+tested, rebuilt, installed, and visually inspected. Human narrow-width and
+screen-reader acceptance remain open.
+
+**Current interpretation:** disclosed runtime cues now accumulate inside an
+open Assisted question layer directly below the unchanged prompt. The learner
+can collapse that layer to return to the original-only view. The next locked
+cue remains in Help, visibly separate from what has already been disclosed.
+Tier names and text provide the meaning. Color, border weight, and pattern only
+reinforce those labels.
+
+**Open questions:** inline clause annotations, focus lenses, diagram callouts,
+code-state overlays, and author-declared question roles remain unimplemented.
+The next prototype should test one of those on a content shape where placing a
+cue below the prompt is not enough. Human review still needs to test whether
+accumulated cues stay calm and useful on narrow screens and with a screen
+reader.
+
+**Planning effect:** `surfaces/quiz_page.py` now renders the same disclosed-cue
+model in the script-free and JavaScript paths. Focused hint, surface, serve,
+daemon, presentation-profile, JavaScript, and quick-preflight checks pass. The
+installed macOS app exposes the layer on the current MATH 1400 sitting. This
+does not promote unimplemented inline annotation or arbitrary author colors to
+a requirement.
+
+**Relationship to prior entries:** implements the first reversible slice of
+this entry through IL-20260916-01. It preserves the prior semantic-structure,
+symbol-help, fixed-tier, and runtime-disclosure decisions.
+
+### 2026-09-16: beneficial depth levels and code-question audit
+
+> also can consider going into certain things with certain levels and more? Optimal stuff?  Benefitial stuff? Similar audit for Code questions and more?
+
+#### Interpretation recorded 2026-09-16
+
+**Status:** active research direction. A bounded audit now defines the levels
+and their promotion gates. No new production code-question format is accepted
+by this entry alone.
+
+**Current interpretation:** content-specific question support may progress
+through levels when the target task warrants it. For code, the useful sequence
+runs from faithful formatted source, through orientation and state tracing, to
+small manipulation and finally construction or transfer. Higher is not
+automatically better. The optimal treatment is the least costly level that
+lets the learner perform the intended thinking and diagnose a meaningful
+error.
+
+The levels describe presentation and learner action, not item difficulty,
+mastery, correctness, or hint entitlement. A concept-choice item may stop at a
+readable code block. An output-prediction item may add a learner-controlled
+trace. A debugging or construction task may need an editor and deterministic
+checks. The original source and a useful static representation remain
+available at every level.
+
+**Open questions:** the first comparison needs to test whether a state trace
+improves prediction and error diagnosis over a formatted code block alone. It
+must also test cognitive load, exam fidelity, code and draft preservation,
+screen-reader order, narrow layouts, and whether assistance accidentally
+reveals the answer. Executable work still needs a production hostile-code
+sandbox, resource limits, offline behavior, recovery, and language-adapter
+decisions.
+
+**Planning effect:** use the
+[code-question depth audit](research/code-question-depth-audit-2026-09-16.md)
+to extend IL-20260912-02's presentation comparison and IL-20260906-09's CS Dojo
+route. Prototype one synthetic output-prediction item at faithful-display and
+trace levels before adding another editor. Keep runtime-issued hints separate
+from the level choice and require measured benefit over the simpler treatment.
+
+**Relationship to prior entries:** extends the September 12 code-box and CS
+Dojo directions, the September 15 cross-subject structure audit, and the
+September 16 progressive question-assistance entry. It narrows "more" into a
+testable optimality rule and prevents richer code tooling from becoming the
+default for every computer-science question.
+
+### 2026-09-18: question-to-question flow
+
+> improving flow between questions and more
+
+#### Interpretation recorded 2026-09-18
+
+**Status:** active learner-flow preference. A bounded continuity repair is
+implemented in the source checkout. Broader transition ideas remain open until
+task-based review identifies a benefit.
+
+**Current interpretation:** a sitting should feel continuous from answer, to
+feedback, to the next question. The answered item stays visible until the
+learner chooses the explicit next action. That action names the upcoming
+question position. The next view begins at the new prompt, announces it to
+assistive technology, and retains the same session, progress, mode and course
+context.
+
+**Open questions:** "and more" leaves review flags, keyboard shortcuts,
+optional pacing controls, and richer between-item summaries unsettled. Each
+needs a concrete learner job and must be tested against accidental skipping,
+answer leakage, motion sensitivity, narrow layouts, keyboard order and exact
+resume behavior before promotion.
+
+**Planning effect:** extends
+[IL-20260907-02](IDEA-LEDGER.md#il-20260907-02-comparative-home-projections-and-transition-complete-ui),
+FLOW-01 and FLOW-02 with an in-sitting handoff detail. Quiz actions now say
+`Next question, N of M` instead of `Next` or `Continue`. A newly rendered item
+moves programmatic focus to its prompt regardless of reduced-motion settings.
+The runtime remains the only authority that advances the cursor.
+
+**Relationship to prior entries:** narrows the September 12 request for more
+fluid quiz environments and extends the September 16 density and progressive
+question-assistance entries. It changes the seam between items, not scoring,
+hint entitlement, item order or automatic pacing.
+
+### 2026-09-18: word-anchored lookup and Code Learner parity
+
+> for the lookup, it can be the definition hovers over that word specifically, the code stuff is better, but does not even reach feature parity with the code learner repo, but its not as bad as I think it is, but there is alot of room for improvment
+
+#### Interpretation recorded 2026-09-18
+
+**Status:** clarified for lookup and exploratory for coding scope.
+
+**Current interpretation:** show the definition next to the exact word
+occurrence. Keep keyboard and tap access. Coding has improved but remains
+below the reference experience. Compare concrete capabilities before extending
+the existing CS Dojo rather than treating the tracing experiment as parity.
+
+**Open questions:** which missing coding capabilities should ship first, and
+what runtime distribution and safety boundary can support Python execution.
+
+**Planning effect:** refine the disposable bilingual lookup now. Record a
+source-grounded parity inventory in the existing code-question depth audit.
+No production scoring or execution authority is changed by this feedback.
+
+**Relationship to earlier entries:** refines IL-20260918-02 and extends
+IL-20260906-09 and IL-20260912-02. It does not replace their owners or imply
+acceptance of the current prototypes.
+
 ## Interpretation protocol
 
 An interpretation may appear immediately after a verbatim entry when it helps
@@ -2582,3 +2915,192 @@ The verbatim entries above feed a visible chain:
 This chain is traceable in both directions. A plan should identify the vision
 and research behind it. A vision entry should identify its current planning
 effect without pretending that an unresolved idea is already a requirement.
+
+
+### 2026-09-18: coherent app renewal inspired by stronger learning interfaces
+
+> overall Ui improvemets, more intuitive and smooth UI showcase and more? we can refer to/look at the alternatives we found before and be inspried accordingly? we can absorb those much larger project's displays and more, we dont need their multiple speakers but we can take their powerful UIs and question flows and more? We can look for more stuff as well, but make sure the old weak ui doesnt implicate the new Ui as well? make sure everything fits into the app? Major app improvements? &#x20;
+
+> Refine this prompt first, and then run in parallel at the astra level
+
+#### Interpretation recorded 2026-09-18
+
+**Status:** exploratory.
+
+**Current interpretation:** improve the overall learner experience through one
+coherent visual system and connected learning flow. Revisit prior alternatives
+and fresh primary evidence. Absorb useful displays and interaction without
+simulated speakers. Existing weak presentation should not constrain design.
+
+**Open questions:** which new composition best serves real study, and whether
+production can preserve its rendered quality across desktop and phone.
+The showcase tests design direction, not real assessment or learner acceptance.
+
+**Planning effect:** the refined brief and three independent Astra reports live
+in [the UI renewal prototype](../prototypes/ui-renewal-20260918/BRIEF.md).
+A runnable synthetic showcase and an integration packet precede changes to
+production authority or default presentation. The brief records dispositions.
+
+**Relationship to prior entries:** extends the September 8 greenfield
+adoption and selective competitor absorption, September 9 unbiased evaluation,
+and September 18 explicit question-to-question continuity. It does not
+accept a second scorer or replace the existing app with a separate product.
+
+### 2026-09-18: contextual learning support beyond word lookup
+
+> the extra info box can potentially be considered elsewhere as well? There are many things to consider and more to supplement learning and more
+
+#### Interpretation recorded 2026-09-18
+
+**Status:** exploratory.
+
+**Current interpretation:** consider contextual extra information across
+learning activities, beyond vocabulary. The panel should support learning
+without obscuring the primary material or requiring a separate conversation.
+Its location and contents remain design questions, not settled requirements.
+
+**Open questions:** compare beside-the-content placement on desktop with an
+expandable section on narrow screens. Test which examples, prerequisites,
+source links, visual explanations and learner notes help the current task.
+These examples are agent proposals, not an exhaustive user request.
+
+**Planning effect:** extend the existing lookup prototype disposition with a
+cross-surface candidate. No production implementation or new roadmap phase.
+Evaluate one representative term, formula and code explanation before
+generalizing. Hovers stay brief. Deeper support requires deliberate opening.
+
+**Relationship to earlier entries:** extends word-anchored lookup and Code
+Learner parity and complements coherent app renewal. The small hover repair
+remains valid. This does not expand assessment disclosure or scoring authority.
+
+### 2026-09-18: keep contextual support highly changeable
+
+> save these accordingly as a very changable wip
+
+#### Interpretation recorded 2026-09-18
+
+**Status:** exploratory.
+
+**Current interpretation:** retain the contextual learning-support ideas as
+highly changeable WIP. Quick meaning, deeper understanding and application are
+agent-proposed organizing levels, not an accepted design or required sequence.
+
+**Open questions:** placement, contents, interaction, terminology, breadth and
+priority all remain open to revision, replacement or removal after review.
+
+**Planning effect:** clarify the existing idea-ledger extension as provisional.
+Save brief hovers, optional detail panels, examples, prerequisites, comparisons,
+diagrams, sources, notes and practice as candidates. Do not infer approval to
+implement or promote them into requirements from this request to save them.
+
+**Relationship to earlier entries:** clarifies contextual learning support
+beyond word lookup. Earlier suggestions remain history, not commitments.
+Existing prototype repairs are experiments, not approval of a universal UI.
+
+
+### 2026-09-18: nonstandard question workspaces and visible design references
+
+> this is better but also doesnt consider non standard questions like for code stuff and more?
+
+> List the references and more somewhere
+
+#### Interpretation recorded 2026-09-18
+
+**Status:** active.
+
+**Current interpretation:** the renewed app must accommodate code and other
+nonstandard response forms instead of judging the design only on multiple
+choice. Make the reference inventory visible and useful inside the showcase.
+
+**Open questions:** broader response-type parity and production integration
+remain to be verified. The current extension tests five representative formats.
+
+**Planning effect:** extend the existing UI renewal showcase with code
+prediction, learner-filled tracing, repair drafts, ordering, tables, visual
+selection and written explanation. Add an annotated References destination.
+The [renewal synthesis](research/ui-renewal-2026-09-18.md) owns the scope.
+
+**Relationship to prior entries:** extends the preceding coherent app renewal
+and existing code-question depth direction. It preserves runtime-owned scoring,
+prose review, and explicit disclosure boundaries.
+
+### 2026-09-18: combined ecosystem feature and teaching overhaul
+
+> overhaul look at their features and flow and more and then plan integration and more, since feature parity and exceeding has not been reached yet, also considering what it takes to create UI stuff and diagrams or explainers like brilliant does and more, improve this prompt before running in parallel at the astra level
+
+#### Interpretation recorded 2026-09-18
+
+**Status:** exploratory.
+
+**Current interpretation:** assess the older LMS and GitHub research together
+with the competitor shortlist. Expand the overhaul beyond appearance into
+feature depth, complete learner flows, and the authoring and rendering system
+needed for high-quality interactive explanations. Establish observable parity
+targets and credible opportunities to exceed them before planning integration.
+
+**Open questions:** which task gaps are demonstrated, which shared capabilities
+support the proposed experiences, and what platform and per-lesson effort is
+required. Learning benefit and human quality acceptance need separate evidence.
+
+**Planning effect:** the [overhaul brief](research/overhaul-2026-09-18/BRIEF.md)
+owns three parallel Astra research lanes and a reconciled integration plan.
+This authorizes research and planning. Production implementation follows the
+resulting bounded packets. Existing WIP contextual-support ideas stay provisional.
+
+**Relationship to earlier entries:** extends the September 7 comparative homes
+and complete transitions, September 8 competitor absorption, and September 18
+coherent renewal and nonstandard question workspaces. The combined comparison
+corrects the narrower input set used in the first renewal showcase.
+
+
+### 2026-09-18: assessment and question display audit breadth
+
+> was the testing aspects and ui and more audited? Like for multaple choice or for cool ideas and stuff wehavent considered yet?&#x20;
+>
+> is the question display for the program enhanced yet? Anything cool the others do? Audit accordingly
+
+#### Interpretation recorded 2026-09-18
+
+**Status:** active audit direction.
+
+**Current interpretation:** include assessment behavior, multiple-choice and
+other response displays, shipped enhancements and overlooked competitor
+patterns. Distinguish installed behavior, current source, tests and prototypes.
+
+**Open questions:** all-path parity, full exam completion, accessibility
+acceptance and learning benefit remain evidence gates.
+
+**Planning effect:** extend the existing overhaul through
+[the question display review](research/overhaul-2026-09-18/QUESTION-DISPLAY-REVIEW.md)
+and its Q1-Q5 routes. This request authorizes audit, not production changes.
+
+**Relationship to earlier entries:** extends the combined ecosystem overhaul
+and nonstandard question workspaces with question-level validation. Provisional
+renewal concepts are not reclassified as shipped functionality.
+
+### 2026-09-18: improved UI version remains highly changeable WIP
+
+> as long as execution and more is showable in app in the future
+
+> save accordingly and note down as a improved version that is WIP and highly changable as needed
+
+#### Interpretation recorded 2026-09-18
+
+**Status:** active provisionality instruction.
+
+**Current interpretation:** save the current showcase as an improved but
+highly changeable WIP. Its current layout, interactions and feature coverage
+are revisable. Future execution, output, tests and debugging should be
+showable inside the app rather than excluded by prototype limitations.
+
+**Open questions:** final composition, execution integration and broader
+capability coverage remain open. No current visual choice is frozen.
+
+**Planning effect:** mark the existing showcase brief, README and
+[renewal synthesis](research/ui-renewal-2026-09-18.md) with this WIP status.
+Keep execution as a registered future capability with runner, recovery and
+runtime-authority gates. This does not mark production implementation complete.
+
+**Relationship to prior entries:** extends coherent app renewal and
+nonstandard question workspaces. The user's positive comparison acknowledges
+improvement without accepting the design as final or restricting future work.

@@ -862,6 +862,117 @@ compare-and-swap operation with undo and conflict refusal. Broader approved-root
 management remains pending and this entry does not claim all of FILE-04 is
 complete.
 
+### 2026-09-15: stacked arguments and equivalent depth across subjects
+
+> for arguments or other stuff, consider diplaying them like bulleted/math style, one below the other?
+
+> upgrade accordingly and audit similar depth based stuff for other genres and courses and more
+
+**Disposition:** Promote, implement the bounded presentation repair, and route
+the cross-subject audit (2026-09-15).
+
+Promoted verbatim to [the matching vision entry](USER-VISION.md#2026-09-15-stacked-arguments-and-equivalent-depth-across-subjects).
+[IL-20260915-01](IDEA-LEDGER.md#il-20260915-01-semantic-structure-in-quiz-presentation)
+records the shared presentation behavior as Core. The immediate repair stacks
+an explicitly signaled quoted argument into labeled premises and conclusion,
+preserves deliberate authored line breaks, and keeps the original text as the
+fallback. The [cross-subject audit](research/structured-question-presentation-audit-2026-09-15.md)
+routes richer code, proof, procedure, chronology, dialogue, comparison and
+language layouts through existing semantic capability owners rather than
+guessing structure from prose.
+
+### 2026-09-16: symbol meanings and better hints in questions
+
+> give me the meanings of the symbols in questions as well, also work on improving hints as well and more
+
+**Disposition:** Promote and implement the bounded shared repair (2026-09-16).
+
+Promoted verbatim to [the matching vision entry](USER-VISION.md#2026-09-16-symbol-meanings-and-better-hints-in-questions).
+[IL-20260916-01](IDEA-LEDGER.md#il-20260916-01-question-symbol-help-and-actionable-hints)
+records question-level authored symbol help and plain-language hint display as
+Core. The open-ended "and more" remains exploratory. It authorizes adjacent
+learner-help review, not unbounded widgets or a second teaching authority.
+
+### 2026-09-16: usefulness and formatting for specific content
+
+> consider usefulnees and formatting improvements for specificf stuff and more
+
+**Disposition:** Promote as an extension of the active learner-help direction,
+and implement the bounded evidence-backed refinements (2026-09-16).
+
+Promoted verbatim to [the matching vision entry](USER-VISION.md#2026-09-16-usefulness-and-formatting-for-specific-content).
+[IL-20260916-01](IDEA-LEDGER.md#il-20260916-01-question-symbol-help-and-actionable-hints)
+now records reading-order symbol help, descriptive control labels, and concise
+scope microcopy as Core. Further content-specific presentation remains
+Registered until an observed learning or scanning problem identifies the next
+useful treatment.
+
+### 2026-09-16: information density across other areas
+
+> consider other areas where information densitiy/how things are shown can be improved and more?
+
+**Disposition:** Promote the cross-surface density preference, implement the
+clearest repeated-metadata repair, and keep the remaining audit Registered
+(2026-09-16).
+
+Promoted verbatim to [the matching vision entry](USER-VISION.md#2026-09-16-information-density-across-other-areas).
+The current slice moves secondary purpose, response-format, disclosure, and
+instruction metadata into accessible native disclosures on Quiz, shared
+profile activities, and Study. Primary content and current session progress
+remain visible.
+
+### 2026-09-16: progressive question emphasis and hint augmentation
+
+> for certain items, perhaps need better ways to show questions, we can use different text styles and more, we can have colors in the text and certain things to focus on and more, so like, maybe as hints gets toggled, the question itself gets more info and more? other stuff to consider? other cool ideas?
+
+**Disposition:** Promote and route to a reversible prototype (2026-09-16).
+
+Promoted verbatim to [the matching vision entry](USER-VISION.md#2026-09-16-progressive-question-emphasis-and-hint-augmentation).
+The existing semantic-presentation and hint owners carry the direction. The
+first prototype should compare stable original text with layered semantic
+emphasis, inline definitions, structure cues, and runtime-issued hint
+annotations. Color is supportive rather than the only carrier of meaning. No
+new hint tier, scoring rule, or answer-bearing client inference is accepted by
+this capture.
+
+### 2026-09-16: beneficial depth levels and code-question audit
+
+> also can consider going into certain things with certain levels and more? Optimal stuff?  Benefitial stuff? Similar audit for Code questions and more?
+
+**Disposition:** Promote and route to a bounded code-question depth audit
+(2026-09-16).
+
+Promoted verbatim to [the matching vision entry](USER-VISION.md#2026-09-16-beneficial-depth-levels-and-code-question-audit).
+The [code-question depth audit](research/code-question-depth-audit-2026-09-16.md)
+defines a task-sized progression from faithful code display through tracing,
+editing, and construction. It extends IL-20260912-02 and IL-20260906-09 rather
+than creating a second code-surface owner. These levels describe presentation
+and learner action. They do not replace item difficulty, hint entitlement,
+mastery, or runtime scoring.
+
+### 2026-09-18: question-to-question flow
+
+> improving flow between questions and more
+
+**Disposition:** Promote the continuity outcome and route the bounded repair
+(2026-09-18).
+
+Promoted verbatim to
+[the matching vision entry](USER-VISION.md#2026-09-18-question-to-question-flow).
+[IL-20260918-01](IDEA-LEDGER.md#il-20260918-01-question-to-question-continuity)
+records an explicit learner-controlled handoff, descriptive next-question
+labels, and prompt-first focus as Core transition behavior. The unspecified
+"and more" remains Registered for task-based review. This capture does not
+authorize automatic advance, scoring changes, or a new navigation authority.
+
+### 2026-09-18: word-anchored lookup and Code Learner parity
+
+> for the lookup, it can be the definition hovers over that word specifically, the code stuff is better, but does not even reach feature parity with the code learner repo, but its not as bad as I think it is, but there is alot of room for improvment
+
+**Disposition:** Promote to the matching USER-VISION entry. Route lookup to
+IL-20260918-02 and coding improvements to IL-20260906-09 and the existing
+code-question depth audit. The code feedback is direction, not acceptance.
+
 ## Disposition vocabulary
 
 - **Promote:** add the verbatim statement and interpretation to `USER-VISION`.
@@ -873,3 +984,79 @@ complete.
   meaning.
 - **Duplicate:** link to the earlier vision statement it restates without
   adding another authoritative copy.
+
+
+### 2026-09-18: coherent app renewal inspired by stronger learning interfaces
+
+> overall Ui improvemets, more intuitive and smooth UI showcase and more? we can refer to/look at the alternatives we found before and be inspried accordingly? we can absorb those much larger project's displays and more, we dont need their multiple speakers but we can take their powerful UIs and question flows and more? We can look for more stuff as well, but make sure the old weak ui doesnt implicate the new Ui as well? make sure everything fits into the app? Major app improvements? &#x20;
+
+> Refine this prompt first, and then run in parallel at the astra level
+
+**Disposition:** Split. Promote desired experience to
+[the vision entry](USER-VISION.md#2026-09-18-coherent-app-renewal-inspired-by-stronger-learning-interfaces).
+Route prompt refinement and parallel Astra execution to
+[the brief](../prototypes/ui-renewal-20260918/BRIEF.md).
+
+### 2026-09-18: contextual learning support beyond word lookup
+
+> the extra info box can potentially be considered elsewhere as well? There are many things to consider and more to supplement learning and more
+
+**Disposition:** Promote to
+[the vision entry](USER-VISION.md#2026-09-18-contextual-learning-support-beyond-word-lookup).
+Route the reversible interaction proposal through the existing lookup owner,
+IL-20260918-02. No additional feature implementation is authorized by capture.
+
+### 2026-09-18: keep contextual support highly changeable
+
+> save these accordingly as a very changable wip
+
+**Disposition:** Promote the provisionality instruction to
+[the vision entry](USER-VISION.md#2026-09-18-keep-contextual-support-highly-changeable).
+Keep the existing IL-20260918-02 extension as the owning WIP, not a new plan.
+
+
+### 2026-09-18: nonstandard question workspaces and visible design references
+
+> this is better but also doesnt consider non standard questions like for code stuff and more?
+
+> List the references and more somewhere
+
+**Disposition:** Promote and route to
+[the vision entry](USER-VISION.md#2026-09-18-nonstandard-question-workspaces-and-visible-design-references)
+and [the renewal synthesis](research/ui-renewal-2026-09-18.md).
+
+### 2026-09-18: combined ecosystem feature and teaching overhaul
+
+> it was a long time ago, it was the other github stuffs and LMS that we can benefit from absorbing
+
+> and th ecompetetor short list too
+
+> overhaul look at their features and flow and more and then plan integration and more, since feature parity and exceeding has not been reached yet, also considering what it takes to create UI stuff and diagrams or explainers like brilliant does and more, improve this prompt before running in parallel at the astra level
+
+**Disposition:** Split. Promote the product direction to
+[the vision entry](USER-VISION.md#2026-09-18-combined-ecosystem-feature-and-teaching-overhaul).
+Route the refined prompt, Astra execution, evidence, and proposed integration
+to [the overhaul brief](research/overhaul-2026-09-18/BRIEF.md).
+
+
+### 2026-09-18: assessment and question display audit breadth
+
+> was the testing aspects and ui and more audited? Like for multaple choice or for cool ideas and stuff wehavent considered yet?&#x20;
+>
+> is the question display for the program enhanced yet? Anything cool the others do? Audit accordingly
+
+**Disposition:** Promote to
+[the vision entry](USER-VISION.md#2026-09-18-assessment-and-question-display-audit-breadth).
+Route evidence and candidate patterns to
+[the question display review](research/overhaul-2026-09-18/QUESTION-DISPLAY-REVIEW.md).
+
+### 2026-09-18: improved UI version remains highly changeable WIP
+
+> as long as execution and more is showable in app in the future
+
+> save accordingly and note down as a improved version that is WIP and highly changable as needed
+
+**Disposition:** Promote to
+[the vision entry](USER-VISION.md#2026-09-18-improved-ui-version-remains-highly-changeable-wip).
+Route status and future execution to the existing
+[renewal synthesis](research/ui-renewal-2026-09-18.md), not a new design owner.

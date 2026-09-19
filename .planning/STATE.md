@@ -4,19 +4,64 @@ milestone: reach
 milestone_name: reach
 current_phase_name: 20-extensible-ui-foundation-and-interaction-clarity-pass
 current_phase: 20
-status: "FILE-04's bounded shelf-order slice is implemented with journaled learner order plus pointer, touch, and keyboard controls. Full preflight reached all 131 tests; only the existing local-model parity unavailable and expected dirty-tree gates fail."
-stopped_at: "Rendered pointer drag and keyboard reorder both saved and survived reload in a disposable live daemon. Installed-app verification remains."
-last_updated: "2026-09-15"
-last_activity: 2026-09-15
-last_activity_desc: "Implemented learner-controlled course order through a machine-local workspace record and the shared journal authority."
+status: "Q1 quiz audit repairs verified in the source candidate. API and native retries preserve response controls and selected answers. Formal-assessment completion and broader P1 integration remain open."
+stopped_at: "Next reproduce the two-item formal-assessment completion journey through the runtime-owned close authority, covering assessment audit F6 and F8."
+last_updated: "2026-09-19"
+last_activity: 2026-09-19
+last_activity_desc: "Continued with Luna workers, integrated bounded retry, recovery, route and display repairs, and verified synthetic native and API browser journeys."
 progress:
   total_phases: 41
-  completed_phases: 40
+  completed_phases: 41
   total_plans: 215
-  completed_plans: 214
-  counting_rule: "phase directories under .planning/phases; a phase counts complete when frozen or when its execution gate is complete, human legs owed being a label rather than an open state after the 2026-09-05 waiver. Open are 19B, 19D, and 19E. 19C's diagnostic gate is complete, with two repairs required before dependent 19D work. A plan is complete only when its required gate passes; a summary file alone does not close it."
+  completed_plans: 215
+  counting_rule: "phase directories under .planning/phases; a phase counts complete when frozen or when its execution gate is complete. Human, external, and waived legs remain named limits rather than active implementation phases. Reach phases 19A through 19E and Phase 20 have completed their recorded execution gates. A plan is complete only when its required gate passes; a summary file alone does not close it."
 ---
 # Project State
+
+**Active Q1 continuation, 2026-09-19:** The current source candidate repairs
+quiz retry controls, uncertain acknowledgement recovery, selected-answer
+retention, runtime-result display, symbol return routes, decimal presentation
+and numeric-objective hints. The
+[question display review](research/overhaul-2026-09-18/QUESTION-DISPLAY-REVIEW.md#q1-continuation-2026-09-19)
+owns the changes, focused checks, separate native and API Chrome evidence,
+and remaining boundaries. Forty JavaScript tests pass. Runtime assessment
+authority and existing restart selection remain unchanged. Full Python-suite,
+installed-app, formal-exam closure and human accessibility acceptance are not
+claimed. The edits remain uncommitted in the existing dirty checkout.
+
+**Active consolidated improvement candidate, 2026-09-18:** The dirty quiz and
+presentation work passes its focused Python and JavaScript suites. A newly
+exercised packaged-daemon gate found `workspace.py` missing from the explicit
+zipapp inventory. `build.py` now stages it and both math-offline and packaging
+roundtrips pass. F5's first slice is the disposable D1/D2 code-question
+comparison in `prototypes/code-question-depth/`. Phase 999.2's recorded trigger
+was met by the current learner request, so `prototypes/bilingual-reader/` tests
+local lookup and occurrence-scoped word state without changing production
+formats, scoring, evidence, or remote storage. Both rendered on localhost and
+their deterministic gates pass. They remain prototypes. The F5 packet now uses
+two matched tasks across four counterbalanced orders, embeds no answer key,
+captures local timing and navigation observations, and exports learner responses
+with human-review fields unset. Chrome covered both orders, keyboard focus,
+320-pixel reflow, script-free parity, and two-trial JSON capture. The F1
+prototype now covers repeated lemmas, mixed CJK and Latin text, explicit token
+provenance, stale-tab refusal, guarded local writes, reset, exact-fixture JSON
+export and restore, keyboard focus lookup, 320-pixel no-overflow rendering, and
+a complete script-disabled reading and glossary. Its deterministic gate passes
+12 checks. Quick preflight passes every executed gate. Both localhost servers
+were reachable after task completion. These observations do not establish
+learning benefit, human accessibility acceptance, real-source rights, durable
+object ownership, or production recovery. Full preflight ran all
+131 Python suites. One stale shared-CSS fingerprint failed, was reconciled to
+the intended native-details change, and now passes its owning mode-layer and
+cross-subject suites. The known local-model parity remains `ok / unavailable`.
+The clean gate fails as expected on this authorized dirty tree. Fast and
+JavaScript gates pass. CI-only LTI installation and published-schema checks
+remain unrun locally. The installed app was observed without rebuilding: the
+MATH 1400 quiz shows the real 1-of-6 total, symbol controls, an
+assisted-question layer, learner-facing hint copy, answer controls, and the
+next locked help tier. No answer was selected or submitted. Human visual,
+touch, screen-reader, zoom, learning-benefit, real-course, and external Canvas
+gates remain separate and cannot become passes here.
 
 **Active FILE-04 shelf-order slice, 2026-09-15:** Learner course order becomes
 primary after the first saved move. A fresh or conflicted workspace retains the

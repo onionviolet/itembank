@@ -75,6 +75,7 @@
 - [ ] **TEACH-07**: Every model-generated hint is recorded in the evidence store and recoverable later
 - [ ] **TEACH-08**: A `short` answer is marked against its rubric points as a tickable checklist beside what was written, producing per-rubric-point evidence
 - [ ] **TEACH-09**: The model can mark a `short` answer against the rubric, and its verdict lands as pending review rather than as accepted evidence
+- [x] **TEACH-10**: A question may expose exact authored symbols in reading order through the existing `## TERMS` and recorded gloss route after `glossable()` approval, with concise content-specific control labels, no definition body in served HTML before lookup, a script-free return path, and scope copy that distinguishes notation help from an answer; disclosed hint tiers use learner-facing purpose cues while tier order and entitlement remain runtime-owned
 
 ### Modes
 
@@ -212,19 +213,19 @@
 - [x] **AUDIO-06**: Output defaults to MP3 with WAV available; `--split per-item` and `--split per-pack` both ship (per-pack default); one transcript per pack is always emitted with the same text in the same order; files are named from the objective id and a content digest so unchanged re-exports are idempotent
 - [x] **AUDIO-07**: Listening records nothing (the evidence log stays the record of what was answered); no player, sync, or mobile build; every third-party artifact is pinned with a recorded checksum and named license review; the command's own help text states that edge-tts sends item text to Microsoft
 
-### Canvas LMS Integration via LTI (Phase 999.4, BACKLOG — planned 2026-08-11)
+### Canvas LMS Integration via LTI (Phase 999.4, EXECUTED; real Canvas gate external)
 
 > Backlog phase promoted to planning by the user on 2026-08-11 (the "real
 > consumer exists" event the ROADMAP verdict asked for; see ROADMAP.md
 > Phase 999.4 and `.planning/phases/999.4-canvas-lms-integration-lti/`).
 
-- [ ] **LTI-01**: A launch is authenticated solely by LTI 1.3's own OIDC flow — login initiation, authorize redirect with one-time nonce/state, and a signed `id_token` verified against the platform's JWKS (signature, `iss`, `aud`, `nonce`, `exp`, `deployment_id`); a launch failing any check is refused by name, and itembank adds no accounts, passwords, or login page
-- [ ] **LTI-02**: The LTI surface is an adapter over the existing JSON commands — it calls the same daemon handlers (`handle_api_*`) in-process, never parses a bank a second way, never decides correctness, and changes none of `API_ROUTES`, `SURFACE_PARITY`, or the route-scope test (Directive §4.2)
-- [ ] **LTI-03**: The learner surface renders only `runtime.public_item()`; no key, why-best, distractor analysis, or higher-tier content is reachable before a recorded response for that item exists, and tier gating is server-side, identical to every surface (Directive §4.1)
-- [ ] **LTI-04**: Deep linking — a verified `LtiDeepLinkingRequest` launch lets an instructor select exactly one objective from the local bank registry, returning one `ltiResourceLink` content item whose custom objective id the signed learner launch resolves through the existing stem allowlist; unresolvable objectives refuse by name
-- [ ] **LTI-05**: AGS grade passback is outbound-only, at session completion, opt-in per launch (the AGS score scope must be present), with `scoreGiven`/`scoreMaximum` read from the runtime report, idempotent re-posts, and `short` items pending review never auto-graded (`gradingProgress: PendingManual` or no numeric publish); the evidence store stays the local record — the published score is a copy, not a second store
-- [ ] **LTI-06**: The LTI bind is opt-in with the loopback default unchanged; TLS is stdlib `ssl` with user-supplied certs or a documented reverse proxy, and `public_base_url` is the one knob driving every URL the platform calls — no new auth surface beyond LTI's own
-- [ ] **LTI-07**: The surface, its help text, and its hosting doc state exactly what leaves the machine (item text to the learner's browser via the LMS, the final score to the LMS gradebook; no telemetry, no hosted storage); the LTI crypto dependencies (`cryptography`, `PyJWT`) are optional, pinned, checksummed, and license-reviewed per Directive 4a, with a named refusal when absent
+- [x] **LTI-01**: A launch is authenticated solely by LTI 1.3's own OIDC flow — login initiation, authorize redirect with one-time nonce/state, and a signed `id_token` verified against the platform's JWKS (signature, `iss`, `aud`, `nonce`, `exp`, `deployment_id`); a launch failing any check is refused by name, and itembank adds no accounts, passwords, or login page
+- [x] **LTI-02**: The LTI surface is an adapter over the existing JSON commands — it calls the same daemon handlers (`handle_api_*`) in-process, never parses a bank a second way, never decides correctness, and changes none of `API_ROUTES`, `SURFACE_PARITY`, or the route-scope test (Directive §4.2)
+- [x] **LTI-03**: The learner surface renders only `runtime.public_item()`; no key, why-best, distractor analysis, or higher-tier content is reachable before a recorded response for that item exists, and tier gating is server-side, identical to every surface (Directive §4.1)
+- [x] **LTI-04**: Deep linking — a verified `LtiDeepLinkingRequest` launch lets an instructor select exactly one objective from the local bank registry, returning one `ltiResourceLink` content item whose custom objective id the signed learner launch resolves through the existing stem allowlist; unresolvable objectives refuse by name
+- [x] **LTI-05**: AGS grade passback is outbound-only, at session completion, opt-in per launch (the AGS score scope must be present), with `scoreGiven`/`scoreMaximum` read from the runtime report, idempotent re-posts, and `short` items pending review never auto-graded (`gradingProgress: PendingManual` or no numeric publish); the evidence store stays the local record — the published score is a copy, not a second store
+- [x] **LTI-06**: The LTI bind is opt-in with the loopback default unchanged; TLS is stdlib `ssl` with user-supplied certs or a documented reverse proxy, and `public_base_url` is the one knob driving every URL the platform calls — no new auth surface beyond LTI's own
+- [x] **LTI-07**: The surface, its help text, and its hosting doc state exactly what leaves the machine (item text to the learner's browser via the LMS, the final score to the LMS gradebook; no telemetry, no hosted storage); the LTI crypto dependencies (`cryptography`, `PyJWT`) are optional, pinned, checksummed, and license-reviewed per Directive 4a, with a named refusal when absent
 
 ### Reading & teaching surface quality (Phase 13.5)
 
@@ -668,7 +669,11 @@ staged implementation (per synthesis sections 1 and 12).
   to its declared static equivalent. Gate: G6, G7. (per synthesis section 7.3.)
   Fixture: a 16A synthetic activity set exercising each declared purpose over
   the existing response forms, including one unsupported response form that must
-  fall back to its declared static equivalent.
+  fall back to its declared static equivalent. The set includes an argument,
+  derivation, procedure, timeline, dialogue, code trace, comparison and language
+  example. Each explicitly authored unit remains separately scannable at narrow
+  width, while unlabeled prose remains prose and exact source text stays
+  available.
 
 - [ ] **ACTIVITY-02**: Formal assessment fidelity requires a cited, versioned
   blueprint (construct, domain weight, demand, format, difficulty, timing, tools,
@@ -1289,25 +1294,25 @@ Populated during roadmap creation. See `.planning/ROADMAP.md` for phase goals an
 | AUDIO-05 | Phase 9.1 | Complete |
 | AUDIO-06 | Phase 9.1 | Complete |
 | AUDIO-07 | Phase 9.1 | Complete |
-| LTI-01 | Phase 999.4 | Pending |
-| LTI-02 | Phase 999.4 | Pending |
-| LTI-03 | Phase 999.4 | Pending |
-| LTI-04 | Phase 999.4 | Pending |
-| LTI-05 | Phase 999.4 | Pending |
-| LTI-06 | Phase 999.4 | Pending |
-| LTI-07 | Phase 999.4 | Pending |
-| RTS-01 | Phase 13.5 | Pending |
+| LTI-01 | Phase 999.4 | Complete; real Canvas checklist remains external |
+| LTI-02 | Phase 999.4 | Complete; real Canvas checklist remains external |
+| LTI-03 | Phase 999.4 | Complete; real Canvas checklist remains external |
+| LTI-04 | Phase 999.4 | Complete; real Canvas checklist remains external |
+| LTI-05 | Phase 999.4 | Complete; real Canvas checklist remains external |
+| LTI-06 | Phase 999.4 | Complete; real Canvas checklist remains external |
+| LTI-07 | Phase 999.4 | Complete; real Canvas checklist remains external |
+| RTS-01 | Phase 13.5 | Complete |
 | RTS-02 | Phase 13.5 | Complete |
 | RTS-03 | Phase 13.5 | Complete |
 | RTS-04 | Phase 13.5 | Pending |
 | RTS-05 | Phase 13.5 | Complete |
 | RTS-06 | Phase 13.5 | Complete |
-| RTS-07 | Phase 13.5 | Pending |
+| RTS-07 | Phase 13.5 | Complete |
 | RTS-08 | Phase 13.5 | Pending |
 | RTS-09 | Phase 13.5 | Pending |
 | RTS-10 | Phase 13.5 | Pending |
 | RTS-11 | Phase 13.5 | Complete |
-| RTS-12 | Phase 13.5 | Pending |
+| RTS-12 | Phase 13.5 | Complete |
 | COURSE-01 | Phase 14 | Superseded 2026-08-13 -> GRAPH-01, GRAPH-03, FILE-01, ID-01, APP-01 |
 | COURSE-02 | Phase 14 | Superseded 2026-08-13 -> FILE-02, RIGHTS-01 |
 | COURSE-03 | Phase 14 | Superseded 2026-08-13 -> TREAT-02, ID-02 |

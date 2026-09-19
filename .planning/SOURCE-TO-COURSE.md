@@ -172,9 +172,32 @@ citations, diagrams, math, runnable code, inline checks, hints, retries, and
 accessible visual interactions. These are semantic teaching roles, not
 decorative card types.
 
+Structured content stays visibly structured at the point of use. Arguments,
+proofs, derivations, procedures, timelines, dialogues, code, comparisons and
+language examples place independently scanned units on separate lines or rows
+when the author or source identifies those units. Presentation may enhance an
+explicit signal, such as premises followed by a therefore-marked conclusion,
+but it does not infer roles from unlabeled prose. The exact text remains a
+readable offline and unavailable-renderer fallback.
+
+Questions may expose meanings for exact authored symbols through the same
+course glossary used by lessons. The authored `## TERMS` record owns the
+meaning, the runtime disclosure gate decides whether it may be shown, and a
+served sitting fetches it only when the learner asks. A question surface does
+not infer a definition from a glyph or ship its own notation dictionary. The
+question orders symbol controls by first appearance, pairs each glyph with a
+short content-specific cue, and states that the help explains notation rather
+than the answer. Hint tiers remain fixed and runtime-issued, but their displayed
+text names the help being given in learner-facing language rather than exposing
+internal ids.
+
 Measured Field Guide and Learning Trajectory Deck are user-switchable
 presentation profiles over this same semantic content and runtime state. A
 profile may change composition, navigation arrangement, density, and emphasis.
+Across profiles, primary learning content and current progress remain visible.
+Secondary purpose, response-format, disclosure-policy, and generic instruction
+metadata stays available through an accessible native disclosure instead of
+repeating above every activity.
 It may not change available activities, keyed disclosure, scoring, evidence,
 source identity, or accessibility meaning. Color scheme, contrast mode, and
 accent remain independent appearance settings. An unavailable or future-schema

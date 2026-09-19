@@ -2367,6 +2367,18 @@ Q1 and Q5, then verify syntax and code-block rendering across quiz surfaces.
 The broader environment comparison remains Prototype. This capture implements
 no renderer or bank change.
 
+**2026-09-16 depth extension, active research:** the
+[code-question depth audit](research/code-question-depth-audit-2026-09-16.md)
+defines five presentation and action depths from faithful display through
+construction. Select the lowest depth that supports the target cognition and
+meaningful error diagnosis. Higher depth must demonstrate benefit over the
+simpler treatment and must not reduce exam fidelity. The first comparison is
+one synthetic output-prediction item shown as a formatted code block and as a
+learner-controlled state trace. Executable editing remains with IL-20260906-09
+and its isolation, persistence, and runtime-authority gates. This extension
+does not create new hint tiers, item difficulty labels, mastery levels, or a
+second scorer.
+
 ### IL-20260913-01: course-aligned pacing modes
 
 - **Idea:** let each applicable course follow the current class material,
@@ -2459,3 +2471,279 @@ no renderer or bank change.
 - **Origin and relationship:** [September 14 vision entry](USER-VISION.md#2026-09-14-fictional-modern-cases-endings-and-useful-facts).
   Extends IL-20260912-02's case environment and the contract's niche or expert
   tips without weakening source, rights, course-policy or assessment controls.
+
+### IL-20260915-01: semantic structure in quiz presentation
+
+- **Idea:** show explicitly structured question content as separately scannable
+  units instead of flattening it into one paragraph. Arguments are the first
+  repair. The same rule applies to proof and derivation steps, code and traces,
+  procedures, chronologies, dialogues, comparisons and language examples.
+- **Disposition:** Core for preserving and presenting explicit authored
+  structure. Rich genre-specific renderers remain Registered or Prototype under
+  their existing capability entries until their own gates pass.
+- **Owner:** the shared activity-presentation owner owns safe progressive
+  enhancement. Course and artifact authors own the semantic units and wording.
+  Existing capability owners retain math, code, diagrams, timelines, cases and
+  language metadata. The runtime retains scoring and disclosure authority.
+- **Evidence class:** direct user direction establishes the desired experience.
+  Code inspection confirms quiz stems and options collapse authored whitespace.
+  The current MATH 1400 argument prompts explicitly name an argument and use a
+  therefore-marked conclusion, which supports a bounded presentation rule. The
+  broader genre matrix is a recommendation grounded in the accepted Phase 16
+  capability catalog, not proof that every rich renderer is implemented.
+- **Dependency and cost driver:** the first slice depends only on the canonical
+  parsed stem and shared quiz renderer. Later slices depend on explicit semantic
+  records, portable fallbacks, authoring guidance and representative fixtures.
+  Cost comes from accessibility, narrow-screen composition and preventing
+  presentation inference from changing meaning.
+- **Validation and recovery:** synthetic argument and multiline fixtures must
+  preserve the exact source text, expose list semantics for labeled argument
+  rows, stay readable without JavaScript, and reach no scoring or evidence path.
+  The renderer is removable without changing a bank, item identity, answer key,
+  session or attempt. Human visual and screen-reader acceptance remain open.
+- **Boundary and falsifier:** do not split ordinary prose, infer a premise from
+  sentence position alone, rewrite source wording, or let layout imply a score.
+  If an enhancement cannot identify structure from an explicit authored signal,
+  show the original text. A false structural label blocks promotion of that
+  recognizer.
+- **Origin and relationship:** [September 15 vision entry](USER-VISION.md#2026-09-15-stacked-arguments-and-equivalent-depth-across-subjects).
+  Extends IL-20260912-02 and its code-box clarification. Implements the shared
+  CAP-01 and ACTIVITY-01 direction without adding a content or authority model.
+
+### IL-20260916-01: question symbol help and actionable hints
+
+- **Idea:** expose meanings for authored symbols used in the current question,
+  and make each disclosed hint tier say what kind of help it provides in plain
+  learner-facing language.
+- **Disposition:** Core for question-level access to safe authored definitions
+  and comprehensible runtime-issued hints. Further unspecified learner-help
+  ideas remain Registered for evidence-led review rather than automatic scope.
+- **Owner:** `## TERMS` owns symbol names and meanings. `runtime.glossable()`
+  owns whether a definition may leave the process. The runtime owns hint order,
+  entitlement and disclosed text. Quiz presentation owns matching an exact
+  authored glyph in public question text and rendering the approved controls.
+- **Evidence class:** direct user direction establishes the desired experience.
+  The live MATH 1400 rehearsal showed notation without question-level help and
+  a hint tier that exposed a namespaced objective id. The implementation and
+  tests establish behavior, not learning efficacy or human accessibility.
+- **Dependency and cost driver:** depends on the existing TERMS parser, gloss
+  route, term-lookup evidence and fixed six-tier hint ladder. Cost comes from
+  authoring the relevant terms, preventing key disclosure, and checking
+  keyboard, touch, narrow-screen and screen-reader behavior.
+- **Validation and recovery:** a synthetic bank proves exact glyph matching,
+  suppression of an answer-bearing definition, no served definition body
+  before lookup, an offline fallback, and no scoring path. Removing the
+  presentation leaves the bank, questions, keys, session and evidence valid.
+- **Boundary and falsifier:** do not infer a definition from a Unicode glyph,
+  ship a second built-in symbol dictionary, show a suppressed term, change the
+  hint tier, or treat a lookup as an answer. A leaked definition or client-set
+  tier blocks acceptance.
+- **Origin and relationship:** [September 16 vision entry](USER-VISION.md#2026-09-16-symbol-meanings-and-better-hints-in-questions).
+  Extends the accepted glossary and hint-ladder contracts and IL-20260915-01's
+  structured question presentation.
+
+**Usefulness and formatting extension, 2026-09-16:** the question symbol strip
+follows first appearance in the public question instead of glossary authoring
+order. Each control pairs the exact glyph with a concise content-specific cue,
+and the panel states that its meanings clarify notation rather than disclose
+the answer. These refinements are Core because they improve scanning and set an
+assessment boundary without changing source, disclosure, scoring or evidence
+authority. Further content-specific treatments remain Registered. Revisit one
+when observed learner friction names a content shape and a concrete task the
+current presentation impedes.
+
+**Cross-surface density extension, 2026-09-16:** repeated purpose, response
+format, disclosure, and generic instruction blocks are secondary metadata.
+Quiz, shared activity profiles, and Study keep those facts available in native
+disclosures while leaving the current task and session progress visible. This
+is Core hierarchy behavior because it implements the locked UI-SPEC context
+rule without removing information. Density review for course overview,
+evidence, authoring, and maintenance remains Registered. Promote a repair when
+a task-based audit identifies repetition, a hidden primary action, or an
+avoidable scanning cost and names its keyboard, narrow-width, and recovery
+checks.
+
+**Progressive question augmentation extension, 2026-09-16:** Prototype a
+stable-question model in which explicitly authored semantic roles receive
+accessible emphasis and each runtime-issued hint may add a visibly separate
+annotation to the relevant part of the question. Candidate annotations include
+inline term meaning, constraint or negation focus, structural grouping, diagram
+callouts, code-trace state, and a response-specific cue already disclosed by
+the runtime. The original question remains available at every tier. The learner
+can inspect the current assistance level and return to the untouched view.
+Color reinforces labels, weight, geometry, or pattern and never carries meaning
+alone. Promotion requires synthetic cross-item comparison, unchanged scoring
+and item identity, no client-authored hint content, useful script-free output,
+and human keyboard, screen-reader, narrow-width, contrast, and reduced-motion
+review. If layered markup makes the item harder to scan or lets presentation
+imply the answer, fall back to the original question and revise the prototype.
+
+**First prototype result, 2026-09-16:** implemented the stable-question and
+runtime-cue portion in both served quiz paths. Shown tiers accumulate in an
+open Assisted question disclosure below the unchanged stem. Collapsing it
+restores the original-only view. The next locked tier stays in Help and never
+enters the assisted layer. Semantic tier labels remain textual while color and
+border patterns are supplemental. Focused Python and JavaScript checks, served
+form and daemon roundtrips, presentation-profile checks, quick preflight, app
+packaging, code-sign verification, localhost visual inspection, and installed
+MATH 1400 readback passed. Human narrow-width and screen-reader acceptance are
+still open. Inline clause annotations, focus lenses, diagram callouts, code
+state, and author-declared roles remain Prototype rather than accepted scope.
+
+### IL-20260918-01: question-to-question continuity
+
+- **Idea:** make the handoff between questions an explicit learner-controlled
+  step that previews the next position, preserves session context, and begins
+  the new view at its prompt rather than dropping focus into an unexplained
+  answer control.
+- **Disposition:** Core for the shared answer, feedback, next-question handoff.
+  Registered for unspecified adjacent flow ideas until a task-based review
+  names the learner job and evidence gate.
+- **Owner:** the runtime owns cursor advancement, session state and disclosure.
+  Shared quiz presentation owns action wording, focus placement, scrolling and
+  transition announcement across JavaScript and script-free paths.
+- **Evidence class:** direct user direction establishes the desired experience.
+  Code inspection found generic `Next` labels and a served-client focus move
+  that was disabled by reduced-motion settings and targeted the first response
+  control rather than the new prompt. The repair establishes behavior, not
+  measured learning benefit or human screen-reader acceptance.
+- **Dependency and cost driver:** depends on the existing runtime-supplied next
+  projection and context line. Cost comes from keeping JavaScript, script-free,
+  offline, pending-review, completion, narrow-width and assistive-technology
+  transitions equivalent.
+- **Validation and recovery:** focused surface and served-form checks assert an
+  explicit `Next question, N of M` action and prompt-first focus that is
+  independent of motion preference. Removing the presentation refinement must
+  leave the session, item order, responses and evidence unchanged.
+- **Boundary and falsifier:** do not auto-advance past feedback, let the client
+  choose the next item, announce hidden content, or treat focus as evidence. A
+  transition that skips learner-controlled feedback review, changes runtime
+  position, loses a draft, or creates a keyboard trap blocks acceptance.
+- **Origin and relationship:** [September 18 vision entry](USER-VISION.md#2026-09-18-question-to-question-flow).
+  Narrows IL-20260912-02's fluidity direction and extends IL-20260907-02,
+  FLOW-01 and FLOW-02 at the in-sitting question seam.
+
+### IL-20260918-02: bounded bilingual reader prototype
+
+- **Idea:** test tappable local lookup and tracked word status over a direct
+  reading without turning the prototype into a shipped language platform.
+- **Disposition:** Prototype. The 999.2 revisit trigger fired through the
+  learner's explicit request. This does not promote the production phase.
+- **Owner:** Weibao for product promotion and human acceptance. A future
+  language-reader owner may harden the prototype only after the gates below.
+- **Evidence:** `prototypes/bilingual-reader/` uses a fixed synthetic Chinese
+  passage, deterministic longest-match tokens, explicit lemmas, local
+  occurrence-scoped state, and a static no-script fallback. Its Node gate and
+  localhost lookup and state interaction pass.
+- **Promotion gate:** use a rights-cleared source and select a language-specific
+  tokenizer and lemma policy. Specify the learner-owned durable object,
+  conflicts, export, restore, mixed-direction layout, narrow-screen behavior,
+  and keyboard, touch, and screen-reader acceptance.
+- **Boundary:** no production schema, second scorer, mastery claim, remote
+  dictionary, hosted state, or accepted learner data follows from this slice.
+  Delete the prototype directory and its namespaced browser state to undo it.
+
+### IL-20260918-02 follow-up: prototype hardening evidence
+
+- **Disposition and owner:** Prototype only. Weibao owns promotion, real-source
+  rights, language policy, durable-object design and human acceptance. This
+  authorized hardening completes the bounded synthetic pass without promoting
+  Phase 999.2. The earlier entry records the initial result.
+- **Observed evidence:** the prototype README records 12 passing deterministic
+  checks and passing quick repository gates. Chrome localhost verifies focus
+  lookup, repeated-lemma status, keyboard changes, cross-tab conflict/reload,
+  export/reset/restore, a 320-pixel mixed-script layout without horizontal
+  overflow, and a complete script-disabled reading/glossary.
+- **Limits and retained gates:** literal glossary matching is not language
+  segmentation. Prototype JSON works only with the exact fixture. Fresh-storage
+  restore is unit-tested, not clean-machine offline restore. Browser locks
+  cover cooperating tabs only. Without them, simultaneous writes remain a
+  documented limitation. Corrupt state requires manual recovery. Real-source
+  rights, durable ownership, production recovery, RTL, human visual/touch/
+  screen-reader acceptance and learning effect remain open before promotion.
+- **Boundary and undo:** no production formats, scoring, evidence, learner data
+  or parser changes. Remove only the prototype directory and its exact browser
+  keys to discard it. Keep this chronological evidence. The README names keys,
+  export limits and rollback. No commits, dependencies or external services.
+- **Next action:** Weibao reads the synthetic passage, marks 学习 as Learning,
+  and decides whether shared word status helps enough to justify a real-source
+  prototype. No further task was created.
+
+### 2026-09-18 follow-up: anchored lookup and coding parity
+
+- **Owner and disposition:** IL-20260918-02 remains Prototype. The exact
+  September 18 feedback is preserved in
+  [USER-VISION](USER-VISION.md#2026-09-18-word-anchored-lookup-and-code-learner-parity)
+  and USER-VISION-INBOX.
+  Lookup now targets the hovered, focused, or tapped occurrence, not a remote
+  panel. Word status remains shared by explicit lemma within the fixture.
+- **Coding route:** IL-20260906-09 and IL-20260912-02 retain ownership.
+  The code-question depth audit records current local Code Learner gaps.
+  Extend the existing CS Dojo for executable practice. Do not confuse the
+  non-executable comparison with the whole coding product.
+- **Authority and recovery:** no accepted schema, parser, scorer, evidence,
+  real source, or production surface changes. Revert only this lookup patch
+  to recover the prior inline panel. Human acceptance remains open.
+
+### 2026-09-18: contextual support extension of IL-20260918-02
+
+**Current status: highly changeable WIP.**
+[User clarification](USER-VISION.md#2026-09-18-keep-contextual-support-highly-changeable)
+governs this proposal. No final design, feature list, required sequence or
+implementation commitment is established. Placement, behavior and scope may
+change substantially. Preserve dated reasons when revising the proposal.
+
+The suggested quick-meaning, deeper-understanding and apply-it levels are
+working labels only. A tiny hover, desktop side panel, narrow-screen expansion,
+worked example and return-to-reading behavior are options to explore, not a
+mandatory three-step interaction. Candidate learning aids also include
+prerequisite reminders, comparisons, diagrams, source passages and private
+notes. Keep the existing authority and privacy boundaries during exploration.
+
+- **Idea and disposition:** Prototype candidate for contextual learning
+  support beyond word lookup, not a shipped shared component.
+- **Origin:** [exact user statement](USER-VISION.md#2026-09-18-contextual-learning-support-beyond-word-lookup).
+- **Owner:** existing IL-20260918-02 interaction work, with Weibao reviewing
+  the experience. Coordinate any broader visual design with app renewal.
+- **Evidence class:** recommendation. A short hover plus deliberately opened
+  detail panel could serve terms, formulas, code, figures and source context.
+  Examples, prerequisites, comparisons, visual explanations, source references
+  and private notes are candidate content, not promised universal sections.
+- **Dependency and cost:** authored source-grounded content, permitted feedback
+  tier, responsive layout, keyboard/focus behavior and a useful static form.
+  Keep source facts, generated explanations and learner notes distinguishable.
+  Pinning must keep its original target clear rather than silently retargeting.
+- **Next evidence:** compare one term, formula and code task. Judge whether
+  the panel preserves reading position and supports an actual next action.
+  No interaction was implemented in this capture. Existing vision-audit
+  legacy traceability backlog remains open, not resolved by this entry.
+
+### 2026-09-18: combined ecosystem overhaul routes
+
+- **Origin:** [the exact request](USER-VISION.md#2026-09-18-combined-ecosystem-feature-and-teaching-overhaul).
+- **Owner:** current course, presentation, lesson, authoring and review owners.
+  Root reconciles the three Astra reports through
+  [the integration plan](research/overhaul-2026-09-18/INTEGRATION-PLAN.md).
+- **Evidence class:** current public documentation and sampled upstream code,
+  sampled native source and historical local trials. No new live competitor
+  trial or production implementation is established by this research.
+- **Existing Core routes:** P1 strengthens IL-20260907-02 complete transitions
+  and IL-20260907-01 presentation seams. P4 uses existing source, notes,
+  director and accepted-revision owners. P5 uses existing retention, evidence
+  and package owners. The concrete plan remains proposed integration work.
+- **Prototype route:** P2's linked-representation component and author-preview
+  experiment extend the existing lesson-capability contract. P3 retains
+  IL-20260906-09 and IL-20260912-02 for code and activity depth. No second
+  interaction, execution, scoring or note authority is proposed.
+- **Dependencies and cost drivers:** canonical context projections, staged
+  presentation migration, semantic lesson validation, accessible fallbacks,
+  real authoring/review time, packaged assets and dependency maintenance.
+- **Next evidence:** P1 proves one native connected unit. Then select the next
+  failing visible task from authoring and reader help, while a demonstrated
+  teaching need triggers P2. All later triggers, candidate dispositions and
+  exact checks are retained in the integration plan and its three reports.
+- **Recovery and limits:** remove only this pass's new research directory and
+  uniquely titled record additions to undo this planning pass. No production
+  file, learner content, accepted schema or default was changed. Prior
+  contextual-support WIP stays provisional. No existing idea is rejected or
+  superseded by this entry.

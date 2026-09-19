@@ -425,8 +425,8 @@ tracked in the "Next-milestone subphase sequence" section, not this v1.0 table.
 | Item | Disposition |
 |---|---|
 | OLED / true-black theme mode | Folded into Phase 17A on 2026-08-17 as plan 17A-05 (wave 3): one `theme` enum value (`oled`) plus a true-black token set (`bg` `#000000`, dimmer card/chip, semantic contrast re-verified through the stylesheet invariants) and the settings theme option. 17A is the theming-adjacent phase this row was waiting for. Originally raised from Phase 4 UAT (2026-08-10). |
-| 13.5 defect D1: reading measure renders 422px, not the contracted 531px (66 chars) | To be fixed (recorded 2026-08-16, agent browser pass). Mechanism and fix candidates in `phases/13.5-reading-teaching-surface-quality-pass/13.5-GATES.md` D1: `--measure-prose:59ch` resolves against the 16px `.wrap` font instead of the 18px reading face, and `.card` padding eats 48px more. CSS-only fix plus a corrected `stylesheet_roundtrip` pin. Executable plan written 2026-08-17: `.planning/quick/260817-q7d-fix-135-defects-d1-d2/260817-q7d-PLAN.md` (supersedes the 2026-08-16 task chip). Blocks the RTS-04 gate from closing. |
-| 13.5 defect D2: quiz context band shows "Item 1 of 0" on first paint | To be fixed (recorded 2026-08-16, same pass). `span#tot` is server-rendered as 0 and corrects only after interaction; server-render the real total in the quiz page template plus a `daemon_roundtrip` first-paint assertion. Same executable plan as D1: `.planning/quick/260817-q7d-fix-135-defects-d1-d2/260817-q7d-PLAN.md` (2026-08-17). |
+| 13.5 defect D1: reading measure rendered 422px, not the contracted 531px (66 chars) | Closed 2026-08-26 by quick plan 260817-q7d. Live Chromium re-measured 529px of prose inside the bordered card. `13.5-GATES.md` owns the exact geometry and keeps perceptual font comparison separate. |
+| 13.5 defect D2: quiz context band showed "Item 1 of 0" on first paint | Closed for the total 2026-08-26 by quick plan 260817-q7d. Served, live-DOM, and offline first paint show the real total. The baseline position still begins at Item 1 and remains a named limitation in `13.5-GATES.md`. |
 | 13.5 remaining human-verify tail | To be verified, not fixed (2026-08-16). After the agent browser pass, the only rows still needing a human are: real screen-reader announcement behavior (never agent-certifiable), the gloss bottom-sheet painted geometry on a touch device or displayed pane, the script-free and truly network-free ladder walkthrough, the perceptual font-face comparison, and an optional real-200%-zoom rasterization spot-check. Procedures in `13.5-GATES.md`. These are what keep 13.5's box unchecked; nothing else in the phase is open. |
 
 Completed backlog phase details moved to `ROADMAP-ARCHIVE.md`.
@@ -460,6 +460,28 @@ stands unchanged and nothing is built until per-word tracked status is wanted
 over that surface. Sharpened revisit trigger: a recorded learner request for
 per-word lookup or tracked word status over a source-reading treatment, or a
 language-learning course entering the course shelf.
+
+**2026-09-18 prototype result, hardened:** the current learner request fired
+that revisit trigger. The historical build-nothing condition above is now met
+for a disposable experiment only. Phase 999.2 remains backlog, not promoted.
+`prototypes/bilingual-reader/` tests repeated lemmas, lossless mixed CJK/Latin
+text, explicit token and lemma provenance, guarded occurrence-local state,
+reset and exact-fixture prototype JSON export/restore. Its 12 deterministic
+checks and quick repository gates pass. Chrome localhost demonstrates lookup,
+keyboard status changes across repeats, cross-tab conflict/reload, reset/restore,
+320-pixel layout without horizontal overflow, and the complete script-disabled
+reading/glossary. `prototypes/bilingual-reader/README.md` owns the evidence and
+limits. These are builder observations, not human acceptance.
+
+There is no production contract, accepted schema, scorer, evidence store or
+learner-data migration. Promotion still needs Weibao's decision on real-source
+rights, language-specific segmentation and lemma policy, the durable object,
+production conflicts and recovery, RTL behavior, and human visual, touch,
+screen-reader and learning-effect acceptance. Restore into fresh storage is
+unit-tested, not a clean-machine offline restore. Without browser locks,
+simultaneous local saves remain unsafe. Next: Weibao trials the synthetic
+reading and decides whether word tracking helps enough to justify real-source
+work.
 
 ### Phase 999.3: MCP Surface — the runtime as a tool table (BACKLOG, added 2026-08-10)
 
