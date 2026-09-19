@@ -1814,7 +1814,7 @@ async function verify(q, response){
   const v = await api("/api/submit", {session_id: sessionId, answer: response});
   if(v.lti_completion) LTI_COMPLETION = v.lti_completion;
   return {action: v.action, score: v.score, explain: v.explain || {},
-          next: v.next, accepted: v.accepted,
+          next: v.next,
           selection_feedback: v.selection_feedback,
           refused: v.refused, refused_reason: v.refused_reason,
           interaction_result: v.interaction_result};

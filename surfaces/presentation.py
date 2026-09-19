@@ -476,7 +476,7 @@ body{margin:0;background:var(--paper);color:var(--product-ink)}
 .standalone-product-nav{position:fixed;left:0;z-index:20;width:224px;background:var(--paper)}
 .wrap:has(.standalone-product-nav){margin-left:max(224px,calc((100vw - 1040px) / 2 + 112px))}
 .product-brand{font-family:var(--font-chrome);font-size:var(--text-heading);font-weight:600;
-  color:var(--product-ink);display:flex;gap:var(--space-2);align-items:center}
+  color:var(--product-ink);display:flex;gap:var(--space-2);align-items:center;min-height:44px}
 .product-brand:before{content:"";width:22px;height:26px;border-radius:4px 9px 4px 4px;
   background:var(--product-ink)}
 .product-tag{font-size:var(--text-xs);letter-spacing:.14em;text-transform:uppercase;
