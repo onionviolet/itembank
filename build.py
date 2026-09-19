@@ -83,7 +83,7 @@ STAGE_FILES = (
     # Phase 16C: notes, strategies, progress claims, the note-output trio, and
     # the legacy-upgrade contract.
     "notes.py", "strategies.py", "progress_claims.py", "note_outputs.py",
-    "upgrade_audit.py",
+    "upgrade_audit.py", "workspace.py",
 )
 STAGE_DIRS = ("surfaces", "schemas", "styles", "fonts", "vendor")
 
