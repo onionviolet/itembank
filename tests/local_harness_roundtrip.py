@@ -90,12 +90,14 @@ class _Stub(object):
                     body = b"<html><body>404 page not found</body></html>"
                     ctype = "text/html"
                 else:
-                    body = json.dumps({
+                    candidate = {
                         "kind": "hint_plan",
                         "interaction_id": INTERACTION_ID,
                         "focus_span": "the wrong answer",
                         "fact_ids": ["tier2.trap"],
-                        "move": "anchor_error"}).encode("utf-8")
+                        "move": "anchor_error"}
+                    body = json.dumps({"choices": [{"message": {
+                        "content": json.dumps(candidate)}}]}).encode("utf-8")
                     ctype = "application/json"
                 self.send_response(200)
                 self.send_header("Content-Type", ctype)

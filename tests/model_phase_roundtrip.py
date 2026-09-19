@@ -267,7 +267,8 @@ class _FakeServer:
                     data = b"boom"
                 else:
                     self.send_response(200)
-                    req = json.loads(body)
+                    provider_request = json.loads(body)
+                    req = json.loads(provider_request["messages"][-1]["content"])
                     resp = (req.get("payload") or {}).get("learner_response",
                                                           "A")
                     payload = {"kind": "hint_plan",
@@ -275,7 +276,8 @@ class _FakeServer:
                                "focus_span": resp,
                                "fact_ids": ["tier0.lesson_ref"],
                                "move": "anchor_error"}
-                    data = json.dumps(payload).encode("utf-8")
+                    data = json.dumps({"choices": [{"message": {
+                        "content": json.dumps(payload)}}]}).encode("utf-8")
                 self.send_header("Content-Type", "application/json")
                 self.send_header("Content-Length", str(len(data)))
                 self.end_headers()
