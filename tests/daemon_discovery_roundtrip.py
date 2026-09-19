@@ -14,7 +14,7 @@ from surfaces import daemon
 
 
 BANK = os.path.join(ROOT, "fixtures", "sample_bank.md")
-SIDECAR = os.path.join(ROOT, "_sample_course", "course-graph.md")
+SIDECAR = os.path.join(ROOT, "course_fixture_17b", "course-graph.md")
 
 
 def fail(message):
