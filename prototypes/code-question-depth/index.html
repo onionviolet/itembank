@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
+<title>Code question comparison</title><link rel="stylesheet" href="style.css"></head>
+<body><main><h1>Code question comparison</h1>
+<p>Two short Python reading tasks. Predict first, then diagnose a proposed trace and explain your reasoning. D2 adds a blank working table. Nothing runs or checks your answers.</p>
+<p>Responses stay in this tab until you download them. Download after each task. Reloading or closing loses unsaved work. No name is needed.</p>
+<p><a href="manual.html">Manual procedure and text equivalent</a> (read the procedure before starting).</p>
+<p id="status" role="status" aria-live="polite"></p>
+<section id="setup" hidden><h2>Choose the assigned order</h2>
+<label for="order">Assignment</label><select id="order">
+<option value="1">1: A D1, then B D2</option><option value="2">2: A D2, then B D1</option>
+<option value="3">3: B D1, then A D2</option><option value="4">4: B D2, then A D1</option></select>
+<button id="start" type="button">Start task 1</button></section>
+<section id="task" hidden aria-labelledby="task-title"><h2 id="task-title" tabindex="-1"></h2>
+<p>Python 3. Read the source without running it. Line numbers are labels.</p>
+<pre aria-label="Python source"><code id="source"></code></pre>
+<form id="predict"><label for="prediction">Initial predicted output (or “unsure”)</label>
+<input id="prediction" required autocomplete="off"><button type="submit">Commit prediction</button></form>
+<form id="reason" hidden><fieldset id="trace" hidden><legend>D2: your working trace</legend>
+<p>Fill each state after line 3, or write “unsure”. No values are supplied or checked.</p>
+<table><thead><tr><th scope="col">n</th><th scope="col">total after line 3</th></tr></thead><tbody id="rows"></tbody></table></fieldset>
+<p id="peer"></p>
+<label for="first">First mistaken row in the proposed trace</label><select id="first" required>
+<option value="">Choose a row</option><option value="1">Row 1</option><option value="2">Row 2</option><option value="3">Row 3</option><option value="none">No mistaken row</option><option value="unsure">Unsure</option></select>
+<label for="replacement">Your proposed state at that row (or “none” / “unsure”)</label><input id="replacement" required autocomplete="off">
+<label for="final">Final predicted output (or “unsure”)</label><input id="final" required autocomplete="off">
+<label for="explanation">Explain how line 3 changes the state and why you chose that row.</label><textarea id="explanation" rows="4" required></textarea>
+<button type="submit">Finish timed task</button></form></section>
+<section id="review" hidden aria-labelledby="review-title"><h2 id="review-title" tabindex="-1">Task recorded in this tab</h2>
+<p id="timing"></p><p>No correctness result is shown. These are comparison observations, not assessment evidence.</p>
+<label for="burden">Navigation burden (your experience)</label><select id="burden"><option value="unreported">Not reported</option><option value="0">0: no friction</option><option value="1">1: minor friction</option><option value="2">2: repeated searching or backtracking</option><option value="3">3: could not finish unaided</option></select>
+<label for="notes">Interruptions, device/input method, confusing controls, or help needed</label><textarea id="notes" rows="3"></textarea>
+<button id="download" type="button">Download observations JSON</button><button id="next" type="button">Start task 2</button>
+<p id="download-status" role="status"></p>
+<details><summary>Inspect or copy observations</summary><label for="export-preview">Local JSON (copy this if downloads are blocked)</label><textarea id="export-preview" readonly rows="12"></textarea></details>
+</section>
+<noscript><h2>Text trace fallback</h2><p>Use the <a href="manual.html">complete paper comparison</a> with both sources, all prompts, blank D2 tables, order assignments, and a recording sheet. No script is required there.</p></noscript>
+</main><script type="module" src="prototype.js"></script></body></html>

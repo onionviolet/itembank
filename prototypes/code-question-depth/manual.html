@@ -1,0 +1,44 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Manual code comparison</title><link rel="stylesheet" href="style.css"></head><body><main>
+<h1>Manual comparison procedure</h1><p>Disposable research packet. Weibao owns acceptance. No execution, answer feedback, scores, telemetry, or production evidence is produced. <a href="index.html">Open the timed comparison</a>.</p>
+<h2>1. Assign before seeing the tasks</h2><p>Use the next assignment in a repeating 1, 2, 3, 4 cycle across fresh participants: 1 = A D1 then B D2. 2 = A D2 then B D1. 3 = B D1 then A D2. 4 = B D2 then A D1. Record the assignment and any prior exposure. One person repeating all four orders is not four independent observations.</p>
+<p>Both tasks use the same loop structure with different numbers. This balances task and depth order across people, but does not remove carryover or prove equal difficulty. A single pair is formative evidence only. Keep device, input method, instructions, and help policy constant. Do not coach or give correctness feedback between tasks.</p>
+<h2>2. Complete each task</h2><p>Start the timer when the source becomes visible. Read the Python 3 source without running it. Write an initial output prediction, or “unsure”, then lock that response and note the prediction time. Only then read the proposed trace. In D2, fill the three blank working states below before diagnosing it. In D1, use the source and your own reasoning without a supplied working table.</p>
+<p>For either depth, record the first mistaken row in the proposed trace (1, 2, 3, none, or unsure), your proposed corrected state at that row, your final output prediction, and an explanation of how line 3 changes the state and why you chose that row. “Unsure” is allowed. Stop timing when these responses are finished. Record interruptions separately. Do not subtract time silently.</p>
+<p>The digital form performs this sequence on one page. For the no-script path, use paper, a stopwatch, and the sources below. Cover the proposed trace and D2 table until the prediction is written. Cover the second task until its timer starts. Blank D2 rows are a working aid, not supplied answers. Record the same prompts and units in both paths.</p>
+<section><h2>Task A</h2><pre aria-label="Python source for task A"><code>1  total = 0
+2  for n in [1, 2, 3]:
+3      total += n
+4  print(total)</code></pre>
+<details><summary>After committing your prediction: task A diagnosis</summary><p>Proposed trace to diagnose (may contain mistakes): row 1, n = 1, total = 1. Row 2, n = 2, total = 2. Row 3, n = 3, total = 3.</p>
+<p>D2 only: write your state after line 3 in each blank row.</p><table><thead><tr><th scope="col">n</th><th scope="col">Your total after line 3</th></tr></thead><tbody><tr><th scope="row">1</th><td>________________</td></tr><tr><th scope="row">2</th><td>________________</td></tr><tr><th scope="row">3</th><td>________________</td></tr></tbody></table></details></section>
+<section><h2>Task B</h2><pre aria-label="Python source for task B"><code>1  total = 0
+2  for n in [2, 3, 4]:
+3      total += n
+4  print(total)</code></pre>
+<details><summary>After committing your prediction: task B diagnosis</summary><p>Proposed trace to diagnose (may contain mistakes): row 1, n = 2, total = 2. Row 2, n = 3, total = 3. Row 3, n = 4, total = 4.</p>
+<p>D2 only: write your state after line 3 in each blank row.</p><table><thead><tr><th scope="col">n</th><th scope="col">Your total after line 3</th></tr></thead><tbody><tr><th scope="row">2</th><td>________________</td></tr><tr><th scope="row">3</th><td>________________</td></tr><tr><th scope="row">4</th><td>________________</td></tr></tbody></table></details></section>
+<h2>3. Record and save</h2><p>After each task rate navigation burden: 0 = no friction, 1 = minor friction, 2 = repeated searching or backtracking, 3 = could not finish unaided. Note help, interruptions, prior exposure, device, browser, input method, and accessibility observations. Download after each digital task. The second download contains both trials. Open the file locally and confirm both trial records before closing. Exports are learner-owned local files. Share only by choice. If downloads are blocked, expand Inspect or copy observations and save the JSON to a local file. No autosave or import is provided.</p>
+<p>For paper use this record once per task:</p><pre>Assignment / task / depth / position:
+Prior exposure / device / input method:
+Initial prediction:
+D2 states (or not applicable):
+First mistaken row / proposed corrected state:
+Final prediction:
+Explanation:
+Start / prediction committed / finish times:
+Total seconds / prediction seconds / reasoning seconds:
+Forward Tab / reverse Tab / focus changes / clicks:
+Scroll observations / interruptions / help:
+Burden (0 to 3) / notes:
+Human reviewer / task success / prediction accuracy:
+First mistaken state review / explanation quality:
+Review rationale:</pre>
+<p>Digital navigation counts cover the timed interval only: Tab presses, Shift+Tab presses, focus entries, clicks, scroll events, and tab-hidden events. Browser scroll events are not gestures or a burden score. Focus changes include scripted focus. The starting activation click may be counted. Compare counts within the same input method and use reported friction as the primary burden observation. Screen-reader navigation may not generate these events. Paper counts require an observer and must be labeled manual or unavailable.</p>
+<h2>4. Human review after both tasks</h2><p>Keep original downloads intact. Add review in a local copy or on paper. A human reasons through each source independently after the learner has finished both tasks. No answer key is embedded here. These labels describe this comparison only and must never be imported as runtime scores.</p>
+<p><strong>Task success:</strong> met only when the final output is correct, the earliest mistaken proposed state is located and corrected, and the explanation links the previous total, the current n, and the resulting state. Otherwise use not-met or uncertain with a reason. Separately record initial and final prediction accuracy as correct, incorrect, or uncertain.</p>
+<p><strong>First mistaken state:</strong> record the learner's selected row and proposed value verbatim, then label the diagnosis correct, incorrect, or uncertain. If no error is recognized, retain “none” or “unsure” instead of inventing a diagnosis. This captures diagnosis of the common proposed trace. D2 also retains the learner's own working trace, but D1 has no equivalent row data.</p>
+<p><strong>Explanation quality:</strong> 0 = absent or unsure, 1 = an assertion without a state transition, 2 = a coherent transition using the prior total and current n, 3 = that transition plus a causal account of the proposed trace's mistake. Quality and factual correctness are separate. Retain the explanation text and the review rationale. Do not auto-grade prose.</p>
+<h2>5. Decide at the human boundary</h2><p>An agent can check sequence assignment, prediction locking, empty trace fields, timing boundaries, export shape, keyboard mechanics, reflow, and static content parity. Only a real learner supplies learning performance, felt burden, touch experience, and screen-reader task equivalence. Weibao decides visual acceptance and promotion.</p>
+<p>Compare paired D1/D2 observations with task and position visible. Report completed pairs and missing data, raw seconds, review labels, friction, and prior exposure. More clicks alone do not establish a problem. Faster completion alone does not establish learning. A single pair cannot establish a learning benefit or transfer.</p>
+<p>Promote only after human evidence supports better state reasoning or diagnosis over D1 without answer leakage, unacceptable navigation burden, or narrow-width and accessible inequivalence. If results conflict or are too sparse, retain prototype status. Touch, screen reader, zoom, contrast, and visual acceptance remain human checks. This packet makes no production contract change.</p>
+</main></body></html>
