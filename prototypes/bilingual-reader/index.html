@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
+<title>Bilingual reader prototype</title><link rel="stylesheet" href="style.css"></head>
+<body><main><h1>Bilingual reader prototype</h1>
+<p>Disposable Phase 999.2 experiment. Synthetic text and local glosses. No scores or mastery claims.</p>
+<section id="interactive" hidden>
+<p id="scope">Hover or focus a highlighted word for a short definition. Click, tap, or press Arrow Down for word controls below the passage. Escape closes the lookup. Repeated lemmas share private status within this reading.</p>
+<article id="passage" lang="zh-Hans" aria-describedby="scope"></article>
+<aside id="word-popover" aria-label="Word definition" hidden>
+<p id="lookup" aria-live="polite">Choose a highlighted word.</p>
+</aside>
+<section id="lookup-controls" aria-labelledby="lookup-title" hidden><button id="close-lookup" type="button" aria-label="Close word lookup">Close</button><h2 id="lookup-title">Word lookup</h2>
+<details><summary>Word status and source</summary>
+<details><summary>Token provenance</summary><p id="token-source">Choose a word to inspect its source range and explicit lemma.</p></details>
+<fieldset id="statuses" disabled><legend>My word status</legend>
+<label><input type="radio" name="status" value="new"> New</label>
+<label><input type="radio" name="status" value="learning"> Learning</label>
+<label><input type="radio" name="status" value="known"> Known</label></fieldset>
+<p>New: dotted underline. Learning: solid underline. Known: no underline. Lookup also announces the status.</p></details></section>
+<p id="notice" role="status"></p>
+<details><summary>Local state and recovery</summary>
+<p id="lock-mode"></p><p>Only this fixture's states are saved. Export before replacing them. Old v1 state is left untouched and is not migrated.</p>
+<button id="reload" type="button">Reload saved state</button>
+<button id="export" type="button">Export prototype JSON</button>
+<label for="transfer">Prototype JSON to copy or restore</label><textarea id="transfer" rows="8" spellcheck="false"></textarea>
+<label><input id="replace" type="checkbox"> Replace this reading's current word states</label>
+<button id="restore" type="button">Restore prototype JSON</button>
+<button id="reset" type="button">Reset this reading</button>
+</details></section>
+<section aria-labelledby="static-title"><h2 id="static-title">Static reading and glossary</h2>
+<p>Always available, including without JavaScript. Glosses and lemma mappings were authored for this synthetic fixture. Unmatched text has no lookup. The static version does not save word status.</p>
+<p id="static-passage" class="reading" lang="zh-Hans">我学习中文。今天我读一本书，也学习中文。
+Study note: 中文 + English, 2026! 未匹配的字、🙂。</p>
+<dl><dt lang="zh-Hans">学习</dt><dd>xuéxí: to study. Explicit lemma: 学习. Source: synthetic-glossary-v2:1.</dd>
+<dt lang="zh-Hans">中文</dt><dd>Zhōngwén: Chinese language. Explicit lemma: 中文. Source: synthetic-glossary-v2:2.</dd>
+<dt lang="zh-Hans">读</dt><dd>dú: to read. Explicit lemma: 读. Source: synthetic-glossary-v2:3.</dd></dl>
+<p>The reserved <code>zh</code> metadata direction inspired the gloss display. This fixture does not call or change production <code>parse_terms</code>.</p>
+</section></main><script type="module" src="prototype.js"></script></body></html>

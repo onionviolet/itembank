@@ -1,0 +1,15 @@
+:root{font:18px/1.55 system-ui;color-scheme:light dark}
+*{box-sizing:border-box}body{margin:0}main{max-width:46rem;margin:auto;padding:1rem;overflow-wrap:anywhere}
+[hidden]{display:none!important}article,.reading{white-space:pre-wrap}article{font-size:1.5rem;line-height:2.2;padding:1rem;border:1px solid #777}
+button,input,textarea{font:inherit}button{min-height:44px;max-width:100%;cursor:pointer}
+.word{font:inherit;min-width:44px;border:0;border-bottom:2px dotted currentColor;background:transparent;color:inherit;padding:.15rem}
+.word[data-status="learning"]{border-bottom-style:solid}.word[data-status="known"]{border-bottom-color:transparent}
+:focus-visible{outline:3px solid currentColor;outline-offset:3px}
+aside{margin-top:1rem;padding:1rem;border:1px solid #777}fieldset{display:flex;gap:1rem;flex-wrap:wrap;min-width:0}
+#word-popover{position:fixed;z-index:10;margin:0;width:max-content;max-width:min(220px,calc(100vw - 16px));background:Canvas;color:CanvasText;border:1px solid #888;border-radius:8px;box-shadow:0 2px 8px #0002;font:14px/1.4 system-ui;padding:7px 10px;pointer-events:auto}
+#word-popover::after{content:"";position:absolute;left:var(--tip,50%);bottom:-5px;width:8px;height:8px;background:Canvas;border-right:1px solid #888;border-bottom:1px solid #888;transform:translateX(-50%) rotate(45deg)}
+#word-popover[data-side="below"]::after{top:-5px;bottom:auto;transform:translateX(-50%) rotate(225deg)}
+#word-popover p{margin:0}#lookup-controls{margin-top:.75rem;padding:.75rem;border:1px solid #777;border-radius:8px}#lookup-controls h2{font-size:1rem;margin:0}#close-lookup{float:right;font-size:.8rem}.word[aria-expanded="true"]{text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:5px}
+label{min-height:44px;display:flex;align-items:center;gap:.4rem}textarea{width:100%;display:block}summary{cursor:pointer;min-height:44px}dd{margin-left:1rem}dt{font-weight:bold}
+@media(max-width:30rem){main{padding:.5rem}article{font-size:1.25rem;padding:.5rem}fieldset{display:block}}
+@media(forced-colors:active){.word[data-status="known"]{border-bottom:0}:focus-visible{outline-color:Highlight}}
