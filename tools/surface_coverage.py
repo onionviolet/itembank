@@ -43,7 +43,7 @@ sys.path.insert(0, ROOT)
 # (a sitting, a package, the install's own settings, and a day plan).
 OBJECTS = (
     "course", "scope", "objective", "source", "source binding", "lesson",
-    "bank", "item", "activity", "learner note", "evidence event",
+    "bank", "item", "activity", "reading", "task", "learner note", "evidence event",
     "strategy", "agent operation", "rights grant", "accepted revision",
     "sitting", "package", "settings", "day plan",
 )
@@ -71,6 +71,7 @@ NOT_A_CAPABILITY = {
     "guard": "refuses to run when the working tree is unsafe; a gate",
     "calibrate": "reports item difficulty calibration; an analysis",
     "config": "reads and writes settings keys; covered by settings/change",
+    "mcp": "starts the local tool transport over existing course and session operations",
     "GET /__itembank__": "the packaged-app launch marker",
     "GET /banks": "the pre-course bank index, kept for the fallback path",
     "GET /assets/katex/<name>": "vendored math assets",
@@ -80,6 +81,7 @@ NOT_A_CAPABILITY = {
     "lti serve": "starts the LTI bind; a process",
     "lti status": "reports the LTI bind's state; a deployment",
     "POST /cli-twin": "the same mapping as the CLI command",
+    "POST /mcp": "the local tool transport for already classified operations",
     "GET /disclosure": "the same state as the CLI command",
     "POST /seed/accept": "accepts a seeded first-run corpus; first-run only",
     "GET /activity": "the durable-job view; see agent operation/inspect",
@@ -94,7 +96,8 @@ NOT_A_CAPABILITY = {
 CELLS = {
     ("course", "inspect"): {
         "cli": ["shelf", "course show", "course blueprint-gate", "course audit", "course staleness"],
-        "http": ["GET /", "GET /course/<course_id>", "GET /course/<course_id>/<area>",
+        "http": ["GET /", "GET /courses", "GET /course/<course_id>", "GET /course/<course_id>/<area>",
+                 "GET /api/course/<operation>/<course_id>",
                  "GET /course/<course_id>/learn/<lesson_id>", "POST /api/shelf", "POST /api/course/blueprint-gate", "POST /api/course/audit", "POST /api/course/staleness"],
     },
     ("course", "create"): {
@@ -109,7 +112,8 @@ CELLS = {
         "cli": ["course rename", "course add-container", "course bind-blueprint", "course accept-migration", "course reject-migration"],
         "http": ["POST /api/course/rename",
                  "POST /api/course/add-container", "POST /api/course/bind-blueprint",
-                 "POST /api/course/accept-migration", "POST /api/course/reject-migration"],
+                 "POST /api/course/accept-migration", "POST /api/course/reject-migration",
+                 "POST /course/<course_id>/<area>"],
         "note": "Renaming and adding a structural container are both "
                 "reached. A container adds zero edges, because where a unit "
                 "sits in the outline is structure and not a prerequisite "
@@ -184,9 +188,9 @@ CELLS = {
                 "own history on it together.",
     },
     ("source", "create"): {
-        "cli": ["source import", "course add-source"],
+        "cli": ["source import", "course add-source", "course register-source"],
         "http": ["POST /api/source/import",
-                 "POST /api/course/add-source"],
+                 "POST /api/course/add-source", "POST /api/course/register-source"],
         "note": "Two steps, and 19A-02 built the second. Import extracts "
                 "one file to Markdown plus a locator sidecar and registers "
                 "the object; `course add-source` records it in the course "
@@ -287,19 +291,44 @@ CELLS = {
     ("activity", "inspect"): {
         "cli": ["activity", "interact"], "http": ["POST /api/interact"],
     },
+    ("reading", "create"): {
+        "cli": ["course create-reading"],
+        "http": ["POST /api/course/create-reading"],
+        "note": "Creates a cited occurrence before it can be placed in a course.",
+    },
+    ("reading", "inspect"): {
+        "cli": ["course reading-view"],
+        "http": ["POST /api/course/reading-view",
+                 "GET /course/<course_id>/reading/<occurrence_id>/<revision_id>"],
+        "note": "A read-only view retains the occurrence and accepted revision.",
+    },
+    ("reading", "change"): {
+        "cli": ["course revise-reading", "course place-reading"],
+        "http": ["POST /api/course/revise-reading",
+                 "POST /api/course/place-reading"],
+        "note": "Revision and placement remain separate journaled operations.",
+    },
+    ("task", "inspect"): {
+        "cli": ["day"], "http": ["GET /day/<stem>"],
+        "note": "Today projects owner-backed assignment rows beside study work.",
+    },
+    ("task", "change"): {
+        "cli": [], "http": ["POST /day/<stem>/task"],
+        "note": "A checked task writes to its owning assignment ledger.",
+    },
     ("learner note", "create"): {
-        "cli": [], "http": [],
-        "note": "notes.py implements the whole note lifecycle, including "
-                "promotion and the authority guard. No surface writes one.",
+        "cli": ["course save-reading-note"],
+        "http": ["POST /api/course/save-reading-note"],
+        "note": "A reading note is saved separately from accepted source text.",
     },
     ("learner note", "inspect"): {
         "cli": [], "http": [],
         "note": "Same module, same absence: nothing renders a note.",
     },
     ("evidence event", "create"): {
-        "cli": ["submit", "mark", "retract", "interact"],
+        "cli": ["submit", "mark", "retract", "interact", "course declare-reading"],
         "http": ["POST /api/submit", "POST /quiz/<stem>/answer",
-                 "POST /api/mark"],
+                 "POST /api/mark", "POST /api/course/declare-reading"],
     },
     ("evidence event", "inspect"): {
         "cli": ["evidence", "marks", "report", "trends", "day"],
@@ -329,10 +358,15 @@ CELLS = {
                 "including the next resumable protocol step and egress.",
     },
     ("agent operation", "create"): {
-        "cli": ["course begin-operation"],
-        "http": ["POST /api/course/begin-operation"],
+        "cli": ["course begin-operation", "course agent-operation",
+                "course confirm-reading"],
+        "http": ["POST /api/course/begin-operation",
+                 "POST /api/course/agent-operation",
+                 "POST /api/course/confirm-reading"],
         "note": "Plan 19A-05 declares intent, role, autonomy and scope "
-                "before work starts, through one journal-backed operation.",
+                "before work starts, through one journal-backed operation. "
+                "Agent proposals and explicit reading confirmation also "
+                "start durable operations before acceptance or evidence.",
     },
     ("agent operation", "change"): {
         "cli": ["course recommend", "course recommend-pass",
@@ -532,8 +566,18 @@ GAP_NOTES = {
     ("activity", "explain"): "An activity declares purpose, demand and "
                              "evidence state; nothing reads them back.",
     ("activity", "undo"): "No surface withdraws an activity declaration.",
-    ("learner note", "change"): "notes.py implements editing and promotion; "
-                                "no surface reaches it.",
+    ("learner note", "change"): "The reading note save accepts a reviewed "
+                                "fingerprint, while broader note edits are not surfaced.",
+    ("reading", "explain"): "No surface compares why one reading treatment "
+                            "was chosen over another.",
+    ("reading", "undo"): "A reading revision needs an explicit reversal path "
+                         "from the learner surface.",
+    ("task", "create"): "Tasks originate in the owner assignment ledger, "
+                        "not the Today projection.",
+    ("task", "explain"): "Today does not expose why an assignment ranks "
+                         "ahead of another.",
+    ("task", "undo"): "An accidental check needs a visible reversal "
+                      "from the owner ledger.",
     ("learner note", "explain"): "A note's provenance and review state are "
                                  "recorded and never shown.",
     ("learner note", "undo"): "Deletion is implemented and unreachable.",
