@@ -835,6 +835,11 @@
       "token_gated": true
     },
     {
+      "method": "POST",
+      "path": "^/day/(?P<stem>[^/]+)/task$",
+      "token_gated": true
+    },
+    {
       "method": "GET",
       "path": "^/help/(?P<code>[a-z0-9_.]{1,64})$",
       "token_gated": true
