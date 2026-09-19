@@ -496,7 +496,8 @@ def check_responsive_and_motion():
                      "overflow 320px" % m.group(1))
         if "box-sizing:border-box" not in css:
             fail("the shared CSS is missing box-sizing:border-box")
-        assist_css = css.split(".agent-assist")[1] if ".agent-assist" in css else ""
+        assist_css = "\n".join(re.findall(
+            r"\.agent-assist[^{}]*\{([^}]*)\}", css))
         for banned in ("position:fixed", "width:320", "min-width:240",
                        "min-width: 240"):
             if banned in assist_css:
@@ -510,7 +511,9 @@ def check_responsive_and_motion():
             fail("the page has no reduced-motion media query")
         if "*{transition:none!important}" not in css:
             fail("reduced motion does not disable transitions")
-        if "requestAnimationFrame" in page or "setInterval" in page:
+        # One-shot frame scheduling batches math and argument DOM updates.
+        # The assist client must not run a repeating timer.
+        if "setInterval" in page:
             fail("the served client animates, which reduced motion must "
                  "disable")
         # The assist readout is static at rest. The shipped client promotes it

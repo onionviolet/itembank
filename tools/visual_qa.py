@@ -49,7 +49,7 @@ except ImportError:
           "human review")
     sys.exit(3)
 
-from surfaces import theme                                 # noqa: E402
+from surfaces import presentation, theme                   # noqa: E402
 from surfaces import visual_fixture                        # noqa: E402
 
 WIDTHS = (1280, 768, 375)
@@ -72,13 +72,18 @@ def build_pages(work):
 
     # The fixture emits the system theme (light root plus a dark media
     # override). oled is a forced mode, so the oled leg appends the oled
-    # root block AFTER the existing theme CSS: same specificity, later
-    # wins, and the tokens are exactly what `itembank config set theme
-    # oled` would serve.
+    # body block AFTER the fixture's accent radio CSS: the selected accent
+    # writes variables on body, which would override a later :root block by
+    # inheritance. Keep the selected accent and force its OLED derivation.
     oled_root = theme.theme_css({"theme": "oled",
                                  "accent": theme.DEFAULT_THEME_CONFIG["accent"]})
+    selected = "body:has(#accent-%s:checked)" % visual_fixture.DEFAULT_ACCENT_ID
+    oled_root = oled_root.replace(":root{", selected + "{", 1)
+    # Product aliases resolve on :root before the body-scoped accent tokens.
+    # Recompute them on the same element for the forced-mode fixture.
+    oled_alias = presentation.product_theme_css().replace(":root{", selected + "{", 1)
     oled_html = html.replace(
-        "</head>", "<style>%s</style></head>" % oled_root, 1)
+        "</head>", "<style>%s\n%s</style></head>" % (oled_root, oled_alias), 1)
     oled = os.path.join(work, "oled.html")
     open(oled, "w", encoding="utf-8").write(oled_html)
 
