@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 import sys
 import unittest
+import urllib.request
 from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -20,6 +21,8 @@ import reading_desk
 import identity
 import source_adapters
 import reading_declarations_roundtrip as declarations
+from daemon_roundtrip import start_daemon, json_request
+from surfaces import reading_desk as desk_surface
 
 
 class ReadingPackage(unittest.TestCase):
@@ -98,6 +101,43 @@ class ReadingPackage(unittest.TestCase):
         with self.assertRaises(course_package.PackageError) as raised:
             self.restore('notes-invalid', include_private_note_history=True)
         self.assertEqual(raised.exception.code, 'package.invalid_note_backup')
+
+    def test_restored_reading_and_private_note_reopen_through_daemon(self):
+        occurrence, _note_root = self.private_note()
+        self.declare(self.confirmation(occurrence))
+        journal.op_grant_rights(self.base, self.source_id,
+                                {'package': 'granted'}, self.source_fp,
+                                'human', 'test')
+        package = str(Path(self.root, 'browser-package'))
+        clean_root = Path(self.root, 'clean-home')
+        clean_root.mkdir()
+        restored_course = str(clean_root / 'synthetic')
+        course_package.export_package(
+            self.base, self.base, package, include_private_notes=True,
+            include_private_note_history=True)
+        result = course_package.restore_package(
+            package, restored_course, 'human', 'test')
+        self.assertEqual(result['reading_acceptance'], 'accepted')
+        self.assertEqual(result['restore_losses'], [])
+
+        proc, url, _lines = start_daemon(str(clean_root))
+        self.addCleanup(proc.wait, timeout=10)
+        self.addCleanup(proc.terminate)
+        path = desk_surface.href('synthetic', occurrence)
+        with urllib.request.urlopen(url + path.lstrip('/')) as response:
+            page = response.read().decode('utf-8')
+        self.assertIn('First synthetic paragraph.', page)
+        self.assertIn('A note to yourself', page)
+        self.assertIn('Reported read for this assignment', page)
+        self.assertIn('Current private wording, revised', page)
+        request = dict(course_id='synthetic',
+                       expected_fingerprint=course.read_course(restored_course)['fingerprint'],
+                       occurrence_id=occurrence['occurrence_id'],
+                       revision_id=occurrence['revision_id'])
+        status, view = json_request(url + 'api/course/reading-view', request)
+        self.assertEqual(status, 200, view)
+        self.assertEqual(view['reading_state']['state'], 'reported-read')
+        self.assertEqual(view['notes'][0]['learner_wording'], 'Current private wording, revised')
 
     def test_exact_history_rights_omission_and_repeated_restore(self):
         first, second, rows = self.history()

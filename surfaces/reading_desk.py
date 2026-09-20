@@ -38,6 +38,16 @@ def render(course_id, read, occurrence_id, revision_id, view):
     esc = presentation.esc
     selected = view['occurrence'] or {}
     title = (view['placements'].get(occurrence_id) or {}).get('title') or 'Reading desk'
+    reading_status = {
+        'reported-read': 'Reported read for this assignment',
+        'not-reported': 'Not reported read',
+        'unavailable': 'Reading history unavailable',
+        'unsupported': 'Reading history unsupported. Restore or inspect it.',
+    }.get(view['reading_state']['state'], view['reading_state']['state'])
+    saved_notes = ''.join(
+        '<article class="reading-note"><p>%s</p><small class="reading-meta">%s · Private · %s</small></article>'
+        % (esc(note['learner_wording']), esc(note['anchor_state']), esc(note['owner']))
+        for note in view['notes'])
     path = ''.join('<a href="%s"%s>%s</a>' % (esc(href(course_id,row)),
                     ' aria-current="page"' if row['occurrence_id']==occurrence_id else '',
                     esc(view['placements'][row['occurrence_id']]['title'])) for row in view['occurrences'])
@@ -45,13 +55,13 @@ def render(course_id, read, occurrence_id, revision_id, view):
 <div class="reading-layout"><nav class="reading-path" aria-label="Reading assignments"><h2>Your path</h2>%s</nav>
 <article class="reading-column"><p class="reading-meta">Assigned source range · %s</p><h2>%s</h2><p>%s</p>
 <p id="source-state">%s</p><div id="source-content" class="reading-source">%s</div>
-<button id="mark-read" class="go primary" type="button" disabled>I have read this range</button><p id="reading-state" role="status" aria-live="polite">Loading reading history</p>
+<button id="mark-read" class="go primary" type="button" disabled>I have read this range</button><p id="reading-state" role="status" aria-live="polite">%s</p>
 <p class="reading-meta">Your declaration describes reading. It is not a score, grade, or mastery claim.</p>
 <details><summary>Source and revision</summary><p><code>%s</code></p><p>Occurrence <code>%s</code></p><p>Revision <code>%s</code></p></details></article>
-<aside class="reading-notes" aria-label="Private source notes"><h2>At the source</h2><p id="note-state">Shared source notes</p><label for="note">A note to yourself</label><textarea id="note"></textarea><button id="save-note" class="go primary" type="button" disabled>Save to my notes</button><p id="save-state" role="status" aria-live="polite">No unsaved draft</p><h3>My course notes</h3><div id="saved-notes"></div></aside></div>''' % (
+<aside class="reading-notes" aria-label="Private source notes"><h2>At the source</h2><p id="note-state">%s</p><label for="note">A note to yourself</label><textarea id="note"></textarea><button id="save-note" class="go primary" type="button" disabled>Save to my notes</button><p id="save-state" role="status" aria-live="polite">No unsaved draft</p><h3>My course notes</h3><div id="saved-notes">%s</div></aside></div>''' % (
         path,esc(selected.get('preparation_mode','')),esc(title),esc(selected.get('purpose','')),esc(view['availability'].get('message',view['availability']['state'])),
-        esc(view['content'] or 'Source unavailable.'),esc((selected.get('source_ref') or {}).get('locator','Unavailable')),
-        esc(occurrence_id),esc(revision_id))
+        esc(view['content'] or 'Source unavailable.'),esc(reading_status),esc((selected.get('source_ref') or {}).get('locator','Unavailable')),
+        esc(occurrence_id),esc(revision_id),esc(view['note_error'] or 'Private source notes. Shared across assignments using this source.'),saved_notes)
     ctx=dict(course_id=course_id, expected_fingerprint=read['fingerprint'], occurrence_id=occurrence_id, revision_id=revision_id)
     return presentation.surface_shell('Reading desk',body,wide=True,extra_css=CSS,
         back={'href':'/course/'+course_id+'/learn','label':'Back to course'},
