@@ -615,6 +615,34 @@ def parse_lesson_comparison(body):
         "explanation on following lines.")}
 
 
+def parse_lesson_lineplot(body):
+    """Validate a finite line scene in an Example, without authored code.
+
+    The three integers are the starting slope, starting intercept and one
+    changed intercept. The trusted renderer derives every plotted coordinate.
+    The remaining Markdown is the portable teaching explanation.
+    """
+    lines = body.splitlines()
+    if not lines or not lines[0].startswith("[LINEPLOT:"):
+        return None
+    match = re.fullmatch(r"\[LINEPLOT: (-?[0-9]),(-?[0-9]),(-?[0-9])\]",
+                         lines[0])
+    if match:
+        m, b, changed_b = map(int, match.groups())
+        explanation = "\n".join(lines[1:]).strip()
+        if (all(-2 <= value <= 2 for value in (m, b, changed_b))
+                and changed_b != b and explanation
+                and "Prediction:" in explanation
+                and "Static explanation:" in explanation
+                and "Transfer:" in explanation):
+            return {"m": m, "b": b, "changed_b": changed_b,
+                    "text": explanation}
+    return {"error": (
+        "Use [LINEPLOT: slope,intercept,changed-intercept] with integers "
+        "from -2 to 2, a different changed intercept, and following static "
+        "text containing Prediction:, Static explanation:, and Transfer:.")}
+
+
 def parse_lesson(bank_path):
     """A second, independent read over the bank file for a different purpose:
     the LESSON section's teaching text. Never called from inside `load()` or
@@ -2392,6 +2420,19 @@ THE LESSON SECTION
   Parameters are temporary presentation state, never scores or evidence.
   No authored executable content or remote imports are accepted.
 
+  Optional linked line plot inside an Example callout:
+    > [!EXAMPLE]
+    > [LINEPLOT: 1,0,2]
+    > Prediction: Which plotted points move if only the intercept changes?
+    > Static explanation: Starting points (-2,-2), (0,0), (2,2); changed
+    > points (-2,0), (0,2), (2,4). All three y values rise by 2.
+    > Transfer: Without the control, sketch y = -x + 1 at x=-2,0,2.
+  The three integers are slope, starting intercept and changed intercept,
+  each -2 to 2; changed intercept must differ. The static explanation is
+  present in plain Markdown and without script. A trusted renderer adds the
+  linked equation, plot and exact-coordinate table. The learner commits a
+  prediction before controls appear. This is unscored teaching state.
+
   A bank may carry one optional LESSON section: the teaching text its items
   test. It lives above the first question, opened by `## LESSON` at the start
   of a line and running to the first `Qn.` line that parses as a real question;
@@ -2451,6 +2492,7 @@ ONE CONSTRAINT
 
 LESSON LINT CODES
   lesson.invalid_comparison error    an Example comparison has invalid bounds
+  lesson.invalid_lineplot   error    a LINEPLOT Example has invalid parameters
                                       or lacks a static explanation
   item.lesson_ref_unknown   error     an item's LESSON-REF names no heading
   lesson.duplicate_heading  error     two headings slug-collide
@@ -2846,7 +2888,7 @@ LINT_CODES = tuple(sorted({
     "item.structure_nonconformant",
     "lesson.invalid_gate", "lesson.check_ref_unknown",
     "lesson.invalid_semantic_profile", "lesson.lang_empty",
-    "lesson.invalid_direction", "lesson.invalid_comparison",
+    "lesson.invalid_direction", "lesson.invalid_comparison", "lesson.invalid_lineplot",
     "lesson.invalid_step", "lesson.duplicate_step", "lesson.invalid_pace",
     "lesson.unknown_semantic", "lesson.unknown_required_semantic",
     "lesson.definition_before_example", "lesson.example_order_no_reason",
@@ -4039,6 +4081,10 @@ def lint(questions, lesson=LESSON_UNCHECKED, terms=TERMS_UNCHECKED,
                 if comparison and comparison.get("error"):
                     errors.append(LintError("lesson.invalid_comparison",
                                             "semantics", "BANK", comparison["error"]))
+                lineplot = parse_lesson_lineplot("\n".join(block))
+                if lineplot and lineplot.get("error"):
+                    errors.append(LintError("lesson.invalid_lineplot",
+                                            "semantics", "BANK", lineplot["error"]))
             seen_unknown = []
             for raw_line in (lesson.get("body") or "").split("\n"):
                 cm = _CALLOUT_MARK_RE.match(raw_line)

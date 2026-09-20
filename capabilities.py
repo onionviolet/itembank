@@ -253,25 +253,32 @@ _CAPABILITY_PROFILES = {
             "with no interaction required. The parallel reader setting "
             "changes the layout class and never the reading order. Explicit "
             "COMPARE examples add a labelled native slider, reset button, "
-            "text status and labelled meters. Human accessibility review is owed."),
+            "text status and labelled meters. LINEPLOT adds a prediction "
+            "choice followed by a labelled intercept control, exact-coordinate "
+            "table, equation and plot. Human accessibility review is owed."),
         "offline_fallback": (
             "The block renders as a labelled section with no script and no "
             "network; the parallel layout degrades to the stacked default. "
             "COMPARE retains the authored static explanation and starting "
-            "difference when JavaScript is absent or when printed."),
+            "difference when JavaScript is absent or when printed. LINEPLOT "
+            "retains the authored prediction, worked coordinates and transfer "
+            "task in plain Markdown and in the no-script page."),
         "renderer_availability": "available",
-        "version": 2,
+        "version": 3,
         "validation": (
             "model.lint reports a heading placing a definition before its "
             "first worked example as lesson.definition_before_example, and "
             "an override with no reason as lesson.example_order_no_reason. "
             "parse_lesson_comparison owns bounded whole-number parameters. "
-            "Invalid declarations report lesson.invalid_comparison."),
+            "Invalid declarations report lesson.invalid_comparison or "
+            "lesson.invalid_lineplot."),
         "known_limits": (
             "COMPARE uses runtime.glossable over the complete authored block "
             "and respects required lesson gates. No authored "
             "code, scoring, persistence or model call is supported. The "
-            "static explanation's educational adequacy needs author review."),
+            "static explanation's educational adequacy needs author review. "
+            "LINEPLOT is bounded to integer slopes and intercepts from -2 to 2; "
+            "transfer quality and accessibility need learner review."),
     },
     "callout_counterexample": {
         "name": "callout_counterexample",

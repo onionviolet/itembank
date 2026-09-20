@@ -2544,12 +2544,13 @@ def test_spec_names_every_lesson_lint_code():
     lesson.authored_key_disclosure, and to seventeen on 2026-08-31 by plan
     16D-01's pacing findings (lesson.invalid_step, lesson.duplicate_step,
     lesson.invalid_pace), whose SPEC rows landed with the codes. The native
-    comparison adds lesson.invalid_comparison as the eighteenth code."""
+    comparison adds lesson.invalid_comparison as the eighteenth code.
+    A linked line plot adds lesson.invalid_lineplot as the nineteenth code."""
     s = itembank.SPEC + "\n" + SPEC_03_1
     lesson_codes = [c for c in itembank.LINT_CODES
                     if c.startswith("lesson.") or c == "item.lesson_ref_unknown"]
-    if len(lesson_codes) != 18:
-        fail("expected exactly 18 lesson lint codes, got %d: %r"
+    if len(lesson_codes) != 19:
+        fail("expected exactly 19 lesson lint codes, got %d: %r"
              % (len(lesson_codes), lesson_codes))
     for c in lesson_codes:
         if c not in s:

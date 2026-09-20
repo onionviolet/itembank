@@ -19,6 +19,8 @@ from surfaces import lesson, lesson_interaction
 
 FIXTURE = ROOT / "fixtures/lesson_comparison.md"
 SOURCE = ROOT / "prototypes/competition/rainfall.txt"
+LINE_FIXTURES = (ROOT / "fixtures/lesson_lineplot_rise.md",
+                 ROOT / "fixtures/lesson_lineplot_fall.md")
 
 
 class ComparisonTests(unittest.TestCase):
@@ -168,6 +170,74 @@ class ComparisonTests(unittest.TestCase):
                 finally:
                     server.shutdown()
                     thread.join()
+
+
+class LinkedLineTests(unittest.TestCase):
+    def test_runtime_disclosure_withholds_entire_line_scene(self):
+        body = ("[LINEPLOT: 1,0,2]\nPrediction: choose.\n"
+                "Static explanation: the hidden label is violet tile.\n"
+                "Transfer: try a new rule.")
+        questions = model.load(str(LINE_FIXTURES[0]))
+        for context in (None, {"comparison_questions": questions}):
+            rendered = lesson._callout_html(("example", "Example", None),
+                                            body, context)
+            self.assertIn("withheld", rendered)
+            self.assertNotIn("violet tile", rendered)
+            self.assertNotIn('class="lesson-lineplot"', rendered)
+
+    def test_two_changed_content_lessons_share_renderer(self):
+        for path, declaration, changed_point in (
+                (LINE_FIXTURES[0], "[LINEPLOT: 1,0,2]", "(0, 2)"),
+                (LINE_FIXTURES[1], "[LINEPLOT: -1,1,-1]", "(0, -1)")):
+            with self.subTest(path=path.name):
+                before = path.read_bytes()
+                questions = model.load(str(path))
+                parsed = model.parse_lesson(str(path))
+                errors, _ = model.lint(questions, lesson=parsed)
+                self.assertEqual(errors, [])
+                self.assertIn(declaration, path.read_text())
+                self.assertIn(changed_point, path.read_text())
+                page = lesson.lesson_page(str(path), questions, parsed)
+                self.assertIn('class="lesson-lineplot"', page)
+                self.assertIn('class="lineplot-controls" hidden', page)
+                self.assertIn('class="lineplot-static"', page)
+                self.assertIn('class="lineplot-y"', page)
+                self.assertIn("Commit prediction", page)
+                self.assertIn("Transfer:", page)
+                self.assertEqual(before, path.read_bytes())
+
+    def test_invalid_declaration_is_linted_and_does_not_render_control(self):
+        for declaration in ("[LINEPLOT: 3,0,2]", "[LINEPLOT: 1,0,0]",
+                            "[LINEPLOT: 1.5,0,2]", "[LINEPLOT: 1,0,2] <script>"):
+            with self.subTest(declaration=declaration):
+                with tempfile.TemporaryDirectory() as tmp:
+                    path = Path(tmp) / "bank.md"
+                    path.write_text(LINE_FIXTURES[0].read_text().replace(
+                        "[LINEPLOT: 1,0,2]", declaration))
+                    questions = model.load(str(path))
+                    parsed = model.parse_lesson(str(path))
+                    errors, _ = model.lint(questions, lesson=parsed)
+                    self.assertIn("lesson.invalid_lineplot", [e.code for e in errors])
+                    page = lesson.lesson_page(str(path), questions, parsed)
+                    self.assertNotIn('class="lesson-lineplot"', page)
+                    self.assertNotIn('class="lineplot-controls"', page)
+
+    def test_static_path_and_trusted_script(self):
+        data = model.parse_lesson_lineplot(
+            "[LINEPLOT: -1,1,-1]\nPrediction: all?\n"
+            "Static explanation: Points are (-2, 3) and (-2, 1).\n"
+            "Transfer: Try y = 2x.")
+        rendered = lesson_interaction.render_lineplot(data, lambda s: s)
+        self.assertIn("Starting rule: y = -1x + 1", rendered)
+        self.assertIn("Change only the intercept to -1", rendered)
+        self.assertIn("Points: (-2, 3), (0, 1), (2, -1)", rendered)
+        self.assertIn("Points: (-2, 1), (0, -1), (2, -3)", rendered)
+        self.assertIn("Transfer: Try y = 2x.", rendered)
+        self.assertIn('class="lineplot-controls" hidden', rendered)
+        self.assertIn("grid-template-columns:repeat(auto-fit", lesson_interaction.LINEPLOT_CSS)
+        for forbidden in ("fetch(", "XMLHttpRequest", "localStorage", "sessionStorage",
+                          "sendBeacon", "innerHTML", "eval(", "new Function", "submit("):
+            self.assertNotIn(forbidden, lesson_interaction.LINEPLOT_JS)
 
 
 if __name__ == "__main__":

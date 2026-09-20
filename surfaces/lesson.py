@@ -8,7 +8,7 @@ only way out of a lesson is to another surface, never to a score.
 import html, json, os, re, sys
 
 import capabilities
-from model import parse_lesson_comparison
+from model import parse_lesson_comparison, parse_lesson_lineplot
 from surfaces import lesson_interaction, lesson_progressive
 import evidence
 import retention
@@ -1332,6 +1332,17 @@ def _callout_html(spec, body, ctx=None, required=False):
                          + inner)
             else:
                 inner = lesson_interaction.render(comparison, _inline)
+        else:
+            lineplot = parse_lesson_lineplot(body)
+            if lineplot is not None:
+                if ctx is None or "comparison_questions" not in ctx or not glossable(
+                        ctx["comparison_questions"], {"def": body}):
+                    inner = "Line plot withheld by the runtime disclosure check."
+                elif lineplot.get("error"):
+                    inner = ('<p>Line plot unavailable. Read the static explanation below.</p>'
+                             + inner)
+                else:
+                    inner = lesson_interaction.render_lineplot(lineplot, _inline)
     extra = ""
     if slug == "example" and ctx is not None \
             and ctx.get("example_layout") == "parallel":
@@ -2786,6 +2797,8 @@ def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
             .replace("__SHARED_CSS__", SHARED_CSS)
             .replace("__LESSON_CSS__", LESSON_CSS + (lesson_interaction.CSS
                      if 'class="lesson-comparison"' in body else "")
+                     + (lesson_interaction.LINEPLOT_CSS
+                        if 'class="lesson-lineplot"' in body else "")
                      + (lesson_progressive.CSS if mode == "guided" else ""))
             .replace("__WARN_CSS__", warn_css)
             .replace("__GLOSS_ANCHOR_CSS__", anchor_css)
@@ -2798,6 +2811,8 @@ def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
             .replace("__MATH_ASSETS__", math_assets)
             .replace("__MATH_SCRIPT__", math_script + (lesson_interaction.JS
                      if 'class="lesson-comparison"' in body else "")
+                     + (lesson_interaction.LINEPLOT_JS
+                        if 'class="lesson-lineplot"' in body else "")
                      + (lesson_progressive.JS if mode == "guided" else ""))
             .replace("__STATUS__", status_html)
             .replace("__CONTEXT_NAV__", context_nav_html)

@@ -81,3 +81,129 @@ def render(data, inline):
         % (inline(data["text"]), a, unit, b, unit, b-a, unit,
            unit, maximum, maximum, b, a, unit, a, unit, maximum, a,
            b, unit, maximum, b))
+
+
+LINEPLOT_CSS = """
+.lesson-lineplot {overflow-wrap:anywhere}
+.lineplot-static {margin-block:.75rem}
+.lineplot-controls {margin-block:1rem}
+.lineplot-controls fieldset {margin-block:.75rem}
+.lineplot-controls label {display:block;margin-block:.4rem}
+.lineplot-controls select,.lineplot-controls button {min-height:44px;max-width:100%}
+.lineplot-views {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,16rem),1fr));gap:1rem;margin-block:1rem}
+.lineplot-views svg {width:100%;height:auto;max-width:22rem;border:1px solid currentColor}
+.lineplot-views table {border-collapse:collapse;width:100%}
+.lineplot-views th,.lineplot-views td {padding:.3rem;border:1px solid currentColor;text-align:center}
+.lineplot-views p {margin-block:.4rem}
+@media print {.lineplot-controls {display:none!important}.lineplot-static {display:block!important}}
+"""
+
+
+LINEPLOT_JS = """<script>
+(() => {
+  function coordinate(x, y) { return (160 + x * 55) + ',' + (120 - y * 17); }
+  function initializeLineplot() {
+    document.querySelectorAll('.lesson-lineplot').forEach(root => {
+      if (root.dataset.initialized === '1') return;
+      const m = Number(root.dataset.m), b = Number(root.dataset.b);
+      const changed = Number(root.dataset.changedB);
+      if (![m,b,changed].every(Number.isSafeInteger) ||
+          [m,b,changed].some(n => n < -2 || n > 2) || changed === b) return;
+      const controls = root.querySelector('.lineplot-controls');
+      const staticView = root.querySelector('.lineplot-static');
+      const selection = root.querySelector('.lineplot-prediction');
+      const commit = root.querySelector('.lineplot-commit');
+      const choice = root.querySelector('.lineplot-choice');
+      const manipulate = root.querySelector('.lineplot-manipulate');
+      const value = root.querySelector('.lineplot-value');
+      const reset = root.querySelector('.lineplot-reset');
+      const live = root.querySelector('.lineplot-live');
+      const equation = root.querySelector('.lineplot-equation');
+      const points = root.querySelectorAll('.lineplot-y');
+      const line = root.querySelector('.lineplot-line');
+      if (!controls || !staticView || !selection || !commit || !choice ||
+          !manipulate || !value || !reset || !live || !equation ||
+          points.length !== 3 || !line) return;
+      function update() {
+        const current = Number(value.value);
+        if (!Number.isSafeInteger(current) || current < -2 || current > 2) return;
+        equation.textContent = 'y = ' + m + 'x ' + (current < 0 ? '- ' + Math.abs(current) : '+ ' + current);
+        [-2,0,2].forEach((x, i) => { points[i].textContent = String(m*x + current); });
+        line.setAttribute('points', [-2,0,2].map(x => coordinate(x,m*x+current)).join(' '));
+        live.textContent = 'Intercept ' + current + '. At x = -2, 0, 2, y = ' +
+          [-2,0,2].map(x => m*x+current).join(', ') + '. Slope remains ' + m + '.';
+      }
+      value.value = String(changed);
+      commit.onclick = () => {
+        if (!selection.value) {
+          choice.textContent = 'Choose a prediction before revealing the change.';
+          selection.focus();
+          return;
+        }
+        choice.textContent = 'Your prediction: ' + selection.options[selection.selectedIndex].text + '.';
+        manipulate.hidden = false;
+        staticView.hidden = false;
+        update();
+        value.focus();
+      };
+      value.onchange = update;
+      reset.onclick = () => { value.value = String(changed); update(); value.focus(); };
+      root.dataset.initialized = '1';
+      root.classList.add('lineplot-enhanced');
+      staticView.hidden = true;
+      controls.hidden = false;
+    });
+  }
+  initializeLineplot();
+  window.addEventListener('pageshow', initializeLineplot);
+})();
+</script>"""
+
+
+def render_lineplot(data, inline):
+    """Render one finite line model with a usable script-free worked state."""
+    m, b, changed = data["m"], data["b"], data["changed_b"]
+    introduction, static_explanation = data["text"].split("Static explanation:", 1)
+    xs = (-2, 0, 2)
+    starting = ", ".join("(%d, %d)" % (x, m*x+b) for x in xs)
+    later = ", ".join("(%d, %d)" % (x, m*x+changed) for x in xs)
+    sign = lambda n: ("- %d" % -n) if n < 0 else ("+ %d" % n)
+    return (
+        '<div class="lesson-lineplot" data-m="%d" data-b="%d" data-changed-b="%d">'
+        '<div class="lineplot-authored">%s</div>'
+        '<div class="lineplot-static"><p><strong>Static explanation:</strong> %s</p>'
+        '<p>Starting rule: y = %dx %s. Points: %s.</p>'
+        '<p>Change only the intercept to %d. The rule becomes y = %dx %s. '
+        'Points: %s. Each y value changes by %d and the slope stays %d.</p></div>'
+        '<div class="lineplot-controls" hidden>'
+        '<fieldset><legend>Predict before changing the intercept</legend>'
+        '<label for="lineplot-prediction-%s">Which plotted points change when only the intercept changes?</label>'
+        '<select class="lineplot-prediction" id="lineplot-prediction-%s">'
+        '<option value="">Choose a prediction</option>'
+        '<option value="all">All three points</option><option value="origin">Only the point at x = 0</option>'
+        '<option value="none">No points</option></select>'
+        '<button class="lineplot-commit" type="button">Commit prediction</button></fieldset>'
+        '<p class="lineplot-choice"></p>'
+        '<div class="lineplot-manipulate" hidden>'
+        '<label>Intercept (whole number from -2 to 2)'
+        '<select class="lineplot-value">%s</select></label>'
+        '<button class="lineplot-reset" type="button">Reset to authored change</button>'
+        '<div class="lineplot-views">'
+        '<div><p class="lineplot-equation"></p>'
+        '<svg viewBox="0 0 320 240" role="img" aria-label="Line plot; the adjacent table gives exact coordinates">'
+        '<line x1="50" y1="120" x2="270" y2="120" stroke="currentColor"/>'
+        '<line x1="160" y1="18" x2="160" y2="222" stroke="currentColor"/>'
+        '<polyline class="lineplot-line" fill="none" stroke="currentColor" stroke-width="3" points=""/>'
+        '<text x="275" y="124">x</text><text x="164" y="18">y</text></svg></div>'
+        '<table><caption>Coordinates for the current rule</caption>'
+        '<thead><tr><th scope="col">x</th><th scope="col">y</th></tr></thead>'
+        '<tbody><tr><th scope="row">-2</th><td class="lineplot-y"></td></tr>'
+        '<tr><th scope="row">0</th><td class="lineplot-y"></td></tr>'
+        '<tr><th scope="row">2</th><td class="lineplot-y"></td></tr></tbody></table></div>'
+        '<p class="lineplot-live" role="status" aria-live="polite"></p></div></div></div>'
+        % (m, b, changed, inline(introduction), inline(static_explanation), m, sign(b),
+           html.escape(starting), changed, m, sign(changed),
+           html.escape(later), changed-b, m,
+           '%d-%d-%d' % (m+2,b+2,changed+2),
+           '%d-%d-%d' % (m+2,b+2,changed+2),
+           ''.join('<option value="%d">%d</option>' % (n,n) for n in range(-2,3))))
