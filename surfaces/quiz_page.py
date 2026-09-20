@@ -1033,27 +1033,19 @@ def baseline_for(view, teaching_result, post_path, tokens, flash=None, prefill=N
             feedback = '<div class="verdict n">Not correct. Try a different answer, or open the next hint.</div>'
             feedback += _selection_card(flash.get("selection_feedback"))
         elif flash.get("action") == "defer_feedback":
-            # The scoped serve path renders server-side, so this branch is what
-            # a learner actually sees after a constructed response. It did not
-            # exist until 2026-08-24: the flash fell through every case and
-            # `feedback` stayed empty, so answering a short item produced a
-            # blank panel and no control. A designed pause was indistinguishable
-            # from a hung page, which is how the 13.9 sitting read it.
-            #
-            # No verdict, no model answer, no explanation: deferring feedback is
-            # the point of the branch. It says only where the sitting is and how
-            # to move it, and the reload works because this route's GET runs
-            # `session.do_next`, which collects a settled mark.
-            feedback = (
-                '<div class="pend"><b>Recorded, and waiting on a mark.</b>'
-                '<div>A constructed response is not scored by the machine. This'
-                ' sitting stays on this item until a human marker records a'
-                ' verdict, so nothing you wrote has been graded and no model'
-                ' answer is shown to you now.</div>'
-                '<div>Record the verdict with <span class="mono">itembank mark'
-                ' --session &lt;id&gt; --item %s --verdict pass|fail</span>,'
-                ' then reload this page to continue.</div></div>'
-                % html.escape(str(item.get("id", ""))))
+            if response_type == "short" and continue_href:
+                feedback = (
+                    '<div class="pend"><b>Response recorded, pending human review.</b>'
+                    ' You can finish this sitting. The response is not scored yet.</div>')
+            elif response_type == "short":
+                feedback = (
+                    '<div class="pend"><b>Recorded, and waiting on a mark.</b>'
+                    '<div>A constructed response is not scored by the machine.'
+                    ' It remains pending until a human marker records a verdict.'
+                    ' No model answer is shown now.</div></div>')
+            else:
+                feedback = ('<div class="pend"><b>Response recorded.</b> '
+                            'Feedback is available after the sitting closes.</div>')
         elif flash.get("action") in ("advance", "complete"):
             score = flash.get("score")
             feedback = '<div class="%s">%s</div>' % (
@@ -3733,6 +3725,9 @@ function close(q, card, act, v, revert){
     return;
   }
   if(v.action === "defer_feedback"){
+    const nextView = v.next || {};
+    const advanced = nextView.status === "complete" ||
+      !!(nextView.item && nextView.item.id !== q.id);
     /* The sitting is parked at the marker's desk and the runtime will not
        move it until a mark is recorded, which is deliberate. What was NOT
        deliberate is that this branch used to print "Recorded." and return,
@@ -3742,7 +3737,10 @@ function close(q, card, act, v, revert){
 
        It still releases no verdict, no model answer and no explanation:
        deferring feedback is the point. It only says where the sitting is. */
-    const waiting = (q.type === "short")
+    const waiting = (q.type === "short" && advanced)
+      ? `<div class="pend"><b>Response recorded, pending human review.</b>
+         <div>You can continue the sitting. This response is not scored yet.</div></div>`
+      : (q.type === "short")
       ? `<div class="pend"><b>Recorded, and waiting on a mark.</b>
          <div>A constructed response is not scored here. This sitting stays on
          this item until a human marker records a verdict, so nothing you wrote
@@ -3754,6 +3752,21 @@ function close(q, card, act, v, revert){
       : `<div class="pend"><b>Recorded.</b>
          <div>This mode holds every verdict until the sitting is closed.</div></div>`;
     fb.innerHTML = waiting;
+    if(advanced){
+      const continueButton = document.createElement("button");
+      continueButton.className = "go";
+      continueButton.type = "button";
+      if(nextView.status === "complete"){
+        continueButton.textContent = "View summary";
+        continueButton.onclick = ()=> finish(nextView.summary || {});
+      } else {
+        continueButton.textContent = `Next question, ${Number(nextView.position || 0) + 1} of ${Number(nextView.total || total)}`;
+        continueButton.onclick = ()=> renderItem(nextView);
+      }
+      act.appendChild(continueButton);
+      continueButton.focus();
+      return;
+    }
     /* The way out of the desk, on the surface the learner is already on.
        A constructed response is settled by a person, and the person is
        here; before this the only exit was a terminal, so a sitting whose

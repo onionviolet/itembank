@@ -216,29 +216,19 @@ def test_practice_duplicate_and_empty_unlock_nothing():
         fail("an empty response must not unlock or count as a new attempt")
 
 
-def test_exam_duplicate_resubmit_defers_and_changes_nothing():
-    """13.9 sitting fallout, 2026-08-25. A second submit of the same answer in
-    exam mode used to return hold, whose served copy reads "Not correct", a
-    verdict exam mode must never disclose. A duplicate under a defer_feedback
-    policy defers, unlocks nothing, and moves nothing."""
-    import copy
+def test_exam_blank_and_duplicate_do_not_advance():
+    """Only a genuine response advances a silent exam item."""
     s = session(mode="exam", items=(0,), cursor=0)
-    first = runtime.teaching_transition(s, q1(), {"kind": "submit", "answer": q1_wrong()})
-    if first["action"] != "defer_feedback":
-        fail("exam genuine wrong submit must defer, got %r" % first["action"])
-    before = copy.deepcopy(first["session"]["teaching_state"])
-    second = runtime.teaching_transition(first["session"], q1(),
-                                         {"kind": "submit", "answer": q1_wrong()})
-    if second["action"] != "defer_feedback":
-        fail("exam duplicate resubmit must defer, got %r" % second["action"])
-    if second["session"]["teaching_state"] != before:
-        fail("a duplicate resubmit must not change teaching state")
-    if second["session"]["cursor"] != first["session"]["cursor"]:
-        fail("a duplicate resubmit must not move the cursor")
-    blank = runtime.teaching_transition(first["session"], q1(),
+    blank = runtime.teaching_transition(s, q1(),
                                         {"kind": "submit", "answer": ""})
     if blank["action"] != "hold":
         fail("a blank submit stays hold in every mode, got %r" % blank["action"])
+    s["teaching_state"][item_key(q1())] = dict(
+        runtime.new_teaching_record(), last_genuine_canonical=q1_wrong())
+    duplicate = runtime.teaching_transition(
+        s, q1(), {"kind": "submit", "answer": q1_wrong()})
+    if duplicate["action"] != "defer_feedback" or duplicate["session"]["cursor"] != 0:
+        fail("a duplicate exam answer must not advance or disclose a verdict")
 
 
 def test_short_unrevealed_explain_carries_no_model_text():
@@ -783,24 +773,24 @@ def test_drill_reveals_and_advances():
         fail("drill must return the immediate reveal payload")
 
 
-def test_diagnostic_defers_until_completion():
+def test_diagnostic_defers_feedback_and_advances():
     s = session(mode="diagnostic", items=(0, 1), cursor=0)
     r = runtime.teaching_transition(s, q1(), {"kind": "submit", "answer": q1_wrong()})
     if r["action"] != "defer_feedback":
         fail("diagnostic must defer feedback, got %r" % r["action"])
-    if r["session"]["cursor"] != 0:
-        fail("diagnostic must not move the cursor before completion")
+    if r["session"]["cursor"] != 1:
+        fail("a recorded diagnostic response must advance silently")
     if "hint" in r or "reveal" in r:
         fail("diagnostic must return no hint or reveal payload")
 
 
-def test_exam_defers_until_accepted_mark():
+def test_exam_defers_feedback_and_advances_auto_item():
     s = session(mode="exam", items=(0, 1), cursor=0)
     r = runtime.teaching_transition(s, q1(), {"kind": "submit", "answer": q1_wrong()})
     if r["action"] != "defer_feedback":
         fail("exam must defer feedback, got %r" % r["action"])
-    if r["session"]["cursor"] != 0:
-        fail("exam must not move the cursor before an accepted mark")
+    if r["session"]["cursor"] != 1:
+        fail("a recorded auto-marked exam response must advance silently")
     if "hint" in r or "reveal" in r:
         fail("exam must return no hint or reveal payload")
 
@@ -812,6 +802,16 @@ def test_short_response_stays_pending():
         fail("a short response must stay pending, got %r" % r["action"])
     if r["session"]["cursor"] != 0:
         fail("a pending short response must not advance the cursor")
+
+
+def test_formal_short_advances_with_pending_mark():
+    s = session(mode="exam", items=(2,), cursor=0)
+    r = runtime.teaching_transition(
+        s, q3(), {"kind": "submit", "answer": "A response for review."})
+    if r["action"] != "defer_feedback" or r["session"]["cursor"] != 1:
+        fail("a formal short response must advance without a verdict")
+    if r["session"]["status"] != "complete":
+        fail("the last formal short response must close the sitting")
 
 
 def test_mode_immutable_and_selection_mode_untouched():
@@ -1313,7 +1313,7 @@ def main():
     test_transition_rejects_unknown_action()
     test_practice_wrong_holds_and_unlocks_one_tier()
     test_practice_duplicate_and_empty_unlock_nothing()
-    test_exam_duplicate_resubmit_defers_and_changes_nothing()
+    test_exam_blank_and_duplicate_do_not_advance()
     test_short_unrevealed_explain_carries_no_model_text()
     test_multi_hold_names_own_picks_and_never_an_unpicked_option()
     test_multi_selection_feedback_is_policy_gated()
@@ -1339,9 +1339,10 @@ def main():
     test_practice_reveal_then_advance()
     test_practice_last_item_completes()
     test_drill_reveals_and_advances()
-    test_diagnostic_defers_until_completion()
-    test_exam_defers_until_accepted_mark()
+    test_diagnostic_defers_feedback_and_advances()
+    test_exam_defers_feedback_and_advances_auto_item()
     test_short_response_stays_pending()
+    test_formal_short_advances_with_pending_mark()
     test_mode_immutable_and_selection_mode_untouched()
     test_v1_session_upgrades_to_v2()
     test_evidence_reconciliation_repairs_crash_window()

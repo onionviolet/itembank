@@ -43,11 +43,34 @@ def check_resume():
             assert len(index) == 1
             sid, path = next(iter(index.items()))
             shelf('Session in progress', 'Resume Synthetic resume')
+            course_id = course.read_course(str(directory))['object_id']
+            card = ia.course_shelf_state(temp)['cards'][0]
+            exact = 'quiz/resume_bank?mode=practice&session=%s&course=%s' % (sid, course_id)
+            assert card['cta_href'] == '/' + exact
+            status, page = get(url + exact)
+            assert status == 200 and 'session=' + sid in page
+            assert 'answer?mode=practice&amp;session=' + sid in page
+            assert json_request(url + 'quiz/resume_bank?mode=practice&session=missing&course=' + course_id,
+                                method='GET')[0] == 400
+            assert daemon.session_index(temp) == {sid: path}
+            second_path = root / '_attempts' / 'session_second.json'
+            session.do_start(str(bank), {'objective': '', 'count': 2, 'seed': 0,
+                                         'selection_mode': 'practice'}, 'practice',
+                             str(second_path), False, preset_session_id='second')
+            choices = ia.course_shelf_state(temp)['cards'][0]
+            assert choices['resume']['state'] == 'ambiguous'
+            assert len([row for row in choices['resume']['sessions']
+                        if row['status'] == 'active']) == 2
+            assert choices['cta_href'] == '/course/' + course_id
+            status, chooser = get(url + 'course/' + course_id)
+            assert status == 200 and 'Saved sittings' in chooser
+            assert 'session=second' in chooser and 'session=' + sid in chooser
+            assert get(url + exact)[0] == 200
+            second_path.unlink()
             session.do_submit(path, 'B', None)
             saved = runtime.read_session(path)
             assert saved['cursor'] == 1
             shelf('Session in progress', 'Resume Synthetic resume')
-            course_id = course.read_course(str(directory))['object_id']
             assert get(url + 'course/' + course_id)[0] == 200
             assert get(url + 'quiz/resume_bank')[0] == 200
             resumed = runtime.read_session(path)
@@ -59,7 +82,8 @@ def check_resume():
             proc.wait(timeout=5)
             proc, url, _ = start_daemon(temp)
             shelf('Session in progress', 'Resume Synthetic resume')
-            assert get(url + 'quiz/resume_bank')[0] == 200
+            assert ia.course_shelf_state(temp)['cards'][0]['cta_href'] == '/' + exact
+            assert get(url + exact)[0] == 200
             assert daemon.session_index(temp) == {sid: path}, 'restart created another sitting'
             status, view = json_request(url + 'api/next', {'session_id': sid})
             assert status == 200 and view['session_id'] == sid and view['position'] == 1
@@ -73,6 +97,10 @@ def check_resume():
             assert get(url + 'quiz/resume_bank')[0] == 200
             assert runtime.read_session(path)['status'] == 'complete'
             assert daemon.session_index(temp) == {sid: path}
+            report_status, report = get(url + 'report?session=' + sid)
+            assert report_status == 200
+            assert 'href="/course/%s"' % course_id in report
+            assert 'Back to course' in report
             Path(path).write_text('{broken')
             shelf('Session status unavailable', 'Open Synthetic resume')
             before = snapshot(root)
@@ -87,7 +115,7 @@ def check_resume():
                 Path(path).write_text(json.dumps(saved))
                 card = ia.course_shelf_state(temp)['cards'][0]
                 assert card['resume_cue'] == 'Session status unavailable'
-            with patch.object(ia, '_course_resume_cue', side_effect=ImportError):
+            with patch.object(ia, '_course_resume_state', side_effect=ImportError):
                 card = ia.course_shelf_state(temp)['cards'][0]
                 assert card['cta_label'] == 'Open Synthetic resume'
             # Test restart validation without a warmed in-memory session id.
@@ -127,7 +155,7 @@ def check_resume():
             newer.write_text(json.dumps(dict(saved, session_id='newer', status='complete', cursor=2)))
             stamp = Path(path).stat().st_mtime + 1
             os.utime(newer, (stamp, stamp))
-            shelf('Recorded sessions complete', 'Open Synthetic resume')
+            shelf('Session status unavailable', 'Open Synthetic resume')
         finally:
             proc.terminate()
             proc.wait(timeout=5)

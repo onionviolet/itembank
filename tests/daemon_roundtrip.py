@@ -2815,8 +2815,8 @@ def check_report_zero_auto_marked():
                       {"session_id": session_id, "answer": "some prose, never auto-marked"})
         if result.get("action") != "defer_feedback":
             fail("the sole short item must defer feedback, got %r" % result.get("action"))
-        if result["status"] != "active":
-            fail("a pending short response must leave the count-1 session active")
+        if result["status"] != "complete" or result["next"]["summary"]["pending_manual"] != 1:
+            fail("the count-1 diagnostic must complete with one pending manual mark")
 
         status, body = get(url + "report?session=%s" % session_id)
         if status != 200:

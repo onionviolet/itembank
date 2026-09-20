@@ -28,7 +28,8 @@
           "description": "Count of responses with a non-null score"
         },
         "auto_correct": {
-          "type": "integer"
+          "type": ["integer", "null"],
+          "description": "Null while an active diagnostic or exam withholds correctness"
         },
         "pending_manual": {
           "type": "integer",

@@ -2213,19 +2213,18 @@ def teaching_transition(session, q, action, evidence_state=None):
 
     if score is None:
         # A constructed response is pending review, never wrong (T-06-05).
-        #
-        # It parks the sitting at the marker's desk, and until 2026-08-24 it
-        # parked there forever: nothing unparked it, so a bank holding one
-        # short item could not be completed on any surface. `mark` writes an
-        # evidence event and never touches a session, and `lti_roundtrip` had
-        # to hand-write cursor and status to reach the state it calls
-        # marker-closed. Once the marker has ruled, the item is settled and the
-        # sitting moves on; before that it does not, which is the half of the
-        # rule `test_short_response_stays_pending` pins.
+        # Formal sittings collect the response and advance without settling
+        # the mark. Practice retains its marker desk pause and retry path.
         next_rec = dict(rec, attempt_count=rec["attempt_count"] + 1,
                         last_genuine_canonical=canon)
         state = dict(state)
         state[teaching_key(q)] = next_rec
+        if session["mode"] in ("exam", "diagnostic"):
+            cursor, status = _advance_cursor(session)
+            return {"action": "defer_feedback",
+                    "session": dict(session, teaching_state=state,
+                                    cursor=cursor, status=status),
+                    "hint_tier": None}
         return {"action": "defer_feedback", "session": dict(session, teaching_state=state),
                 "hint_tier": None}
 
@@ -2246,8 +2245,10 @@ def teaching_transition(session, q, action, evidence_state=None):
                             last_genuine_canonical=canon)
             state = dict(state)
             state[teaching_key(q)] = next_rec
+            cursor, status = _advance_cursor(session)
             return {"action": "defer_feedback",
-                    "session": dict(session, teaching_state=state),
+                    "session": dict(session, teaching_state=state,
+                                    cursor=cursor, status=status),
                     "hint_tier": None}
         # practice/remediation hold: at most one tier unlocks per genuine
         # wrong attempt (D-05); the lesson pointer is tier 0, and it becomes
@@ -2273,9 +2274,11 @@ def teaching_transition(session, q, action, evidence_state=None):
         next_rec = dict(rec, attempt_count=rec["attempt_count"] + 1,
                         last_genuine_canonical=canon)
         state = dict(state)
-        state[evidence.evidence_key(q)] = next_rec
+        state[teaching_key(q)] = next_rec
+        cursor, status = _advance_cursor(session)
         return {"action": "defer_feedback",
-                "session": dict(session, teaching_state=state),
+                "session": dict(session, teaching_state=state,
+                                cursor=cursor, status=status),
                 "hint_tier": None}
     next_rec = dict(rec, attempt_count=rec["attempt_count"] + 1,
                     last_genuine_canonical=canon)
@@ -2305,6 +2308,23 @@ def marker_close(session, q, settled_marks):
     caller supplies only the facts, since this module reads no files.
     """
     if not settled_marks or teaching_key(q) not in settled_marks:
+        return None
+    cursor, status = _advance_cursor(session)
+    return dict(session, cursor=cursor, status=status)
+
+
+def formal_response_close(session, q, recorded_response):
+    """Recover a silent formal advance after evidence outlived a session write.
+
+    The session adapter supplies a live response for the current item. This
+    runtime function alone decides whether that response closes the cursor.
+    Practice remains parked on pending prose and retains its own retry flow.
+    """
+    if session.get("mode") not in ("exam", "diagnostic") or not recorded_response:
+        return None
+    if (recorded_response.get("item_ref") != q.get("id") or
+            recorded_response.get("session_id") != session.get("session_id") or
+            recorded_response.get("event_type") != "response"):
         return None
     cursor, status = _advance_cursor(session)
     return dict(session, cursor=cursor, status=status)

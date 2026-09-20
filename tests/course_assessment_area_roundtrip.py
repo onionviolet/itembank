@@ -106,10 +106,10 @@ def check_area_rows_keep_practice_and_test_separate():
             _lead, formal = daemon._course_area_rows(
                 handler, {"area": "test", "course_id": "course"}, root)
         if [row["bank_stem"] for row in practice] != ["practice"] or \
-                practice[0]["href"] != "/quiz/practice?mode=practice":
+                practice[0]["href"] != "/quiz/practice?mode=practice&course=course":
             fail("Practice published the wrong assessment rows: %r" % practice)
         if [row["bank_stem"] for row in formal] != ["formal"] or \
-                formal[0]["href"] != "/quiz/formal?mode=exam":
+                formal[0]["href"] != "/quiz/formal?mode=exam&course=course":
             fail("Test published the wrong assessment rows: %r" % formal)
     finally:
         shutil.rmtree(root, ignore_errors=True)
@@ -117,6 +117,7 @@ def check_area_rows_keep_practice_and_test_separate():
 
 def check_mode_specific_runtime_configs():
     handler = SimpleNamespace(
+        path="/quiz/unit",
         sessions={"unit": {"mode": "practice", "selection_mode": "practice",
                            "session_id": "ordinary", "seed": 7}},
         quiz_mode_sessions={})

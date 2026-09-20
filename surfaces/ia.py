@@ -30,6 +30,8 @@ It is read only when the `journal` argument is omitted.
 """
 import json
 import os
+import re
+import datetime
 
 import model
 import sample_course
@@ -605,10 +607,11 @@ def course_shelf_state(root, course=_UNSET):
                 continue
             if _record_field(record, "resume_cue") is None:
                 try:
-                    cue = _course_resume_cue(root, course_dir)
+                    resume = _course_resume_state(root, course_dir)
                 except Exception:
-                    cue = "Session status unavailable"
-                record = dict(record, resume_cue=cue)
+                    resume = {"cue": "Session status unavailable", "state": "unavailable",
+                              "sessions": ()}
+                record = dict(record, resume_cue=resume["cue"], resume=resume)
             card = _healthy_card(record, os.path.basename(course_dir),
                                  approved_root, course_dir)
             course_id = card["course_id"]
@@ -659,6 +662,10 @@ def course_shelf_state(root, course=_UNSET):
 
 
 def _course_resume_cue(root, course_dir):
+    return _course_resume_state(root, course_dir)["cue"]
+
+
+def _course_resume_state(root, course_dir):
     """Read canonical sittings only. Unknown files cannot prove a fresh start.
 
     The daemon stores sessions at the workspace root, while CLI sittings can
@@ -677,7 +684,7 @@ def _course_resume_cue(root, course_dir):
         if "_attempts" in dirs:
             attempts.add(os.path.join(directory, "_attempts"))
         dirs[:] = [name for name in dirs if not name.startswith(("_", "."))]
-    latest = {}
+    sessions = []
     for directory in sorted(attempts):
         try:
             names = os.listdir(directory)
@@ -701,42 +708,63 @@ def _course_resume_cue(root, course_dir):
                         unreadable.append(name)
                     continue
                 if (not data.get("session_id")
-                        or data["status"] not in ("active", "complete")):
+                        or data["status"] not in ("active", "complete")
+                        or data.get("mode") not in ("practice", "exam")
+                        or not os.path.isfile(bank)):
                     raise ValueError("session state is unavailable")
                 if (not isinstance(data.get("items"), list)
                         or type(data.get("cursor")) is not int
                         or not 0 <= data["cursor"] <= len(data["items"])
                         or not isinstance(data.get("responses"), list)):
                     raise ValueError("session position is unavailable")
+                selections = [event for event in evidence.events(
+                    evidence.log_path(os.path.dirname(bank)))
+                    if event.get("event_type") == "selection"
+                    and event.get("session_id") == data["session_id"]]
+                if len(selections) != 1:
+                    raise ValueError("session selection is unavailable")
+                selected_at = datetime.datetime.fromisoformat(selections[0]["ts"])
+                if selected_at.tzinfo is None or os.path.getmtime(bank) > selected_at.timestamp():
+                    raise ValueError("bank changed after selection")
                 stamp = os.path.getmtime(os.path.join(directory, name))
-                candidate = (stamp, data["session_id"], data["status"])
-                previous = latest.get(bank)
-                if (previous is None or stamp > previous[0]
-                        or (stamp == previous[0] and data["session_id"] < previous[1])):
-                    latest[bank] = candidate
+                sessions.append({"session_id": data["session_id"],
+                                 "bank": bank, "mode": data.get("mode"),
+                                 "position": data["cursor"],
+                                 "total": len(data["items"]),
+                                 "status": data["status"], "stamp": stamp})
             except (Exception, SystemExit):
                 unreadable.append(name)
-    statuses = [candidate[2] for candidate in latest.values()]
-    if "active" in statuses:
-        return ("Session in progress; other session status unavailable"
-                if unreadable else "Session in progress")
+    sessions.sort(key=lambda row: (-row["stamp"], row["session_id"]))
+    active = [row for row in sessions if row["status"] == "active"]
+    if active:
+        cue = ("Session in progress" if len(active) == 1
+               else "%d sessions in progress; choose one" % len(active))
+        if unreadable:
+            cue += "; other session status unavailable"
+        return {"cue": cue, "state": "active" if len(active) == 1 else "ambiguous",
+                "sessions": tuple(sessions)}
     if unreadable:
-        return "Session status unavailable"
-    if statuses:
-        return "Recorded sessions complete"
+        return {"cue": "Session status unavailable", "state": "unavailable",
+                "sessions": tuple(sessions)}
+    if sessions:
+        return {"cue": "Recorded sessions complete", "state": "complete",
+                "sessions": tuple(sessions)}
     # Evidence can survive a removed session. It cannot reconstruct a cursor.
     for directory in evidence_roots:
         log = evidence.log_path(directory)
         try:
             if os.path.getsize(log):
                 if any(evidence.events(log)):
-                    return "Previous activity recorded; session status unavailable"
-                return "Session status unavailable"
+                    return {"cue": "Previous activity recorded; session status unavailable",
+                            "state": "unavailable", "sessions": ()}
+                return {"cue": "Session status unavailable", "state": "unavailable",
+                        "sessions": ()}
         except FileNotFoundError:
             continue
         except Exception:
-            return "Session status unavailable"
-    return NOT_STARTED_CUE
+            return {"cue": "Session status unavailable", "state": "unavailable",
+                    "sessions": ()}
+    return {"cue": NOT_STARTED_CUE, "state": "absent", "sessions": ()}
 
 
 def _healthy_card(record, basename, approved_root=None, course_dir=None):
@@ -744,10 +772,25 @@ def _healthy_card(record, basename, approved_root=None, course_dir=None):
     name = _record_field(record, "name", basename)
     attention = _attention_of(record)
     cue = _record_field(record, "resume_cue", "Session status unavailable")
+    resume = _record_field(record, "resume") or {"state": "unavailable", "sessions": ()}
     verb = "Start " if cue == NOT_STARTED_CUE else "Resume "
     if (cue in ("Recorded sessions complete", "Session status unavailable")
             or cue.startswith("Previous activity")):
         verb = "Open "
+    if resume["state"] == "ambiguous":
+        verb = "Choose "
+    destination = "/course/" + course_id
+    if resume["state"] == "active":
+        selected = next(row for row in resume["sessions"] if row["status"] == "active")
+        stem = os.path.splitext(os.path.basename(selected["bank"]))[0]
+        if all(re.fullmatch(r"[A-Za-z0-9_.-]{1,64}", value)
+               for value in (stem, selected["session_id"], course_id)):
+            destination = ("/quiz/%s?mode=%s&session=%s&course=%s" %
+                           (stem, selected["mode"], selected["session_id"], course_id))
+    elif resume["state"] == "complete" and len(resume["sessions"]) == 1:
+        session_id = resume["sessions"][0]["session_id"]
+        if re.fullmatch(r"[A-Za-z0-9_.-]{1,64}", session_id):
+            destination = "/report?session=" + session_id
     return {
         "course_id": course_id,
         "name": name,
@@ -755,8 +798,9 @@ def _healthy_card(record, basename, approved_root=None, course_dir=None):
         "chip": _chip_for(attention, record),
         "token": ATTENTION_TOKENS[attention],
         "resume_cue": cue,
+        "resume": resume,
         "cta_label": verb + name,
-        "cta_href": "/course/" + course_id,
+        "cta_href": destination,
         "degraded": False,
         "help_code": None,
         "actions": (),

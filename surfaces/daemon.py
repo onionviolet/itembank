@@ -1037,11 +1037,35 @@ def _course_area_rows(handler, state, course_dir):
         return ("Every lesson this course holds, as a durable document you can "
                 "also read outside the app."), lessons
     assessment_treatments = _course_bank_treatments(course_dir, doc, banks)
+    resume = ia._course_resume_state(
+        getattr(handler, 'root', os.path.dirname(course_dir)), course_dir)
+    def sitting_rows(row, mode):
+        path = next(path for stem, path in banks if stem == row["bank_stem"])
+        saved = [s for s in resume["sessions"]
+                 if os.path.realpath(s["bank"]) == os.path.realpath(path)
+                 and s["mode"] == mode]
+        if saved:
+            result = []
+            for sitting in saved:
+                href = ("/report?session=" + urllib.parse.quote(sitting["session_id"], safe="")
+                        if sitting["status"] == "complete" else
+                        _quiz_path(row["bank_stem"], mode,
+                                   session_id=sitting["session_id"],
+                                   course_id=state["course_id"]))
+                result.append(dict(row, href=href,
+                                   title=("Resume " if sitting["status"] == "active" else "Report: ") + row["title"],
+                                   meta="%s, %d of %d" % (mode, sitting["position"], sitting["total"]),
+                                   note="Saved sitting %s" % sitting["session_id"]))
+            return result
+        if resume["state"] == "unavailable":
+            return [dict(row, href="", title=row["title"] + " needs recovery",
+                         note="A saved sitting could not be read. Review session files before starting again.")]
+        return [dict(row, href=_quiz_path(row["bank_stem"], mode,
+                                          course_id=state["course_id"]))]
     if area == "practice":
-        rows = [dict(row, href=row["href"] + "?mode=practice")
-                for row in quizzes
-                if "practice" in assessment_treatments.get(
-                    row["bank_stem"], set())]
+        rows = [sitting for row in quizzes
+                if "practice" in assessment_treatments.get(row["bank_stem"], set())
+                for sitting in sitting_rows(row, "practice")]
         return ("A practice sitting scores as you go, unlocks one hint tier "
                 "per genuine wrong attempt, and never shows a key you have "
                 "not earned."), rows
@@ -1051,9 +1075,9 @@ def _course_area_rows(handler, state, course_dir):
             stem = row["bank_stem"]
             if "formal-test" not in assessment_treatments.get(stem, set()):
                 continue
-            rows.append(dict(
-                row, href=row["href"] + "?mode=exam",
-                note="A fixed sitting uses every item and defers feedback until completion."))
+            rows.extend(sitting_rows(dict(
+                row, note="A fixed sitting uses every item and defers feedback until completion."),
+                "exam"))
         return ("A formal test uses the runtime's exam policy, a fixed complete "
                 "selection, and no answer-by-answer feedback."), rows
     if area == "map":
@@ -1450,6 +1474,25 @@ def _course_frame(handler, state, back, course_dir=None):
                       presentation.esc(entry["label"])))
     heading_id = ia.anchor_slug(state["area_label"]) or "area"
     lead, rows = _course_area_rows(handler, state, course_dir)
+    saved_html = ""
+    if state["area"] == "overview" and course_dir:
+        resume = ia._course_resume_state(handler.root, course_dir)
+        saved_rows = []
+        for sitting in resume["sessions"]:
+            stem = os.path.splitext(os.path.basename(sitting["bank"]))[0]
+            href = ("/report?session=" + urllib.parse.quote(sitting["session_id"], safe="")
+                    if sitting["status"] == "complete" else
+                    _quiz_path(stem, sitting["mode"],
+                               session_id=sitting["session_id"],
+                               course_id=state["course_id"]))
+            saved_rows.append({"href": href,
+                               "title": ("Resume " if sitting["status"] == "active" else "Report: ") + stem,
+                               "meta": "%s, %d of %d" % (sitting["mode"], sitting["position"], sitting["total"]),
+                               "note": "Saved sitting %s" % sitting["session_id"]})
+        if saved_rows:
+            saved_html = '<section aria-labelledby="saved-sittings"><h3 id="saved-sittings">Saved sittings</h3>%s</section>' % _course_rows_html(saved_rows)
+        elif resume["state"] == "unavailable":
+            saved_html = '<p role="status">A saved sitting is unavailable. Review session files before starting again.</p>'
     if rows:
         content = ('<p class="area-lead">%s</p>%s'
                    % (presentation.esc(lead), _course_rows_html(rows))
@@ -1478,7 +1521,7 @@ def _course_frame(handler, state, back, course_dir=None):
                '<h2 id="%s">%s</h2>%s%s'
                % (presentation.esc(ia.ANCHOR_NOT_FOUND_NOTICE),
                   presentation.esc(heading_id),
-                  presentation.esc(state["area_label"]), content,
+                  presentation.esc(state["area_label"]), saved_html + content,
                   _course_area_extra(handler, state, course_dir))))
     cfg = settings.load_settings(handler.root)
     profile, _notice = settings.resolve_presentation_profile(cfg)
@@ -2081,9 +2124,10 @@ def _report_figure(field, value, label):
     `check_api_cli_parity`-style page-versus-command tests can regex against
     instead of scraping prose that copywriting could change later.
     """
-    return ('<div class="figure" data-field="%s"><div class="figure-value">%d</div>'
+    shown = 'Withheld until completion' if value is None else str(value)
+    return ('<div class="figure" data-field="%s"><div class="figure-value">%s</div>'
             '<div class="figure-label">%s</div></div>'
-            % (field, value, html.escape(label)))
+            % (field, html.escape(shown), html.escape(label)))
 
 
 def _report_objective_rows(objectives):
@@ -2096,8 +2140,10 @@ def _report_objective_rows(objectives):
     for name in sorted(objectives):
         bucket = objectives[name]
         rows.append(
-            "<tr><td>%s</td><td>%d</td><td>%d</td><td>%d</td></tr>"
-            % (html.escape(name), bucket["attempts"], bucket["correct"], bucket["pending"]))
+            "<tr><td>%s</td><td>%d</td><td>%s</td><td>%d</td></tr>"
+            % (html.escape(name), bucket["attempts"],
+               "Withheld until completion" if bucket["correct"] is None
+               else str(bucket["correct"]), bucket["pending"]))
     return "\n".join(rows)
 
 
@@ -2117,7 +2163,11 @@ def _report_card(summary, status, position=None, total=None):
     # Mirrors quiz_page.py's finish() guard (`pct = autoTotal ? Math.round(...) : 0`)
     # so a session with zero auto-marked responses (e.g. every item is
     # `short`) renders 0, never a ZeroDivisionError and never NaN.
-    pct = round(correct / attempts * 100) if attempts else 0
+    pct = round(correct / attempts * 100) if correct is not None and attempts else 0
+    headline = ("Withheld until completion" if correct is None
+                else "%d%%" % pct)
+    headline_label = ("auto-marked result" if correct is None
+                      else "auto-marked accuracy")
     figures = "".join((
         _report_figure("auto_attempts", attempts, "auto-marked"),
         _report_figure("auto_correct", correct, "correct"),
@@ -2130,12 +2180,13 @@ def _report_card(summary, status, position=None, total=None):
     partial = ""
     if pending:
         partial = ('<p class="status" data-field="pending-notice">Some responses '
-                   'still need review. Auto-graded totals exclude them.</p>')
+                   'still need human review. Auto-graded totals exclude them. '
+                   'Reopen this report after a reviewer records the marks.</p>')
     rows = _report_objective_rows(summary["objectives"])
     return (
         '<div class="card" data-status="%s">'
-        '<div class="headline" data-field="pct">%d%%</div>'
-        '<p class="headline-label">auto-marked accuracy</p>'
+        '<div class="headline" data-field="pct">%s</div>'
+        '<p class="headline-label">%s</p>'
         '%s'
         '%s'
         '<div class="figures">%s</div>'
@@ -2147,7 +2198,8 @@ def _report_card(summary, status, position=None, total=None):
         "</div>"
         '<p class="status" data-provenance>This report is compiled from the '
         'recorded evidence for this sitting.</p>'
-        % (html.escape(status), pct, progress, partial, figures, rows))
+        % (html.escape(status), html.escape(headline), headline_label,
+           progress, partial, figures, rows))
 
 
 def _retention_report_body(payload, params):
@@ -2354,7 +2406,8 @@ def handle_report_get(handler):
     data = read_session(path)
     bank_path = data.get("bank")
     gate_html = ""
-    if bank_path and os.path.exists(bank_path):
+    if bank_path and os.path.exists(bank_path) and not (
+            status == 'active' and data.get('mode') in ('exam', 'diagnostic')):
         les = parse_lesson(bank_path)
         gate_modes = {}
         if les:
@@ -2365,9 +2418,25 @@ def handle_report_get(handler):
             os.path.basename(bank_path), data.get("session_id", ""),
             gate_modes=gate_modes)
         gate_html = _gate_outcome_html(split)
+    report_back = {"href": "/", "label": "itembank"}
+    try:
+        matches = []
+        bank_real = os.path.realpath(bank_path) if bank_path else None
+        for card in ia.course_shelf_state(handler.root).get('cards', []):
+            if card.get('degraded') or not card.get('available'):
+                continue
+            if any(row.get('session_id') == session_id and
+                   os.path.realpath(row.get('bank', '')) == bank_real
+                   for row in card.get('resume', {}).get('sessions', ())):
+                matches.append(card)
+        if len(matches) == 1:
+            report_back = {"href": "/course/" + matches[0]['course_id'],
+                           "label": "Back to course"}
+    except Exception:
+        pass
     page = presentation.surface_shell(
         "itembank report", body + gate_html, theme_css=theme_block,
-        back={"href": "/", "label": "itembank"})
+        back=report_back)
     handler.send_html(page.encode("utf-8"))
 
 
@@ -3286,10 +3355,24 @@ def _quiz_session_config(handler, stem, launch_mode=None, bank_path=None):
     base = handler.sessions.get(stem)
     if base is None:
         raise ValueError("quiz session configuration is unavailable")
+    params = urllib.parse.parse_qs(urllib.parse.urlsplit(handler.path).query)
+    requested = params.get("session", [])
+    course_ids = params.get("course", [])
+    if len(requested) > 1 or len(course_ids) > 1:
+        raise ValueError("quiz context is ambiguous")
+    requested_id = requested[0] if requested else None
+    course_id = course_ids[0] if course_ids else None
+    if requested_id and (not launch_mode or not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", requested_id)):
+        raise ValueError("saved session needs one valid course mode")
+    if course_id:
+        course_dir = ia.course_dir_for(handler.root, course_id)
+        if not course_dir or not bank_path or os.path.commonpath(
+                [os.path.realpath(course_dir), os.path.realpath(bank_path)]) != os.path.realpath(course_dir):
+            raise ValueError("quiz does not belong to this course")
     if launch_mode is None:
         return base
     store = handler.quiz_mode_sessions
-    key = (stem, launch_mode)
+    key = (stem, launch_mode, requested_id)
     if (key not in store or
             (bank_path is not None and
              store[key].get("_bank_path") != os.path.abspath(bank_path))):
@@ -3300,18 +3383,25 @@ def _quiz_session_config(handler, stem, launch_mode=None, bank_path=None):
         cfg["selection_mode"] = launch_mode
         cfg["seed"] = 0
         cfg["mode_specific"] = True
+        cfg["requested_session_id"] = requested_id
+        cfg["course_id"] = course_id
         cfg["_bank_path"] = (os.path.abspath(bank_path)
                              if bank_path is not None else None)
         store[key] = cfg
     return store[key]
 
 
-def _quiz_path(stem, launch_mode=None, receipt=None, answer=False):
+def _quiz_path(stem, launch_mode=None, receipt=None, answer=False,
+               session_id=None, course_id=None):
     path = "/quiz/%s%s" % (urllib.parse.quote(stem, safe=""),
                             "/answer" if answer else "")
     query = []
     if launch_mode:
         query.append(("mode", launch_mode))
+    if session_id:
+        query.append(("session", session_id))
+    if course_id:
+        query.append(("course", course_id))
     if receipt:
         query.append(("receipt", receipt))
     return path + (("?" + urllib.parse.urlencode(query)) if query else "")
@@ -3331,32 +3421,45 @@ def _send_quiz_page(handler, stem, path, qs, sess, view, teaching, lesson_slugs,
     cfg = settings.load_settings(handler.root)
     theme_block = theme.theme_css(cfg)
     profile, _notice = settings.resolve_presentation_profile(cfg)
+    session_id = sess.get('requested_session_id')
+    course_id = sess.get('course_id')
     _, page = quiz.page_for(path, qs, serve=True, reveal=False,
-                            post_path=_quiz_path(stem, launch_mode, answer=True),
+                            post_path=_quiz_path(stem, launch_mode, answer=True,
+                                                 session_id=session_id, course_id=course_id),
                             bank_stem=stem, mode=sess.get("mode", "practice"),
                             lesson_base="/lesson/%s" % stem,
                             lesson_slugs=lesson_slugs, theme_css=theme_block,
-                            assist=True, home_href="/", presentation_profile=profile,
-                            symbol_return=_quiz_path(stem, launch_mode))
+                            assist=True,
+                            home_href=("/course/%s" % course_id if course_id else "/"),
+                            presentation_profile=profile,
+                            symbol_return=_quiz_path(stem, launch_mode,
+                                                     session_id=session_id,
+                                                     course_id=course_id))
     # A form POST records and moves the runtime cursor before its PRG redirect.
     # Show the just-answered public item and runtime-issued verdict first. The
     # Continue link then renders the live cursor without replaying the answer.
     rendered_view = view
     continue_href = None
     continue_label = None
-    if isinstance(flash, dict) and flash.get("action") in ("advance", "complete"):
+    if isinstance(flash, dict) and flash.get("action") in ("advance", "complete", "defer_feedback"):
         before = flash.get("before")
         if isinstance(before, dict) and before.get("item"):
-            rendered_view = before
-            if flash.get("action") == "advance":
-                continue_href = _quiz_path(stem, launch_mode)
+            advanced = (before.get('position') != view.get('position') or
+                        view.get('status') == 'complete')
+            if flash.get('action') != 'defer_feedback' or advanced:
+                rendered_view = before
+            if flash.get('action') == 'defer_feedback':
+                flash = dict(flash, advanced=advanced)
+            if advanced and view.get('status') != 'complete':
+                continue_href = _quiz_path(stem, launch_mode,
+                                            session_id=session_id, course_id=course_id)
                 try:
                     continue_label = "Next question, %d of %d" % (
                         int(view.get("position", 0) or 0) + 1,
                         int(view.get("total", 0) or 0))
                 except (AttributeError, TypeError, ValueError):
                     continue_label = "Continue"
-            else:
+            elif view.get('status') == 'complete':
                 continue_href = "/report?session=%s" % urllib.parse.quote(
                     str(before.get("session_id", "")))
                 continue_label = "View summary"
@@ -3373,9 +3476,12 @@ def _send_quiz_page(handler, stem, path, qs, sess, view, teaching, lesson_slugs,
     if rendered_view is not None:
         symbol_help = quiz.question_symbol_help(
             path, qs, stem, serve=True,
-            return_path=_quiz_path(stem, launch_mode))
+            return_path=_quiz_path(stem, launch_mode,
+                                   session_id=session_id, course_id=course_id))
         baseline = quiz_page.baseline_for(rendered_view, teaching,
-                                          _quiz_path(stem, launch_mode, answer=True),
+                                          _quiz_path(stem, launch_mode, answer=True,
+                                                     session_id=session_id,
+                                                     course_id=course_id),
                                           tokens, flash,
                                           prefill, continue_href, continue_label,
                                           symbol_help)
@@ -3438,8 +3544,10 @@ def _saved_quiz_session(handler, stem, path, qs, cfg=None):
                     and (not cfg.get("mode_specific")
                          or data.get("mode") == expected_mode)):
                 candidates.append((mtime, session_id, candidate_path, data))
-        selected = max(candidates, key=lambda row: (row[0], row[1]),
-                       default=None)
+        requested_id = cfg.get("requested_session_id")
+        selected = (next((row for row in candidates if row[1] == requested_id), None)
+                    if requested_id else max(candidates, key=lambda row: (row[0], row[1]),
+                                             default=None))
         session_id = selected[1] if selected else None
         attempts = os.path.join(os.path.abspath(handler.root), "_attempts")
         try:
@@ -3449,6 +3557,8 @@ def _saved_quiz_session(handler, stem, path, qs, cfg=None):
             files = set()
         if files - set(index.values()):
             raise ValueError("A saved session is unreadable. Review the session files before starting another sitting.")
+        if requested_id and selected is None:
+            raise ValueError("The selected saved session is unavailable. Choose a sitting from the course.")
         if session_id is None:
             return None
         saved = selected[2] if selected else None
@@ -3689,6 +3799,10 @@ def handle_quiz_answer(handler, stem):
                 handler.send_error(400, "unknown quiz form action"); return
             session_file = _ensure_quiz_session(handler, stem, path, qs, sess)
             before = session.do_next(session_file)
+            if before.get("status") == "complete":
+                handler.send_redirect("/report?session=" + urllib.parse.quote(
+                    before["session_id"], safe=""))
+                return
             with handler.quiz_state_lock:
                 _prune_quiz_store(handler.quiz_form_tokens)
                 # Read, do not spend. The token used to be popped here, before
@@ -3740,7 +3854,10 @@ def handle_quiz_answer(handler, stem):
             receipt = _mint_quiz_flash(
                 handler, before, after, result,
                 prefill=fields if result.get("action") == "hold" else None)
-            handler.send_redirect(_quiz_path(stem, launch_mode, receipt=receipt))
+            handler.send_redirect(_quiz_path(
+                stem, launch_mode, receipt=receipt,
+                session_id=sess.get("requested_session_id"),
+                course_id=sess.get("course_id")))
             return
         q = by_id.get(data.get("id"))
         if q is None:
@@ -4171,9 +4288,9 @@ def _lesson_context_nav(handler, bank_path):
         course_id = urllib.parse.quote(matches[0], safe="")
         links.insert(0, {"href": "/course/%s/learn" % course_id,
                          "label": "Back to course"})
-        links.append({"href": "/quiz/%s" %
-                      urllib.parse.quote(os.path.splitext(
-                          os.path.basename(bank_path))[0], safe=""),
+        links.append({"href": _quiz_path(
+                          os.path.splitext(os.path.basename(bank_path))[0],
+                          "practice", course_id=matches[0]),
                       "label": "Continue to practice"})
     return links
 
@@ -5216,6 +5333,9 @@ def _refresh_attempt_view(cfg, session_id, qs, bank_path):
     the scoped-serve progress line from the API session's own event count.
     """
     md = evidence.render_attempt_md(cfg["log"], session_id, qs, bank_path)
+    out_dir = os.path.dirname(cfg["out"])
+    if out_dir:
+        os.makedirs(out_dir, exist_ok=True)
     tmp = cfg["out"] + ".tmp"
     with open(tmp, "w", encoding="utf-8") as fh:
         fh.write(md)
@@ -5352,7 +5472,7 @@ def handle_api_submit(handler):
         result["explain"] = explain_payload(
             q, bool(cfg.get("reveal")) if cfg is not None else False,
             run_result=result.get("run_result"))
-    if mode in ("diagnostic", "exam") and result.get("action") != "advance":
+    if mode in ("diagnostic", "exam"):
         # D-12/D-13: diagnostic and unmarked exam responses carry no verdict,
         # answer, hint, explanation, or key -- the score is stripped here so
         # the served client cannot infer correctness before the release gate.

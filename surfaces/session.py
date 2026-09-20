@@ -33,7 +33,7 @@ from runtime import (INTERACTION_VERSION, REPORT_VERSION, SESSION_VERSION,
                      VISUAL_ACTIONS, VISUAL_PROTOCOL_VERSION,
                      VISUAL_TOLERANCE_POLICY_VERSION, canonical_visual_response,
                      explain_payload, interaction_result, invoke_hint,
-                     invoke_rubric_review, marker_close,
+                     invoke_rubric_review, formal_response_close, marker_close,
                      new_teaching_record,
                      normalize_answer, public_item,
                      read_session, reconcile_teaching_state, score_response,
@@ -518,10 +518,28 @@ def do_next(session_file):
     # never end, because `mark` writes evidence and never touches a session.
     if data["status"] == "active" and data["cursor"] < len(data["items"]):
         parked = qs[data["items"][data["cursor"]]]
-        moved = marker_close(
-            data, parked,
-            settled_mark_keys(evidence.log_path(os.path.dirname(data["bank"])),
-                              data["session_id"]))
+        log = evidence.log_path(os.path.dirname(data["bank"]))
+        moved = None
+        if data["mode"] in ("exam", "diagnostic") and not any(
+                row.get("item_id") == parked["id"] for row in data["responses"]):
+            live = [ev for ev in evidence.live_events(log)
+                    if ev.get("session_id") == data["session_id"]
+                    and ev.get("event_type") == evidence.RESPONSE_EVENT_TYPE
+                    and ev.get("item_ref") == parked["id"]]
+            if live:
+                recovered = live[-1]
+                moved = formal_response_close(data, parked, recovered)
+                if moved is not None:
+                    moved["responses"] = list(data["responses"]) + [{
+                        "item_id": parked["id"],
+                        "objective": parked.get("objective", ""),
+                        "type": parked["type"],
+                        "answer": recovered.get("answer"),
+                        "score": recovered.get("score"),
+                        "status": "recorded"}]
+        if moved is None:
+            moved = marker_close(
+                data, parked, settled_mark_keys(log, data["session_id"]))
         if moved is not None:
             data = moved
     # `next` starts writing the session here: the clock for response_time_ms
@@ -1119,7 +1137,17 @@ def do_report(session_file):
     log = evidence.log_path(os.path.dirname(data["bank"]))
     outcomes = evidence.teaching_outcomes(log, data["session_id"])
     summary = session_summary(data, settled_mark_refs(log, data["session_id"]))
-    summary["teaching_outcomes"] = outcomes["teaching_outcomes"]
+    if data["status"] == "active" and data["mode"] in ("diagnostic", "exam"):
+        # Completion is the release gate for correctness in silent modes.
+        # Preserve progress and pending work, but no score-derived field may
+        # reach CLI, API, or HTML while the sitting is active.
+        summary["auto_correct"] = None
+        summary["objectives"] = {
+            name: {"attempts": row["attempts"], "correct": None,
+                   "pending": row["pending"]}
+            for name, row in summary["objectives"].items()}
+    else:
+        summary["teaching_outcomes"] = outcomes["teaching_outcomes"]
     return {"schema_version": REPORT_VERSION, "session_id": data["session_id"],
             "status": data["status"], "summary": summary,
             "review_available": {"diagnostic": data["status"] == "complete",
