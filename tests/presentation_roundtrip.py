@@ -584,7 +584,9 @@ def test_index_and_report_state_copy():
         if resp[0] != 200:
             fail("short-answer submit for the partial report failed: %r" % resp)
         status, body = theme_get(url + "report?session=%s" % session_id)
-        if "Some responses still need review. Auto-graded totals exclude them." not in body:
+        if ("Some responses still need human review. Auto-graded totals exclude "
+                "them. Reopen this report after a reviewer records the marks."
+                not in body):
             fail("partial report is missing the exact partial-review copy")
         if 'data-field="pending_manual"' not in body:
             fail("partial report lost the pending-manual tabular figure")
