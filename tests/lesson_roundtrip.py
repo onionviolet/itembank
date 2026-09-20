@@ -2304,7 +2304,7 @@ def test_daemon_context_nav_resolves_ownership():
         if links != [{"href": "/course/course-1/learn",
                       "label": "Back to course"},
                      {"href": "/courses", "label": "Courses"},
-                     {"href": "/quiz/lesson_bank",
+                     {"href": "/quiz/lesson_bank?mode=practice&course=course-1",
                       "label": "Continue to practice"}]:
             fail("unique course ownership must resolve the course link: %r"
                  % links)

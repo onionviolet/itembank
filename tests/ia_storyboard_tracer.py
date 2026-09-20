@@ -295,11 +295,13 @@ def scenario_model_disabled_walk():
         # Practice reached from the same bank, without the test supplying
         # context by hand.
         # `--type mc` so the walk lands on a multiple-choice item and the
-        # scoring stage exercises a real letter answer. Without it the
+        # scoring stage exercises a real letter answer. `--mode practice`
+        # keeps the authored hint ladder available after a wrong response.
+        # Without the type restriction the
         # selector can serve a drag-and-drop item, whose response is not a
         # letter, and the scoring stage would skip rather than run.
         result = run(["start", bank, "--out", session, "--count", "2",
-                      "--type", "mc"], cwd=workdir, env=env)
+                      "--type", "mc", "--mode", "practice"], cwd=workdir, env=env)
         if result.returncode != 0:
             fail("starting practice failed: %s"
                  % (result.stdout + result.stderr))

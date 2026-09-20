@@ -256,7 +256,8 @@ def check_course_lesson_practice_context():
         if links != [
                 {"href": "/course/synthetic/learn", "label": "Back to course"},
                 {"href": "/courses", "label": "Courses"},
-                {"href": "/quiz/lesson_bank", "label": "Continue to practice"}]:
+                {"href": "/quiz/lesson_bank?mode=practice&course=synthetic",
+                 "label": "Continue to practice"}]:
             fail("course, lesson, and practice did not preserve one context: %r" % links)
     for token in ("sessionStorage", "scrollY", "activeId", "beforeunload",
                   "e.returnValue", 'closest("form")'):
