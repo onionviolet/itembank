@@ -4,8 +4,8 @@ milestone: reach
 milestone_name: reach
 current_phase_name: 20-extensible-ui-foundation-and-interaction-clarity-pass
 current_phase: 20
-status: "Q1 quiz audit repairs verified in the source candidate. API and native retries preserve response controls and selected answers. Formal-assessment completion and broader P1 integration remain open."
-stopped_at: "Next reproduce the two-item formal-assessment completion journey through the runtime-owned close authority, covering assessment audit F6 and F8."
+status: "Parallel parity candidate passes a connected synthetic course journey, formal exam completion, reusable line plot, and restored reading display. Installed and human acceptance remain open."
+stopped_at: "Next verify the installed connected journey and resolve remaining authoring, code-depth, offline, and human acceptance gates."
 last_updated: "2026-09-19"
 last_activity: 2026-09-19
 last_activity_desc: "Continued with Luna workers, integrated bounded retry, recovery, route and display repairs, and verified synthetic native and API browser journeys."
@@ -17,6 +17,24 @@ progress:
   counting_rule: "phase directories under .planning/phases; a phase counts complete when frozen or when its execution gate is complete. Human, external, and waived legs remain named limits rather than active implementation phases. Reach phases 19A through 19E and Phase 20 have completed their recorded execution gates. A plan is complete only when its required gate passes; a summary file alone does not close it."
 ---
 # Project State
+
+**Active parallel parity candidate, 2026-09-19:** A disposable real daemon
+passes Home to course to accepted source range to native comparison lesson to
+practice to restart and exact session resume to script-free submission to
+result and back to course. The formal exam fixture advances through an
+auto-marked item and pending prose, withholds correctness until completion,
+then reopens the report after restart. Two synthetic lessons reuse one linked
+line-plot component with a useful script-free explanation. A clean restored
+course serves its source, reading status and private note, including in the
+initial HTML. Focused connected-unit, formal-exam, lesson-interaction,
+reading-package and course-assessment-area tests pass. Full preflight reached
+all 134 Python scripts before the last course-area test repair. It reported
+the repaired test failure, a separate LAN self-route timeout in the daemon
+suite, and the expected dirty-tree gate. The affected focused tests passed
+after repair. Packaged and installed app journeys, human accessibility and
+learning transfer, full author-workbench parity, code-depth production parity
+and clean offline recovery acceptance remain open. The candidate is committed
+on `codex/itembank-parity-flows-20260920`; it has not been pushed or installed.
 
 **Active Q1 continuation, 2026-09-19:** The current source candidate repairs
 quiz retry controls, uncertain acknowledgement recovery, selected-answer
