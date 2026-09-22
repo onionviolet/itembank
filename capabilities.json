@@ -100,6 +100,14 @@
   "changed_for_agents": [
     {
       "changes": [
+        "The learner workspace now persists course order and owner-backed Today tasks, with private note backup controls.",
+        "Lesson reading and practice now preserve more recovery state; agents should use the runtime's resumed state rather than infer completion from presentation alone.",
+        "Dark and OLED appearance modes are available in the local UI."
+      ],
+      "version": "0.5.0"
+    },
+    {
+      "changes": [
         "capabilities.json introduced: a static, local, machine-readable index of this install (version, format contract version, every CLI command with its since-version, served routes, skill index, and this changelog). Reading it is not a network event.",
         "The current checkout publishes the generated MCP tool table through the mcp command and token-gated /mcp route, and exposes course source-registration and agent-operation routes.",
         "Lesson readers now disclose authored comparison interactions and guided progressive-reading controls while retaining static and offline fallbacks; accessibility review remains a human gate.",
@@ -387,7 +395,7 @@
     }
   ],
   "format_contract_version": 1,
-  "itembank_version": "0.4.0",
+  "itembank_version": "0.5.0",
   "routes": [
     {
       "method": "GET",

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.0 - 2026-09-19
+
+- Added durable lesson reading and recovery, plus clearer question presentation
+  and response recovery during practice.
+- Added owner-backed Today tasks, persistent course ordering, and private note
+  backup controls.
+- Added dark and OLED appearance modes and refreshed local workspace controls.
+- Fixed portable packaging of the workspace module and expanded discovery,
+  adapter, package, and UI checks.
+
 ## 0.4.0 - 2026-09-09
 
 - Added the course-first learner workspace across desk, learning, practice,

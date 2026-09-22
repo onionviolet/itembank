@@ -75,6 +75,15 @@ SKILL_ROOTS = (".claude/skills", ".agents/skills")
 # One entry per release describing what an agent must know that release
 # notes for humans would bury. Each release appends one entry.
 CHANGED_FOR_AGENTS = [
+    {"version": "0.5.0",
+     "changes": [
+         "The learner workspace now persists course order and owner-backed "
+         "Today tasks, with private note backup controls.",
+         "Lesson reading and practice now preserve more recovery state; "
+         "agents should use the runtime's resumed state rather than infer "
+         "completion from presentation alone.",
+         "Dark and OLED appearance modes are available in the local UI.",
+     ]},
     {"version": "0.4.0",
      "changes": [
          "capabilities.json introduced: a static, local, machine-readable "
