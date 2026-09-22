@@ -11,6 +11,13 @@ gets a dated disposition and link; it is not deleted from this inbox.
 
 ## Awaiting review
 
+### 2026-09-20: LaTeX answer input
+
+> Also put stuff into uservision in itembank for latex imputs to be supported?
+
+**Status:** promoted to `USER-VISION.md` on 2026-09-20. This asks for learner
+math input, beyond the existing ability to render authored LaTeX.
+
 ### 2026-08-13: files, hierarchy, onboarding, packaging, and future audit
 
 > my words will have to go into user vision later, but also, stuff like the executable notebooks, editing files where they are at now, finding previous files, creating relevant folders, user friendly instructiojs like for readme and in app, user considerations, like the walkthrough for first time and more, the finial packaged app, and other stuff I could have mised, goal of being applicable to something super complex, like being able to create and relevant course/lesson, it can have subcourses/semester/conecpts that builds up a field or course? Like say for something like math, sub category for kind of math, then further and further more, maybe can show completion, and like a progress on "completing" the entire frield, but that could be implemented but what counts as an entire field and more will need more ideaboarding.

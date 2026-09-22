@@ -57,6 +57,13 @@ RESPONSE_FORMAT_INSTRUCTIONS = {
 }
 
 
+LATEX_INPUT_STYLES = r""".latex-entry-note{margin:7px 0;color:var(--mut);font:16px/1.45 var(--font-ledger)}
+.latex-preview{min-height:56px;margin-top:9px;padding:12px;border:1px solid var(--line);
+  border-radius:9px;background:var(--chip);overflow:auto;color:var(--ink)}
+.latex-preview[data-preview-state="empty"]{color:var(--mut);font-family:var(--font-ledger)}
+.latex-preview[data-preview-state="source"]{white-space:pre-wrap;font-family:var(--font-code)}"""
+
+
 TEMPLATE = r"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>__TITLE__</title>
@@ -264,6 +271,7 @@ textarea.ans{width:100%;min-height:150px;padding:11px 12px;border-radius:9px;
 textarea.ans:focus{outline:2px solid var(--accent);outline-offset:1px;
   border-color:var(--accent)}
 textarea.ans:disabled{opacity:.75}
+/*__LATEX_INPUT_CSS__*/
 /* check item code editor (plan 05-05): the wrapper declares the shared
    monospace stack once -- font family, size and line height -- and
    CodeMirror's own layers inherit it, so gutter row N is editor line N at
@@ -425,6 +433,7 @@ __CM6_TAG__
 __CM6_BOOT__
 <script>window.ItembankQuestionSymbols=__QUESTION_SYMBOLS__;</script>
 __QUESTION_SYMBOLS_SCRIPT__
+__LATEX_INPUT_SCRIPT__
 <script id="offline">
 __OFFLINE_JS__
 </script>
@@ -438,6 +447,56 @@ __STRUCTURE_SCRIPT__
 __MATH_SCRIPT__
 __GLOSS_SCRIPT__
 </body></html>"""
+
+
+LATEX_INPUT_JS = r"""<script id="latex-input-adapter">
+(function () {
+  function install(textarea, host) {
+    if (!textarea || textarea.dataset.latexReady === "true") return;
+    textarea.dataset.latexReady = "true";
+    textarea.spellcheck = false;
+    textarea.setAttribute("autocapitalize", "none");
+    textarea.placeholder = "Type LaTeX source, for example x^2 + 2x + 1";
+    var note = document.createElement("p");
+    note.className = "latex-entry-note";
+    note.textContent = "Enter LaTeX source. The exact source is saved; the preview does not grade it.";
+    var preview = document.createElement("div");
+    preview.className = "latex-preview";
+    preview.setAttribute("aria-label", "Rendered LaTeX preview");
+    host.appendChild(note);
+    host.appendChild(preview);
+    function render() {
+      var source = textarea.value.trim();
+      if (!source) {
+        preview.dataset.previewState = "empty";
+        preview.textContent = "Preview appears here.";
+        return;
+      }
+      preview.dataset.previewState = "source";
+      preview.textContent = source;
+      if (typeof window.katex !== "undefined") {
+        try {
+          window.katex.render(source, preview, {displayMode:true,
+            throwOnError:false, trust:false, maxExpand:1000, maxSize:50});
+          preview.dataset.previewState = "rendered";
+        } catch (error) {
+          preview.textContent = source;
+        }
+      }
+    }
+    textarea.addEventListener("input", render);
+    render();
+  }
+  function scan(root) {
+    (root || document).querySelectorAll('textarea[data-input-format="latex"]')
+      .forEach(function (textarea) { install(textarea, textarea.parentNode); });
+  }
+  window.ItembankLatexInput = {install:install, scan:scan};
+  scan(document);
+  new MutationObserver(function () { scan(document); })
+    .observe(document.getElementById("host"), {childList:true, subtree:true});
+})();
+</script>"""
 
 
 QUESTION_SYMBOLS_JS = r"""<script id="question-symbols">
@@ -913,8 +972,10 @@ def _form_controls(item, prefill=None):
     value = _prefilled(prefill, "answer")
     if t == "check" and not value:
         value = item.get("starter", "")
-    return '<label>%s<textarea class="ans" name="answer">%s</textarea></label>' % (
-        label, html.escape(value))
+    input_format = item.get("input_format") or schema.get("format") or "plain"
+    return ('<label>%s<textarea class="ans" name="answer" data-input-format="%s">'
+            '%s</textarea></label>' %
+            (label, html.escape(str(input_format), quote=True), html.escape(value)))
 
 
 def _selection_card(picks):
@@ -1482,8 +1543,11 @@ function asBuild(q, body, act, card){
 function asShort(q, body, act, card){
   const ta = document.createElement("textarea");
   ta.className = "ans";
+  ta.dataset.inputFormat = q.input_format || "plain";
   ta.placeholder = "Type your answer. Complete sentences; this is marked on what you actually wrote.";
   body.appendChild(ta);
+  if(window.ItembankLatexInput && q.input_format === "latex")
+    window.ItembankLatexInput.install(ta, body);
   const submit = mkSubmit(act, "your own words, no notes");
   ta.oninput = ()=>{ submit.disabled = ta.value.trim().length < 2; };
   ta.focus();
@@ -2147,8 +2211,11 @@ function asBuild(q, body, act, card){
 function asShort(q, body, act, card){
   const ta = document.createElement("textarea");
   ta.className = "ans";
+  ta.dataset.inputFormat = q.input_format || "plain";
   ta.placeholder = "Type your answer. Complete sentences; this is marked on what you actually wrote.";
   body.appendChild(ta);
+  if(window.ItembankLatexInput && q.input_format === "latex")
+    window.ItembankLatexInput.install(ta, body);
   const submit = mkSubmit(act, "your own words, no notes");
   ta.oninput = ()=>{ submit.disabled = ta.value.trim().length < 2; };
   ta.focus();

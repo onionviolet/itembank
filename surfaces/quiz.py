@@ -15,7 +15,8 @@ from runtime import INTERACTION_VERSION, glossable, page_item, score_response
 from surfaces.session import run_check_source
 from surfaces import presentation, settings
 from surfaces.quiz_page import (AGENT_ASSIST_HTML, ASSIST_JS, OFFLINE_JS,
-                                MATH_ADAPTER_JS, QUESTION_SYMBOLS_JS, SERVED_JS,
+                                LATEX_INPUT_JS, LATEX_INPUT_STYLES, MATH_ADAPTER_JS,
+                                QUESTION_SYMBOLS_JS, SERVED_JS,
                                 STRUCTURE_ADAPTER_JS, TEMPLATE)
 from surfaces.lesson import GLOSS_ENHANCEMENT_JS, MATH_ASSETS_HTML, gloss_css
 from surfaces.theme import THEME_CSS, theme_css
@@ -361,6 +362,9 @@ def page_for(bank_path, qs, serve=False, reveal=False, post_path="/answer",
                      if has_check else "")
     assist_html = AGENT_ASSIST_HTML if (serve and assist) else ""
     assist_js = ASSIST_JS if (serve and assist) else ""
+    latex_input_js = LATEX_INPUT_JS if any(
+        q.get("type") == "short" and q.get("input_format") == "latex"
+        for q in qs) else ""
     math_assets = ""
     math_script = ""
     if serve:
@@ -396,6 +400,9 @@ def page_for(bank_path, qs, serve=False, reveal=False, post_path="/answer",
                  .replace("__GLOSS_CSS__", gloss_css())
                  .replace("__GLOSS_SCRIPT__", GLOSS_ENHANCEMENT_JS if serve else "")
                  .replace("__QUESTION_SYMBOLS_SCRIPT__", QUESTION_SYMBOLS_JS)
+                 .replace("/*__LATEX_INPUT_CSS__*/",
+                          LATEX_INPUT_STYLES if latex_input_js else "")
+                 .replace("__LATEX_INPUT_SCRIPT__", latex_input_js)
                  .replace("__MATH_ASSETS__", math_assets)
                  .replace("__MATH_SCRIPT__", math_script)
                  .replace("__PRODUCT_CSS__", presentation.product_theme_css()

@@ -22,7 +22,7 @@ MARKERS = (
     "A)", "B)", "C)", "D)", "E)", "F)", "G)", "H)",
     "ROW)", "ITEM)", "STEP)", "CASE)",
     "[TYPE:", "[OBJECTIVE:", "[SELECT:", "[CATEGORIES:", "[ID:", "[HASH:",
-    "[LESSON-REF:", "[PAIR:", "[PREREQ:", "[LANG:", "[MATCH:",
+    "[LESSON-REF:", "[PAIR:", "[PREREQ:", "[LANG:", "[MATCH:", "[INPUT:",
     "[HARNESS:", "[TOLERANCE:",
     "MODEL:", "RUBRIC:", "WHY BEST:", "STARTER:",
 )
@@ -81,6 +81,7 @@ def parse_question(ch):
         r"Q\d+\.\s*(.*?)\s*(?:\(difficulty:|" + _STEM_TERMINATORS + r")",
         ch, re.S)
     lesson_ref = grab(r"\[LESSON-REF:\s*(.*?)\]", ch)
+    input_format = grab(r"(?m)^\[INPUT:\s*([\w-]+)\s*\]", ch).lower()
     common = {
         "id": "q" + number if number else "",
         "number": int(number) if number else 0,
@@ -102,6 +103,8 @@ def parse_question(ch):
         "trap": section("TRAP", ch),
         "conf": grab(r"(?m)^CONFIDENCE:\s*(.*?)\s*(?=\n|\Z)", ch),
     }
+    if input_format:
+        common["input_format"] = input_format
 
     if qtype in ("mc", "multi"):
         opts = {}
@@ -2284,12 +2287,18 @@ THE EIGHT ITEM TYPES
    Use it where selecting from options would give the answer away, or where the
    skill being tested is producing the explanation rather than recognising it.
      [TYPE: short]
+     [INPUT: latex]                  optional; plain | latex
      MODEL:  the answer a full-credit response contains, compressed
      RUBRIC:
      - one checkable claim the answer must make
      - a second one; two is the minimum, because a single point is a vibe
    No WHY BEST is required on a short item; MODEL replaces it. TRAP still helps
    the marker, because it names the wrong answer that will look confident.
+   `[INPUT: latex]` changes the answer control, not the scoring rule. A math
+   course may show a local rendered preview while preserving the exact source
+   the learner typed. If rendering is unavailable, the source remains usable.
+   LaTeX input stays pending until a marker reviews it; the browser never
+   decides whether two expressions are equivalent.
 """
     + _check_section()
     + r"""
@@ -2857,7 +2866,7 @@ LINT_CODES = tuple(sorted({
     "item.missing_trap", "item.low_confidence", "item.duplicate_stem",
     "item.missing_id", "item.duplicate_id", "item.missing_hash",
     "item.content_drift", "item.check_lang_unknown", "item.check_too_few_cases",
-    "item.no_normalizer", "item.tolerance_unstated",
+    "item.no_normalizer", "item.tolerance_unstated", "item.input_format_invalid",
     "item.objective_unnamespaced", "item.lesson_ref_unknown",
     "item.pair_singleton", "item.prereq_unknown",
     "lesson.duplicate_heading", "lesson.orphan_heading", "lesson.src_unreadable",
@@ -3683,6 +3692,13 @@ def lint(questions, lesson=LESSON_UNCHECKED, terms=TERMS_UNCHECKED,
     for idx, q in enumerate(questions, 1):
         tag = "Q%d" % idx
         t = q["type"]
+
+        input_format = q.get("input_format") or "plain"
+        if input_format not in ("plain", "latex") or (input_format == "latex" and t != "short"):
+            errors.append(LintError(
+                "item.input_format_invalid", "input_format", tag,
+                "[INPUT:] must be plain, or latex on a short item; got %r on %s"
+                % (input_format, t)))
 
         if q.get("id") in seen_ids:
             errors.append(LintError("item.duplicate_number", "id", tag,

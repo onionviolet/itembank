@@ -15,6 +15,40 @@ the difference rather than treating a prior summary as the user's intent.
 
 ## Verbatim goal statements
 
+### 2026-09-20: LaTeX answer input
+
+> Also put stuff into uservision in itembank for latex imputs to be supported?
+
+#### Interpretation recorded 2026-09-20
+
+**Status:** active product intent; implementation remains unplanned.
+
+**Current interpretation:** Math practice should let the learner enter
+expressions using LaTeX notation. Rendering authored math in lessons and item
+prompts does not satisfy this input request by itself.
+
+**Open questions:** Decide whether input is raw LaTeX with a preview, a symbol
+palette, or both; which item types accept it; and how equivalent expressions
+are checked without making the browser a second scoring authority. Test
+keyboard and screen-reader use, recoverable raw input, and offline behavior.
+
+**Planning effect:** carry learner LaTeX input into the math answer-entry design
+and requirements review. No editor, parser, scorer, or release is changed by
+this vision entry alone.
+
+**Relationship to earlier entries:** extends the subject-invariant math loop
+and its offline LaTeX display goal from 2026-08-13. Display and learner input
+are separate capabilities.
+
+#### Implementation note recorded 2026-09-21
+
+The initial source implementation now supports `[INPUT: latex]` on `short`
+items. It preserves the learner's exact LaTeX source, adds a local KaTeX
+preview when the math assets are available, and leaves readable source in its
+place when they are not. The response remains pending for review through the
+existing runtime path. Symbol palettes, broader subject-specific editors, and
+runtime-checked expression equivalence remain unimplemented.
+
 ### 2026-08-24 - feedback that lets you proceed, and building from the standards
 
 > Im not asking for partial credit, its just to rule out wrong answers and also show what I got right so I can keep on going rather than gambling and more other stuff to consider and more,

@@ -61,7 +61,10 @@ def public_item(q, shuffle_seed=0):
         out["steps"] = steps
         out["response_schema"] = {"type": "array", "items": "step text", "ordered": True}
     elif q["type"] == "short":
-        out["response_schema"] = {"type": "string", "min_length": 2}
+        input_format = q.get("input_format") or "plain"
+        out["input_format"] = input_format
+        out["response_schema"] = {"type": "string", "min_length": 2,
+                                  "format": input_format}
     elif q["type"] == "check":
         # One renderer-independent interaction contract (D-12): a declarative
         # renderer_config with the language, the starter source and the hidden

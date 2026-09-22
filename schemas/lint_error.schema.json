@@ -38,6 +38,7 @@
         "item.duplicate_number",
         "item.duplicate_stem",
         "item.duplicate_steps",
+        "item.input_format_invalid",
         "item.lesson_ref_unknown",
         "item.low_confidence",
         "item.missing_distractor_notes",
