@@ -68,8 +68,13 @@ BANK = os.path.join(ROOT, "fixtures", "sample_bank.md")
 # presentation bytes only and does not change the no-sections call signature,
 # mode resolution, or authority. The pre-change value was
 # 6ab4db9327513222b9ccbad267f2afa4d12e17c00e5362b1a065b3674628e0e6.
+# Re-taken 2026-09-22 after the course overview gained a source-first path
+# and grouped course tools. The settings page embeds the shared presentation
+# CSS, so its bytes change even though mode resolution and the no-sections
+# call signature do not. The pre-change value was
+# b3b398e86ca521dd85a5dedbe39047f2c8354df4fcb235d76c0dbd10f161db9d.
 THEME_PAGE_BASELINE = \
-    "b3b398e86ca521dd85a5dedbe39047f2c8354df4fcb235d76c0dbd10f161db9d"
+    "f362984c5118bf900558ce30bbe134263e5bca03b70f4a0034659796f911d6e6"
 
 # Phase 16C appends rows here rather than creating a second fixture. Each row
 # is (setting_name, requests, expected_winning_layer, expected_value).

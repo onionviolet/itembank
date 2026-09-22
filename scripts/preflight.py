@@ -37,9 +37,9 @@ PY = sys.executable
 # CI steps this script deliberately does not mirror, and why. Named here so the
 # drift test can tell "not mirrored on purpose" from "quietly forgotten".
 CI_ONLY = {
-    "Install the pinned optional LTI dependencies":
-        "environment setup, not a gate; install cryptography and PyJWT locally "
-        "if you are touching surfaces/lti.py",
+    "Install pinned optional test dependencies":
+        "environment setup, not a gate; CI installs reviewed LTI and source "
+        "adapter pins so their success paths run alongside missing-package refusals",
     "Runtime output matches published schema":
         "a 40-line shell pipeline over /tmp; reimplementing it here would create "
         "a second contract that can disagree with CI, which is the exact failure "
