@@ -73,6 +73,18 @@ def check_connected_unit():
             assert status == 200 and 'Rainfall comparison' in home
             status, overview = get(url + 'course/' + course_id)
             assert status == 200 and 'Rainfall comparison' in overview
+            assert 'Your course path' in overview
+            assert 'Read the source' in overview and 'Explore the lesson' in overview
+            assert 'Practice what you learned' in overview
+            assert ('quiz/rainfall_unit?mode=practice&amp;course=' + course_id) in overview
+            assert overview.index('Read the source') < overview.index('Explore the lesson')
+            assert 'Course tools' in overview
+            overview_reading = re.search(r'href="([^"]+\?from=overview)"[^>]*>Read the source</a>',
+                                         overview)
+            assert overview_reading
+            status, overview_source = get(url + html.unescape(overview_reading.group(1)).lstrip('/'))
+            assert status == 200 and 'Back to overview' in overview_source
+            assert ('href="/course/' + course_id + '"') in overview_source
             status, learn = get(url + 'course/' + course_id + '/learn')
             reading_url = ('course/%s/reading/%s/%s' %
                            (course_id, occurrence['occurrence_id'], occurrence['revision_id']))
@@ -95,6 +107,9 @@ def check_connected_unit():
             session_id, path = next(iter(index.items()))
             before = runtime.read_session(path)
             assert before['mode'] == 'practice' and before['status'] == 'active'
+            status, overview_active = get(url + 'course/' + course_id)
+            assert status == 200 and 'Resume practice' in overview_active
+            assert ('session=' + session_id + '&amp;course=' + course_id) in overview_active
             exact = ia.course_shelf_state(root)['cards'][0]['cta_href']
             assert 'session=' + session_id in exact and 'course=' + course_id in exact
             proc.terminate(); proc.wait(timeout=5)
@@ -144,6 +159,8 @@ def check_connected_unit():
             status, returned = get(url + 'course/' + course_id)
             assert status == 200 and 'Saved sittings' in returned
             assert '/report?session=' + session_id in returned
+            assert 'Saved on this device.' in returned
+            assert 'Saved sitting ' not in returned
         finally:
             proc.terminate(); proc.wait(timeout=5)
 

@@ -34,7 +34,7 @@ def href(course_id, row):
     return '/course/%s/reading/%s/%s' % (course_id, row['occurrence_id'], row['revision_id'])
 
 
-def render(course_id, read, occurrence_id, revision_id, view):
+def render(course_id, read, occurrence_id, revision_id, view, origin='learn'):
     esc = presentation.esc
     selected = view['occurrence'] or {}
     title = (view['placements'].get(occurrence_id) or {}).get('title') or 'Reading desk'
@@ -48,7 +48,8 @@ def render(course_id, read, occurrence_id, revision_id, view):
         '<article class="reading-note"><p>%s</p><small class="reading-meta">%s · Private · %s</small></article>'
         % (esc(note['learner_wording']), esc(note['anchor_state']), esc(note['owner']))
         for note in view['notes'])
-    path = ''.join('<a href="%s"%s>%s</a>' % (esc(href(course_id,row)),
+    origin_suffix = '?from=overview' if origin == 'overview' else ''
+    path = ''.join('<a href="%s"%s>%s</a>' % (esc(href(course_id,row) + origin_suffix),
                     ' aria-current="page"' if row['occurrence_id']==occurrence_id else '',
                     esc(view['placements'][row['occurrence_id']]['title'])) for row in view['occurrences'])
     body = '''<p class="reading-meta">Return opens the beginning of this range. Exact reading position is not saved.</p>
@@ -64,6 +65,7 @@ def render(course_id, read, occurrence_id, revision_id, view):
         esc(occurrence_id),esc(revision_id),esc(view['note_error'] or 'Private source notes. Shared across assignments using this source.'),saved_notes)
     ctx=dict(course_id=course_id, expected_fingerprint=read['fingerprint'], occurrence_id=occurrence_id, revision_id=revision_id)
     return presentation.surface_shell('Reading desk',body,wide=True,extra_css=CSS,
-        back={'href':'/course/'+course_id+'/learn','label':'Back to course'},
+        back={'href':'/course/'+course_id+('' if origin == 'overview' else '/learn'),
+              'label':'Back to overview' if origin == 'overview' else 'Back to Learn'},
         noscript='The source range is readable here. Enable JavaScript to report read or save a note.',
         tail='<script>'+SCRIPT.replace('__CONTEXT__',presentation.script_safe_json(ctx))+'</script>')

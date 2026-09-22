@@ -1019,23 +1019,24 @@ def _course_area_rows(handler, state, course_dir):
         record = None
     doc = (record or {}).get("doc") or {}
 
+    readings = []
+    if area in ("learn", "overview") and record:
+        try:
+            from surfaces.reading_desk import href
+            validated = graph_module.validate_reading_graph(doc)
+            reading_rows = validated["occurrences"]
+            parents = {row["supersedes_revision_id"] for row in reading_rows}
+            for row in reading_rows:
+                if row["revision_id"] not in parents:
+                    readings.append({"href": href(state["course_id"], row),
+                                     "title": validated["placements"][row["occurrence_id"]]["title"],
+                                     "meta": row.get("preparation_mode", ""),
+                                     "note": "Open the accepted source range and shared private notes."})
+        except (ValueError, KeyError):
+            pass
     if area == "learn":
-        if record:
-            try:
-                from surfaces.reading_desk import href
-                validated = graph_module.validate_reading_graph(doc)
-                reading_rows = validated["occurrences"]
-                parents = {row["supersedes_revision_id"] for row in reading_rows}
-                for row in reading_rows:
-                    if row["revision_id"] not in parents:
-                        lessons.append({"href": href(state["course_id"], row),
-                                        "title": validated["placements"][row["occurrence_id"]]["title"],
-                                        "meta": row.get("preparation_mode", ""),
-                                        "note": "Open the accepted source range and shared private notes."})
-            except (ValueError, KeyError):
-                pass
-        return ("Every lesson this course holds, as a durable document you can "
-                "also read outside the app."), lessons
+        return ("Start with the source, then use a lesson where it helps. "
+                "Both remain readable outside this app."), readings + lessons
     assessment_treatments = _course_bank_treatments(course_dir, doc, banks)
     resume = ia._course_resume_state(
         getattr(handler, 'root', os.path.dirname(course_dir)), course_dir)
@@ -1054,8 +1055,12 @@ def _course_area_rows(handler, state, course_dir):
                                    course_id=state["course_id"]))
                 result.append(dict(row, href=href,
                                    title=("Resume " if sitting["status"] == "active" else "Report: ") + row["title"],
-                                   meta="%s, %d of %d" % (mode, sitting["position"], sitting["total"]),
-                                   note="Saved sitting %s" % sitting["session_id"]))
+                                   meta=("%s, item %d of %d" %
+                                         (mode.capitalize(), min(sitting["position"] + 1,
+                                                                  sitting["total"]), sitting["total"])
+                                         if sitting["status"] == "active" else
+                                         "%s complete" % mode.capitalize()),
+                                   note="Saved on this device."))
             return result
         if resume["state"] == "unavailable":
             return [dict(row, href="", title=row["title"] + " needs recovery",
@@ -1127,12 +1132,27 @@ def _course_area_rows(handler, state, course_dir):
                 "left this machine."), rows
     if area == "overview":
         rows = []
+        if readings:
+            rows.append(dict(readings[0], href=readings[0]["href"] + "?from=overview",
+                             title="Read the source",
+                             note=readings[0]["title"]))
         if lessons:
-            rows.append({"href": lessons[0]["href"], "title": "Start reading",
-                         "meta": lessons[0]["title"], "note": ""})
+            rows.append({"href": lessons[0]["href"], "title": "Explore the lesson",
+                         "meta": lessons[0]["meta"], "note": lessons[0]["title"]})
         if quizzes:
-            rows.append({"href": quizzes[0]["href"], "title": "Sit the items",
-                         "meta": quizzes[0]["meta"], "note": ""})
+            bank_path = next(path for stem, path in banks
+                             if stem == quizzes[0]["bank_stem"])
+            active = next((sitting for sitting in resume["sessions"]
+                           if sitting["status"] == "active"
+                           and sitting["mode"] == "practice"
+                           and os.path.realpath(sitting["bank"]) == os.path.realpath(bank_path)),
+                          None)
+            rows.append({"href": _quiz_path(
+                             quizzes[0]["bank_stem"], "practice",
+                             session_id=active["session_id"] if active else None,
+                             course_id=state["course_id"]),
+                         "title": "Resume practice" if active else "Practice what you learned",
+                         "meta": quizzes[0]["meta"], "note": quizzes[0]["title"]})
         objectives = len(doc.get("objectives") or [])
         sources = len(doc.get("sources") or [])
         counts = _course_evidence_counts(course_dir)
@@ -1462,16 +1482,22 @@ def _desk_hero(card):
 
 
 def _course_frame(handler, state, back, course_dir=None):
-    """One course-level page: the eight-area nav, the area's own stated state,
+    """One course-level page: the area nav, the area's own stated state,
     a real anchor target on the heading, and the hidden anchor-missing region
     the restoration script reveals. No pagination control, no page-number link,
     and no item cap, so reading scrolls."""
     nav = []
+    primary_nav = []
+    tool_nav = []
     for entry in state["nav"]:
-        nav.append('<li><a href="%s"%s>%s</a></li>'
-                   % (presentation.esc(entry["href"]),
-                      ' aria-current="page"' if entry["current"] else "",
-                      presentation.esc(entry["label"])))
+        item = ('<li><a aria-label="%s" href="%s"%s>%s</a></li>'
+                % (presentation.esc(entry["label"]),
+                   presentation.esc(entry["href"]),
+                   ' aria-current="page"' if entry["current"] else "",
+                   presentation.esc(entry["label"])))
+        nav.append(item)
+        (primary_nav if entry["area"] in ("overview", "learn", "practice", "test")
+         else tool_nav).append(item)
     heading_id = ia.anchor_slug(state["area_label"]) or "area"
     lead, rows = _course_area_rows(handler, state, course_dir)
     saved_html = ""
@@ -1480,23 +1506,35 @@ def _course_frame(handler, state, back, course_dir=None):
         saved_rows = []
         for sitting in resume["sessions"]:
             stem = os.path.splitext(os.path.basename(sitting["bank"]))[0]
+            title = _bank_title(sitting["bank"], stem)
             href = ("/report?session=" + urllib.parse.quote(sitting["session_id"], safe="")
                     if sitting["status"] == "complete" else
                     _quiz_path(stem, sitting["mode"],
                                session_id=sitting["session_id"],
                                course_id=state["course_id"]))
             saved_rows.append({"href": href,
-                               "title": ("Resume " if sitting["status"] == "active" else "Report: ") + stem,
-                               "meta": "%s, %d of %d" % (sitting["mode"], sitting["position"], sitting["total"]),
-                               "note": "Saved sitting %s" % sitting["session_id"]})
+                               "title": ("Resume " if sitting["status"] == "active" else "Review ") + title,
+                               "meta": ("%s, item %d of %d" %
+                                        (sitting["mode"].capitalize(),
+                                         min(sitting["position"] + 1, sitting["total"]),
+                                         sitting["total"])
+                                        if sitting["status"] == "active" else
+                                        "%s complete" % sitting["mode"].capitalize()),
+                               "note": "Saved on this device."})
         if saved_rows:
             saved_html = '<section aria-labelledby="saved-sittings"><h3 id="saved-sittings">Saved sittings</h3>%s</section>' % _course_rows_html(saved_rows)
         elif resume["state"] == "unavailable":
             saved_html = '<p role="status">A saved sitting is unavailable. Review session files before starting again.</p>'
     if rows:
-        content = ('<p class="area-lead">%s</p>%s'
-                   % (presentation.esc(lead), _course_rows_html(rows))
-                   if lead else _course_rows_html(rows))
+        if state["area"] == "overview":
+            content = ('<p class="area-lead">%s</p>'
+                       '<section class="overview-path" aria-labelledby="course-path">'
+                       '<h3 id="course-path">Your course path</h3>%s</section>'
+                       % (presentation.esc(lead), _course_rows_html(rows)))
+        else:
+            content = ('<p class="area-lead">%s</p>%s'
+                       % (presentation.esc(lead), _course_rows_html(rows))
+                       if lead else _course_rows_html(rows))
     else:
         action = state.get("next_action")
         action_html = (('<p><a class="go" href="%s">%s</a></p>'
@@ -1506,8 +1544,15 @@ def _course_frame(handler, state, back, course_dir=None):
                    '<p>%s</p>%s</div>'
                    % (presentation.esc(state.get("display_state", "empty")),
                       presentation.esc(state["notice"]), action_html))
+    tool_current = state["area"] not in ("overview", "learn", "practice", "test")
+    tool_label = ("Course tools: %s" % state["area_label"] if tool_current
+                  else "Course tools")
     desktop_nav = ('<nav class="course-areas course-nav-desktop" '
-                   'aria-label="Course areas"><ul>%s</ul></nav>' % "".join(nav))
+                   'aria-label="Course areas"><ul>%s</ul>'
+                   '<details class="course-tools"><summary>%s</summary>'
+                   '<ul>%s</ul></details></nav>'
+                   % ("".join(primary_nav), presentation.esc(tool_label),
+                      "".join(tool_nav)))
     mobile_nav = ('<details class="course-areas course-nav-mobile">'
                   '<summary>Course area: %s</summary>'
                   '<nav aria-label="Course areas"><ul>%s</ul></nav></details>'
@@ -7083,6 +7128,9 @@ def handle_course_reading_get(handler, course_id, occurrence_id, revision_id):
         read = course.read_course(base)
         view = reading_desk.snapshot(base, dict(expected_fingerprint=read['fingerprint'],
                                      occurrence_id=occurrence_id, revision_id=revision_id))
-        handler.send_html(desk_surface.render(course_id, read, occurrence_id, revision_id, view).encode('utf-8'))
+        origin = urllib.parse.parse_qs(urllib.parse.urlsplit(handler.path).query).get('from', ['learn'])[0]
+        handler.send_html(desk_surface.render(
+            course_id, read, occurrence_id, revision_id, view,
+            origin='overview' if origin == 'overview' else 'learn').encode('utf-8'))
     except Exception:
         handler.send_error(400, 'Reading unavailable. Refresh the course or inspect recovery.')

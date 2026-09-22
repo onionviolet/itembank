@@ -3167,3 +3167,26 @@ runtime-authority gates. This does not mark production implementation complete.
 **Relationship to prior entries:** extends coherent app renewal and
 nonstandard question workspaces. The user's positive comparison acknowledges
 improvement without accepting the design as final or restricting future work.
+
+### 2026-09-22: integrate parity and polish the complete app journey
+
+> put everything into main? help improve the app journey, ui flow, subtle quality like anarlog and the competetors and more?
+
+#### Interpretation recorded 2026-09-22
+
+**Status:** active integration and experience direction.
+
+**Current interpretation:** integrate the verified parity candidate, then
+improve the normal course journey through observed UI and recovery defects.
+Use Anarlog and the researched competitors as quality references where a
+pattern helps a named learner task. This does not declare broad feature parity.
+
+**Open questions:** packaged installation, human accessibility, authoring depth,
+and same-task competitor comparison still need their own evidence.
+
+**Planning effect:** validate the connected source, lesson, practice and return
+journey in a fresh package. Land bounded fixes in main after focused and full
+gates. Keep further work under the existing overhaul sequence.
+
+**Relationship to prior entries:** continues the September 18 combined
+ecosystem overhaul and the request to keep the UI changeable.

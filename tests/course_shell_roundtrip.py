@@ -58,6 +58,17 @@ def check_read_models_and_markup():
                        ".course-nav-mobile{display:block"):
             if needle not in page:
                 fail("responsive disclosure CSS omitted %r" % needle)
+        map_state = ia.course_area_state(root, sample_course.SAMPLE_COURSE_ID,
+                                        "map")
+        map_page = daemon._course_frame(
+            type("Handler", (), {"root": root, "banks": {}})(), map_state,
+            {"href": "/courses", "label": "Back to courses"},
+            ia.course_dir_for(root, sample_course.SAMPLE_COURSE_ID))
+        for needle in ('<summary>Course tools: Course map</summary>',
+                       'aria-label="Course map"',
+                       'aria-current="page">Course map</a>'):
+            if needle not in map_page:
+                fail("course tools lost %r" % needle)
     finally:
         shutil.rmtree(root, ignore_errors=True)
 

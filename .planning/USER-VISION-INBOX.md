@@ -1067,3 +1067,12 @@ Route evidence and candidate patterns to
 [the vision entry](USER-VISION.md#2026-09-18-improved-ui-version-remains-highly-changeable-wip).
 Route status and future execution to the existing
 [renewal synthesis](research/ui-renewal-2026-09-18.md), not a new design owner.
+
+### 2026-09-22: integrate parity and polish the app journey
+
+> put everything into main? help improve the app journey, ui flow, subtle quality like anarlog and the competetors and more?
+
+**Disposition:** Promote to
+[the vision entry](USER-VISION.md#2026-09-22-integrate-parity-and-polish-the-complete-app-journey).
+Route implementation through the existing
+[overhaul integration plan](research/overhaul-2026-09-18/INTEGRATION-PLAN.md).

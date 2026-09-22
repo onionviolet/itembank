@@ -250,6 +250,15 @@ button.go:disabled{opacity:.55;cursor:default}
    own artifacts, so they need a list shape. One rule set, composed from the
    existing tokens: no new color, no new spacing value, no new size. */
 .area-lead{color:var(--mut);margin:0 0 var(--space-3)}
+.overview-path h3{font-size:var(--text-body);margin:0 0 var(--space-3)}
+.overview-path .course-rows{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:var(--space-3)}
+.overview-path .course-rows .row{min-width:0;padding:var(--space-3);
+  border:1px solid var(--line);border-radius:var(--r-2);background:var(--card)}
+.overview-path .row-head{display:block}
+.overview-path .row-meta{display:block;margin-top:var(--space-2)}
+.overview-path .row-note{margin:var(--space-3) 0 0;overflow-wrap:anywhere}
+@media(max-width:900px){.overview-path .course-rows{grid-template-columns:1fr}}
 /* The bind panel (`source binding / create`): a two-column label/field grid
    that stacks under 768, composed from the existing tokens. */
 .bind-panel{margin:var(--space-5) 0 0;padding:var(--space-4) 0 0;
@@ -547,6 +556,14 @@ button.go.primary,a.go.primary{background:var(--product-ink);border-color:var(--
 .desk-next p{font-size:var(--text-xs);color:var(--product-muted)}
 .course-areas ul{display:flex;flex-wrap:wrap;gap:var(--space-2) var(--space-4);
   list-style:none;padding:0;margin:0}
+.course-nav-desktop{display:flex;align-items:center;gap:var(--space-4);position:relative}
+.course-tools{margin-left:auto}
+.course-tools summary{cursor:pointer;min-height:44px;display:flex;align-items:center;
+  color:var(--product-muted);font-size:var(--text-body);font-weight:600}
+.course-tools[open] ul{position:absolute;right:0;top:100%;z-index:8;display:grid;
+  gap:0;width:min(18rem,100%);padding:var(--space-2);border:1px solid var(--product-line);
+  border-radius:var(--r-2);background:var(--paper)}
+.course-tools li a{display:block;min-height:44px;padding:var(--space-2)}
 .course-areas{border-bottom:1px solid var(--product-line);padding-bottom:var(--space-3);
   margin-bottom:var(--space-5)}
 .course-areas a{color:var(--product-ink)}
@@ -554,10 +571,13 @@ button.go.primary,a.go.primary{background:var(--product-ink);border-color:var(--
   text-underline-offset:8px;text-decoration-thickness:2px}
 .course-rows{list-style:none;padding:0;margin:0}
 .course-rows .row{padding:var(--space-4) 0;border-bottom:1px solid var(--product-line)}
+.overview-path .course-rows .row{border-color:var(--product-line);
+  background:var(--product-wash)}
 .row-head{display:flex;flex-wrap:wrap;justify-content:space-between;gap:var(--space-2)}
 .row-note,.area-lead{color:var(--product-muted)}
 .vf-diff,.ib-diff{border-radius:var(--r-2);overflow:auto}
 @media(max-width:767px){
+  .course-nav-desktop{display:none}
   .product-shell{display:block}.product-sidebar{position:fixed;z-index:20;top:auto;bottom:0;
     width:100%;height:66px;padding:0 var(--space-2);border:0;border-top:1px solid var(--product-line);
     background:var(--paper)}
