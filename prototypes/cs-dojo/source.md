@@ -1,13 +1,14 @@
 # CS Dojo: array boundaries and function contracts
 
 Original synthetic teaching unit. Source identity: SYN-CS-UNIT-01.
-Revision: 2026-09-12. All prose, examples, and worked explanations here are
+Revision: 2026-09-19. All prose, examples, and worked explanations here are
 public practice material. This is a study-usable static fallback, not a bank.
 
-The rich prototype uses three activities with the same objectives and teaching
+The rich prototype uses four activities with the same objectives and teaching
 points below. Write predictions and reflections in your own notes when using
-this document. There are no scores or mastery claims. The JavaScript browser
-runner is optional. Do not execute code from an unreviewed downloaded draft.
+this document. There are no scores or mastery claims. The JavaScript and
+Python browser runners are optional. Do not execute code from an unreviewed
+downloaded draft.
 
 ## Indices
 
@@ -129,12 +130,46 @@ return `total / readings.length`. Extra examples include `[-2, 6]` with expected
 mean 2 and `[5]` with expected mean 5. Review readability and reasoning
 separately from behavior.
 
+## Python transfer
+
+Objective SYN-CS-04: repair a Python list traversal and test ordinary and empty
+inputs.
+
+Python list indices also begin at 0. `range(len(values))` visits each occupied
+index and stops before `len(values)`. Adding 1 to the endpoint visits an absent
+position and raises `IndexError`, including when the list is empty.
+
+Repair `total(readings)` and add a single-value example:
+
+```python
+def total(readings):
+    result = 0
+    for index in range(len(readings) + 1):
+        result += readings[index]
+    return result
+
+report("three readings", total([3, 7, 4]), 14)
+report("empty input", total([]), 0)
+report("negative value", total([-2, 5]), 3)
+```
+
+The provided `report` helper displays observed and expected values. It does
+not grade them. Explain what stayed the same between the JavaScript and Python
+boundary errors and what Python reported at the absent position.
+
+### Worked transfer
+
+Use `range(len(readings))` or iterate over each value directly. The initial
+result 0 handles an empty list because the loop runs zero times. A useful
+single-value example is `report("single", total([5]), 5)`.
+
 ## Recovery and review
 
-The browser draft includes all three activities, code files, predictions,
+The browser draft includes all four activities, code files, predictions,
 observations, and reflections. Activity and file changes retain these values
-inside the same tab. Reloading starts again. Export a plain Markdown draft to
-keep your work. Reset affects one activity after confirmation.
+inside the same tab. Local browser storage restores code, predictions, and
+reflections after reload, but it may be cleared. Export a plain Markdown draft
+to keep your work. Reset affects one activity after confirmation.
 
 Execution errors and timeouts are execution outcomes, not incorrect answers.
 Code is limited to 30,000 characters per provided file. Runs stop after two

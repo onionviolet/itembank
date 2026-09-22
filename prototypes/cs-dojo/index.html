@@ -7,6 +7,7 @@
   <title>CS Dojo | Itembank</title>
   <link rel="stylesheet" href="dojo.css">
   <script src="lessons.js" defer></script>
+  <script src="codemirror.bundle.js" defer></script>
   <script src="dojo.js" defer></script>
 </head>
 <body>
@@ -26,12 +27,12 @@
     <div class="body">
       <header class="topbar">
         <div class="breadcrumb">Programming foundations <span aria-hidden="true">/</span> <strong>CS Dojo</strong></div>
-        <div class="top-actions"><span class="draft-indicator">Draft in this tab</span><button id="export" class="button small">Export draft</button></div>
+        <div class="top-actions"><span id="draft-indicator" class="draft-indicator" role="status">Draft saved on this device</span><button id="export" class="button small">Export draft</button></div>
       </header>
       <main>
         <div class="hero">
           <div><p id="family" class="eyebrow"></p><h1 id="activity-title" tabindex="-1"></h1><p id="intro" class="intro"></p></div>
-          <span class="language">JavaScript <span class="language-detail">Browser runtime</span></span>
+          <span class="language"><span id="language-label">JavaScript</span><span class="language-detail">Browser runtime</span></span>
         </div>
         <div class="workbench">
           <section class="brief" aria-labelledby="task-heading">
@@ -49,10 +50,10 @@
           </section>
           <section class="workspace" aria-label="Code workspace">
             <div class="editor-panel">
-              <div class="editor-top"><div id="file-tabs" class="file-tabs" role="group" aria-label="Provided files"></div><button id="reset" class="editor-reset">Reset activity</button></div>
+              <div class="editor-top"><div id="file-tabs" class="file-tabs" role="group" aria-label="Provided files"></div><div class="editor-tools"><button id="indent" class="editor-reset" aria-label="Indent selected lines">Indent</button><button id="outdent" class="editor-reset" aria-label="Outdent selected lines">Outdent</button><button id="reset" class="editor-reset">Reset activity</button></div></div>
               <label id="editor-label" for="editor" class="sr-only">Code editor</label>
-              <div class="code-surface"><pre id="line-numbers" aria-hidden="true">1</pre><textarea id="editor" wrap="off" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" aria-describedby="editor-help"></textarea></div>
-              <div class="editor-bottom"><span id="editor-help">Tab moves focus · ⌘/Ctrl + Enter runs</span><span id="cursor-position">Line 1, column 1</span></div>
+              <div class="code-surface"><pre id="line-numbers" aria-hidden="true">1</pre><textarea id="editor" wrap="off" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" aria-describedby="editor-help"></textarea><div id="editor-mount" hidden></div></div>
+              <div class="editor-bottom"><span id="editor-help">Tab moves focus · ⌘/Ctrl + Enter runs · ⌘/Ctrl + ] indents · ⌘/Ctrl + [ outdents</span><span id="cursor-position">Line 1, column 1</span></div>
               <div class="runbar"><span id="entry-label"></span><div><button id="stop" class="button" hidden>Stop</button><button id="run" class="button primary">Run code <span aria-hidden="true">▶</span></button></div></div>
             </div>
             <section class="results" aria-labelledby="results-heading">
@@ -63,7 +64,7 @@
               <pre id="output" tabindex="0" aria-label="Program output">Output will appear here.</pre>
               <p class="output-note">Program output is ungraded. Compare the values and inspect your reasoning.</p>
             </section>
-            <section class="reflection" aria-labelledby="reflection-heading"><div class="section-head"><h2 id="reflection-heading">Explain what changed</h2><span class="tiny-label">Your own words</span></div><label id="reflection-label" for="reflection"></label><textarea id="reflection" rows="3" placeholder="My prediction, the observed behavior, and what I would change..."></textarea><p class="field-help">Code and notes stay in this tab. Export before reloading to keep them.</p></section>
+            <section class="reflection" aria-labelledby="reflection-heading"><div class="section-head"><h2 id="reflection-heading">Explain what changed</h2><span class="tiny-label">Your own words</span></div><label id="reflection-label" for="reflection"></label><textarea id="reflection" rows="3" placeholder="My prediction, the observed behavior, and what I would change..."></textarea><p class="field-help">Draft code and notes are saved in this browser on this device. Export a copy you control.</p></section>
           </section>
         </div>
         <footer class="activity-footer"><button id="previous" class="button">← Previous activity</button><p id="next-note"></p><button id="next" class="button">Next activity →</button></footer>

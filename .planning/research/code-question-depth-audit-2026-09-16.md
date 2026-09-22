@@ -296,3 +296,31 @@ solution reveal cannot become Itembank assessment authority by copying UI.
 These are proposed priorities, not newly shipped features or a commitment to
 import the reference code, dependencies or content. Human experience review
 and production promotion remain open.
+
+## 2026-09-19: CS Dojo implementation check
+
+The existing `prototypes/cs-dojo/` now restores bounded code and notes from
+browser-local storage after reload. It uses Itembank's already-vendored
+CodeMirror bundle in the dedicated preview, with a textarea fallback, and adds
+an original Python boundary-transfer activity using pinned local Pyodide
+assets. The Python worker has a separate loading deadline and a two-second
+execution deadline. The focused Chromium gate passed 17 groups, including
+Python error, repair, output cap, timeout, fresh worker, local requests,
+keyboard navigation, narrow layout, and static fallback. Desktop and mobile
+screenshots were inspected. Quick preflight passed.
+
+This is a prototype comparison, not Code Learner parity or production
+acceptance. Syntax highlighting and bracket editing remain below the reference
+editor. There is no language/category drill queue, broad objective-linked
+practice set, saved preference or aggregate practice view, runtime-owned
+scoring or disclosure, accepted attempt evidence, clean restore, or production
+execution isolation. Code Learner's question content and app code were not
+copied. The 13 MB local Pyodide distribution and its license record are in the
+prototype only.
+
+The next bounded result should be a course-linked drill catalog with explicit
+language, topic, objective and public checks, plus an editor usability review
+against the reference tasks. Then the activity and execution contract needs
+runtime authority, durable evidence, recovery, and accessibility review before
+normal course navigation can present it as accepted practice. Keep the
+synthetic prototype's ungraded observations distinct from settled scores.

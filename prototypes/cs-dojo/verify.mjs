@@ -5,9 +5,21 @@ import {createInterface} from 'node:readline';
 import {request} from 'node:http';
 import {readFile, mkdir} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
+import {createHash} from 'node:crypto';
 
 const {chromium} = await import(process.env.ITEMBANK_PLAYWRIGHT_MODULE || 'playwright');
 const root = fileURLToPath(new URL('.', import.meta.url));
+const pyodideHashes = {
+  'pyodide-lock.json': '3fdaef09e9e365c85e002737720f8d0ab8f278c1c244a2dde6a37663cf488ad4',
+  'pyodide.asm.mjs': '2ac5eba365ec12839c75c03b39b3be1dd63b798852cc460b014b52238be042f7',
+  'pyodide.asm.wasm': '3a0a00dfeaa348ac20f9ef09904233d32d33f644339662d4af368f8a2010f37a',
+  'pyodide.mjs': '69e3f6ccec3e14b465df60be577ca62f536251406b9a00cce019eac5252a2495',
+  'python_stdlib.zip': '80c5be6babfe03297069703410c3c29404dcf2525d2b128746bae5536f94831f',
+};
+for (const [name, expected] of Object.entries(pyodideHashes)) {
+  const bytes = await readFile(`${root}vendor/pyodide/${name}`);
+  assert.equal(createHash('sha256').update(bytes).digest('hex'), expected, `Pyodide asset changed: ${name}`);
+}
 const server = spawn('python3', [`${root}server.py`, '--port', '0'], {stdio: ['ignore', 'pipe', 'inherit']});
 const lines = createInterface({input: server.stdout});
 const [line] = await once(lines, 'line');
@@ -20,6 +32,9 @@ try {
   browser = await chromium.launch({executablePath: process.env.ITEMBANK_CHROMIUM, headless: true});
   await mkdir(evidence, {recursive: true});
   const page = await browser.newPage({viewport: {width: 1440, height: 1060}});
+  const editorValue = () => page.evaluate(() => window.DojoEditor.getValue());
+  const editorFill = (value) => page.evaluate((text) => window.DojoEditor.setValue(text), value);
+  const editorFocus = () => page.evaluate(() => window.DojoEditor.focus());
   const errors = [];
   const unexpectedRequests = [];
   page.on('pageerror', (error) => errors.push(error.message));
@@ -30,7 +45,7 @@ try {
   assert.equal(await page.locator('#run-state').textContent(), 'Ready');
   await page.locator('#prediction').fill('0 3\n1 7\n2 4\n3 undefined');
   await page.locator('#reflection').fill('The count is one beyond the last occupied index.');
-  await page.locator('#editor').focus();
+  await editorFocus();
   await page.keyboard.press('Control+Enter');
   await page.waitForFunction(() => document.getElementById('run-state').dataset.state === 'done');
   assert.equal(await page.locator('#output').textContent(), '0 3\n1 7\n2 4\n3 undefined');
@@ -42,18 +57,25 @@ try {
   assert.match(await page.locator('#source-text').textContent(), /n - 1/);
   await page.keyboard.press('Escape');
   assert.equal(await page.evaluate(() => document.activeElement.id), 'source-open');
-  await page.locator('#editor').focus();
+  await editorFocus();
   await page.keyboard.press('Tab');
-  assert.notEqual(await page.evaluate(() => document.activeElement.id), 'editor');
+  assert.equal(await page.evaluate(() => document.activeElement.closest('.cm-editor')), null);
   pass('source context returns focus and the editor does not trap Tab');
+  await editorFocus();
+  await page.evaluate(() => window.DojoEditor.select(0, 5));
+  await page.locator('#indent').click();
+  assert.match(await editorValue(), /^  const readings/);
+  await page.locator('#outdent').click();
+  assert.match(await editorValue(), /^const readings/);
+  pass('editor indents and outdents without trapping Tab');
   await page.screenshot({path: `${evidence}/desktop-predict.png`, fullPage: true});
 
   await page.locator('#next').click();
   await page.locator('#run').click();
   await page.waitForFunction(() => document.getElementById('run-state').dataset.state === 'done');
   assert.deepEqual(await page.locator('#observation-rows td:nth-child(2)').allTextContents(), ['NaN', 'NaN', 'NaN']);
-  const repaired = (await page.locator('#editor').inputValue()).replace('i <= readings.length', 'i < readings.length');
-  await page.locator('#editor').fill(repaired);
+  const repaired = (await editorValue()).replace('i <= readings.length', 'i < readings.length');
+  await editorFill(repaired);
   assert.match(await page.locator('#run-help').textContent(), /previous run/);
   await page.locator('#run').click();
   await page.waitForFunction(() => document.getElementById('run-state').dataset.state === 'done');
@@ -63,13 +85,13 @@ try {
 
   await page.locator('#next').click();
   const lab = 'function mean(readings) {\n  if (readings.length === 0) return null;\n  let sum = 0;\n  for (const value of readings) sum += value;\n  return sum / readings.length;\n}\nmodule.exports = { mean };';
-  await page.locator('#editor').fill(lab);
+  await editorFill(lab);
   await page.getByRole('button', {name: 'examples.js', exact: true}).click();
-  const examples = (await page.locator('#editor').inputValue()) + '\nreport("negative", mean([-2, 6]), 2);\nreport("single", mean([5]), 5);';
-  await page.locator('#editor').fill(examples);
+  const examples = (await editorValue()) + '\nreport("negative", mean([-2, 6]), 2);\nreport("single", mean([5]), 5);';
+  await editorFill(examples);
   await page.locator('#reflection').fill('null distinguishes an absent mean from a mean of zero.');
   await page.getByRole('button', {name: 'stats.js', exact: true}).click();
-  assert.equal(await page.locator('#editor').inputValue(), lab);
+  assert.equal(await editorValue(), lab);
   await page.locator('#run').click();
   await page.waitForFunction(() => document.getElementById('run-state').dataset.state === 'done');
   assert.deepEqual(await page.locator('#observation-rows td:nth-child(2)').allTextContents(), ['4', 'null', '2', '5']);
@@ -91,17 +113,17 @@ try {
   await page.locator('#next').click();
   await page.locator('#reset').click();
   await page.locator('#reset-cancel').click();
-  assert.equal(await page.locator('#editor').inputValue(), repaired);
+  assert.equal(await editorValue(), repaired);
   await page.locator('#reset').click();
   await page.locator('#reset-confirm').click();
-  assert.match(await page.locator('#editor').inputValue(), /i <= readings.length/);
+  assert.match(await editorValue(), /i <= readings.length/);
   await page.locator('#previous').click();
   assert.match(await page.locator('#reflection').inputValue(), /count is one beyond/);
   pass('reset is confirmed and affects only the selected activity');
 
   await page.locator('#next').click();
   const execute = async (code, state = 'done') => {
-    await page.locator('#editor').fill(code);
+    await editorFill(code);
     await page.locator('#run').click();
     await page.waitForFunction((value) => document.getElementById('run-state').dataset.state === value, state);
     return page.locator('#output').textContent();
@@ -112,7 +134,7 @@ try {
 
   assert.match(await execute('while (true) {}', 'timeout'), /Stopped after 2 seconds/);
   assert.match(await execute('console.log("after timeout");'), /after timeout/);
-  await page.locator('#editor').fill('while (true) {}');
+  await editorFill('while (true) {}');
   await page.locator('#run').click();
   await page.locator('#stop').click();
   assert.equal(await page.locator('#run-state').textContent(), 'Stopped by you');
@@ -150,20 +172,44 @@ try {
   assert.equal((await fetch(`${origin}/`, {method: 'POST', body: 'no writes'})).status, 501);
   pass('dedicated server refuses unknown paths, foreign hosts and writes');
 
-  await page.locator('#editor').fill('x'.repeat(30001));
+  await editorFill('x'.repeat(30001));
   await page.locator('#run').click();
   assert.equal(await page.locator('#run-state').textContent(), 'File too large');
   await page.reload();
-  assert.equal(await page.locator('#prediction').inputValue(), '');
-  assert.equal(await page.locator('#reflection').inputValue(), '');
-  assert.equal(await page.evaluate(() => localStorage.length), 0);
-  pass('file limits refuse oversized code and reload has no hidden draft persistence');
+  assert.equal(await page.locator('#prediction').inputValue(), '0 3\n1 7\n2 4\n3 undefined');
+  assert.match(await page.locator('#reflection').inputValue(), /count is one beyond/);
+  await page.locator('#activity-nav button').nth(2).click();
+  assert.equal(await editorValue(), lab);
+  assert.equal(await page.evaluate(() => localStorage.length), 1);
+  pass('file limits refuse oversized code and reload restores local drafts without run results');
+
+  await page.locator('#activity-nav button').nth(3).click();
+  assert.equal(await page.locator('#language-label').textContent(), 'Python');
+  await page.locator('#run').click();
+  await page.waitForFunction(() => document.getElementById('run-state').dataset.state === 'error', {timeout: 30000});
+  assert.match(await page.locator('#output').textContent(), /IndexError/);
+  const pythonFixed = (await editorValue()).replace('range(len(readings) + 1)', 'range(len(readings))') + '\nreport("single", total([5]), 5)';
+  await editorFill(pythonFixed);
+  await page.locator('#run').click();
+  await page.waitForFunction(() => document.getElementById('run-state').dataset.state === 'done', {timeout: 30000});
+  assert.deepEqual(await page.locator('#observation-rows td:nth-child(2)').allTextContents(), ['14', '0', '3', '5']);
+  pass('local Python worker reports an index error, then runs the repaired public examples');
+  await editorFill('while True:\n    pass');
+  await page.locator('#run').click();
+  await page.waitForFunction(() => document.getElementById('run-state').dataset.state === 'timeout');
+  await editorFill('for i in range(10000):\n    print(i)');
+  await page.locator('#run').click();
+  await page.waitForFunction(() => document.getElementById('run-state').dataset.state === 'limit');
+  await editorFill(pythonFixed);
+  await page.locator('#run').click();
+  await page.waitForFunction(() => document.getElementById('run-state').dataset.state === 'done');
+  pass('Python timeout and output limit replace the worker and allow a fresh run');
 
   await page.setViewportSize({width: 390, height: 844});
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < 4; i++) {
     await page.locator('#activity-nav button').nth(i).click();
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
-    assert(await page.locator('#editor').isVisible());
+    assert(await page.locator('#editor-mount .cm-editor').isVisible());
   }
   await page.screenshot({path: `${evidence}/mobile-lab.png`, fullPage: true});
   await page.emulateMedia({reducedMotion: 'reduce', forcedColors: 'active'});

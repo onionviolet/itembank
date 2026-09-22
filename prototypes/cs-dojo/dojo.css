@@ -6,3 +6,14 @@
 @media(max-width:650px){.sidebar{padding:16px 18px}#activity-nav{gap:5px;margin-top:13px}.nav-activity{gap:7px;padding:8px 6px}.nav-number{font-size:10px}.nav-activity strong{font-size:10px}.topbar{padding:11px 18px}.breadcrumb{font-size:10px}.breadcrumb span{margin:0 7px}.breadcrumb strong{display:none}.breadcrumb span{display:none}.button.small{font-size:10px;padding:8px 10px}main{padding:23px 18px}.workbench{display:flex;flex-direction:column;gap:22px}.hero{margin-bottom:23px}.brief h2{font-size:24px}.brief>p:not(.eyebrow){font-size:13px}.objective{margin:19px 0}.source-button{margin-bottom:20px}.code-surface{height:335px}.file-tabs button{font-size:10px;padding:13px 6px}.editor-top{padding:0 9px}.editor-reset{font-size:9px;padding:5px}.editor-bottom{font-size:8px;padding:8px 10px}.runbar{padding:10px}.runbar>span{font-size:9px}.runbar .button{font-size:11px;padding:10px 12px}.results{padding:16px 13px 12px}.section-head h2{font-size:22px}.section-head .tiny-label{font-size:9px}.activity-footer{flex-wrap:wrap;gap:12px}.activity-footer p{order:3;max-width:none;width:100%;text-align:left}.activity-footer .button{font-size:11px;padding:10px 12px}dialog{padding:22px}.dialog-head .eyebrow{font-size:9px}.code-surface textarea{font-size:12px}}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
 @media(forced-colors:active){.nav-activity[aria-current=step],.file-tabs button[aria-pressed=true]{border:2px solid Highlight}.brand-mark{border:1px solid ButtonText}.code-surface textarea{forced-color-adjust:auto}}
+
+/* CS Dojo uses the existing local CodeMirror bundle on its dedicated origin. */
+#editor-mount{width:100%;min-width:0;height:100%;overflow:auto}
+.editor-tools{display:flex;align-items:center;gap:2px;flex-wrap:wrap;justify-content:flex-end}
+#editor-mount .cm-editor{height:100%;color:var(--code-ink);font:12px/1.85 ui-monospace,SFMono-Regular,Menlo,monospace}
+#editor-mount .cm-scroller{font:inherit;overflow:auto}
+#editor-mount .cm-content{padding:0 12px 0 4px;caret-color:#eac78f}
+#editor-mount .cm-line{padding:0}
+#editor-mount .cm-gutters{background:var(--code);color:#8b9b90;border:0;padding:0 5px}
+#editor-mount .cm-editor.cm-focused{outline:2px solid #dfbf80;outline-offset:-2px}
+@media(forced-colors:active){#editor-mount .cm-editor{forced-color-adjust:auto}}

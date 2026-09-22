@@ -4,13 +4,133 @@
   const $ = (id) => document.getElementById(id);
   const initial = (lesson) => ({files: {...lesson.files}, file: Object.keys(lesson.files)[0], prediction: '', reflection: '', output: [], observations: [], status: 'Ready', state: 'ready', snapshot: '', ran: false, stale: false});
   const drafts = new Map(lessons.map((lesson) => [lesson.id, initial(lesson)]));
+  const storageKey = 'itembank-cs-dojo-drafts-v1';
+  let storageAvailable = true;
+  let saved = {};
+  try {
+    const raw = localStorage.getItem(storageKey);
+    if (raw) {
+      try { saved = JSON.parse(raw); }
+      catch { saved = {}; }
+    }
+    if (saved && saved.version === 1 && saved.lessons && typeof saved.lessons === 'object') {
+      for (const lesson of lessons) {
+        const record = saved.lessons[lesson.id];
+        if (!record || !record.files || typeof record.files !== 'object') continue;
+        const names = Object.keys(lesson.files);
+        if (!names.every((name) => typeof record.files[name] === 'string' && record.files[name].length <= 30000)) continue;
+        if (typeof record.prediction !== 'string' || record.prediction.length > 30000 || typeof record.reflection !== 'string' || record.reflection.length > 30000) continue;
+        drafts.set(lesson.id, {...initial(lesson), files: Object.fromEntries(names.map((name) => [name, record.files[name]])), file: names.includes(record.file) ? record.file : names[0], prediction: record.prediction, reflection: record.reflection});
+      }
+    }
+  } catch { storageAvailable = false; }
   let active = 0;
   let execution = null;
   let exportURL = null;
   const current = () => drafts.get(lessons[active].id);
   const setText = (id, value) => { $(id).textContent = value; };
+  let codeView = null;
+  let loadingCode = false;
+
+  function indentCodeMirror(view, outdent) {
+    if (view.state.readOnly) return true;
+    const selection = view.state.selection.main;
+    const last = selection.to > selection.from && view.state.doc.sliceString(selection.to - 1, selection.to) === '\n' ? selection.to - 1 : selection.to;
+    const changes = [];
+    for (let line = view.state.doc.lineAt(selection.from).number; line <= view.state.doc.lineAt(last).number; line++) {
+      const item = view.state.doc.line(line);
+      if (outdent) {
+        const spaces = item.text.match(/^ {1,2}/)?.[0].length || 0;
+        if (spaces) changes.push({from: item.from, to: item.from + spaces, insert: ''});
+      } else changes.push({from: item.from, insert: '  '});
+    }
+    if (changes.length) view.dispatch({changes});
+    return true;
+  }
+
+  if (window.CodeMirror) {
+    const CM = window.CodeMirror;
+    const readOnly = new CM.Compartment();
+    const view = new CM.EditorView({
+      parent: $('editor-mount'),
+      extensions: [
+        CM.lineNumbers(), CM.history(),
+        CM.keymap.of([
+          {key: 'Ctrl-]', run: (editor) => indentCodeMirror(editor, false)},
+          {key: 'Meta-]', run: (editor) => indentCodeMirror(editor, false)},
+          {key: 'Ctrl-[', run: (editor) => indentCodeMirror(editor, true)},
+          {key: 'Meta-[', run: (editor) => indentCodeMirror(editor, true)},
+          {key: 'Ctrl-Enter', run: () => { run(); return true; }},
+          {key: 'Meta-Enter', run: () => { run(); return true; }},
+          {key: 'Mod-z', run: CM.undo}, {key: 'Mod-y', run: CM.redo}, {key: 'Mod-Shift-z', run: CM.redo},
+        ]),
+        readOnly.of(CM.EditorState.readOnly.of(false)),
+        CM.EditorView.updateListener.of((update) => {
+          if (update.docChanged && !loadingCode) {
+            $('editor').value = update.state.doc.toString();
+            $('editor').dispatchEvent(new Event('input', {bubbles: true}));
+          }
+          position();
+        }),
+      ],
+    });
+    codeView = {view, readOnly};
+    $('editor').hidden = true;
+    $('line-numbers').hidden = true;
+    $('editor-mount').hidden = false;
+  }
+  const getCode = () => codeView ? codeView.view.state.doc.toString() : $('editor').value;
+  const focusCode = () => codeView ? codeView.view.focus() : $('editor').focus();
+  function setCode(value) {
+    $('editor').value = value;
+    if (codeView && getCode() !== value) {
+      loadingCode = true;
+      codeView.view.dispatch({changes: {from: 0, to: codeView.view.state.doc.length, insert: value}});
+      loadingCode = false;
+    }
+  }
+  function setCodeReadOnly(value) {
+    $('editor').readOnly = value;
+    if (codeView) codeView.view.dispatch({effects: codeView.readOnly.reconfigure(window.CodeMirror.EditorState.readOnly.of(value))});
+  }
+  window.DojoEditor = {
+    getValue: getCode,
+    setValue: (value) => { setCode(value); $('editor').dispatchEvent(new Event('input', {bubbles: true})); position(); },
+    focus: focusCode,
+    select: (from, to) => {
+      if (codeView) codeView.view.dispatch({selection: {anchor: from, head: to}});
+      else $('editor').setSelectionRange(from, to);
+    },
+  };
+
+  function saveDrafts() {
+    if (!storageAvailable) return;
+    const saved = {version: 1, lessons: {}};
+    for (const lesson of lessons) {
+      const {files, file, prediction, reflection} = drafts.get(lesson.id);
+      if (Object.values(files).some((text) => text.length > 30000) || prediction.length > 30000 || reflection.length > 30000) {
+        setText('draft-indicator', 'Draft too large to save · export your draft');
+        return;
+      }
+      saved.lessons[lesson.id] = {files, file, prediction, reflection};
+    }
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(saved));
+      setText('draft-indicator', 'Draft saved on this device');
+    } catch {
+      storageAvailable = false;
+      setText('draft-indicator', 'Local save unavailable · export your draft');
+    }
+  }
 
   function position() {
+    if (codeView) {
+      const view = codeView.view;
+      const head = view.state.selection.main.head;
+      const line = view.state.doc.lineAt(head);
+      setText('cursor-position', `Line ${line.number}, column ${head - line.from + 1}`);
+      return;
+    }
     const editor = $('editor');
     const before = editor.value.slice(0, editor.selectionStart);
     setText('cursor-position', `Line ${before.split('\n').length}, column ${before.length - before.lastIndexOf('\n')}`);
@@ -35,15 +155,18 @@
       button.setAttribute('aria-pressed', String(name === draft.file));
       button.addEventListener('click', () => {
         draft.file = name;
+        saveDrafts();
         renderFiles();
-        $('editor').focus();
+        focusCode();
       });
       $('file-tabs').append(button);
     }
-    $('editor').value = draft.files[draft.file];
-    setText('editor-label', `JavaScript code editor: ${draft.file}`);
+    setCode(draft.files[draft.file]);
+    const language = lessons[active].language === 'python' ? 'Python' : 'JavaScript';
+    setText('editor-label', `${language} code editor: ${draft.file}`);
+    if (codeView) codeView.view.contentDOM.setAttribute('aria-label', `${language} code editor: ${draft.file}`);
     setText('entry-label', `Runs ${lessons[active].entry}`);
-    $('editor').readOnly = Boolean(execution);
+    setCodeReadOnly(Boolean(execution));
     position();
   }
 
@@ -68,7 +191,7 @@
     }
     $('run').disabled = Boolean(execution);
     $('stop').hidden = !execution;
-    $('editor').readOnly = Boolean(execution);
+    setCodeReadOnly(Boolean(execution));
   }
 
   function finish(status, state) {
@@ -97,13 +220,14 @@
       const strong = document.createElement('strong');
       strong.textContent = item.family;
       const small = document.createElement('small');
-      small.textContent = ['Trace a boundary', 'Repair the calculation', 'A small module'][index];
+      small.textContent = item.navLabel;
       label.append(strong, small);
       button.append(number, label);
       button.addEventListener('click', () => navigate(index));
       $('activity-nav').append(button);
     });
     setText('family', `Unit 01 / ${lesson.number} / ${lesson.family}`);
+    setText('language-label', lesson.language === 'python' ? 'Python' : 'JavaScript');
     setText('activity-title', lesson.title);
     document.title = `${lesson.family} | CS Dojo | Itembank`;
     setText('intro', lesson.intro);
@@ -133,6 +257,21 @@
     render(true);
   }
 
+  function indentSelection(outdent) {
+    const editor = $('editor');
+    const value = editor.value;
+    const start = editor.selectionStart;
+    const end = editor.selectionEnd;
+    const lineStart = value.lastIndexOf('\n', start - 1) + 1;
+    const lineEnd = end > start && value[end - 1] === '\n' ? end - 1 : end;
+    const segment = value.slice(lineStart, lineEnd);
+    const changed = segment.split('\n').map((line) => outdent ? line.replace(/^ {1,2}/, '') : `  ${line}`).join('\n');
+    editor.setRangeText(changed, lineStart, lineEnd, 'select');
+    const firstDelta = changed.split('\n')[0].length - segment.split('\n')[0].length;
+    editor.setSelectionRange(Math.max(lineStart, start + firstDelta), lineStart + changed.length);
+    editor.dispatchEvent(new Event('input', {bubbles: true}));
+  }
+
   function run() {
     if (execution) return;
     const lesson = lessons[active];
@@ -154,10 +293,11 @@
     draft.snapshot = lesson.prediction ? draft.prediction : '';
     draft.ran = true;
     draft.stale = false;
-    draft.status = 'Running';
+    const python = lesson.language === 'python';
+    draft.status = python ? 'Loading Python' : 'Running';
     draft.state = 'running';
     let worker;
-    try { worker = new Worker('runner.js'); }
+    try { worker = python ? new Worker('python-runner.js', {type: 'module'}) : new Worker('runner.js'); }
     catch {
       draft.status = 'Execution unavailable';
       draft.state = 'unavailable';
@@ -165,13 +305,32 @@
       renderResults();
       return;
     }
-    execution = {worker, draft, messages: 0, characters: 0, timer: setTimeout(() => {
+    const timedOut = () => {
       draft.output.push('Stopped after 2 seconds. Check the loop condition, then try again. This is not a correctness result.');
       finish('Time limit reached', 'timeout');
-    }, 2000)};
+    };
+    execution = {worker, draft, messages: 0, characters: 0, timer: setTimeout(() => {
+      if (python) {
+        draft.output.push('Python did not load within 20 seconds. You can still read and export this activity.');
+        finish('Python unavailable', 'unavailable');
+      } else timedOut();
+    }, python ? 20000 : 2000)};
     worker.addEventListener('message', ({data}) => {
       if (!execution || execution.worker !== worker) return;
       if (!data || typeof data !== 'object') return;
+      if (python && data.type === 'ready') {
+        clearTimeout(execution.timer);
+        execution.timer = setTimeout(timedOut, 2000);
+        draft.status = 'Running';
+        worker.postMessage({files: {...draft.files}, entry: lesson.entry});
+        renderResults();
+        return;
+      }
+      if (data.type === 'unavailable') {
+        draft.output.push('Python could not load. The plain-text unit and draft export remain available.');
+        finish('Python unavailable', 'unavailable');
+        return;
+      }
       execution.messages += 1;
       if (execution.messages > 85 || data.type === 'limit') {
         draft.output.push('Output limit reached. Print fewer values, then run again.');
@@ -201,7 +360,7 @@
       draft.output.push('The worker could not execute this program. Check the code or reopen the dedicated preview, then retry.');
       finish('Execution unavailable', 'unavailable');
     });
-    worker.postMessage({files: {...draft.files}, entry: lesson.entry});
+    if (!python) worker.postMessage({files: {...draft.files}, entry: lesson.entry});
     renderResults();
   }
 
@@ -216,7 +375,7 @@
     for (const lesson of lessons) {
       const draft = drafts.get(lesson.id);
       lines.push(`## ${lesson.number}. ${lesson.title}`, '', `Objective: ${lesson.objective}. ${lesson.objectiveText}`, '', `Source locator: ${lesson.source}`, '', '### Code', '');
-      for (const [name, text] of Object.entries(draft.files)) lines.push(`#### ${name}`, '', fence(text, 'javascript'), '');
+      for (const [name, text] of Object.entries(draft.files)) lines.push(`#### ${name}`, '', fence(text, lesson.language), '');
       if (lesson.prediction) lines.push('### Prediction', '', fence(draft.prediction || '(Not written)'), '');
       lines.push('### Reflection', '', fence(draft.reflection || '(Not written)'), '', '### Last execution observation', '', `State: ${draft.status}. ${draft.stale ? 'Code changed after this run.' : ''}`, '');
       if (draft.snapshot) lines.push('Prediction at this run:', '', fence(draft.snapshot), '');
@@ -231,18 +390,21 @@
     document.body.append(anchor);
     anchor.click();
     anchor.remove();
-    setText('export-status', 'Draft download requested with all three activities. Keep the file before closing this tab.');
+    setText('export-status', `Draft download requested with all ${lessons.length} activities. Keep the file before closing this tab.`);
   }
 
-  $('editor').addEventListener('input', () => { current().files[current().file] = $('editor').value; markStale(); position(); });
+  $('editor').addEventListener('input', () => { current().files[current().file] = getCode(); markStale(); position(); saveDrafts(); });
   $('editor').addEventListener('scroll', position);
   $('editor').addEventListener('click', position);
   $('editor').addEventListener('keyup', position);
   $('editor').addEventListener('keydown', (event) => {
     if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') { event.preventDefault(); run(); }
+    if ((event.ctrlKey || event.metaKey) && (event.code === 'BracketRight' || event.code === 'BracketLeft')) { event.preventDefault(); indentSelection(event.code === 'BracketLeft'); }
   });
-  $('prediction').addEventListener('input', () => { current().prediction = $('prediction').value; setText('prediction-help', 'A prediction opens the first run. It is not graded.'); });
-  $('reflection').addEventListener('input', () => { current().reflection = $('reflection').value; });
+  $('indent').addEventListener('click', () => { if (codeView) indentCodeMirror(codeView.view, false); else indentSelection(false); focusCode(); });
+  $('outdent').addEventListener('click', () => { if (codeView) indentCodeMirror(codeView.view, true); else indentSelection(true); focusCode(); });
+  $('prediction').addEventListener('input', () => { current().prediction = $('prediction').value; setText('prediction-help', 'A prediction opens the first run. It is not graded.'); saveDrafts(); });
+  $('reflection').addEventListener('input', () => { current().reflection = $('reflection').value; saveDrafts(); });
   $('run').addEventListener('click', run);
   $('stop').addEventListener('click', () => { finish('Stopped by you', 'stopped'); $('run').focus(); });
   $('previous').addEventListener('click', () => navigate(active - 1));
@@ -262,11 +424,13 @@
   $('reset-confirm').addEventListener('click', () => {
     finish('Stopped for reset', 'stopped');
     drafts.set(lessons[active].id, initial(lessons[active]));
+    saveDrafts();
     $('reset-dialog').close();
     render();
-    $('editor').focus();
+    focusCode();
   });
   $('reset-dialog').addEventListener('close', () => $('reset').focus());
   window.addEventListener('pagehide', () => { finish('Stopped on page exit', 'stopped'); if (exportURL) URL.revokeObjectURL(exportURL); });
   render();
+  if (!storageAvailable) setText('draft-indicator', 'Local save unavailable · export your draft');
 })();

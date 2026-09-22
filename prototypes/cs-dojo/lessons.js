@@ -2,7 +2,7 @@
 'use strict';
 window.DOJO_LESSONS = [
   {
-    id: 'predict', number: '01', family: 'Read & predict', title: 'Where does the loop stop?',
+    id: 'predict', number: '01', family: 'Read & predict', navLabel: 'Trace a boundary', language: 'javascript', title: 'Where does the loop stop?',
     objective: 'SYN-CS-01', objectiveText: 'Trace array indices and explain an exclusive upper bound.',
     intro: 'A loop condition is a promise about which positions the program will visit. Make a prediction before you test that promise.',
     task: 'Predict every line this program prints. Then run it and explain what happens on the final iteration.',
@@ -15,7 +15,7 @@ window.DOJO_LESSONS = [
     next: 'Use that boundary to diagnose a broken total.',
   },
   {
-    id: 'debug', number: '02', family: 'Debug & compare', title: 'Why did the total become NaN?',
+    id: 'debug', number: '02', family: 'Debug & compare', navLabel: 'Repair the calculation', language: 'javascript', title: 'Why did the total become NaN?',
     objective: 'SYN-CS-02', objectiveText: 'Use an observed failure and an empty case to repair a loop.',
     intro: 'The same boundary mistake can hide inside a calculation. Use the examples to locate the first value that stops making sense.',
     task: 'Repair sum(readings) so it adds every provided number exactly once. It must return 0 for an empty array. Keep the examples and add one of your own.',
@@ -28,7 +28,7 @@ window.DOJO_LESSONS = [
     next: 'Carry your boundary reasoning into a small module.',
   },
   {
-    id: 'lab', number: '03', family: 'Build & test', title: 'Give the average a clear contract.',
+    id: 'lab', number: '03', family: 'Build & test', navLabel: 'A small module', language: 'javascript', title: 'Give the average a clear contract.',
     objective: 'SYN-CS-03', objectiveText: 'Implement a function across a declared module boundary and design examples.',
     intro: 'A small program needs both behavior and a way to inspect it. Keep the implementation and its examples in separate files.',
     task: 'Implement mean(readings) in stats.js. Return the arithmetic mean for nonempty arrays and null for an empty array. In examples.js, add a case with a negative number and one with a single value.',
@@ -41,6 +41,19 @@ window.DOJO_LESSONS = [
     }, entry: 'examples.js',
     prediction: false, reflection: 'Explain your empty-input choice. What could still be wrong even if these examples look right?',
     example: 'First handle readings.length === 0 by returning null. Otherwise accumulate every value and return total / readings.length. Useful extra examples include [-2, 6] with expected mean 2 and [5] with expected mean 5. Inspect readability and reasoning separately from observed behavior.',
-    next: 'Export your code and reasoning for review, or revisit an earlier activity.',
+    next: 'Try the same boundary idea in Python, or export your draft.',
+  },
+  {
+    id: 'python', number: '04', family: 'Transfer & test', navLabel: 'Python boundary', language: 'python', title: 'Can you transfer the boundary idea?',
+    objective: 'SYN-CS-04', objectiveText: 'Repair a Python list traversal and test ordinary and empty inputs.',
+    intro: 'The language changed, but the question about valid positions did not. Use the public examples, then add a boundary of your own.',
+    task: 'Repair total(readings) so it adds every number once and returns 0 for an empty list. Keep the three provided examples and add one for a single value.',
+    context: 'Inputs are lists of finite numbers. Python 3 runs locally in a replaceable browser worker. The report(label, actual, expected) helper displays observations, not grades. There are no packages or host files.',
+    source: 'source.md#python-transfer', sourceLabel: 'List boundaries in Python',
+    sourceText: 'Python list indices begin at 0. range(len(values)) visits 0 through len(values) - 1. The extra endpoint in range(len(values) + 1) raises IndexError for every list, including an empty one.',
+    files: {'total.py': 'def total(readings):\n    result = 0\n    for index in range(len(readings) + 1):\n        result += readings[index]\n    return result\n\nreport("three readings", total([3, 7, 4]), 14)\nreport("empty input", total([]), 0)\nreport("negative value", total([-2, 5]), 3)\n\n# Add a single-value example.\n'}, entry: 'total.py',
+    prediction: false, reflection: 'What stayed the same across the two languages? What did Python do when the loop reached the absent position?',
+    example: 'Use range(len(readings)) or iterate directly over readings. The original range includes len(readings), which is never a valid index. Empty input should leave the initial total at 0. A single-value example checks the smallest nonempty boundary.',
+    next: 'Export the draft for review or revisit any activity.',
   },
 ];

@@ -18,26 +18,34 @@ directory only. Machine-local launch findings were appended to `.reasonix/REASON
 All created paths have an absent expected base. Patch additions are the
 operation record. Source material and code are original synthetic fixtures.
 No learner source or evidence leaves the machine. Public browser documentation
-was consulted without uploading project content. No third-party code is copied.
+was consulted without uploading project content. No Code Learner application
+code or question content is copied. The Python prototype vendors Pyodide
+runtime assets with provenance and license in `vendor/pyodide/VENDOR.md`.
 
-The browser runs JavaScript in a replaceable dedicated worker on a separate
-loopback prototype origin. A small read-only server serves an exact file list.
-The worker response denies connections, imported scripts, and nested workers
-using CSP. A main-thread deadline and output limits bound ordinary runaway
+The browser runs JavaScript and Python in replaceable dedicated workers on a
+separate loopback prototype origin. A small read-only server serves an exact
+file list. The JavaScript worker denies connections, imported scripts, and
+nested workers through CSP. The Python worker can load only its local runtime
+assets and cannot connect to remote origins. A main-thread deadline and
+output limits bound ordinary runaway
 programs. This is a prototype execution boundary, not a production hostile-code
 sandbox or a hard memory quota. Do not host it on the production app's origin.
+Python loads the local Pyodide distribution before its two-second execution
+clock begins. A 20-second loading deadline yields an unavailable state.
 
 Observed outputs and learner-written examples are untrusted program reports.
 They do not settle correctness, assign scores, unlock assessment feedback, or
-create evidence. Notes and code live in page memory until explicit download.
-Reload discards the page draft. Downloads are learner-owned, unreviewed artifacts.
-No persistence format, runtime adapter, or accepted revision is added.
+create evidence. Notes and code are now saved under
+`itembank-cs-dojo-drafts-v1` in this browser's local storage. Reload restores
+code, prediction, and reflection, but not execution results. Local storage can
+be cleared or unavailable, so the UI directs the learner to export a copy.
+Downloads are learner-owned, unreviewed artifacts. No accepted persistence
+format, runtime adapter, or course revision is added.
 
 ## Ready decisions and gate
 
-JavaScript is the first executable language because the browser supplies its
-runtime without a new package. Python remains a required follow-up candidate,
-not a fake language selector. The two-file example uses an explicitly declared
+JavaScript uses the browser runtime. Python uses a local Pyodide worker and a
+synthetic transfer activity. The two-file example uses an explicitly declared
 CommonJS-style `require` and `module.exports` harness. It does not claim Node.js,
 a filesystem, packages, or native ES-module support.
 
@@ -46,6 +54,27 @@ draft retention between activities and files, error feedback, stop, timeout,
 fresh execution after timeout, output limits, blocked fetch/import/nested
 workers, server path refusal, export, and 390px layout. Run quick preflight.
 Human touch, screen-reader, zoom, aesthetic and real-course review remain open.
+
+## 2026-09-19 parity slice
+
+The prototype saves bounded code and notes locally across reloads. The editor
+now uses Itembank's existing vetted CodeMirror bundle on the served preview,
+with a textarea fallback for direct-file use. Explicit indent and outdent
+buttons leave Tab available for keyboard navigation. A Python transfer activity
+uses a locally served Pyodide worker with error, timeout, output-limit and
+fresh-run recovery checks. Category queues, broad drills, syntax highlighting,
+and accepted assessment evidence remain open. Production promotion still needs runtime-owned
+scoring, disclosure, durable evidence, and an execution isolation review.
+
+The focused Chromium gate passed 17 groups on this revision. It covers
+JavaScript and Python execution, first-run Python loading, error and repair,
+stop, timeout, output caps, worker replacement, local draft reload, export,
+keyboard navigation, narrow layout, static fallback, local-only requests, and
+the pinned Pyodide asset hashes. Desktop and 390px screenshots were inspected;
+the editor text and results remain visible. `python3 scripts/preflight.py --quick`
+passed. A full preflight was started but stopped after 41 of 135 Python tests
+because another full preflight was already running in the shared checkout.
+No production assessment path was tested or changed in this slice.
 
 Undo: remove this newly created directory. Downloaded drafts remain separate.
 Concurrent source/reading/runtime changes are outside this packet. No commit or
@@ -114,11 +143,11 @@ it. The final probes verify the actual refusal behavior.
 
 ## Remaining promotion gate
 
-JavaScript execution is one adapter candidate. Python, formal runtime scoring
+JavaScript and Python execution are adapter candidates. Formal runtime scoring
 and disclosure, durable objective evidence, restore, and production execution
 isolation remain unimplemented. Browser workers lack a hard per-run memory
 quota here, and worker-origin storage is not a learner-data authority. The
-next bounded candidate is a Python execution adapter over this same synthetic
-unit, with an explicit runtime distribution and isolation review before any
-real coursework is connected. No real course policy or source permission is
-inferred from this prototype.
+next bounded work is category and practice breadth, followed by a reviewed
+production execution and assessment contract before real coursework is
+connected. No real course policy or source permission is inferred from this
+prototype.
