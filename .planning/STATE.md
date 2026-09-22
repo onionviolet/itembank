@@ -4,11 +4,11 @@ milestone: reach
 milestone_name: reach
 current_phase_name: 20-extensible-ui-foundation-and-interaction-clarity-pass
 current_phase: 20
-status: "Parallel parity candidate passes a connected synthetic course journey, formal exam completion, reusable line plot, and restored reading display. Installed and human acceptance remain open."
-stopped_at: "Next verify the installed connected journey and resolve remaining authoring, code-depth, offline, and human acceptance gates."
-last_updated: "2026-09-19"
-last_activity: 2026-09-19
-last_activity_desc: "Continued with Luna workers, integrated bounded retry, recovery, route and display repairs, and verified synthetic native and API browser journeys."
+status: "Nine implementation and evidence commits plus one state commit are assembled on codex/parity-atomic-commits-20260922. The 136-test preflight exposed one LaTeX style-token failure; its fix and owning gates pass. Installed and human acceptance remain open."
+stopped_at: "Verify the packaged and installed connected journey before considering integration or release."
+last_updated: "2026-09-22"
+last_activity: 2026-09-22
+last_activity_desc: "Replayed the six reviewed parity commits and separated the 0.5.0 release, CS Dojo, and LaTeX answer-input work into three additional atomic commits."
 progress:
   total_phases: 41
   completed_phases: 41
@@ -33,8 +33,16 @@ the repaired test failure, a separate LAN self-route timeout in the daemon
 suite, and the expected dirty-tree gate. The affected focused tests passed
 after repair. Packaged and installed app journeys, human accessibility and
 learning transfer, full author-workbench parity, code-depth production parity
-and clean offline recovery acceptance remain open. The candidate is committed
-on `codex/itembank-parity-flows-20260920`; it has not been pushed or installed.
+and clean offline recovery acceptance remain open. Nine atomic parity, release,
+CS Dojo, and LaTeX commits are assembled on
+`codex/parity-atomic-commits-20260922`, followed by one current-state commit.
+Focused Python gates, CS Dojo syntax and loopback-server smoke checks pass. A
+clean full preflight ran all 136 Python tests, passed clean-tree and JavaScript
+gates, and exposed one LaTeX stylesheet-scale failure. The correction was folded
+into the LaTeX commit; stylesheet, LaTeX and offline-math gates then passed. The
+expensive model-backed suite was not repeated after that CSS-only repair. The
+current session could not rerun its recorded Chromium gate because Playwright is
+unavailable. Push, packaged install, and installed-app verification remain open.
 
 **Active Q1 continuation, 2026-09-19:** The current source candidate repairs
 quiz retry controls, uncertain acknowledgement recovery, selected-answer
