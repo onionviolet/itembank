@@ -256,11 +256,9 @@ def expand_spec(settings, spec):
         spec = base
     spec.pop("profile", None)
     import json
-    import os
+    import resources
     import schema_validate
-    schema = json.load(open(
-        os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                     "schemas", "selection.schema.json"), encoding="utf-8"))
+    schema = json.loads(resources.read_text("schemas/selection.schema.json"))
     errs = schema_validate.validate(spec, schema)
     if errs:
         sys.exit("invalid selection spec: " + errs[0])
