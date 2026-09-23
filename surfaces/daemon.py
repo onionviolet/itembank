@@ -1489,15 +1489,14 @@ def _course_frame(handler, state, back, course_dir=None):
     nav = []
     primary_nav = []
     tool_nav = []
-    for entry in state["nav"]:
+    for index, entry in enumerate(state["nav"]):
         item = ('<li><a aria-label="%s" href="%s"%s>%s</a></li>'
                 % (presentation.esc(entry["label"]),
                    presentation.esc(entry["href"]),
                    ' aria-current="page"' if entry["current"] else "",
                    presentation.esc(entry["label"])))
         nav.append(item)
-        (primary_nav if entry["area"] in ("overview", "learn", "practice", "test")
-         else tool_nav).append(item)
+        (primary_nav if index < 4 else tool_nav).append(item)
     heading_id = ia.anchor_slug(state["area_label"]) or "area"
     lead, rows = _course_area_rows(handler, state, course_dir)
     saved_html = ""
@@ -1547,12 +1546,13 @@ def _course_frame(handler, state, back, course_dir=None):
     tool_current = state["area"] not in ("overview", "learn", "practice", "test")
     tool_label = ("Course tools: %s" % state["area_label"] if tool_current
                   else "Course tools")
+    tool_menu = ('<details class="course-tools"><summary>%s</summary>'
+                 '<ul>%s</ul></details>'
+                 % (presentation.esc(tool_label), "".join(tool_nav))
+                 if tool_nav else "")
     desktop_nav = ('<nav class="course-areas course-nav-desktop" '
-                   'aria-label="Course areas"><ul>%s</ul>'
-                   '<details class="course-tools"><summary>%s</summary>'
-                   '<ul>%s</ul></details></nav>'
-                   % ("".join(primary_nav), presentation.esc(tool_label),
-                      "".join(tool_nav)))
+                   'aria-label="Course areas"><ul>%s</ul>%s</nav>'
+                   % ("".join(primary_nav), tool_menu))
     mobile_nav = ('<details class="course-areas course-nav-mobile">'
                   '<summary>Course area: %s</summary>'
                   '<nav aria-label="Course areas"><ul>%s</ul></nav></details>'
