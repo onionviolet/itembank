@@ -4,11 +4,11 @@ milestone: reach
 milestone_name: reach
 current_phase_name: 20-extensible-ui-foundation-and-interaction-clarity-pass
 current_phase: 20
-status: "Nine implementation and evidence commits plus one state commit are assembled on codex/parity-atomic-commits-20260922. The 136-test preflight exposed one LaTeX style-token failure; its fix and owning gates pass. Installed and human acceptance remain open."
-stopped_at: "Verify the packaged and installed connected journey before considering integration or release."
+status: "Parity and bounded course-journey changes are integrated into main. The journey branch passed remote CI; the rebuilt package and packaged daemon passed synthetic checks. Installed-app and human acceptance remain open."
+stopped_at: "Verify the installed desktop journey after the active learner session, then complete human accessibility and learning-transfer checks."
 last_updated: "2026-09-22"
 last_activity: 2026-09-22
-last_activity_desc: "Replayed the six reviewed parity commits and separated the 0.5.0 release, CS Dojo, and LaTeX answer-input work into three additional atomic commits."
+last_activity_desc: "Fast-forwarded parity and source-first course journey changes into local main after the journey branch passed remote CI."
 progress:
   total_phases: 41
   completed_phases: 41
@@ -18,7 +18,18 @@ progress:
 ---
 # Project State
 
-**Active parallel parity candidate, 2026-09-19:** A disposable real daemon
+**Integrated parity and journey baseline, 2026-09-22:** Implementation commit
+`5d13ac8` includes the parity commits and a source-first course overview,
+context-preserving reading return, and exact saved-practice resume. The parity
+branch passed a clean full local preflight with 136 Python scripts before
+integration. The journey branch passed remote CI run `35814658113`. A rebuilt
+0.5.0 macOS package and its packaged daemon passed a synthetic browser journey.
+The installed app is still running an active learner session and has not been
+replaced or used for acceptance. Human accessibility and learning-transfer
+checks, full author-workbench and code-depth parity, and clean offline recovery
+acceptance remain open.
+
+**Prior parallel parity candidate, 2026-09-19:** A disposable real daemon
 passes Home to course to accepted source range to native comparison lesson to
 practice to restart and exact session resume to script-free submission to
 result and back to course. The formal exam fixture advances through an
