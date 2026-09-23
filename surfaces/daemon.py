@@ -1210,6 +1210,62 @@ def _course_missed_review_forms(handler, course_dir, course_id):
             'are excluded.</p>%s</section>' % "".join(forms))
 
 
+def _course_mock_forms(handler, course_dir, course_id):
+    """Show available item types for a separate, configurable exam sitting."""
+    forms = []
+    for stem, path in _course_banks(handler, course_dir):
+        counts = {}
+        try:
+            for question in load(path):
+                name = question.get("type")
+                if name in ("mc", "multi", "table", "dnd", "build",
+                            "short", "check", "visual"):
+                    counts[name] = counts.get(name, 0) + 1
+        except Exception:
+            continue
+        if not counts:
+            continue
+        inputs = []
+        for index, (name, available) in enumerate(sorted(counts.items())):
+            initial = min(available, 10) if (
+                name == "mc" or ("mc" not in counts and index == 0)) else 0
+            inputs.append(
+                '<label><span>%s <small>(%d available)</small></span>'
+                '<input type="number" name="mix_%s" min="0" max="%d" '
+                'value="%d" required></label>' %
+                (presentation.esc(name.upper()), available,
+                 presentation.esc(name), available, initial))
+        forms.append(
+            '<form class="mock-form" method="post" action="/course/%s/test">'
+            '<input type="hidden" name="action" value="start_mock">'
+            '<input type="hidden" name="bank" value="%s">'
+            '<fieldset><legend>%s</legend><div class="mock-fields">%s'
+            '<label><span>Minutes <small>(0 for untimed)</small></span>'
+            '<input type="number" name="minutes" min="0" max="240" '
+            'value="30" required></label></div></fieldset>'
+            '<button class="go" type="submit">Start mock test</button>'
+            '</form>' % (presentation.esc(course_id), presentation.esc(stem),
+                         presentation.esc(_bank_title(path, stem)),
+                         "".join(inputs)))
+    if not forms:
+        return '<p>No assessment bank is available for a mock test.</p>'
+    return ('<style>.mock-form{max-width:46rem;padding:1rem 1.2rem;'
+            'margin:1rem 0;border:1px solid rgba(127,127,127,.4);'
+            'border-radius:.8rem}.mock-form fieldset{border:0;padding:0;'
+            'margin:0}.mock-form legend{font-weight:600;margin-bottom:.8rem}'
+            '.mock-fields{display:flex;flex-wrap:wrap;gap:1rem 1.5rem}'
+            '.mock-fields label{display:grid;gap:.35rem;min-width:9rem}'
+            '.mock-fields small{font-weight:400}.mock-fields input{'
+            'box-sizing:border-box;width:100%%;max-width:9rem;padding:.45rem;'
+            'font:inherit;color:inherit;background:transparent;'
+            'border:1px solid rgba(127,127,127,.55);border-radius:.35rem}'
+            '.mock-form button{margin-top:1rem}</style>'
+            '<section aria-labelledby="mock-test"><h3 id="mock-test">'
+            'Configure a mock test</h3><p>Choose an exact mix. The sitting '
+            'uses exam feedback and stays separate from the fixed formal '
+            'test.</p>%s</section>' % "".join(forms))
+
+
 def _active_missed_session(handler, bank_path):
     """The newest active review for this exact scanned bank, if one exists."""
     matches = []
@@ -1563,6 +1619,9 @@ def _course_frame(handler, state, back, course_dir=None):
     if state["area"] == "evidence" and course_dir:
         saved_html = _course_missed_review_forms(
             handler, course_dir, state["course_id"])
+    if state["area"] == "test" and course_dir:
+        saved_html = _course_mock_forms(
+            handler, course_dir, state["course_id"])
     if state["area"] == "overview" and course_dir:
         resume = ia._course_resume_state(handler.root, course_dir)
         saved_rows = []
@@ -1602,10 +1661,13 @@ def _course_frame(handler, state, back, course_dir=None):
         action_html = (('<p><a class="go" href="%s">%s</a></p>'
                         % (presentation.esc(action["href"]),
                            presentation.esc(action["label"]))) if action else "")
+        notice = ("No fixed formal test is bound to this course yet."
+                  if state["area"] == "test" and
+                  'action="/course/' in saved_html else state["notice"])
         content = ('<div class="area-state" data-course-state="%s">'
                    '<p>%s</p>%s</div>'
                    % (presentation.esc(state.get("display_state", "empty")),
-                      presentation.esc(state["notice"]), action_html))
+                      presentation.esc(notice), action_html))
     tool_current = state["area"] not in ("overview", "learn", "practice", "test")
     tool_label = ("Course tools: %s" % state["area_label"] if tool_current
                   else "Course tools")
@@ -1722,13 +1784,59 @@ def handle_course_area_get(handler, course_id, area):
 
 
 def handle_course_area_post(handler, course_id, area):
-    """Handle the two course forms without accepting a file path from HTML."""
-    if area not in ("agent", "evidence"):
+    """Handle course forms without accepting a file path from HTML."""
+    if area not in ("agent", "evidence", "test"):
         handler.send_error(405, "this course area is read-only")
         return
     if _reject_cross_origin_write(handler):
         return
     fields = handler.read_form()
+    if area == "test":
+        course_dir = ia.course_dir_for(handler.root, course_id)
+        if course_dir is None:
+            _course_not_found(handler)
+            return
+        bank = (fields.get("bank") or [""])[-1]
+        path = dict(_course_banks(handler, course_dir)).get(bank)
+        if path is None or fields.get("action") != ["start_mock"]:
+            handler.send_error(400, "choose a course bank for the mock test")
+            return
+        available = {q.get("type") for q in load(path)}
+        expected = {"action", "bank", "minutes"} | {
+            "mix_" + name for name in available}
+        if set(fields) != expected or any(len(value) != 1 for value in fields.values()):
+            handler.send_error(400, "mock test mix is incomplete")
+            return
+        try:
+            mix = {name: int(fields["mix_" + name][0]) for name in available}
+            minutes = int(fields["minutes"][0])
+            if any(amount < 0 for amount in mix.values()):
+                raise ValueError("negative amount")
+            if not 0 <= minutes <= 240:
+                raise ValueError("invalid minutes")
+            mix = {name: amount for name, amount in mix.items() if amount}
+            if not mix:
+                raise ValueError("empty mix")
+            out = os.path.join(os.path.abspath(handler.root), "_attempts",
+                               "session_%s.json" % uuid.uuid4().hex[:12])
+            result = session.do_start(
+                path, {"selection_mode": "exam", "type_counts": mix,
+                       "count": sum(mix.values()), "seed": 0},
+                "exam", out, False,
+                time_limit_minutes=minutes or None)
+        except ValueError:
+            handler.send_error(400, "choose whole-number counts and a time limit from 0 to 240 minutes")
+            return
+        except SystemExit as exc:
+            handler.send_error(400, str(exc.code))
+            return
+        except Exception as exc:
+            handler.send_server_error(exc)
+            return
+        handler.send_redirect(_quiz_path(
+            bank, "exam", session_id=result["session_id"],
+            course_id=course_id))
+        return
     if area == "evidence":
         if set(fields) != {"action", "bank"} or \
                 fields.get("action") != ["review_missed"] or \
@@ -2533,7 +2641,10 @@ def handle_report_get(handler):
     theme_block = theme.theme_css(cfg)
     profile, _notice = settings.resolve_presentation_profile(cfg)
     if summary["auto_attempts"] == 0 and summary["pending_manual"] == 0:
-        body = REPORT_EMPTY
+        body = ("<div class=\"empty\"><h2>No answers were submitted before "
+                "time ran out.</h2><p>Return to the course Test area to start "
+                "another mock sitting.</p></div>"
+                if result.get("timed_out") else REPORT_EMPTY)
     else:
         position = total = None
         if status == "active":
@@ -2543,6 +2654,12 @@ def handle_report_get(handler):
             data = read_session(path)
             position, total = data["cursor"], len(data["items"])
         body = _report_card(summary, status, position, total)
+    if result.get("timed_out"):
+        body = ('<p class="status" role="status">Time is up. %d item%s '
+                'went unanswered. Accuracy below counts only submitted '
+                'auto-marked answers.</p>' %
+                (result["unanswered"],
+                 "" if result["unanswered"] == 1 else "s")) + body
     # The gate outcome split (06.2-UI-SPEC section 11, GATE-06): the
     # report-surface readout, derived from the evidence log at request
     # time -- never stored, and never rendered in the reading column.
@@ -3623,6 +3740,38 @@ def _send_quiz_page(handler, stem, path, qs, sess, view, teaching, lesson_slugs,
         page = page.replace('<b id="tot">%d</b>' % len(qs),
                             '<b id="tot">%d</b>' % view["total"], 1)
     if rendered_view is not None:
+        timing = view.get("timing")
+        if timing and view.get("status") == "active":
+            deadline = str(timing["deadline"])
+            remaining_ms = max(0, int((
+                datetime.datetime.fromisoformat(deadline.replace("Z", "+00:00"))
+                - datetime.datetime.fromisoformat(
+                    evidence.utc_now().replace("Z", "+00:00"))
+            ).total_seconds() * 1000))
+            report_href = "/report?session=" + urllib.parse.quote(
+                view["session_id"], safe="")
+            timer_html = (
+                '<style>.quiz-timer{display:flex;flex-wrap:wrap;gap:.45rem;'
+                'align-items:baseline;padding:.65rem .9rem;margin:.7rem 0;'
+                'border:1px solid currentColor;border-radius:.65rem}'
+                '.quiz-timer strong{font-variant-numeric:tabular-nums;'
+                'font-size:1.15em}</style>'
+                '<p class="quiz-timer" role="timer" aria-live="off">'
+                'Time left <strong id="mock-time-left">calculating</strong>'
+                '<span>Closes at <time datetime="%s">%s UTC</time></span></p>'
+                '<script>(function(){const end=performance.now()+%d;'
+                'const target=document.getElementById("mock-time-left");'
+                'function tick(){const seconds=Math.max(0,Math.ceil('
+                '(end-performance.now())/1000));const minutes=Math.floor(seconds/60);'
+                'target.textContent=String(minutes).padStart(2,"0")+":"+'
+                'String(seconds%%60).padStart(2,"0");'
+                'if(seconds===0){window.location.replace(%s);}}'
+                'tick();setInterval(tick,1000);})();</script>' %
+                (presentation.esc(deadline),
+                 presentation.esc(deadline[:16].replace("T", " ")),
+                 remaining_ms, json.dumps(report_href)))
+            page = page.replace('<div id="host"></div>',
+                                timer_html + '<div id="host"></div>', 1)
         symbol_help = quiz.question_symbol_help(
             path, qs, stem, serve=True,
             return_path=_quiz_path(stem, launch_mode,
@@ -5187,7 +5336,13 @@ def handle_api_start(handler):
             not isinstance(profile_id, str) or not profile_id):
         handler.send_error(400, "profile must be a non-empty profile id")
         return
-    count = data.get("count", 10)
+    type_counts = data.get("type_counts")
+    if type_counts is not None and not isinstance(type_counts, dict):
+        handler.send_error(400, "type_counts must map item types to counts")
+        return
+    count = data.get("count", sum(type_counts.values()) if type_counts and all(
+        isinstance(value, int) and not isinstance(value, bool)
+        for value in type_counts.values()) else 10)
     if not isinstance(count, int) or isinstance(count, bool):
         count = 10
     seed = data.get("seed", 0)
@@ -5248,6 +5403,12 @@ def handle_api_start(handler):
     # takes -- the same signature `itembank start`'s own CLI path uses.
     spec = {"objective": objective, "count": count, "seed": seed,
             "selection_mode": selection_mode}
+    if type_counts is not None:
+        spec["type_counts"] = type_counts
+    minutes = data.get("time_limit_minutes")
+    if minutes is not None and data.get("preview") is True:
+        handler.send_error(400, "a selection preview has no time limit")
+        return
     if focus:
         spec["focus"] = focus
     out = os.path.join(os.path.abspath(handler.root), "_attempts",
@@ -5268,7 +5429,8 @@ def handle_api_start(handler):
             result["preview"] = True
         else:
             result = session.do_start(path, spec, mode, out, False,
-                                      profile_id=profile_id)
+                                      profile_id=profile_id,
+                                      time_limit_minutes=minutes)
     except SystemExit as exc:
         handler.send_error(400, str(exc.code))
         return

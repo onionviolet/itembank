@@ -256,7 +256,7 @@ def _derive_subject(spec):
 
 
 def do_start(bank_path, spec, mode, out, force, *, override_token=None,
-             profile_id=None, preset_session_id=None):
+             profile_id=None, preset_session_id=None, time_limit_minutes=None):
     # A caller that already announced a session id (the serve banner) passes
     # it here; the cap override still mints its own, because the override
     # event is bound to that id.
@@ -265,6 +265,11 @@ def do_start(bank_path, spec, mode, out, force, *, override_token=None,
     # caller, and it is consumed here before the spec reaches `select()`,
     # which refuses fields it does not know.
     focus = spec.get("focus")
+    if time_limit_minutes is not None and (mode != "exam" or
+            not isinstance(time_limit_minutes, int) or
+            isinstance(time_limit_minutes, bool) or
+            not 1 <= time_limit_minutes <= 240):
+        sys.exit("time limit requires an exam and 1 to 240 whole minutes")
     sel_spec = {k: v for k, v in spec.items() if k != "focus"}
     qs = load(bank_path)
     errors, _ = lint(qs)
@@ -420,6 +425,16 @@ def do_start(bank_path, spec, mode, out, force, *, override_token=None,
                     "snapshot_id": decision["snapshot_id"],
                     "override_event_id": (override or {}).get("event_id"),
                 }}}
+    if time_limit_minutes is not None:
+        started = datetime.datetime.fromisoformat(
+            data["served_ts"].replace("Z", "+00:00"))
+        deadline = started + datetime.timedelta(minutes=time_limit_minutes)
+        data["timing"] = {
+            "minutes": time_limit_minutes,
+            "deadline": deadline.isoformat(timespec="milliseconds").replace(
+                "+00:00", "Z"),
+            "expired": False,
+        }
     write_session(out, data)
     # D-03: one `selection` event per sitting, appended only after the
     # session file was written, through the one evidence writer -- a session
@@ -476,6 +491,19 @@ def cmd_start(a):
         value = getattr(a, key, None)
         if value is not None:
             spec[key] = value
+    if getattr(a, "mix", None):
+        counts = {}
+        for entry in a.mix:
+            name, separator, raw = entry.partition("=")
+            if not separator or name in counts:
+                sys.exit("each --mix must be a unique TYPE=COUNT")
+            try:
+                counts[name] = int(raw)
+            except ValueError:
+                sys.exit("each --mix count must be a whole number")
+        spec["type_counts"] = counts
+        if "count" not in spec:
+            spec["count"] = sum(counts.values())
     if getattr(a, "prereq_satisfied", None):
         spec["prereq_satisfied"] = True
     if getattr(a, "exclude", None):
@@ -483,7 +511,8 @@ def cmd_start(a):
     override_token = getattr(a, "override_cap", None) or None
     result = do_start(a.bank, spec, a.mode, a.out, a.force,
                       override_token=override_token,
-                      profile_id=getattr(a, "subject_profile", None))
+                      profile_id=getattr(a, "subject_profile", None),
+                      time_limit_minutes=getattr(a, "minutes", None))
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0
 
@@ -508,8 +537,23 @@ def cmd_override(a):
     return 0
 
 
+def _expire_timed_exam(session_file, data):
+    """Close an elapsed exam before any read or mutation exposes an item."""
+    timing = data.get("timing")
+    if data["status"] != "active" or not timing:
+        return data
+    now = datetime.datetime.fromisoformat(evidence.utc_now().replace("Z", "+00:00"))
+    deadline = datetime.datetime.fromisoformat(
+        timing["deadline"].replace("Z", "+00:00"))
+    if now >= deadline:
+        data["status"] = "complete"
+        data["timing"] = dict(timing, expired=True)
+        write_session(session_file, data)
+    return data
+
+
 def do_next(session_file):
-    data = read_session(session_file)
+    data = _expire_timed_exam(session_file, read_session(session_file))
     qs = load(data["bank"])
     # Collect the marker's desk before serving. A sitting parked on a pending
     # prose answer stays parked until a human rules on it; once the mark is
@@ -620,7 +664,7 @@ def do_interact(session_file, action):
     `conflict`, and nonvisual sessions, stale versions, unknown actions,
     malformed/out-of-domain state, and completed sessions are named refusals.
     """
-    data = read_session(session_file)
+    data = _expire_timed_exam(session_file, read_session(session_file))
     if data["status"] != "active":
         sys.exit("session is already complete")
     qs = load(data["bank"])
@@ -939,7 +983,7 @@ def do_action(session_file, action, confidence=None, renderer_meta=None,
     parameter reaches the runtime transition.
     """
     _validate_renderer_meta(renderer_meta)     # discarded before policy
-    data = read_session(session_file)
+    data = _expire_timed_exam(session_file, read_session(session_file))
     if data["status"] != "active":
         sys.exit("session is already complete")
     qs = load(data["bank"])
@@ -1133,7 +1177,7 @@ def do_report(session_file):
     """The report: the session summary joined with live-derived teaching
     outcomes (D-17) and the runtime's diagnostic/exam review availability.
     Never reads a mutable hint counter."""
-    data = read_session(session_file)
+    data = _expire_timed_exam(session_file, read_session(session_file))
     log = evidence.log_path(os.path.dirname(data["bank"]))
     outcomes = evidence.teaching_outcomes(log, data["session_id"])
     summary = session_summary(data, settled_mark_refs(log, data["session_id"]))
@@ -1150,6 +1194,8 @@ def do_report(session_file):
         summary["teaching_outcomes"] = outcomes["teaching_outcomes"]
     return {"schema_version": REPORT_VERSION, "session_id": data["session_id"],
             "status": data["status"], "summary": summary,
+            "timed_out": bool((data.get("timing") or {}).get("expired")),
+            "unanswered": max(0, len(data["items"]) - len(data["responses"])),
             "review_available": {"diagnostic": data["status"] == "complete",
                                  "exam": False}}
 

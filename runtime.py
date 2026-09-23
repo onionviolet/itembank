@@ -1472,6 +1472,8 @@ def session_view(data, qs):
             "status": data["status"], "mode": data["mode"],
             "objective": data.get("objective", ""), "position": cursor,
             "total": len(selected), "responses": len(data["responses"])}
+    if data.get("timing"):
+        view["timing"] = dict(data["timing"])
     # Phase 9 (D-04): the persisted subject/profile snapshot is part of the
     # public view. Legacy sessions whose null slot is not filled yet report
     # an empty subject id and no profile metadata.

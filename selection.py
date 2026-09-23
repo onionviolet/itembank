@@ -24,7 +24,7 @@ import model  # noqa: F401  (the question shape `select` consumes comes from mod
 # it.
 SPEC_FIELDS = ("objective", "count", "seed", "exclude_item_ids",
                "pair", "prerequisite", "selection_mode", "prereq_satisfied",
-               "type", "difficulty")
+               "type", "difficulty", "type_counts")
 
 # Phase 10 (10-03): the one additive retention context the selector accepts.
 # It is server-derived only -- a snapshot claim plus the bounded normalized
@@ -422,6 +422,18 @@ def select(questions, spec, history, cooldown=None, decay=None, *,
     if selection_mode not in SELECTION_MODES:
         sys.exit("unknown selection_mode %r; known modes: %s"
                  % (selection_mode, ", ".join(SELECTION_MODES)))
+    type_counts = spec.get("type_counts")
+    if type_counts is not None:
+        if selection_mode != "exam" or spec.get("type") or spec.get("pair"):
+            sys.exit("type_counts requires exam selection without type or pair")
+        if not isinstance(type_counts, dict) or not type_counts or any(
+                name not in ("mc", "multi", "table", "dnd", "build",
+                             "short", "check", "visual") or
+                not isinstance(amount, int) or isinstance(amount, bool) or amount < 1
+                for name, amount in type_counts.items()):
+            sys.exit("type_counts must map supported item types to positive counts")
+        if sum(type_counts.values()) != count:
+            sys.exit("count must equal the sum of type_counts")
 
     objective = spec.get("objective") or ""
     pair = spec.get("pair") or ""
@@ -516,7 +528,26 @@ def select(questions, spec, history, cooldown=None, decay=None, *,
             ordered_pool = mode_row["order"](
                 candidates, rng,
                 ranks if exposure_policy == "hard_and_soft" else None)
-        if mode_row["count"] == "spread":
+        if type_counts is not None:
+            available = {name: sum(q.get("type") == name for q in ordered_pool)
+                         for name in type_counts}
+            short = [name for name, amount in type_counts.items()
+                     if available[name] < amount]
+            if short:
+                sys.exit("requested mock mix exceeds available items: " +
+                         ", ".join("%s %d of %d" %
+                                   (name, type_counts[name], available[name])
+                                   for name in sorted(short)))
+            remaining = dict(type_counts)
+            items = []
+            for q in ordered_pool:
+                name = q.get("type")
+                if remaining.get(name, 0):
+                    items.append(q)
+                    remaining[name] -= 1
+            notes.append("exact mock mix: " + ", ".join(
+                "%s %d" % (name, type_counts[name]) for name in sorted(type_counts)))
+        elif mode_row["count"] == "spread":
             items = ordered_pool[:min(count, len(ordered_pool))]
         elif mode_row["count"] == "exact_keep_pairs":
             cut = ordered_pool[:count]
@@ -565,7 +596,9 @@ def select(questions, spec, history, cooldown=None, decay=None, *,
         opening = "chosen because " + ", ".join(admitted)
         runner_up = None
         if len(items) < len(ordered_pool):
-            rq = ordered_pool[len(items)]
+            selected_refs = {q["id"] for q in items}
+            rq = next(q for q in ordered_pool
+                      if q["id"] not in selected_refs)
             runner_up = {
                 "item_id": evidence.evidence_key(rq),
                 "item_ref": rq["id"],
@@ -593,6 +626,8 @@ def select(questions, spec, history, cooldown=None, decay=None, *,
 
     resolved = {"objective": objective, "count": count, "seed": seed,
                 "selection_mode": selection_mode}
+    if type_counts is not None:
+        resolved["type_counts"] = dict(type_counts)
     if pair:
         resolved["pair"] = pair
     if prereq:

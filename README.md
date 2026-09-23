@@ -244,7 +244,11 @@ The shipped bank and session commands are documented under [Use](#use).
   strategies are planned.
 - **Practice and test.** Shipped: `itembank serve` for a graded sitting,
   `itembank start`/`next`/`submit`/`report` for the key-free JSON session
-  protocol. Practice and formal test stay distinct modes.
+  protocol. Practice and formal test stay distinct modes. A course's Evidence
+  area can open a saved practice sitting with previously missed auto-scored
+  practice items. Its Test area can start a separate mock sitting with an exact
+  per-type mix and an optional local time limit. The fixed formal test is
+  unchanged.
 - **Inspect evidence.** Shipped: `itembank evidence`, `itembank trends`,
   `itembank report`. Progress is reported as separate honest dimensions, never
   one aggregate mastery score.
@@ -390,6 +394,7 @@ itembank guard .              # fail if a real question bank got committed
 
 ```
 itembank start bank.md --count 10 --mode practice --out s.json
+itembank start bank.md --mode exam --selection-mode exam --mix mc=5 --mix multi=2 --minutes 30 --out mock.json
 itembank next s.json        # return the next item without its answer key
 itembank submit s.json --answer '"B"'  # score and record a response
 itembank report s.json      # summarize the recorded evidence

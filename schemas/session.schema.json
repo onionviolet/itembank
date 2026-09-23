@@ -49,6 +49,17 @@
       "enum": ["diagnostic", "practice", "remediation", "exam", "missed"],
       "description": "The selection composition that chose this session's items; `mode` is the feedback policy that governs what the learner is shown. Optional: a session written before plan 07-04 has none."
     },
+    "timing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["minutes", "deadline", "expired"],
+      "properties": {
+        "minutes": {"type": "integer", "minimum": 1, "maximum": 240},
+        "deadline": {"type": "string"},
+        "expired": {"type": "boolean"}
+      },
+      "description": "Optional persisted deadline for a timed exam. The server closes the sitting when it elapses."
+    },
     "retention": {
       "type": "object",
       "additionalProperties": false,

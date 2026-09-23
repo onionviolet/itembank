@@ -920,6 +920,10 @@ def build_parser():
                    help="only items whose prerequisites have a recorded pass")
     s.add_argument("--type", default=None,
                    help="item type (mc, multi, table, dnd, build, short)")
+    s.add_argument("--mix", action="append", metavar="TYPE=COUNT",
+                   help="exact mock exam mix; repeat for each item type")
+    s.add_argument("--minutes", type=int, default=None,
+                   help="exam time limit, 1 to 240 minutes")
     s.add_argument("--difficulty", default=None,
                    help="difficulty annotation (recall, application, analysis)")
     s.add_argument("--mode", default="diagnostic",
