@@ -603,7 +603,7 @@
         },
         "selection_mode": {
           "type": "string",
-          "enum": ["diagnostic", "practice", "remediation", "exam"]
+          "enum": ["diagnostic", "practice", "remediation", "exam", "missed"]
         },
         "selection_spec": {
           "type": "object",

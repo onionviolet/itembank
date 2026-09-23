@@ -34,12 +34,12 @@ SPEC_FIELDS = ("objective", "count", "seed", "exclude_item_ids",
 RETENTION_CONTEXT_KEYS = ("snapshot", "objective_weights")
 WEIGHT_ENTRY_KEYS = ("weight", "components", "snapshot_id")
 
-# The four selection compositions. These strings deliberately share three of
+# The selection compositions. These strings deliberately share three of
 # `daemon.SESSION_MODES`' values (`diagnostic`, `practice`, `exam`) and one
 # orphan (`remediation`) -- they live in a DIFFERENT field than the feedback
 # policy `mode` for exactly that reason (D-11). A future reader who "tidies"
 # one into the other is undoing a one-way door.
-SELECTION_MODES = ("diagnostic", "practice", "remediation", "exam")
+SELECTION_MODES = ("diagnostic", "practice", "remediation", "exam", "missed")
 
 # Difficulty ordinals. The fallback is 99 and sorts LAST, never first:
 # `difficulty` is free text with no lint-enforced enum, and an unlabelled
@@ -181,7 +181,24 @@ def _filter_remediation(candidates, spec, history):
     return out
 
 
-# ONE table of compositions, not four code paths (D-06): a reader checks
+def missed_item_keys(history):
+    """Previously missed practice items from live, bank-scoped response rows.
+
+    A pending prose response is not a miss. Exam and diagnostic responses are
+    excluded so an unfinished blind sitting cannot populate this review path.
+    The evidence log, not a mutable wrong-question list, owns the history.
+    """
+    return {row.get("item_id") or ("ref:" + row.get("item_ref", ""))
+            for row in history if row.get("score") is False
+            and row.get("mode") in ("practice", "drill", "remediation")}
+
+
+def _filter_missed(candidates, spec, history):
+    missed = missed_item_keys(history)
+    return [q for q in candidates if evidence.evidence_key(q) in missed]
+
+
+# ONE table of compositions, not separate code paths (D-06): a reader checks
 # SEL-02 by inspecting this dict. Each row names the filter, ordering,
 # count policy and exposure policy that define the mode.
 MODES = {
@@ -193,6 +210,8 @@ MODES = {
                     "count": "exact_keep_pairs", "exposure": "hard_and_soft"},
     "exam": {"filter": _filter_none, "order": order_balanced,
              "count": "exact", "exposure": "none"},
+    "missed": {"filter": _filter_missed, "order": order_shuffled,
+               "count": "exact", "exposure": "none"},
 }
 
 
@@ -442,6 +461,8 @@ def select(questions, spec, history, cooldown=None, decay=None, *,
             candidates = narrowed
         candidates = mode_row["filter"](candidates, spec, history)
         if not candidates:
+            if selection_mode == "missed":
+                sys.exit("no previously missed practice items are available")
             sys.exit("no items match objective %r" % objective)
 
         exposure_policy = mode_row["exposure"]

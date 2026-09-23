@@ -927,7 +927,7 @@ def build_parser():
     s.add_argument("--selection-mode", default="practice",
                    choices=selection.SELECTION_MODES,
                    help="how the session is composed (diagnostic, practice, "
-                        "remediation, exam) -- not the feedback policy that "
+                        "remediation, exam, missed) -- not the feedback policy that "
                         "--mode sets")
     s.add_argument("--seed", type=int, default=None,
                    help="deterministic item-selection seed")

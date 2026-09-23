@@ -424,6 +424,37 @@ def check_mode_compositions_differ():
           "purpose")
 
 
+def check_missed_practice_selection():
+    qs = model.load(BANK)
+    first, second = qs[0], qs[1]
+    history = [
+        {"item_id": first.get("item_id") or "",
+         "item_ref": first["id"], "score": False, "mode": "practice"},
+        {"item_id": second.get("item_id") or "",
+         "item_ref": second["id"], "score": False, "mode": "exam"},
+        {"item_id": second.get("item_id") or "",
+         "item_ref": second["id"], "score": None, "mode": "practice"},
+    ]
+    items, _ = selection.select(
+        qs, {"count": len(qs), "seed": 0, "selection_mode": "missed"},
+        history)
+    if [q["id"] for q in items] != [first["id"]]:
+        fail("missed review included a blind-exam or pending-prose item")
+    history.append(dict(history[0], score=True))
+    items, _ = selection.select(
+        qs, {"count": len(qs), "seed": 0, "selection_mode": "missed"},
+        history)
+    if [q["id"] for q in items] != [first["id"]]:
+        fail("a later correct response erased a recorded practice miss")
+    try:
+        selection.select(qs, {"selection_mode": "missed"}, history[1:3])
+    except SystemExit as exc:
+        if "no previously missed practice items" not in str(exc):
+            fail("empty review did not explain the absence of eligible misses")
+    else:
+        fail("empty missed review started a new sitting")
+
+
 def check_cooldown_survives_resume():
     tmp = tempfile.mkdtemp()
     try:
@@ -640,6 +671,7 @@ def main():
     check_selection_mode_recorded()
     check_selection_spec_recorded()
     check_mode_compositions_differ()
+    check_missed_practice_selection()
     check_cooldown_survives_resume()
     check_cooldown_is_bank_scoped()
     check_explain_renders_plain_text()

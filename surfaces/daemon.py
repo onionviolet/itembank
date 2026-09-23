@@ -1166,6 +1166,66 @@ def _course_area_rows(handler, state, course_dir):
     return "", []
 
 
+def _course_missed_review_forms(handler, course_dir, course_id):
+    """Offer a new practice sitting only for recorded, auto-scored misses.
+
+    The form names a scanned bank stem. The POST resolves that stem again and
+    the selector re-reads live evidence, so this display grants no authority.
+    """
+    forms = []
+    for stem, path in _course_banks(handler, course_dir):
+        log = evidence.log_path(os.path.dirname(os.path.abspath(path)))
+        if not os.path.exists(log):
+            continue
+        try:
+            history = evidence.objective_history(
+                log, "", bank=os.path.basename(path))
+            missed = selection.missed_item_keys(history)
+            count = sum(1 for q in load(path)
+                        if evidence.evidence_key(q) in missed)
+        except Exception:
+            return ('<p role="status">Missed-item review is unavailable. '
+                    'The recorded evidence could not be read.</p>')
+        if not count:
+            continue
+        active = _active_missed_session(handler, path)
+        label = ("Resume missed-item review" if active else
+                 "Review %d previously missed practice item%s in %s" %
+                 (count, "" if count == 1 else "s",
+                  _bank_title(path, stem)))
+        forms.append(
+            '<form method="post" action="/course/%s/evidence">'
+            '<input type="hidden" name="action" value="review_missed">'
+            '<input type="hidden" name="bank" value="%s">'
+            '<button class="go" type="submit">%s</button></form>'
+            % (presentation.esc(course_id), presentation.esc(stem),
+               presentation.esc(label)))
+    if not forms:
+        return ('<p>No previously missed practice items are recorded. '
+                'Pending prose and blind test responses are excluded.</p>')
+    return ('<section aria-labelledby="missed-review"><h3 id="missed-review">'
+            'Review previous misses</h3><p>Open a practice sitting with the '
+            'recorded items, or resume one already in progress. Pending prose '
+            'and blind test responses '
+            'are excluded.</p>%s</section>' % "".join(forms))
+
+
+def _active_missed_session(handler, bank_path):
+    """The newest active review for this exact scanned bank, if one exists."""
+    matches = []
+    for session_id, path in session_index(handler.root).items():
+        try:
+            data = read_session(path)
+            if (data.get("bank") == os.path.abspath(bank_path)
+                    and data.get("status") == "active"
+                    and data.get("mode") == "practice"
+                    and data.get("selection_mode") == "missed"):
+                matches.append((os.path.getmtime(path), session_id))
+        except (OSError, ValueError, SystemExit):
+            continue
+    return max(matches, default=(None, None))[1]
+
+
 # The bind panel (2026-09-05). The surface grid measured `source binding /
 # create` as the central act of building a course and as having no surface at
 # all; this is that surface, and it is deliberately plain: two selects, a
@@ -1500,6 +1560,9 @@ def _course_frame(handler, state, back, course_dir=None):
     heading_id = ia.anchor_slug(state["area_label"]) or "area"
     lead, rows = _course_area_rows(handler, state, course_dir)
     saved_html = ""
+    if state["area"] == "evidence" and course_dir:
+        saved_html = _course_missed_review_forms(
+            handler, course_dir, state["course_id"])
     if state["area"] == "overview" and course_dir:
         resume = ia._course_resume_state(handler.root, course_dir)
         saved_rows = []
@@ -1659,13 +1722,50 @@ def handle_course_area_get(handler, course_id, area):
 
 
 def handle_course_area_post(handler, course_id, area):
-    """Settle an Agent form through the same dispatcher used by API and CLI."""
-    if area != "agent":
+    """Handle the two course forms without accepting a file path from HTML."""
+    if area not in ("agent", "evidence"):
         handler.send_error(405, "this course area is read-only")
         return
     if _reject_cross_origin_write(handler):
         return
     fields = handler.read_form()
+    if area == "evidence":
+        if set(fields) != {"action", "bank"} or \
+                fields.get("action") != ["review_missed"] or \
+                len(fields.get("bank", ())) != 1:
+            handler.send_error(400, "choose a recorded bank to review")
+            return
+        course_dir = ia.course_dir_for(handler.root, course_id)
+        if course_dir is None:
+            _course_not_found(handler)
+            return
+        bank = fields["bank"][0]
+        path = dict(_course_banks(handler, course_dir)).get(bank)
+        if path is None:
+            handler.send_error(400, "bank is unavailable in this course")
+            return
+        try:
+            with QUIZ_SESSION_LOCK:
+                active = _active_missed_session(handler, path)
+                if active:
+                    session_id = active
+                else:
+                    out = os.path.join(os.path.abspath(handler.root), "_attempts",
+                                       "session_%s.json" % uuid.uuid4().hex[:12])
+                    result = session.do_start(
+                        path, {"selection_mode": "missed", "count": len(load(path)),
+                               "seed": 0}, "practice", out, False)
+                    session_id = result["session_id"]
+        except SystemExit as exc:
+            handler.send_error(400, str(exc.code))
+            return
+        except Exception as exc:
+            handler.send_server_error(exc)
+            return
+        handler.send_redirect(_quiz_path(
+            bank, "practice", session_id=session_id,
+            course_id=course_id))
+        return
     request = {"course_id": course_id,
                "action": (fields.get("action") or [""])[-1]}
     for name in ("skill", "proposal_id", "reason"):
@@ -3518,6 +3618,10 @@ def _send_quiz_page(handler, stem, path, qs, sess, view, teaching, lesson_slugs,
             position = 1
         page = page.replace('<b id="pos">1</b>',
                             '<b id="pos">%d</b>' % position, 1)
+        # A selected sitting may contain fewer items than its source bank.
+        # The runtime view owns this denominator after selection and resume.
+        page = page.replace('<b id="tot">%d</b>' % len(qs),
+                            '<b id="tot">%d</b>' % view["total"], 1)
     if rendered_view is not None:
         symbol_help = quiz.question_symbol_help(
             path, qs, stem, serve=True,

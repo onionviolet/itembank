@@ -31,8 +31,8 @@
     },
     "selection_mode": {
       "type": "string",
-      "enum": ["diagnostic", "practice", "remediation", "exam"],
-      "description": "The selection composition (diagnostic/practice/remediation/exam) -- distinct from the feedback-policy `mode` in session.schema.json."
+      "enum": ["diagnostic", "practice", "remediation", "exam", "missed"],
+      "description": "The selection composition. Missed selects previously incorrect practice items only. This is distinct from the feedback-policy `mode` in session.schema.json."
     },
     "count": {
       "type": "integer",

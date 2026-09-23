@@ -46,7 +46,7 @@
     },
     "selection_mode": {
       "type": "string",
-      "enum": ["diagnostic", "practice", "remediation", "exam"],
+      "enum": ["diagnostic", "practice", "remediation", "exam", "missed"],
       "description": "The selection composition that chose this session's items; `mode` is the feedback policy that governs what the learner is shown. Optional: a session written before plan 07-04 has none."
     },
     "retention": {
