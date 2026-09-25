@@ -22,8 +22,8 @@ def check_desktop_workspace():
     page = presentation.surface_shell(
         "Courses",
         '<nav class="app-nav" aria-label="Application"></nav>'
-        '<section class="desk-heading"><h2>A little further, today.</h2></section>'
-        '<section class="desk-hero"></section><div class="desk-below"></div>')
+        '<section class="desk-heading"><h2>Your desk</h2></section>'
+        '<section class="desk-focus"></section><div class="desk-below"></div>')
     required = (
         'class="product-shell"', 'class="product-sidebar"',
         'class="product-workspace"', 'class="product-topbar"',
@@ -35,12 +35,17 @@ def check_desktop_workspace():
     if page.count('class="product-sidebar"') != 1:
         fail("desktop workspace rendered duplicate persistent navigation")
     css = presentation.PRODUCT_CSS
-    for rule in ("grid-template-columns:224px 1fr",
-                 "grid-template-columns:1.05fr .95fr",
-                 "grid-template-columns:1.55fr 1fr"):
+    for rule in ("grid-template-columns:224px minmax(0,1fr)",
+                 ".product-topbar{min-height:56px",
+                 ".desk-focus{display:flex", ".desk-below{min-width:0}",
+                 ".course-card{display:grid;grid-template-columns:36px minmax(0,1fr) auto"):
         if rule not in css:
             fail("desktop composition lost %r" % rule)
-    print("ok: desktop has one persistent rail and three intentional multi-column work areas")
+    for obsolete in (".desk-hero", ".desk-plant", ".course-card:before",
+                     ".course-card .actions .secondary{display:none}"):
+        if obsolete in css:
+            fail("desktop composition retains obsolete treatment %r" % obsolete)
+    print("ok: desktop has one persistent rail, concise resume context, and a full-width shelf")
 
 
 def check_phone_workflow():
@@ -48,15 +53,17 @@ def check_phone_workflow():
     phone = css[css.index("@media(max-width:767px)"):]
     required = (
         ".product-shell{display:block}", "position:fixed", "bottom:0",
-        "height:66px", ".desk-hero{min-height:0;grid-template-columns:1fr}",
-        ".desk-below{grid-template-columns:1fr", ".ib-palette-open{display:none}",
+        "height:70px", ".desk-focus{align-items:flex-start;flex-direction:column",
+        ".course-card{grid-template-columns:28px minmax(0,1fr)",
+        ".course-card-actions,.course-details{grid-column:2}",
+        ".ib-palette-open{display:none}",
     )
     for token in required:
         if token not in phone:
             fail("phone composition omitted %r" % token)
     if "min-height:44px" not in css:
         fail("phone navigation lost its 44px minimum touch target")
-    print("ok: phone swaps the rail for fixed touch navigation and stacks primary work")
+    print("ok: phone swaps the rail for fixed touch navigation and wraps shelf actions")
 
 
 def check_reading_and_practice_share_the_frame():
@@ -81,7 +88,8 @@ def check_reading_and_practice_share_the_frame():
 def check_accessibility_contract():
     nav = presentation.standalone_product_nav()
     for token in ('aria-label="Main navigation"', "Your desk", "Courses",
-                  "Activity", "Settings"):
+                  "Activity", "Settings", 'aria-hidden="true"',
+                  'focusable="false"'):
         if token not in nav:
             fail("responsive navigation omitted %r" % token)
     css = presentation.PRODUCT_CSS
@@ -89,6 +97,10 @@ def check_accessibility_contract():
         fail("shared keyboard focus treatment is absent")
     if "overflow-x:hidden" in css or "white-space:nowrap" in css:
         fail("responsive product hides overflow or prevents meaningful wrapping")
+    for token in (".course-details summary{", "min-height:44px",
+                  "overflow-wrap:anywhere"):
+        if token not in css:
+            fail("responsive product omitted usable disclosure or long text %r" % token)
     print("ok: keyboard focus, labelled navigation, wrapping, and touch target contracts remain visible")
 
 

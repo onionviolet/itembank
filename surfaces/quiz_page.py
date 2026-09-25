@@ -488,13 +488,52 @@ LATEX_INPUT_JS = r"""<script id="latex-input-adapter">
     render();
   }
   function scan(root) {
-    (root || document).querySelectorAll('textarea[data-input-format="latex"]')
+    root = root || document;
+    if (root.matches && root.matches('textarea[data-input-format="latex"]')) {
+      install(root, root.parentNode);
+    }
+    root.querySelectorAll('textarea[data-input-format="latex"]')
       .forEach(function (textarea) { install(textarea, textarea.parentNode); });
   }
   window.ItembankLatexInput = {install:install, scan:scan};
-  scan(document);
-  new MutationObserver(function () { scan(document); })
-    .observe(document.getElementById("host"), {childList:true, subtree:true});
+  var host = document.getElementById("host");
+  if (!host) { return; }
+  var pending = new Set();
+  var scheduled = false;
+  function flush() {
+    scheduled = false;
+    if (document.hidden) { return; }
+    pending.forEach(function (root) {
+      if (root.isConnected) { scan(root); }
+    });
+    pending.clear();
+  }
+  function schedule() {
+    if (!scheduled && !document.hidden) {
+      scheduled = true;
+      window.requestAnimationFrame(flush);
+    }
+  }
+  function queue(node) {
+    if (node.nodeType !== 1) { return; }
+    if (node.matches('textarea[data-input-format="latex"]') ||
+        node.querySelector('textarea[data-input-format="latex"]')) {
+      for (var root of pending) {
+        if (root.contains(node)) { return; }
+        if (node.contains(root)) { pending.delete(root); }
+      }
+      pending.add(node);
+      schedule();
+    }
+  }
+  pending.add(host);
+  flush();
+  new MutationObserver(function (records) {
+    records.forEach(function (record) {
+      record.addedNodes.forEach(queue);
+    });
+  }).observe(host, {childList:true, subtree:true});
+  document.addEventListener("visibilitychange", schedule);
 })();
 </script>"""
 
@@ -546,6 +585,7 @@ STRUCTURE_ADAPTER_JS = r"""<script id="quiz-structure-adapter">
   if (!host) { return; }
   var observer;
   var scheduled = false;
+  var pending = new Set();
   function sentences(text) {
     var source = String(text || "").trim();
     if (!source) { return []; }
@@ -619,16 +659,37 @@ STRUCTURE_ADAPTER_JS = r"""<script id="quiz-structure-adapter">
   }
   function enhance() {
     scheduled = false;
+    if (document.hidden) { return; }
     if (observer) { observer.disconnect(); }
-    host.querySelectorAll(".stem").forEach(formatArgument);
+    pending.forEach(function (el) {
+      if (el.isConnected) { formatArgument(el); }
+    });
+    pending.clear();
     if (observer) { observer.observe(host, {childList:true, subtree:true}); }
   }
-  observer = new MutationObserver(function () {
-    if (scheduled) { return; }
-    scheduled = true;
-    window.requestAnimationFrame(enhance);
+  function schedule() {
+    if (!scheduled && !document.hidden) {
+      scheduled = true;
+      window.requestAnimationFrame(enhance);
+    }
+  }
+  function queue(node) {
+    var el = node.nodeType === 1 ? node : node.parentElement;
+    if (!el) { return; }
+    var stem = el.closest(".stem");
+    if (stem) { pending.add(stem); }
+    if (el.matches(".stem")) { pending.add(el); }
+    el.querySelectorAll(".stem").forEach(function (item) { pending.add(item); });
+  }
+  observer = new MutationObserver(function (records) {
+    records.forEach(function (record) {
+      record.addedNodes.forEach(queue);
+    });
+    if (pending.size) { schedule(); }
   });
+  host.querySelectorAll(".stem").forEach(function (el) { pending.add(el); });
   enhance();
+  document.addEventListener("visibilitychange", schedule);
 })();
 </script>"""
 
@@ -644,8 +705,13 @@ MATH_ADAPTER_JS = r"""<script id="quiz-math-adapter">
   if (!host) { return; }
   var observer;
   var scheduled = false;
+  var pending = new Set();
   function expressionNodes(root) {
-    root.querySelectorAll(".stem,.ot,.rowtext").forEach(function (el) {
+    var expressions = root.querySelectorAll(".stem,.ot,.rowtext");
+    if (root.matches && root.matches(".stem,.ot,.rowtext")) {
+      expressions = [root].concat(Array.from(expressions));
+    }
+    expressions.forEach(function (el) {
       if (el.querySelector(".katex,.quiz-math-source")) { return; }
       Array.from(el.childNodes).forEach(function (node) {
         if (node.nodeType !== 3 || node.nodeValue.indexOf("`") < 0) { return; }
@@ -675,16 +741,22 @@ MATH_ADAPTER_JS = r"""<script id="quiz-math-adapter">
   }
   function enhance() {
     scheduled = false;
+    if (document.hidden) { return; }
     if (observer) { observer.disconnect(); }
-    expressionNodes(host);
-    var hasMath = host.querySelector(".quiz-math-source") ||
-      /\$\$?[\s\S]+?\$\$?/.test(host.textContent || "");
-    if (hasMath && (typeof window.katex === "undefined" ||
-        typeof window.renderMathInElement !== "function")) {
-      note("Math unavailable. Formula source is shown.");
-    } else if (hasMath) {
+    pending.forEach(function (root) {
+      if (!root.isConnected) { return; }
+      expressionNodes(root);
+      var hasMath = (root.matches && root.matches(".quiz-math-source")) ||
+        root.querySelector(".quiz-math-source") ||
+        /\$\$?[\s\S]+?\$\$?/.test(root.textContent || "");
+      if (!hasMath) { return; }
+      if (typeof window.katex === "undefined" ||
+          typeof window.renderMathInElement !== "function") {
+        note("Math unavailable. Formula source is shown.");
+        return;
+      }
       try {
-        renderMathInElement(host, {
+        renderMathInElement(root, {
           delimiters: [
             {left: "$$", right: "$$", display: true},
             {left: "$", right: "$", display: false}
@@ -695,7 +767,11 @@ MATH_ADAPTER_JS = r"""<script id="quiz-math-adapter">
           maxExpand: 1000,
           maxSize: 50
         });
-        host.querySelectorAll(".quiz-math-source:not([data-math-rendered])").forEach(function (el) {
+        var sources = root.querySelectorAll(".quiz-math-source:not([data-math-rendered])");
+        if (root.matches && root.matches(".quiz-math-source:not([data-math-rendered])")) {
+          sources = [root].concat(Array.from(sources));
+        }
+        sources.forEach(function (el) {
           var source = el.textContent;
           try {
             katex.render(source, el, {throwOnError:false, trust:false,
@@ -705,7 +781,7 @@ MATH_ADAPTER_JS = r"""<script id="quiz-math-adapter">
             el.textContent = source;
           }
         });
-        host.querySelectorAll(".katex-display").forEach(function (el) {
+        root.querySelectorAll(".katex-display").forEach(function (el) {
           if (el.parentNode.classList.contains("quiz-math-display")) { return; }
           var wrap = document.createElement("div");
           wrap.className = "quiz-math-display";
@@ -715,15 +791,40 @@ MATH_ADAPTER_JS = r"""<script id="quiz-math-adapter">
       } catch (e) {
         note("Math could not be rendered. Formula source is shown.");
       }
-    }
+    });
+    pending.clear();
     if (observer) { observer.observe(host, {childList:true, subtree:true}); }
   }
-  observer = new MutationObserver(function () {
-    if (scheduled) { return; }
-    scheduled = true;
-    window.requestAnimationFrame(enhance);
+  function schedule() {
+    if (!scheduled && !document.hidden) {
+      scheduled = true;
+      window.requestAnimationFrame(enhance);
+    }
+  }
+  function queue(node) {
+    var el = node.nodeType === 1 ? node : node.parentElement;
+    if (!el || !el.isConnected) { return; }
+    var root = el.closest(".stem,.ot,.rowtext") || el;
+    if (root.closest(".latex-preview")) { return; }
+    if ((root.matches && root.matches(".quiz-math-source")) ||
+        root.querySelector(".quiz-math-source") ||
+        /[`$]/.test(root.textContent || "")) {
+      for (var existing of pending) {
+        if (existing.contains(root)) { return; }
+        if (root.contains(existing)) { pending.delete(existing); }
+      }
+      pending.add(root);
+    }
+  }
+  observer = new MutationObserver(function (records) {
+    records.forEach(function (record) {
+      record.addedNodes.forEach(queue);
+    });
+    if (pending.size) { schedule(); }
   });
+  pending.add(host);
   enhance();
+  document.addEventListener("visibilitychange", schedule);
 })();
 </script>"""
 

@@ -193,7 +193,8 @@ h2{font-size:20px;font-weight:600;line-height:1.2;margin:32px 0 16px}
 h3{font-size:16px;font-weight:600;line-height:1.4;margin:24px 0 8px}
 p{font-size:16px;line-height:1.5;margin:0 0 16px;overflow-wrap:anywhere}
 a{color:var(--accent);text-decoration:none;font-weight:600}
-a:hover,a:focus-visible,button:focus-visible,summary:focus-visible,
+a:hover{text-decoration:underline;text-underline-offset:3px}
+a:focus-visible,button:focus-visible,summary:focus-visible,
 input:focus-visible,textarea:focus-visible,select:focus-visible{
   outline:2px solid var(--accent);outline-offset:2px}
 .mono{font-family:var(--font-code);
@@ -234,10 +235,11 @@ details.details-section summary{cursor:pointer;font-size:16px;
   font-weight:600;min-height:44px;box-sizing:border-box;padding:10px 0}
 .actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:12px}
 button.go,a.go{display:inline-flex;align-items:center;justify-content:center;
-  min-height:44px;font:inherit;font-size:16px;font-weight:600;
-  padding:10px 16px;border-radius:8px;border:1px solid var(--line);
+  min-height:44px;min-width:0;max-width:100%;font:inherit;
+  font-family:var(--font-chrome);font-size:16px;font-weight:600;line-height:1.4;
+  padding:10px 16px;border-radius:8px;border:1px solid var(--edge);
   background:var(--card);color:inherit;cursor:pointer;text-decoration:none;
-  transition:.12s}
+  overflow-wrap:anywhere;transition:background-color .12s,border-color .12s,box-shadow .12s}
 button.go.primary,a.go.primary{background:var(--accent-soft);
   border-color:var(--accent);color:var(--accent)}
 button.go:disabled{opacity:.55;cursor:default}
@@ -372,9 +374,9 @@ PRIMITIVE_CSS = r"""
 .ib-group{margin:0 0 var(--space-4)}
 .ib-group-head{font-size:var(--text-body);font-weight:600;line-height:1.4;
   margin:0 0 var(--space-2)}
-.ib-name{font-family:var(--font-paper);font-size:var(--text-body);font-weight:600;
+.ib-name{font-family:var(--font-chrome);font-size:var(--text-body);font-weight:600;
   line-height:1.4;margin:0;overflow-wrap:anywhere}
-.ib-meta{font-family:var(--font-ledger);font-size:var(--text-xs);line-height:1.4;
+.ib-meta{font-family:var(--font-chrome);font-size:var(--text-xs);line-height:1.4;
   color:var(--mut);margin:var(--space-1) 0 0;overflow-wrap:anywhere}
 .ib-body{font-size:var(--text-body);line-height:1.5;margin:var(--space-2) 0 0;
   max-width:var(--measure-prose);overflow-wrap:anywhere}
@@ -398,10 +400,10 @@ PRIMITIVE_CSS = r"""
 .ib-chips{list-style:none;display:flex;flex-wrap:wrap;
   gap:var(--density-list-gap);margin:var(--space-2) 0 0;padding:0}
 .ib-chip{display:inline-flex;align-items:center;gap:var(--space-1);
-  font-family:var(--font-ledger);font-size:var(--text-xs);line-height:1.4;
-  background:var(--chip);color:var(--ink);border:1px solid var(--line);
-  border-inline-start:3px solid var(--edge);border-radius:var(--r-1);
-  padding:var(--space-1) var(--space-2);overflow-wrap:anywhere}
+  font-family:var(--font-chrome);font-size:var(--text-xs);line-height:1.4;
+  background:transparent;color:var(--ink);border:0;
+  border-inline-start:3px solid var(--edge);border-radius:0;
+  padding:0 var(--space-2);overflow-wrap:anywhere}
 .ib-chip .ib-dot{width:8px;height:8px;border-radius:var(--r-1);
   background:var(--edge);flex:none}
 .ib-chip-ok{border-inline-start-color:var(--ok)}
@@ -479,81 +481,129 @@ SHARED_CSS = SHARED_CSS + PRIMITIVE_CSS
 # behavior and authority remain with the existing route and runtime owners.
 PRODUCT_CSS = r"""
 body{margin:0;background:var(--paper);color:var(--product-ink)}
-.product-shell{min-height:100vh;display:grid;grid-template-columns:224px 1fr}
+.product-shell{min-height:100vh;display:grid;grid-template-columns:224px minmax(0,1fr)}
 .product-sidebar{position:sticky;top:0;height:100vh;border-right:1px solid var(--product-line);
-  padding:var(--space-5) var(--space-4);display:flex;flex-direction:column}
+  font-family:var(--font-chrome);
+  padding:var(--space-4) var(--space-3);display:flex;flex-direction:column;background:var(--paper)}
 .standalone-product-nav{position:fixed;left:0;z-index:20;width:224px;background:var(--paper)}
 .wrap:has(.standalone-product-nav){margin-left:max(224px,calc((100vw - 1040px) / 2 + 112px))}
-.product-brand{font-family:var(--font-chrome);font-size:var(--text-heading);font-weight:600;
-  color:var(--product-ink);display:flex;gap:var(--space-2);align-items:center;min-height:44px}
-.product-brand:before{content:"";width:22px;height:26px;border-radius:4px 9px 4px 4px;
-  background:var(--product-ink)}
-.product-tag{font-size:var(--text-xs);letter-spacing:.14em;text-transform:uppercase;
-  color:var(--product-muted);margin:var(--space-2) 0 var(--space-6)}
-.product-nav{display:grid;gap:var(--space-2)}
+.product-brand{font-family:var(--font-chrome);font-size:var(--text-body);font-weight:600;
+  color:var(--product-ink);display:flex;align-items:center;min-height:44px;padding:0 12px;
+  letter-spacing:-.02em}
+.product-nav{display:grid;gap:2px;margin-top:var(--space-5)}
 .product-nav a{min-height:44px;padding:10px 12px;border-radius:var(--r-1);
-  color:var(--product-muted);font-weight:400}
+  color:var(--product-muted);display:flex;align-items:center;gap:12px;position:relative}
+.product-nav a:hover{background:var(--product-active);color:var(--product-ink);text-decoration:none}
 .product-nav a[aria-current]{background:var(--product-active);color:var(--product-ink);font-weight:600}
+.product-nav a[aria-current]:before{content:"";position:absolute;left:0;top:10px;bottom:10px;
+  width:2px;border-radius:2px;background:var(--accent)}
+.product-nav svg{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;
+  stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
 .product-local{margin-top:auto;border-top:1px solid var(--product-line);padding-top:var(--space-3);
-  color:var(--product-muted);font-size:var(--text-xs)}
-.product-local:before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;
-  background:var(--product-green);margin-right:var(--space-2)}
+  color:var(--product-muted);font-size:var(--text-xs);padding-left:12px}
 .product-workspace{min-width:0}
-.product-topbar{height:82px;border-bottom:1px solid var(--product-line);padding:0 var(--space-6);
+.product-topbar{min-height:56px;border-bottom:1px solid var(--product-line);padding:0 var(--space-6);
   display:flex;align-items:center;justify-content:space-between;color:var(--product-muted);
-  font-size:var(--text-xs)}
-.product-topbar span:last-child{border:1px solid var(--product-line);border-radius:999px;
-  padding:var(--space-1) var(--space-2)}
-.surface,.surface.wide{max-width:1040px;margin:0 auto;padding:var(--space-6) var(--space-6) var(--space-7)}
+  font-size:var(--text-xs);gap:var(--space-3)}
+.product-topbar span{overflow-wrap:anywhere}
+.product-topbar span:last-child{flex:none}
+.surface,.surface.wide{max-width:1120px;margin:0 auto;padding:var(--space-5) var(--space-6) var(--space-7)}
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
   clip:rect(0,0,0,0);border:0}
 .surface:has(.desk-heading)>h1{position:absolute;width:1px;height:1px;padding:0;
   margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}
-h1,h2{font-family:var(--font-paper);font-weight:400;letter-spacing:-.02em}
-h1{font-size:var(--text-display)}h2{font-size:var(--text-display)}
+.product-workspace h1{font-family:var(--font-paper);font-weight:400;
+  font-size:var(--text-display);letter-spacing:-.025em;line-height:1.2}
+.product-workspace h2{font-size:var(--text-heading);line-height:1.25;overflow-wrap:anywhere}
 .app-nav{display:none}
 button.go,a.go{border-radius:var(--r-1);padding-inline:var(--space-4)}
-button.go.primary,a.go.primary{background:var(--product-ink);border-color:var(--product-ink);
-  color:var(--paper)}
-.desk-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:var(--space-4);
-  margin-bottom:var(--space-5)}
-.desk-heading h2{margin:var(--space-2) 0}.desk-heading p{color:var(--product-muted)}
-.desk-eyebrow{font-family:var(--font-ledger);font-size:var(--text-xs);
-  letter-spacing:.14em;text-transform:uppercase;color:var(--product-muted)}
-.desk-hero{position:relative;overflow:hidden;min-height:350px;margin-bottom:var(--space-5);
-  border:1px solid var(--product-line);border-radius:var(--r-2);background:var(--product-wash);
-  display:grid;grid-template-columns:1.05fr .95fr;align-items:stretch}
-.desk-hero-copy{padding:var(--space-5);align-self:center;position:relative;z-index:1}
-.desk-hero h2{font-size:var(--text-display);margin:var(--space-3) 0 var(--space-2)}
-.desk-hero p{color:var(--product-muted)}
-.desk-hero .resume-cue{font-size:var(--text-xs);margin-top:var(--space-3)}
-.desk-plant{width:100%;height:100%;min-height:310px;color:var(--product-green)}
-.desk-below{display:grid;grid-template-columns:1.55fr 1fr;gap:var(--space-6)}
-.desk-section-title{display:flex;justify-content:space-between;border-bottom:1px solid var(--product-line);
-  padding-bottom:var(--space-3)}
+button.go.primary,a.go.primary{background:var(--accent);border-color:var(--accent);
+  color:var(--accent-soft)}
+button.go:not(:disabled):hover,a.go:hover,
+.shelf-order-controls button:not(:disabled):hover{background:var(--chip);border-color:var(--ink)}
+button.go:not(:disabled):active,a.go:active,
+.shelf-order-controls button:not(:disabled):active{background:var(--accent-soft);
+  box-shadow:inset 0 0 0 1px var(--accent)}
+button.go.primary:not(:disabled):hover,a.go.primary:hover,
+button.go.primary:not(:disabled):active,a.go.primary:active{
+  background:var(--accent);border-color:var(--accent);color:var(--accent-soft)}
+button.go.primary:not(:disabled):hover,a.go.primary:hover{
+  box-shadow:inset 0 0 0 1px var(--accent-soft)}
+button.go.primary:not(:disabled):active,a.go.primary:active{
+  box-shadow:inset 0 0 0 2px var(--accent-soft)}
+button.go[aria-pressed="true"]{background:var(--accent-soft);color:var(--ink);
+  border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.product-nav a:active,.course-areas a:hover{background:var(--product-active);color:var(--product-ink)}
+.course-details summary:hover,.course-tools summary:hover{color:var(--product-ink)}
+.desk-heading{display:flex;justify-content:space-between;align-items:end;gap:var(--space-4);
+  margin-bottom:var(--space-4);border-bottom:1px solid var(--product-line);padding-bottom:var(--space-3)}
+.desk-heading h2{font-family:var(--font-paper);font-size:var(--text-display);
+  font-weight:400;letter-spacing:-.025em;margin:0}
+.desk-heading p,.desk-count{color:var(--product-muted);margin:0;font-size:var(--text-xs)}
+.desk-count{font-family:var(--font-chrome);font-variant-numeric:tabular-nums}
+.desk-eyebrow{font-family:var(--font-chrome);font-size:var(--text-xs);
+  font-weight:600;color:var(--product-muted)}
+.desk-focus{display:flex;align-items:center;justify-content:space-between;gap:var(--space-5);
+  padding:var(--space-4) var(--space-5);margin-bottom:var(--space-5);
+  border:1px solid var(--product-line);border-left:3px solid var(--product-green);
+  border-radius:var(--r-1);background:var(--card)}
+.desk-focus-copy{min-width:0}
+.desk-focus h2{font-family:var(--font-chrome);font-size:var(--text-heading);
+  font-weight:600;margin:var(--space-1) 0}
+.resume-cue{color:var(--product-muted);font-size:var(--text-body);overflow-wrap:anywhere}
+.desk-focus .resume-cue{margin:var(--space-1) 0 0}
+.desk-focus-actions{display:flex;flex-wrap:wrap;gap:var(--space-2);align-items:center}
+.desk-focus-actions a,.desk-focus-actions button{min-height:44px}
+.desk-below{min-width:0}
+.desk-section-title{display:flex;align-items:baseline;justify-content:space-between;
+  gap:var(--space-3);border-bottom:1px solid var(--product-line);padding-bottom:var(--space-2)}
 .desk-section-title h2{font-family:var(--font-chrome);font-size:var(--text-body);
   font-weight:600;margin:0}.desk-section-title span{font-size:var(--text-xs);color:var(--product-muted)}
-.course-shelf{display:block}
-.course-card{display:grid;grid-template-columns:48px 1fr auto;gap:var(--space-3);
-  align-items:center;padding:var(--space-4) 0;border-bottom:1px solid var(--product-line)}
-.course-card:before{content:"";width:48px;height:64px;grid-row:1/5;border-radius:3px 7px 7px 3px;
-  background:var(--product-green);box-shadow:inset 6px 0 color-mix(in srgb,var(--paper) 18%,transparent)}
+.course-shelf{display:block;min-width:0}
+.course-card{display:grid;grid-template-columns:36px minmax(0,1fr) auto;align-items:start;
+  gap:var(--space-2) var(--space-4);padding:var(--space-4) 0;
+  border-bottom:1px solid var(--product-line);min-width:0}
+.course-mark{display:block;font:600 var(--text-xs)/1 var(--font-ledger);
+  color:var(--product-muted);padding-top:5px;font-variant-numeric:tabular-nums}
+.course-card-main{min-width:0}
 .course-card h2{font-family:var(--font-chrome);font-size:var(--text-body);font-weight:600;
-  margin:0;grid-column:2}.course-card .chip{font-size:var(--text-xs);color:var(--product-muted);
-  grid-column:2}.course-card .resume-cue{font-size:var(--text-xs);color:var(--product-muted);
-  grid-column:2;margin:0}.course-card .actions{grid-column:3;grid-row:1/4;margin:0}
-.course-card .actions a.go{background:transparent;border:0;color:var(--product-ink);
-  padding:var(--space-2);min-width:44px}
-.course-card .actions .secondary{display:none}.course-card .sample-note,.course-card form{display:none}
+  line-height:1.35;margin:0 0 var(--space-1);overflow-wrap:anywhere}
+.course-card .chip{display:inline-block;font-family:var(--font-chrome);
+  font-size:var(--text-xs);color:var(--product-muted);background:transparent;
+  border:0;border-radius:0;padding:0;margin-right:var(--space-2);overflow-wrap:anywhere}
+.course-card .resume-cue{margin:var(--space-1) 0 0}
+.course-card-actions{display:flex;flex-wrap:wrap;gap:var(--space-2);align-items:center}
+.course-card-actions a,.course-card-actions button{min-height:44px}
+.course-details{grid-column:2/-1;min-width:0;color:var(--product-muted);font-size:var(--text-xs)}
+.course-details summary{display:inline-flex;align-items:center;min-height:44px;cursor:pointer;
+  color:var(--product-muted);font-family:var(--font-chrome);font-size:var(--text-body);
+  text-decoration:underline;text-underline-offset:3px}
+.course-details[open]{padding-bottom:var(--space-2)}
+.course-options{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2);
+  padding-top:var(--space-2)}
+.course-details .actions{margin:var(--space-2) 0;gap:var(--space-2)}
+.course-details a,.course-details button{min-height:44px}
+.course-details form{margin:0;max-width:100%}
+.course-details .sample-note{overflow-wrap:anywhere;flex-basis:100%;margin:0}
 .shelf-order-help{font-size:var(--text-xs);color:var(--product-muted);margin:var(--space-3) 0}
-.shelf-order-controls{grid-column:2;display:flex;gap:var(--space-2);align-items:center}
-.shelf-order-controls button{min-width:44px;min-height:44px;border:1px solid var(--product-line);
-  border-radius:var(--r-1);background:transparent;color:var(--product-ink);font:inherit}
+.shelf-order-controls{display:flex;flex-wrap:wrap;gap:var(--space-2);align-items:center}
+.shelf-order-controls button{min-width:44px;min-height:44px;border:1px solid var(--edge);
+  border-radius:var(--r-1);background:transparent;color:var(--product-ink);font:inherit;
+  font-family:var(--font-chrome);font-size:var(--text-body);cursor:pointer;
+  transition:background-color .12s,border-color .12s,box-shadow .12s}
 .shelf-order-controls [data-drag-handle]{cursor:grab;touch-action:none}
 .course-card.is-dragging{opacity:.55;background:var(--product-active)}
-.shelf-order-controls button:disabled{opacity:.35}
-.desk-next{padding:var(--space-4) 0}.desk-next h3{font-size:var(--text-body);margin:var(--space-2) 0}
-.desk-next p{font-size:var(--text-xs);color:var(--product-muted)}
+.shelf-order-controls button:disabled{opacity:.35;cursor:default}
+.product-workspace .ib-shelf>.ib-list{gap:0;border-top:1px solid var(--product-line)}
+.product-workspace .ib-shelf>.ib-list>.ib-card{display:grid;
+  grid-template-columns:minmax(0,1fr) auto;column-gap:var(--space-4);
+  padding:var(--space-4) 0;border:0;border-bottom:1px solid var(--product-line);
+  border-radius:0;background:transparent;min-width:0}
+.product-workspace .ib-shelf>.ib-list>.ib-card>:not(.actions){grid-column:1;min-width:0}
+.product-workspace .ib-shelf>.ib-list>.ib-card>.actions{grid-column:2;grid-row:1 / span 4;
+  align-self:center;margin:0;gap:var(--space-2)}
+.product-workspace .ib-shelf .ib-name{font-size:var(--text-body);line-height:1.4}
+.product-workspace .ib-shelf .ib-meta{font-size:var(--text-body)}
 .course-areas ul{display:flex;flex-wrap:wrap;gap:var(--space-2) var(--space-4);
   list-style:none;padding:0;margin:0}
 .course-nav-desktop{display:flex;align-items:center;gap:var(--space-4);position:relative}
@@ -566,34 +616,45 @@ button.go.primary,a.go.primary{background:var(--product-ink);border-color:var(--
 .course-tools li a{display:block;min-height:44px;padding:var(--space-2)}
 .course-areas{border-bottom:1px solid var(--product-line);padding-bottom:var(--space-3);
   margin-bottom:var(--space-5)}
-.course-areas a{color:var(--product-ink)}
-.course-areas a[aria-current]{background:var(--product-ink);color:var(--paper);text-decoration:underline;
-  text-underline-offset:8px;text-decoration-thickness:2px}
-.course-rows{list-style:none;padding:0;margin:0}
-.course-rows .row{padding:var(--space-4) 0;border-bottom:1px solid var(--product-line)}
-.overview-path .course-rows .row{border-color:var(--product-line);
-  background:var(--product-wash)}
+.course-areas a{display:inline-flex;align-items:center;min-height:44px;
+  padding:var(--space-2);color:var(--product-muted);border-bottom:2px solid transparent}
+.course-areas a[aria-current]{background:var(--paper);color:var(--product-ink);border-bottom-color:var(--accent);
+  text-decoration:none}
+.course-rows{list-style:none;padding:0;margin:0;display:grid;grid-template-columns:minmax(0,1fr)}
+.course-rows .row{padding:var(--space-4) 0;border:0;border-bottom:1px solid var(--product-line);
+  border-radius:0;background:transparent;min-width:0}
+.overview-path .course-rows{grid-template-columns:minmax(0,1fr)}
+.overview-path .course-rows .row{background:transparent;border:0;
+  border-bottom:1px solid var(--product-line);border-radius:0;padding:var(--space-4) 0}
 .row-head{display:flex;flex-wrap:wrap;justify-content:space-between;gap:var(--space-2)}
 .row-note,.area-lead{color:var(--product-muted)}
 .vf-diff,.ib-diff{border-radius:var(--r-2);overflow:auto}
 @media(max-width:767px){
   .course-nav-desktop{display:none}
   .product-shell{display:block}.product-sidebar{position:fixed;z-index:20;top:auto;bottom:0;
-    width:100%;height:66px;padding:0 var(--space-2);border:0;border-top:1px solid var(--product-line);
+    left:0;right:0;width:100%;height:70px;padding:0 var(--space-1);border:0;
+    border-top:1px solid var(--product-line);
     background:var(--paper)}
-  .product-brand,.product-tag,.product-local{display:none}.product-nav{height:100%;display:flex;
-    justify-content:space-around}.product-nav a{display:grid;place-items:center;padding:var(--space-2);
-    font-size:var(--text-xs);background:transparent!important}
-  .product-topbar{height:64px;padding:0 var(--space-3)}
+  .product-brand,.product-local{display:none}.product-nav{height:100%;display:grid;
+    grid-template-columns:repeat(4,minmax(0,1fr));gap:0;margin:0}
+  .product-nav a{display:flex;flex-direction:column;justify-content:center;gap:2px;
+    padding:var(--space-1);min-height:44px;text-align:center;font-size:var(--text-xs)}
+  .product-nav a[aria-current]{background:transparent}
+  .product-nav a[aria-current]:before{left:calc(50% - 16px);right:calc(50% - 16px);
+    top:0;bottom:auto;width:auto;height:2px}
+  .product-nav svg{width:19px;height:19px}
+  .product-topbar{min-height:52px;padding:0 var(--space-3)}
   .wrap:has(.standalone-product-nav){margin-left:auto}
   .ib-palette-open{display:none}
-  .surface,.surface.wide{padding:var(--space-4) var(--space-3) calc(var(--space-7) + 66px)}
-  .desk-heading{gap:var(--space-2)}
-  .desk-hero{min-height:0;grid-template-columns:1fr}
-  .desk-plant{height:180px;min-height:0;grid-row:1}
-  .desk-hero-copy{padding:var(--space-4);grid-row:2}
-  .desk-below{grid-template-columns:1fr;gap:var(--space-5)}
-  .course-card{grid-template-columns:48px 1fr auto}
+  .surface,.surface.wide{padding:var(--space-4) var(--space-3) calc(var(--space-7) + 70px)}
+  .desk-heading{align-items:baseline;flex-wrap:wrap;gap:var(--space-2)}
+  .desk-focus{align-items:flex-start;flex-direction:column;padding:var(--space-3)}
+  .course-card{grid-template-columns:28px minmax(0,1fr);column-gap:var(--space-2)}
+  .course-card-actions,.course-details{grid-column:2}
+  .course-card-actions{justify-content:flex-start}
+  .product-workspace .ib-shelf>.ib-list>.ib-card{grid-template-columns:minmax(0,1fr)}
+  .product-workspace .ib-shelf>.ib-list>.ib-card>.actions{grid-column:1;grid-row:auto;
+    margin-top:var(--space-3)}
 }
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;
   transition-duration:0s!important;animation-duration:0s!important}}
@@ -615,17 +676,29 @@ def product_theme_css():
 
 def _product_sidebar(current="courses", standalone=False):
     """One product navigation with an honest active destination."""
+    icons = {
+        "desk": '<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/>'
+                '<path d="M9 21v-7h6v7"/>',
+        "courses": '<path d="M4 4.5c2.6-1 5.3-.8 8 1v14c-2.7-1.8-5.4-2-8-1z"/>'
+                   '<path d="M20 4.5c-2.6-1-5.3-.8-8 1v14c2.7-1.8 5.4-2 8-1z"/>',
+        "activity": '<path d="M4 5h16M4 12h16M4 19h16"/>'
+                    '<path d="M7 3v4M7 10v4M7 17v4"/>',
+        "settings": '<circle cx="12" cy="12" r="3"/>'
+                    '<path d="M12 2v3m0 14v3M2 12h3m14 0h3M5 5l2 2m10 10 2 2M19 5l-2 2M7 17l-2 2"/>',
+    }
     links = []
     for key, href, label in (("desk", "/", "Your desk"),
                              ("courses", "/courses", "Courses"),
                              ("activity", "/activity", "Activity"),
                              ("settings", "/settings", "Settings")):
         active = ' aria-current="page"' if key == current else ""
-        links.append('<a href="%s"%s>%s</a>' % (href, active, label))
+        icon = ('<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">'
+                '%s</svg>' % icons[key])
+        links.append('<a href="%s"%s>%s<span>%s</span></a>'
+                     % (href, active, icon, label))
     extra = " standalone-product-nav" if standalone else ""
     return ('<aside class="product-sidebar%s">'
             '<a class="product-brand" href="/">itembank</a>'
-            '<p class="product-tag">A place for understanding</p>'
             '<nav class="product-nav" aria-label="Main navigation">%s</nav>'
             '<p class="product-local">On this device</p></aside>'
             % (extra, "".join(links)))
@@ -675,11 +748,13 @@ def _action_markup(action, primary=False):
     marker = "data-action-primary" if primary else "data-action-secondary"
     cls = "go primary" if primary else "go"
     href = action.get("href")
+    accessible_label = (' aria-label="%s"' % esc(action["aria_label"])
+                        if action.get("aria_label") else "")
     if href:
-        return '<a class="%s" %s href="%s">%s</a>' % (
-            esc(cls), marker, esc(href), esc(label))
-    return '<button type="button" class="%s" %s>%s</button>' % (
-        esc(cls), marker, esc(label))
+        return '<a class="%s" %s href="%s"%s>%s</a>' % (
+            esc(cls), marker, esc(href), accessible_label, esc(label))
+    return '<button type="button" class="%s" %s%s>%s</button>' % (
+        esc(cls), marker, accessible_label, esc(label))
 
 
 def surface_shell(title, body, theme_css="", back=None, wide=False,
@@ -748,7 +823,8 @@ def surface_shell(title, body, theme_css="", back=None, wide=False,
                     if presentation_profile else "")
     if product:
         current = ({"Your desk": "desk", "Courses": "courses",
-                    "Activity": "activity", "Settings": "settings"}
+                    "Activity": "activity", "Settings": "settings",
+                    "Storage use": "settings"}
                    .get(head_title, "courses"))
         product_sidebar = _product_sidebar(current)
         return ("<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">"

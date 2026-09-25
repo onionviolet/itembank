@@ -113,3 +113,29 @@ in the DOM. At 390 px the inspected code, ordering, table, visual and reference
 views had no page-level horizontal overflow. Desktop code rendered at 1440 px.
 The prototype needed versioned local asset URLs to avoid mixed cached JS/CSS.
 This fixes preview freshness, not the production packaging problem.
+
+## Distinctiveness and interaction research, 2026-09-25
+
+Authority: [the user's follow-up](../USER-VISION.md#2026-09-25-distinctive-app-craft-and-interaction-research).
+The [craft synthesis](ui-craft-2026-09-25/SYNTHESIS.md) extends this owner with
+seven Reddit discussions, seven official design references, and eight
+interaction, research, and UX sources. It records dissent, reading scope,
+and one bounded public interaction trial.
+
+The result refines task priority, visual grammar, surface hierarchy,
+subject-specific compositions, and complete interaction states. The proposed
+comparison uses the same synthetic journey in a scholarly reading direction
+and a more expressive learning workshop, with a precision workspace retained
+as an alternative. IL-20260925-01 owns their provisional dispositions.
+
+This is additional evidence for the highly changeable WIP. It does not freeze
+the current showcase, adopt an aesthetic blacklist, declare a new production
+design, or establish learning and accessibility acceptance. The next useful
+design artifact proposed by that research was a bounded comparison connected
+to the existing journey.
+
+The [later implementation request](../USER-VISION.md#2026-09-25-implement-distinctive-app-craft)
+authorized a real-app pass. The [implementation record](ui-craft-2026-09-25/IMPLEMENTATION.md)
+now tracks the compact desk, shared frame, reader hierarchy, comparison controls,
+theme continuity, and reorder recovery. Source and synthetic browser verification
+are complete for that scope. Installed parity and human acceptance remain open.

@@ -36,6 +36,8 @@ from surfaces import (binding_cli, course_ops, day, evidence_cli, home, ia, laun
                       update)
 from surfaces import audio as audio_surface
 from surfaces import theme
+from surfaces import storage
+from surfaces.discovery_cache import DiscoveryCache
 from surfaces.session import UNKNOWN_LANGUAGE_COPY
 
 
@@ -410,6 +412,8 @@ ROUTES = (
     ("GET", "/day", "handle_day_index"),
     ("GET", "/report", "handle_report_get"),
     ("GET", "/settings", "handle_settings_get"),
+    ("GET", "/settings/storage", "handle_storage_get"),
+    ("POST", "/settings/storage", "handle_storage_post"),
     ("GET", "/palette", "handle_palette"),
     ("GET", "/disclosure", "handle_disclosure"),
     ("GET", "/activity", "handle_activity_get"),
@@ -455,6 +459,8 @@ ROUTE_CLI = {
     ("GET", MARKER_PATH): "daemon",
     ("GET", "/report"): "report",
     ("GET", "/settings"): "theme",
+    ("GET", "/settings/storage"): "storage",
+    ("POST", "/settings/storage"): "storage",
     # The palette's own CLI twin is `itembank help-code`, the other command
     # whose whole job is telling a person what exists.
     ("GET", "/palette"): "help-code",
@@ -1089,16 +1095,17 @@ def _course_area_rows(handler, state, course_dir):
         rows = []
         containers = {c.get("id"): c.get("title") or c.get("label") or ""
                       for c in (doc.get("structure") or [])}
-        for rec in (doc.get("objectives") or []):
+        for index, rec in enumerate(doc.get("objectives") or []):
             rows.append({
-                "href": "", "title": rec.get("statement") or rec.get("id") or "",
+                "href": "#objective-%d" % index,
+                "title": rec.get("statement") or rec.get("id") or "",
                 "meta": containers.get(rec.get("container"), ""),
                 "note": ""})
         return ("The objectives this course is accountable for, in the order "
                 "its scope records them."), rows
     if area == "sources":
         rows = []
-        for rec in (doc.get("sources") or []):
+        for index, rec in enumerate(doc.get("sources") or []):
             oid = rec.get("source_object_id") or ""
             state = "unknown"
             if course_module is not None and graph_module is not None:
@@ -1108,7 +1115,8 @@ def _course_area_rows(handler, state, course_dir):
                 except Exception:
                     state = "unknown"
             rows.append({
-                "href": "", "title": rec.get("title") or oid,
+                "href": "?source=%d#source-%d" % (index, index),
+                "title": rec.get("title") or oid,
                 "meta": "read right: %s" % state,
                 "note": rec.get("note") or ""})
         return ("What this course is built from. A source is bound where it "
@@ -1118,13 +1126,13 @@ def _course_area_rows(handler, state, course_dir):
         if not counts["events"]:
             return "", []
         rows = [
-            {"href": "", "title": "%d response%s recorded"
+            {"href": "#evidence-responses", "title": "%d response%s recorded"
              % (counts["responses"], "" if counts["responses"] == 1 else "s"),
              "meta": "", "note": ""},
-            {"href": "", "title": "%d mark%s settled"
+            {"href": "#evidence-marks", "title": "%d mark%s settled"
              % (counts["marks"], "" if counts["marks"] == 1 else "s"),
              "meta": "", "note": ""},
-            {"href": "", "title": "%d sitting%s"
+            {"href": "#evidence-sessions", "title": "%d sitting%s"
              % (counts["sessions"], "" if counts["sessions"] == 1 else "s"),
              "meta": "", "note": ""},
         ]
@@ -1396,13 +1404,18 @@ def _options(values, labels=None, blank=""):
 
 
 def _agent_area_html(handler, state, course_dir):
-    """The durable, JavaScript-optional Agent review flow."""
+    """The durable, JavaScript-optional proposal review flow."""
     from surfaces import agent_operation as agent_op
     cfg = settings.load_settings(handler.root)
     records = agent_op.proposals(course_dir)
-    active = next((r for r in records if r.get("disposition") == "proposed"),
-                  records[0] if records else None)
+    selected = urllib.parse.parse_qs(urllib.parse.urlsplit(getattr(handler, "path", "")).query).get("proposal", [""])[-1]
+    active = next((r for r in records if r.get("proposal_id") == selected), None)
+    if active is None:
+        active = next((r for r in records if r.get("disposition") == "proposed"),
+                      records[0] if records else None)
     cid = presentation.esc(state["course_id"])
+    area = "build" if state.get("area") == "build" else "agent"
+    action_path = "/course/%s/%s" % (cid, area)
 
     def field(name, value):
         return '<input type="hidden" name="%s" value="%s">' % (
@@ -1411,13 +1424,15 @@ def _agent_area_html(handler, state, course_dir):
     starts = []
     for skill, spec in sorted((cfg.get("agent_runs") or {}).items()):
         target = spec.get("target") if isinstance(spec, dict) else ""
-        starts.append('<li><form method="post" action="/course/%s/agent">%s%s'
+        starts.append('<li><form method="post" action="%s">%s%s'
                       '<button class="go" type="submit">Start %s</button> '
-                      '<span class="mono">Target: %s</span></form></li>'
-                      % (cid, field("action", "start"), field("skill", skill),
-                         presentation.esc(skill), presentation.esc(target)))
+                      '<span class="mono">Target: %s</span>%s</form></li>'
+                      % (action_path, field("action", "start"), field("skill", skill),
+                         presentation.esc(skill), presentation.esc(target),
+                         ('<p>Requested sources: %s</p>' % presentation.esc(", ".join(spec.get("citations") or []))
+                          if isinstance(spec, dict) and spec.get("citations") else "")))
     if not starts:
-        starts.append('<li>Agent operation unavailable. No runnable skill has a configured target. Open model settings.</li>')
+        starts.append('<li>No course drafting operation is configured. Add an agent run in Settings with a course-local target and source citations.</li>')
 
     if active:
         pid = active.get("proposal_id") or ""
@@ -1426,65 +1441,90 @@ def _agent_area_html(handler, state, course_dir):
                 "accepted": "Proposal accepted. One journaled change was applied.",
                 "rejected": "Proposal rejected. No accepted course content changed.",
                 "conflicted": "The target changed after this proposal was created. Nothing was overwritten.",
-                "undone": "Accepted change undone. The previous valid bytes were restored and the reversal was recorded."}.get(
+                "undone": "Accepted change undone. The previous accepted state was restored and the reversal was recorded."}.get(
                     disposition, "Agent operation unavailable. %s" % (active.get("reason") or "Record unreadable."))
         citations = "".join("<li>%s</li>" % presentation.esc(str(c))
                             for c in active.get("citations") or []) or "<li>No citations supplied.</li>"
-        diff = presentation.esc("\n".join((active.get("diff") or {}).get("lines") or []))
+        diff_info = active.get("diff") or {}
+        diff = presentation.esc("\n".join(diff_info.get("lines") or []))
+        if diff_info.get("withheld"):
+            diff += "\n%s more lines withheld from this preview." % int(diff_info["withheld"])
+        validation = active.get("validation") or {}
+        findings = "".join('<li>%s</li>' % presentation.esc(str(finding))
+                           for finding in validation.get("findings") or [])
         controls = ""
         if disposition == "proposed":
-            reject = ('<form method="post" action="/course/%s/agent">%s%s'
+            reject = ('<form method="post" action="%s">%s%s'
                       '<button class="go" type="submit" aria-label="Reject proposal %s">Reject proposal</button></form>'
-                      % (cid, field("action", "reject"), field("proposal_id", pid), presentation.esc(pid)))
+                      % (action_path, field("action", "reject"), field("proposal_id", pid), presentation.esc(pid)))
             if (cfg.get("auditor_autonomy") or "report_only") in agent_op.AUTONOMY_MAY_WRITE:
-                accept = ('<form method="post" action="/course/%s/agent">%s%s'
+                accept = ('<form method="post" action="%s">%s%s'
                           '<button class="go primary" type="submit" aria-label="Accept proposal %s">Accept proposal</button></form>'
-                          % (cid, field("action", "accept"), field("proposal_id", pid), presentation.esc(pid)))
+                          % (action_path, field("action", "accept"), field("proposal_id", pid), presentation.esc(pid)))
             else:
                 accept = '<p>Accept is unavailable because auditor_autonomy is report_only. Change it in Settings, Agent autonomy, if you want reviewed proposals to become revisions.</p>'
             controls = '<div class="actions" role="group" aria-label="Proposal decision">%s%s</div>' % (accept, reject)
         elif disposition == "accepted" and active.get("undoable"):
-            controls = ('<form method="post" action="/course/%s/agent">%s%s'
+            controls = ('<form method="post" action="%s">%s%s'
                         '<button class="go primary" type="submit" aria-label="Undo accepted change for %s">Undo accepted change</button></form>'
-                        % (cid, field("action", "undo"), field("proposal_id", pid),
+                        % (action_path, field("action", "undo"), field("proposal_id", pid),
                            presentation.esc(active.get("target") or pid)))
         review = ('<section aria-labelledby="agent-review"><h3 id="agent-review">Review proposed change</h3>'
                   '<div role="status" aria-live="polite"><p>%s</p></div>'
                   '<dl><dt>Proposal</dt><dd class="mono">%s</dd><dt>Target</dt><dd>%s</dd>'
                   '<dt>Expected fingerprint</dt><dd class="mono">%s</dd><dt>Validation</dt><dd>%s</dd>'
                   '<dt>Egress</dt><dd>%s</dd></dl><h4>Citations</h4><ul>%s</ul>'
+                  '<h4>Validation findings</h4>%s'
                   '<div class="vf-diff" role="region" aria-label="Proposed change diff"><pre>%s</pre></div>%s'
                   '<details><summary>Review evidence</summary><p class="mono">Operation %s. Interaction %s. Journal %s. Undo %s.</p></details></section>'
                   % (presentation.esc(copy), presentation.esc(pid), presentation.esc(active.get("target") or "Unavailable"),
                      presentation.esc(active.get("expected_fingerprint") or "new file"),
-                     presentation.esc(str((active.get("validation") or {}).get("state") or "unknown")),
-                     presentation.esc(str((active.get("egress") or {}).get("destination") or "local")), citations, diff, controls,
+                     presentation.esc(str(validation.get("state") or "unknown")),
+                     presentation.esc(str((active.get("egress") or {}).get("destination") or "local")), citations,
+                     '<ul>%s</ul>' % findings if findings else '<p>No findings recorded.</p>', diff, controls,
                      presentation.esc(active.get("operation_id") or ""), presentation.esc(active.get("interaction_id") or ""),
                      presentation.esc(active.get("entry_id") or "none"), presentation.esc(active.get("undo_entry_id") or "none")))
     else:
         review = '<section><h3>No agent operations yet</h3><p>Start a skill to create a reviewable proposal. Nothing changes until you accept it.</p></section>'
-    history = "".join('<li><b>%s</b> <span class="mono">%s</span>, %s</li>'
-                      % (presentation.esc(r.get("disposition") or "unavailable"),
+    history = "".join('<li><a href="/course/%s/%s?proposal=%s">%s</a> '
+                      '<span class="mono">%s</span>, %s</li>'
+                      % (cid, area, urllib.parse.quote(r.get("proposal_id") or "", safe=""),
+                         presentation.esc(r.get("disposition") or "unavailable"),
                          presentation.esc(r.get("proposal_id") or "unknown"),
                          presentation.esc(r.get("target") or r.get("reason") or "")) for r in records)
-    return ('<p>Agent operations create stored proposals. The runtime remains the sole scoring authority.</p>'
+    return ('<p>Configured operations draft a course-local file for review. Check the '
+            '<a href="/course/%s/map">objective map</a> and '
+            '<a href="/course/%s/sources">bound sources</a> before starting. '
+            'The runtime remains the sole scoring authority.</p>'
             '<section><h3>Start an agent operation</h3><ul class="course-rows">%s</ul></section>%s'
             '<section><h3>Review history</h3><ul class="course-rows">%s</ul></section>'
             '<p class="mono">CLI twin: itembank course agent-operation %s status --proposal-id &lt;id&gt;</p>'
-            % ("".join(starts), review, history or "<li>No records.</li>", cid))
+            % (cid, cid, "".join(starts), review, history or "<li>No records.</li>", cid))
 
 
 def _course_area_extra(handler, state, course_dir):
-    """Markup an area carries beyond its rows. Today only Sources has any:
-    the bind panel and the rights records it depends on."""
-    if course_dir is not None and state.get("area") == "agent":
+    """Context, review, and source binding markup beyond area rows."""
+    if course_dir is not None and state.get("area") in ("agent", "build"):
         return _agent_area_html(handler, state, course_dir)
+    if course_dir is not None and state.get("area") in ("map", "sources", "evidence"):
+        from surfaces import course_workbench
+        try:
+            import course
+            doc = course.read_course(course_dir)["doc"]
+        except Exception:
+            doc = {}
+        banks = _course_banks(handler, course_dir)
+        detail = course_workbench.details(handler, state, course_dir, doc, banks)
+        if state.get("area") != "sources":
+            return detail
+    else:
+        detail = ""
     if course_dir is None or state.get("area") != "sources":
         return ""
     try:
         reading = binding_cli.bindings(course_dir)
     except Exception:
-        return ""
+        return detail + '<p role="status">Source binding controls are unavailable. Review the accepted source details above.</p>'
     objectives = {}
     for row in reading["objectives"]:
         text = row["statement"] or row["id"]
@@ -1511,7 +1551,7 @@ def _course_area_extra(handler, state, course_dir):
             '<div class="row"><div class="row-head"><b>%s</b></div>'
             '<p class="actions">%s</p></div>'
             % (presentation.esc(row["title"]), "".join(chips)))
-    return (BIND_PANEL
+    return (detail + BIND_PANEL
             .replace("__OBJECTIVES__",
                      _options(sorted(objectives), objectives))
             .replace("__SOURCES__", _options(sorted(sources), sources))
@@ -1553,48 +1593,32 @@ def _app_nav(current):
             % courses_current)
 
 
-DESK_ART = """
-<svg class="desk-plant" viewBox="0 0 420 355" role="img"
-  aria-label="A branching plant inside a circular feedback system">
-  <g fill="none" stroke="currentColor" stroke-width="1" opacity=".42">
-    <circle cx="214" cy="172" r="118" stroke-dasharray="3 5"/>
-    <path d="M110 207 A112 112 0 0 1 133 94 M306 109 A112 112 0 0 1 320 228"/>
-  </g>
-  <ellipse cx="213" cy="276" rx="78" ry="12" fill="currentColor" opacity=".12"/>
-  <g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round">
-    <path d="M210 275C216 229 208 191 216 143S223 99 229 78M213 226Q178 207 161 180M216 181Q251 166 265 139M214 153Q184 137 177 109M211 253Q247 239 259 219"/>
-  </g>
-  <g fill="currentColor" opacity=".82">
-    <path d="M212 216C174 222 143 198 145 159c34 3 62 24 67 57"/>
-    <path d="M217 179c0-35 23-59 59-60-1 34-24 58-59 60"/>
-    <path d="M215 149c-32 0-49-22-47-52 30 4 46 22 47 52"/>
-    <path d="M222 109c-5-28 7-51 30-65 12 29 1 56-30 65"/>
-    <path d="M212 254c13-29 37-40 66-33-13 27-37 37-66 33"/>
-  </g>
-</svg>
-"""
+def _course_action_label(card):
+    """Keep the canonical verb visible when the course name is beside it."""
+    label = card["cta_label"]
+    for verb in ("Start", "Resume", "Open", "Choose", "Reconcile"):
+        if label == verb + " " + card["name"]:
+            return verb
+    return label
 
 
 def _desk_hero(card):
-    href = card["cta_href"] if card else "/"
-    label = card["cta_label"] if card else "Choose a course"
-    course = card["name"] if card else "Your next course"
-    cue = card["resume_cue"] if card else "No course is ready yet"
-    return """
-<section class="desk-hero" aria-labelledby="desk-heading">
-  <div class="desk-hero-copy">
-    <span class="chip">CONTINUE LEARNING</span>
-    <h2 id="desk-heading">See the systems<br>behind the everyday.</h2>
-    <p>Return to your real course, its sources, and the exact evidence saved
-    on this device.</p>
-    <p class="desk-eyebrow">%s</p>
-    <p><a class="go primary" href="%s">%s &nearr;</a></p>
-    <p class="resume-cue">%s</p>
-  </div>
-  %s
-</section>
-""" % (presentation.esc(course.upper()), presentation.esc(href),
-       presentation.esc(label), presentation.esc(cue), DESK_ART)
+    """Lead with the first visible course and only its canonical next action."""
+    if card is None:
+        return ""
+    return (
+        '<section class="desk-focus" aria-labelledby="desk-focus-title">'
+        '<div class="desk-focus-copy">'
+        '<p class="desk-eyebrow">First in your course order</p>'
+        '<h2 id="desk-focus-title">%s</h2>'
+        '<p class="resume-cue">%s</p></div>'
+        '<div class="desk-focus-actions"><a class="go primary" href="%s" aria-label="%s">%s</a></div>'
+        '</section>'
+        % (presentation.esc(card["name"]),
+           presentation.esc(card["resume_cue"]),
+           presentation.esc(card["cta_href"]),
+           presentation.esc(card["cta_label"]),
+           presentation.esc(_course_action_label(card))))
 
 
 def _course_frame(handler, state, back, course_dir=None):
@@ -1646,7 +1670,9 @@ def _course_frame(handler, state, back, course_dir=None):
             saved_html = '<section aria-labelledby="saved-sittings"><h3 id="saved-sittings">Saved sittings</h3>%s</section>' % _course_rows_html(saved_rows)
         elif resume["state"] == "unavailable":
             saved_html = '<p role="status">A saved sitting is unavailable. Review session files before starting again.</p>'
-    if rows:
+    if state["area"] in ("build", "agent"):
+        content = ""
+    elif rows:
         if state["area"] == "overview":
             content = ('<p class="area-lead">%s</p>'
                        '<section class="overview-path" aria-labelledby="course-path">'
@@ -1785,7 +1811,7 @@ def handle_course_area_get(handler, course_id, area):
 
 def handle_course_area_post(handler, course_id, area):
     """Handle course forms without accepting a file path from HTML."""
-    if area not in ("agent", "evidence", "test"):
+    if area not in ("agent", "build", "evidence", "test"):
         handler.send_error(405, "this course area is read-only")
         return
     if _reject_cross_origin_write(handler):
@@ -1881,13 +1907,16 @@ def handle_course_area_post(handler, course_id, area):
         if value:
             request[name] = value
     try:
-        course_ops.run(handler.root, "agent_operation", request,
-                       actor_kind="human", actor_name="course-agent-tab")
+        result = course_ops.run(handler.root, "agent_operation", request,
+                                actor_kind="human", actor_name="course-build-review")
     except Exception as exc:
         code = getattr(exc, "code", "agent.operation_failed")
         handler.send_error(400, "%s: %s" % (code, getattr(exc, "message", str(exc))))
         return
-    handler.send_redirect("/course/%s/agent" % urllib.parse.quote(course_id, safe=""))
+    destination = "/course/%s/%s" % (urllib.parse.quote(course_id, safe=""), area)
+    if result.get("proposal_id"):
+        destination += "?proposal=" + urllib.parse.quote(result["proposal_id"], safe="")
+    handler.send_redirect(destination)
 
 
 def handle_course_lesson_get(handler, course_id, lesson_id):
@@ -2161,7 +2190,15 @@ def handle_api_source_recheck(handler):
     handler.send_json(result)
 
 
-def scan_dir(root):
+def scan_dir(root, classification_cache=None):
+    """Walk current candidates, optionally reusing unchanged classifications."""
+    if classification_cache is None:
+        return _scan_dir(root)
+    with classification_cache.scan(root) as classification:
+        return _scan_dir(root, classification)
+
+
+def _scan_dir(root, classification=None):
     """Walk `root` and its explicitly linked courses, then classify `.md`.
 
     This is the startup-built allowlist every route resolves a client-
@@ -2236,28 +2273,34 @@ def scan_dir(root):
                 except ValueError:
                     inside = False
                 if inside and real not in seen_candidates:
-                    candidates.append(path)
+                    candidates.append((path, allowed_real))
                     seen_candidates.add(real)
-    candidates.sort(key=lambda p: (os.path.splitext(os.path.basename(p))[0].lower(), p))
+    candidates.sort(key=lambda row: (os.path.splitext(os.path.basename(row[0]))[0].lower(), row[0]))
 
     year = datetime.date.today().year
     banks, plans, collisions = {}, {}, []
     winners = {}                                # lower stem -> winning path
-    for path in candidates:
+    for path, allowed_real in candidates:
         stem = os.path.splitext(os.path.basename(path))[0]
         stem_key = stem.lower()
-        try:
-            text = open(path, encoding="utf-8").read()
-        except (OSError, UnicodeDecodeError):
-            continue                            # unreadable or not UTF-8; skip silently
-        qs = parse_bank(text)
-        if qs:
-            kind, table = "bank", banks
+        if classification is not None:
+            kind = classification.classify(path, allowed_real, year,
+                                           parse_bank, day.parse_plan)
+            if kind is None:
+                continue
+            table = banks if kind == "bank" else plans
         else:
-            plan = day.parse_plan(path, year)
-            if not plan:
-                continue                        # neither a bank nor a plan; skip silently
-            kind, table = "plan", plans
+            try:
+                with open(path, encoding="utf-8") as stream:
+                    text = stream.read()
+            except (OSError, UnicodeDecodeError):
+                continue
+            if parse_bank(text):
+                table = banks
+            elif day.parse_plan(path, year):
+                table = plans
+            else:
+                continue
         if stem_key in winners:
             collisions.append((stem, winners[stem_key], path))
             continue
@@ -2267,6 +2310,7 @@ def scan_dir(root):
 
 
 DISCOVERY_REFRESH_LOCK = threading.Lock()
+DISCOVERY_CLASSIFICATION_CACHE = DiscoveryCache()
 
 
 def _refresh_discovery(handler):
@@ -2279,7 +2323,7 @@ def _refresh_discovery(handler):
     configuration startup builds.
     """
     with DISCOVERY_REFRESH_LOCK:
-        banks, plans, collisions = scan_dir(handler.root)
+        banks, plans, collisions = scan_dir(handler.root, DISCOVERY_CLASSIFICATION_CACHE)
         old_banks = getattr(handler, "banks", None) or {}
         old_sessions = getattr(handler, "sessions", None) or {}
         # A removed or renamed bank becomes unreachable through `banks`, but
@@ -2833,20 +2877,35 @@ SHELF_SCRIPT = """<script>
     });
   }
   function restore(order) {
+    var focused = shelf.contains(document.activeElement) ? document.activeElement : null;
     order.forEach(function (id) {
       var card = shelf.querySelector('[data-course-id="' + CSS.escape(id) + '"]');
       if (card) { shelf.appendChild(card); }
     });
     syncButtons();
+    if (focused && focused.isConnected) { focused.focus(); }
   }
   function syncButtons() {
     var rows = cards();
     rows.forEach(function (card, index) {
+      var mark = card.querySelector('.course-mark');
+      if (mark) { mark.textContent = String(index + 1).padStart(2, '0'); }
       var up = card.querySelector('[data-move="up"]');
       var down = card.querySelector('[data-move="down"]');
       if (up) { up.disabled = saving || index === 0; }
       if (down) { down.disabled = saving || index === rows.length - 1; }
     });
+    var focus = document.querySelector('.desk-focus');
+    var first = rows[0];
+    if (focus && first) {
+      var action = first.querySelector('.course-card-actions a');
+      var focusAction = focus.querySelector('.desk-focus-actions a');
+      focus.querySelector('h2').textContent = first.querySelector('h2').textContent;
+      focus.querySelector('.resume-cue').textContent = first.querySelector('.resume-cue').textContent;
+      focusAction.textContent = action.textContent;
+      focusAction.setAttribute('aria-label', action.getAttribute('aria-label'));
+      focusAction.href = action.href;
+    }
   }
   function saveOrder(previous) {
     if (sameOrder(previous, ids())) { syncButtons(); return Promise.resolve(); }
@@ -2886,6 +2945,8 @@ SHELF_SCRIPT = """<script>
     else { shelf.insertBefore(target, card); }
     syncButtons();
     saveOrder(previous);
+    var summary = card.querySelector('.course-details summary');
+    if (summary) { summary.focus(); }
   });
 
   shelf.addEventListener("dragstart", function (event) {
@@ -3019,16 +3080,10 @@ def _sample_course_controls(sample):
 
 
 def _course_shelf_body(shelf, walkthrough=None, sample=None):
-    """One article per course card. No pagination control, no page-number
-    link, and no item cap, so a many-course shelf scrolls rather than
-    paginating. The two `data-*` attributes and the two class names are stable
-    hooks for tests and for Phase 17A, not styling; this plan adds no CSS rule
-    and no inline style."""
+    """Render the ordered course list with canonical actions and shelf hooks."""
     cards = []
     for index, card in enumerate(shelf["cards"]):
-        links = ['<a class="go" aria-label="%s" href="%s">Open &nearr;</a>'
-                 % (presentation.esc(card["cta_label"]),
-                    presentation.esc(card["cta_href"]))]
+        links = []
         for action in card["actions"]:
             links.append('<a class="go secondary" href="%s">%s</a>'
                          % (presentation.esc(action["href"]),
@@ -3046,24 +3101,33 @@ def _course_shelf_body(shelf, walkthrough=None, sample=None):
                    presentation.esc(card["name"]), " disabled" if index == 0 else "",
                    presentation.esc(card["name"]),
                    " disabled" if index == len(shelf["cards"]) - 1 else ""))
+        sample_controls = (_sample_course_controls(sample)
+                           if sample and card["course_id"] == sample["course_id"]
+                           else "")
+        options = "".join(links) + order_controls + sample_controls
+        details = ('<details class="course-details"><summary>Course options</summary>'
+                   '<div class="course-options">%s</div></details>' % options
+                   if options else "")
         cards.append(
             '<article class="course-card" data-course-id="%s" '
-            'data-attention="%s" data-ia-token="%s">'
-            "<h2>%s</h2>"
+            'data-attention="%s" data-ia-token="%s" role="listitem">'
+            '<span class="course-mark" aria-hidden="true">%02d</span>'
+            '<div class="course-card-main"><h2>%s</h2>'
             '<span class="chip">%s</span>'
-            '<p class="resume-cue">%s</p>'
-            '<p class="actions">%s</p>%s%s</article>'
+            '<p class="resume-cue">%s</p></div>'
+            '<div class="course-card-actions">'
+            '<a class="go" href="%s" aria-label="%s">%s</a></div>%s</article>'
             % (presentation.esc(card["course_id"]),
                presentation.esc(card["attention"]),
                presentation.esc(card["token"]),
+               index + 1,
                presentation.esc(card["name"]),
                presentation.esc(card["chip"]),
                presentation.esc(card["resume_cue"]),
-               "".join(links),
-               order_controls,
-               (_sample_course_controls(sample)
-                if sample and card["course_id"] == sample["course_id"]
-                else "")))
+               presentation.esc(card["cta_href"]),
+               presentation.esc(card["cta_label"]),
+               presentation.esc(_course_action_label(card)),
+               details))
     degraded = [card for card in shelf["cards"] if card["degraded"]]
     banner = ""
     if degraded:
@@ -3078,7 +3142,7 @@ def _course_shelf_body(shelf, walkthrough=None, sample=None):
                      "or use Move up and Move down.</p>"
                      if shelf.get("reorderable") else "")
         fingerprint = shelf.get("workspace_fingerprint") or ""
-        content = ('%s<div class="course-shelf" data-course-shelf '
+        content = ('%s<div class="course-shelf" role="list" data-course-shelf '
                    'data-workspace-fingerprint="%s">%s</div>'
                    % (help_copy, presentation.esc(fingerprint), "".join(cards)))
     else:
@@ -3091,18 +3155,16 @@ def _course_shelf_body(shelf, walkthrough=None, sample=None):
                    % (presentation.esc(shelf["empty_heading"]),
                       presentation.esc(shelf["empty_body"])))
     first = shelf["cards"][0] if shelf["cards"] else None
-    heading = ('<section class="desk-heading"><div><p class="desk-eyebrow">'
-               'MAKE ROOM FOR CURIOSITY</p><h2>A little further, today.</h2>'
-               '<p>Your place is saved. Pick up the thread.</p></div></section>')
-    course_section = ('<section><div class="desk-section-title"><h2>Your courses</h2>'
-                      '<span>%d local</span></div>%s</section>' % (len(cards), content))
-    next_section = ('<section><div class="desk-section-title"><h2>A thoughtful next step</h2>'
-                    '<span>Runtime grounded</span></div><div class="desk-next">'
-                    '<p class="desk-eyebrow">YOUR EVIDENCE, YOUR PACE</p>'
-                    '<h3>Keep the source close.</h3><p>Read, practice, and inspect what the '
-                    'record supports. Agent changes wait for your review.</p>'
-                    '<a href="/activity">Inspect activity &rarr;</a></div></section>')
-    desk = heading + _desk_hero(first) + '<div class="desk-below">' + course_section + next_section + '</div>'
+    guidance = ("Open a course or choose one of its options."
+                if cards else "Add the sample course to explore this workspace.")
+    heading = ('<section class="desk-heading"><div><h2>Your desk</h2>'
+               '<p>%s</p></div><span class="desk-count">%d %s</span></section>'
+               % (guidance, len(cards), "course" if len(cards) == 1 else "courses"))
+    course_section = ('<section class="desk-course-section" aria-labelledby="course-shelf-title">'
+                      '<div class="desk-section-title"><h2 id="course-shelf-title">'
+                      'Your courses</h2></div>%s</section>' % content)
+    desk = (heading + _desk_hero(first) + '<div class="desk-below">'
+            + course_section + '</div>')
     return ('%s%s%s%s%s<p class="status" data-shelf-status role="status" '
             'aria-live="polite"></p>'
             % (_app_nav("courses"), desk, banner, offer, ""))
@@ -3192,7 +3254,9 @@ def handle_courses_get(handler):
             "name": card["name"],
             "meta": card["resume_cue"],
             "chips": ({"label": card["chip"], "kind": "neutral"},),
-            "actions": ({"label": "Open course", "href": card["cta_href"]},),
+            "actions": ({"label": _course_action_label(card),
+                         "aria_label": card["cta_label"],
+                         "href": card["cta_href"]},),
         })
     state = None if shelf.get("available") else {
         "kind": "unknown", "status": shelf.get("notice", "Courses unavailable")}
@@ -3450,8 +3514,46 @@ def handle_settings_get(handler):
         handler.send_server_error(RuntimeError(str(exc.code)))
         return
     handler.send_html(
-        theme.theme_page(cfg, sections=_mode_layer_section(),
+        theme.theme_page(cfg, sections=(
+            '<section aria-labelledby="storage-heading"><h2 id="storage-heading">Storage</h2>'
+            '<p><a href="/settings/storage">Inspect storage use and clear rebuildable caches</a></p>'
+            '<p>Storage is scanned only when you open that page.</p></section>' + _mode_layer_section()),
                          palette=True, product=True).encode("utf-8"))
+
+
+def handle_storage_get(handler):
+    """Inspect local storage on demand, without following linked roots."""
+    if not _client_is_loopback(handler):
+        handler.send_error(403, "storage inspection is available on this device only")
+        return
+    try:
+        report = storage.inspect(handler.root)
+        css = theme.theme_css(settings.load_settings(handler.root))
+        handler.send_html(storage.page(report, theme_css=css).encode("utf-8"))
+    except (OSError, storage.StorageError, SystemExit) as exc:
+        handler.send_server_error(exc)
+
+
+def handle_storage_post(handler):
+    """Clear only bytecode named by the unchanged, explicit storage preview."""
+    if _reject_cross_origin_write(handler):
+        return
+    fields = handler.read_form()
+    if set(fields) != {"cache_token"} or len(fields["cache_token"]) != 1 or not re.fullmatch(
+            r"[a-f0-9]{64}", fields["cache_token"][0]):
+        handler.send_error(400, "open storage use before clearing caches")
+        return
+    try:
+        result = storage.clear_python_cache(handler.root, fields["cache_token"][0])
+        report = storage.inspect(handler.root)
+        css = theme.theme_css(settings.load_settings(handler.root))
+        notice = "Removed %d cache file(s), %s. %s" % (
+            result["removed_files"], storage.size_label(result["removed_bytes"]), result["notice"])
+        handler.send_html(storage.page(report, theme_css=css, notice=notice).encode("utf-8"))
+    except storage.StorageError as exc:
+        handler.send_error(409, str(exc))
+    except (OSError, SystemExit) as exc:
+        handler.send_server_error(exc)
 
 
 def handle_theme_post(handler):
@@ -4680,7 +4782,8 @@ def handle_lesson_get(handler, stem):
                               mode=mode, step_id=step_id,
                               tier_payload=tier_payload,
                               tier_show_url=tier_show_url,
-                              context_nav=context_nav)
+                              context_nav=context_nav,
+                              theme_css=theme.theme_css(settings.load_settings(handler.root)))
     handler.send_html(page.encode("utf-8"))
 
 
@@ -7199,7 +7302,7 @@ def _build_sessions(banks):
 
 def cmd_daemon(a):
     root = a.dir
-    banks, plans, collisions = scan_dir(root)
+    banks, plans, collisions = scan_dir(root, DISCOVERY_CLASSIFICATION_CACHE)
 
     # The `daemon` settings group's own port/LAN defaults, with an explicit
     # `--port`/`--lan` on the command line winning -- argparse defaults to
@@ -7281,7 +7384,7 @@ def cmd_sidecar(a):
     """
     import itembank                                    # lazy, like surfaces.cli.main()
     root = a.dir
-    banks, plans, collisions = scan_dir(root)
+    banks, plans, collisions = scan_dir(root, DISCOVERY_CLASSIFICATION_CACHE)
     cfg = settings.load_settings(root)
     port = a.port if a.port is not None else cfg["daemon"]["port"]
     host = "127.0.0.1"                                 # D-04: loopback only

@@ -51,12 +51,13 @@ class NavigationColorTests(unittest.TestCase):
                         rules = re.findall(r"\.course-areas a\[aria-current\]\s*\{([^}]+)\}", page)
                         self.assertTrue(rules)
                         final = rules[-1]
-                        self.assertIn("background:var(--product-ink)", final)
-                        self.assertIn("color:var(--paper)", final)
-                        self.assertIn("text-decoration:underline", final)
+                        self.assertIn("background:var(--paper)", final)
+                        self.assertIn("color:var(--product-ink)", final)
+                        self.assertIn("border-bottom-color:var(--accent)", final)
                         self.assertIn('aria-current="page"', page)
                         base_rules = re.findall(r"\.course-areas a\s*\{([^}]+)\}", page)
-                        self.assertIn("color:var(--product-ink)", base_rules[-1])
+                        self.assertIn("color:var(--product-muted)", base_rules[-1])
+                        self.assertIn("min-height:44px", base_rules[-1])
 
     def test_selected_pair_contrast(self):
         css = presentation.product_theme_css()
@@ -73,6 +74,8 @@ class NavigationColorTests(unittest.TestCase):
                 theme.contrast_ratio(tokens["bg"], tokens["ink"]), 4.5)
             self.assertGreaterEqual(
                 theme.contrast_ratio(tokens["chip"], tokens["ink"]), 4.5)
+            self.assertGreaterEqual(
+                theme.contrast_ratio(tokens["bg"], tokens["mut"]), 4.5)
 
 
 if __name__ == "__main__":

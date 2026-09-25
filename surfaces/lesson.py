@@ -24,9 +24,30 @@ from surfaces.presentation import (SHARED_CSS, PRODUCT_CSS,
 
 def product_reader_css():
     return product_theme_css() + PRODUCT_CSS + """
-.wrap{max-width:1040px;background:var(--paper);color:var(--product-ink)}
-.wrap>header,.wrap>.reader-nav,.wrap>.lesson-context,.wrap>#lesson-content{
+.wrap{max-width:1040px;background:var(--paper);color:var(--product-ink);
+  padding-block:var(--space-5) var(--space-7)}
+.wrap>header,.wrap>.reader-nav,.wrap>.lesson-context,.wrap>.lesson-context-nav,.wrap>#lesson-content{
   max-width:var(--measure-prose);margin-inline:auto}
+.wrap>header{padding-bottom:var(--space-4);border-bottom:1px solid var(--line)}
+.wrap>header h1{font-family:var(--font-paper);font-weight:400;
+  font-size:var(--text-display);line-height:1.2;text-wrap:balance}
+.wrap .sub{font-family:var(--font-chrome);font-size:var(--text-xs);line-height:1.6}
+.wrap .reader-nav summary{min-height:44px;display:flex;align-items:center;gap:var(--space-2)}
+.wrap .reader-nav summary:before{content:'+';font-size:var(--text-body)}
+.wrap .reader-nav details[open]>summary:before{content:'−'}
+#lesson-content>section>h2{font-family:var(--font-paper);font-size:var(--text-heading);
+  font-weight:400;line-height:1.3;letter-spacing:-.015em}
+#lesson-content.card{background:transparent;border:0;border-radius:0;padding:0}
+.wrap>.lesson-context-nav{font-family:var(--font-chrome);padding-block:var(--space-2)}
+#lesson-content .callout{border-radius:var(--r-1);box-shadow:none;background:transparent;
+  padding:var(--space-4);margin-block:var(--space-4)}
+#lesson-content :is(.callout-tip,.callout-note){border:0;border-inline-start:2px solid var(--line);
+  padding-block:var(--space-2)}
+#lesson-content .callout-excerpt{border:0;border-inline-start:2px solid var(--accent);
+  padding-block:var(--space-2)}
+#lesson-content .callout-example{border:1px solid var(--line)}
+#lesson-content .callout-label{font-family:var(--font-chrome);font-size:var(--text-xs);
+  letter-spacing:.04em;font-weight:600}
 @media(max-width:767px){.wrap{padding:var(--space-4) var(--space-3) 96px}}
 """
 from surfaces import settings
@@ -2377,7 +2398,7 @@ def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
                 announce=None, session_id=None, lan_refused=False,
                 mode="continuous", media=None, activities=None,
                 step_id=None, tier_payload=None, tier_show_url=None,
-                media_base="", context_nav=None):
+                media_base="", context_nav=None, theme_css=None):
     """The one render both surfaces call: the daemon route and `cmd_lesson`
     write the same document because there is only one `lesson_page`.
 
@@ -2793,7 +2814,7 @@ def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
             .replace("__DIR__", doc_dir)
             .replace("__PRESENTATION_PROFILE__",
                      html.escape(presentation_profile, quote=True))
-            .replace("__THEME__", THEME_CSS)
+            .replace("__THEME__", THEME_CSS if theme_css is None else theme_css)
             .replace("__SHARED_CSS__", SHARED_CSS)
             .replace("__LESSON_CSS__", LESSON_CSS + (lesson_interaction.CSS
                      if 'class="lesson-comparison"' in body else "")

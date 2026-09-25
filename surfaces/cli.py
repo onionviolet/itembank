@@ -43,6 +43,7 @@ from surfaces.session import (cmd_hint, cmd_interact, cmd_next, cmd_override,
                               cmd_report, cmd_rubric_review, cmd_start,
                               cmd_submit, cmd_teach)
 from surfaces.settings import cmd_config
+from surfaces.storage import cmd_storage
 from surfaces import seeding
 from surfaces.study import cmd_study
 from surfaces.theme import cmd_theme
@@ -1882,6 +1883,12 @@ def build_parser():
     br.add_argument("--json", action="store_true",
                     help="emit the result as JSON")
     br.set_defaults(fn=binding_cli.cmd_bind)
+
+    s = sub.add_parser("storage", help="inspect workspace storage and explicitly clear rebuildable Python caches")
+    s.add_argument("--base", default=".", help="workspace root")
+    s.add_argument("--clear-python-cache", action="store_true")
+    s.add_argument("--expected", help="cache_token from a fresh storage preview")
+    s.set_defaults(fn=cmd_storage)
 
     s = sub.add_parser("theme", help="preview, set, reset, or pick the source accent")
     t = s.add_subparsers(dest="action", required=True)

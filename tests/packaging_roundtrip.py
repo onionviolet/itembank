@@ -62,6 +62,7 @@ def test_artifact_runs_every_resource_reading_command(artifact):
             ["lint", FIXTURE],
             ["stats", FIXTURE],
             ["config", "--base", cwd],
+            ["storage", "--base", cwd],
             ["schema", "item"],
             ["select", FIXTURE, "--selection-mode", "exam", "--count", "2"],
         ]

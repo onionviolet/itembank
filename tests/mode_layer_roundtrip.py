@@ -73,8 +73,11 @@ BANK = os.path.join(ROOT, "fixtures", "sample_bank.md")
 # CSS, so its bytes change even though mode resolution and the no-sections
 # call signature do not. The pre-change value was
 # b3b398e86ca521dd85a5dedbe39047f2c8354df4fcb235d76c0dbd10f161db9d.
+# Re-taken 2026-09-25 after the shared palette, typography, and control
+# refinement. The no-sections API and mode authority remain unchanged.
+# Previous: f362984c5118bf900558ce30bbe134263e5bca03b70f4a0034659796f911d6e6.
 THEME_PAGE_BASELINE = \
-    "f362984c5118bf900558ce30bbe134263e5bca03b70f4a0034659796f911d6e6"
+    "e160024fc1629e13c7537122256af03fd612bf7cbd55fb3a955c0fb8594209e9"
 
 # Phase 16C appends rows here rather than creating a second fixture. Each row
 # is (setting_name, requests, expected_winning_layer, expected_value).

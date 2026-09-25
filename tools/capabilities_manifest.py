@@ -66,6 +66,8 @@ SINCE = {
     "course": "0.4.0",
     # Phase 19E's generated MCP tool table ships in 0.4.0.
     "mcp": "0.4.0",
+    # This command is in the working candidate, not the published 0.5.0 app.
+    "storage": "unreleased",
 }
 
 # The two byte-identical skill mirrors (CI enforces the diff); the index

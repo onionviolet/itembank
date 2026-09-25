@@ -502,6 +502,21 @@ The runtime owns answer keys, scoring, session position, and attempt recording.
 An agent owns explanation and remediation choices. This separation prevents a
 tutor from silently changing the test or grading its own explanation.
 
+### Storage use and cleanup
+
+Open **Settings → Storage use** to inspect file sizes on demand and explicitly
+clear rebuildable Python caches. The CLI twin is `itembank storage --base ROOT`.
+Cleanup requires `--clear-python-cache --expected TOKEN`, using the preview's
+`cache_token`. Courses, sources, snapshots, attempts, notes, journals, and
+release files are preserved. Linked folders are excluded from the totals.
+Python recreates deleted bytecode when needed.
+
+Developers can preview checkout storage with `python scripts/storage_usage.py`.
+Use `--clean-build --expected TOKEN` with its `build_token` to run Cargo's
+offline clean on the marked target directory. Build output must be unchanged
+since preview and contain no escaping links or protected records. The next build
+recreates it and takes longer. This command does not clear release files.
+
 ## Bringing a source in
 
 A book, a lecture deck, a captured page, or a set of captions becomes a cited

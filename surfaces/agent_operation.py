@@ -519,9 +519,16 @@ def undo(base, proposal_id, reviewer=""):
         with open(os.path.join(journal.journal_dir(base),
                                accepted["before_image"]), "rb") as fh:
             before = fh.read()
+    prior_absent = (accepted is not None and
+                    accepted.get("operation") == "mint" and
+                    accepted.get("before_fingerprint") is None and
+                    not accepted.get("before_image"))
     revision = journal.undo(base, record["entry_id"], "human", reviewer)
-    with open(target, "rb") as fh:
-        restored = fh.read()
+    if prior_absent:
+        restored_byte_identical = not os.path.lexists(target)
+    else:
+        with open(target, "rb") as fh:
+            restored_byte_identical = fh.read() == before
     undo_entry = next((entry for entry in reversed(list(journal.entries(base)))
                        if entry.get("state") == "applied"
                        and entry.get("revision") == revision.get("revision")
@@ -529,9 +536,9 @@ def undo(base, proposal_id, reviewer=""):
     record.update({"disposition": "undone", "state": "settled",
                    "undo_entry_id": (undo_entry or {}).get("entry_id"),
                    "restored_revision": revision.get("revision"),
-                   "restored_byte_identical": restored == before,
+                   "restored_byte_identical": restored_byte_identical,
                    "undone_at": _now(), "updated_at": _now(),
                    "undo_reviewer": reviewer,
-                   "reason": "Accepted change undone. The previous valid bytes were restored and the reversal was recorded.",
+                   "reason": "Accepted change undone. The previous accepted state was restored and the reversal was recorded.",
                    "next_action": "Start a new proposal"})
     return _write_record(base, record)

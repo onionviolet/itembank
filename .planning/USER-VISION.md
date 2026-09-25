@@ -3190,3 +3190,61 @@ gates. Keep further work under the existing overhaul sequence.
 
 **Relationship to prior entries:** continues the September 18 combined
 ecosystem overhaul and the request to keep the UI changeable.
+
+### 2026-09-25: distinctive app craft and interaction research
+
+> how can the app design feel more like an in depth app? like styleistic rather than vibecoded and mroe?
+
+> thats good, reflect upon suggestions in reddits and more research for better and more, save this accordingly, look specifically into non ai slop, disctinctiveness, UI and interactivity and more
+
+#### Interpretation recorded 2026-09-25
+
+**Status:** exploratory.
+
+**Current interpretation:** the app should feel deliberately designed,
+distinctive, and substantial in both appearance and interaction. Revisit the
+initial suggestions through Reddit discussion and broader design research.
+Save the evidence and useful directions. The user's positive response supports
+further exploration but does not freeze a palette, typeface, or layout.
+
+**Open questions:** which visual character best fits repeated study, which
+interactions improve understanding, and which details feel personal without
+adding friction? Compare coherent candidates on the same synthetic tasks and
+separate visual preference, usability, learning, and accessibility evidence.
+
+**Planning effect:** the evidence and revised D1-D5 recommendations live in
+[the craft synthesis](research/ui-craft-2026-09-25/SYNTHESIS.md), linked from
+[the existing renewal](research/ui-renewal-2026-09-18.md).
+IL-20260925-01 records Prototype and Backburner routes. This is research and
+capture, not a production implementation or a new milestone commitment.
+
+**Relationship to earlier entries:** extends the September 18 coherent renewal,
+nonstandard question workspaces, contextual support, and highly changeable WIP.
+It continues the September 22 complete-journey direction. It preserves the
+earlier candidate's useful findings without making its appearance mandatory.
+
+
+### 2026-09-25: implement distinctive app craft
+
+> implement accordingly using reasonably powered agents accordingly, avoid vibe coding feel and more
+
+#### Interpretation recorded 2026-09-25
+
+**Status:** active implementation direction.
+
+**Current interpretation:** implement the researched improvements in the real
+app using bounded, reasonably powered agents. Prioritize purposeful layout,
+visual identity, and useful interaction rather than treating research capture
+as completion. Keep the design open to revision.
+
+**Open questions:** human preference, installed parity, and wider learning or
+accessibility outcomes still require their own evidence.
+
+**Planning effect:** the bounded scope, ownership, behavior, verification, and
+recovery live in [the implementation record](research/ui-craft-2026-09-25/IMPLEMENTATION.md).
+This advances the earlier research into source implementation without freezing
+all candidate styles or expanding assessment authority.
+
+**Relationship to earlier entries:** continues the distinctive craft research
+and the complete-journey renewal. This later instruction authorizes production
+implementation despite the earlier research-only status.

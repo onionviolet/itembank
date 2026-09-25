@@ -349,6 +349,11 @@
       "since": "0.4.0"
     },
     {
+      "help": "inspect workspace storage and explicitly clear rebuildable Python caches",
+      "name": "storage",
+      "since": "unreleased"
+    },
+    {
       "help": "preview, set, reset, or pick the source accent",
       "name": "theme",
       "since": "0.3.0"
@@ -430,6 +435,16 @@
     {
       "method": "GET",
       "path": "/settings",
+      "token_gated": true
+    },
+    {
+      "method": "GET",
+      "path": "/settings/storage",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "/settings/storage",
       "token_gated": true
     },
     {

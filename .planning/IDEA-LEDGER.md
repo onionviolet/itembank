@@ -1279,6 +1279,34 @@ Amendments to an existing entry are additive notes under the entry, dated.
 - **Revisit trigger:** the first attempt to build a course through the
   product's own director rather than through an external agent.
 
+### IL-20260923-01: Pretext for long reading layout
+
+- **Proposal:** Consider `@chenglou/pretext` for measuring long text blocks
+  before paint and anchoring the visible reading position when width or content
+  above it changes. Reuse its prepare-once, layout-per-width pattern even if the
+  library itself is unnecessary.
+- **Origin:** Weibao shared https://github.com/chenglou/pretext on 2026-09-23
+  and asked to save the useful parts after review.
+- **Evidence considered:** The upstream README documents paragraph height,
+  line layout, and rich-inline measurement. Its Markdown chat demo documents
+  scroll anchoring and large-list virtualization, but leaves selection and
+  screen-reader behavior across unmounted rows unverified. It cannot size math
+  or images before mount. The current `surfaces/reading_desk.py` renders source
+  text as one native DOM block, so there is no demonstrated virtualization
+  need in that surface.
+- **Fit and boundary:** This is presentation behavior only. Preserve native
+  readable text, selection, keyboard and screen-reader access, and the existing
+  source and reading-state authorities. It does not change assessment content,
+  scoring, or evidence.
+- **Cost driver:** A bundled JavaScript dependency, font and CSS measurement
+  synchronization, invalidation on font or language changes, and accessibility
+  checks if rows are unmounted.
+- **Disposition:** Backburner. Do not add the dependency on this evidence alone.
+- **Revisit trigger:** a reproducible scroll jump or slow rendering on a real
+  long reading or course list. Compare native DOM behavior first, then test a
+  bounded Pretext prototype with math, mixed-language text, selection, and
+  screen-reader navigation before production use.
+
 ## Rejected
 
 ### IL-20260815-04: Plugin-first core (no privileged core; swappable scorer)
@@ -2747,3 +2775,46 @@ notes. Keep the existing authority and privacy boundaries during exploration.
   file, learner content, accepted schema or default was changed. Prior
   contextual-support WIP stays provisional. No existing idea is rejected or
   superseded by this entry.
+
+### IL-20260925-01: Distinctive app craft and useful interaction
+
+- **Proposal and disposition:** Prototype a coherent visual and interaction
+  direction that makes Itembank recognizable through its learning material,
+  source context, and complete task behavior. Compare the same synthetic
+  journey across candidate styles before adopting one.
+- **Origin:** [the exact user statements](USER-VISION.md#2026-09-25-distinctive-app-craft-and-interaction-research).
+- **Owner:** existing UI renewal and course-presentation owners, with Weibao
+  reviewing experience. [The craft synthesis](research/ui-craft-2026-09-25/SYNTHESIS.md)
+  owns this bounded research and the D1-D5 refinement.
+- **Evidence class:** seven sampled Reddit discussions, seven official
+  product/platform references, eight interaction/research/UX sources, one
+  observed public model interaction, and an earlier installed-desk observation
+  in this task. Recommendations remain inference, not measured learner benefit.
+- **Prototype scope:** scholarly desk, learning workshop, and precision
+  workspace directions. Candidate behavior covers task-first entry, source
+  inspection, linked representations, subject-specific compositions, and
+  continuous state. Reuse existing capabilities and owners first.
+- **Dependencies and cost drivers:** representative synthetic content,
+  current presentation seams, content and illustration authoring, interaction
+  states, focus and accessibility, installed parity, and direct user review.
+- **Backburner breadth:** bespoke 3D scenes, a broad simulation engine, and a
+  large custom illustration library. Revisit when a named learning objective
+  cannot be served by simpler representations and maintenance capacity exists.
+- **Next evidence:** the same desk, reading, practice, and return journey in
+  two complete styles. Compare preference, orientation, conceptual transfer,
+  recovery, and equivalent access separately. No prototype was built here.
+- **Recovery and limits:** remove this entry, the uniquely titled vision and
+  renewal additions, and the new research directory to undo this pass. Preserve
+  concurrent edits. No production files, learner data, assessment authority,
+  accepted formats, or settings changed. Existing proposals remain recorded.
+
+
+#### IL-20260925-01 implementation follow-up
+
+The [later user instruction](USER-VISION.md#2026-09-25-implement-distinctive-app-craft)
+authorizes a bounded Core implementation through the existing presentation
+and lesson owners. The [implementation record](research/ui-craft-2026-09-25/IMPLEMENTATION.md)
+records scope, verification, authority, recovery, and remaining uncertainty.
+The earlier research-only entry remains historical. Candidate visual styles
+remain changeable. Unimplemented subject interactions retain their Prototype
+or Backburner status. No idea is rejected or removed by this implementation.

@@ -4,6 +4,8 @@ import os
 import shutil
 import sys
 import tempfile
+import time
+from unittest import mock
 
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -11,6 +13,7 @@ if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
 from surfaces import daemon
+from surfaces.discovery_cache import DiscoveryCache
 
 
 BANK = os.path.join(ROOT, "fixtures", "sample_bank.md")
@@ -82,9 +85,48 @@ def check_linked_course_is_bounded():
         if os.path.realpath(banks["visible"]) != os.path.realpath(
                 os.path.join(course, "visible.md")):
             fail("the approved linked-course bank did not resolve to its target")
+        cache = DiscoveryCache()
+        for _ in range(2):
+            if daemon.scan_dir(workspace, cache) != (banks, plans, collisions):
+                fail("cached discovery changed linked-course containment")
         print("ok - immediate course links are scanned without nested escape")
     finally:
         shutil.rmtree(scratch, ignore_errors=True)
+
+
+def check_cached_scan_changes_and_timing():
+    with tempfile.TemporaryDirectory(prefix="itembank-cached-scan-") as root:
+        for index in range(100):
+            shutil.copyfile(BANK, os.path.join(root, "bank-%03d.md" % index))
+        cache = DiscoveryCache()
+        with mock.patch.object(daemon, "parse_bank", wraps=daemon.parse_bank) as parser:
+            started = time.perf_counter()
+            cold = daemon.scan_dir(root, cache)
+            cold_time = time.perf_counter() - started
+            assert parser.call_count == 100
+            parser.reset_mock()
+            started = time.perf_counter()
+            warm = daemon.scan_dir(root, cache)
+            warm_time = time.perf_counter() - started
+            assert cold == warm and parser.call_count == 0
+            os.rename(os.path.join(root, "bank-000.md"), os.path.join(root, "renamed.md"))
+            os.unlink(os.path.join(root, "bank-001.md"))
+            os.mkdir(os.path.join(root, "nested"))
+            shutil.copyfile(BANK, os.path.join(root, "nested", "bank-002.md"))
+            shutil.copyfile(BANK, os.path.join(root, "added.md"))
+            banks, plans, collisions = daemon.scan_dir(root, cache)
+            assert "bank-000" not in banks and "bank-001" not in banks
+            assert "renamed" in banks and "added" in banks
+            assert len(collisions) == 1 and collisions[0][0] == "bank-002"
+            assert banks["bank-002"] == os.path.join(root, "bank-002.md")
+            assert not plans
+            changed = os.path.join(root, "bank-003.md")
+            with open(changed, "w", encoding="utf-8") as stream:
+                stream.write("Plain synthetic notes, no assessment items.\n")
+            banks, _plans, _collisions = daemon.scan_dir(root, cache)
+            assert "bank-003" not in banks
+        print("ok - full discovery 100 banks: cold %.2f ms, warm %.2f ms; warm parser calls 0" %
+              (cold_time * 1000, warm_time * 1000))
 
 
 def check_refresh_adds_bank_and_preserves_sessions():
@@ -133,3 +175,4 @@ def check_refresh_adds_bank_and_preserves_sessions():
 if __name__ == "__main__":
     check_linked_course_is_bounded()
     check_refresh_adds_bank_and_preserves_sessions()
+    check_cached_scan_changes_and_timing()

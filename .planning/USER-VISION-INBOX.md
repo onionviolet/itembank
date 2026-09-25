@@ -1076,3 +1076,42 @@ Route status and future execution to the existing
 [the vision entry](USER-VISION.md#2026-09-22-integrate-parity-and-polish-the-complete-app-journey).
 Route implementation through the existing
 [overhaul integration plan](research/overhaul-2026-09-18/INTEGRATION-PLAN.md).
+
+### 2026-09-25: deeper app identity and deliberate visual style
+
+> how can the app design feel more like an in depth app? like styleistic rather than vibecoded and mroe?
+
+**Disposition:** Hold as an exploratory design question under the existing
+[UI renewal synthesis](research/ui-renewal-2026-09-18.md).
+The desired distinction between visual character, visible learning depth and
+interaction polish remains open. The current desk was visually inspected.
+Candidate directions are a more compact working layout, consistent typography
+and surface hierarchy, subject-specific content presentation, and contextual
+tools with complete interaction states. These are agent proposals for
+discussion, not accepted requirements or production changes.
+
+**Follow-up recorded 2026-09-25:** the user requested further research and
+durable capture. Promote this statement together with that follow-up to
+[the vision entry](USER-VISION.md#2026-09-25-distinctive-app-craft-and-interaction-research).
+The original hold remains a record of the initial exploratory state.
+
+### 2026-09-25: research distinctive app craft and useful interaction
+
+> thats good, reflect upon suggestions in reddits and more research for better and more, save this accordingly, look specifically into non ai slop, disctinctiveness, UI and interactivity and more
+
+**Disposition:** Promote the experience direction to
+[the vision entry](USER-VISION.md#2026-09-25-distinctive-app-craft-and-interaction-research).
+Route Reddit evidence, primary design references, interaction research, and
+revised D1-D5 recommendations to
+[the craft synthesis](research/ui-craft-2026-09-25/SYNTHESIS.md).
+Keep proposed styles and interactions provisional under the existing renewal.
+
+
+### 2026-09-25: implement the researched app craft
+
+> implement accordingly using reasonably powered agents accordingly, avoid vibe coding feel and more
+
+**Disposition:** Promote to
+[the vision entry](USER-VISION.md#2026-09-25-implement-distinctive-app-craft).
+The [implementation record](research/ui-craft-2026-09-25/IMPLEMENTATION.md)
+owns this bounded production pass and its evidence.

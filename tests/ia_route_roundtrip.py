@@ -884,8 +884,8 @@ def check_course_areas_carry_content():
             fail("Test silently promoted a practice bank to a formal test")
 
         status, body = get(url + "course/%s/build" % course_id)
-        if "Nothing has been added" not in html.unescape(body):
-            fail("an area with nothing to show must still say so")
+        if "Start an agent operation" not in html.unescape(body):
+            fail("Build and review did not expose the course proposal workflow")
 
         status, body = get(url + "lesson/unit3_bank")
         if status != 200:

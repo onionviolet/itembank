@@ -5,6 +5,7 @@
 It creates no sitting and performs no startup update check.
 """
 import hashlib
+import json
 from pathlib import Path
 import sys
 import tempfile
@@ -148,10 +149,12 @@ class ComparisonTests(unittest.TestCase):
             self.assertNotIn(forbidden, lesson_interaction.JS)
 
     def test_native_route_writes_nothing(self):
-        from surfaces import daemon
+        from surfaces import daemon, theme
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "bank.md"
             path.write_bytes(FIXTURE.read_bytes())
+            config = {"theme": "oled"}
+            (Path(tmp) / "itembank.json").write_text(json.dumps(config))
             class Handler(daemon.DaemonHandler):
                 root = tmp
                 banks = {"bank": str(path)}
@@ -165,6 +168,7 @@ class ComparisonTests(unittest.TestCase):
                     with urllib.request.urlopen(url) as response:
                         page = response.read().decode()
                     self.assertIn('class="lesson-comparison"', page)
+                    self.assertIn(theme.theme_css(config), page)
                     self.assertNotIn('violet tile', page)
                     self.assertEqual(before, {str(p): p.read_bytes() for p in Path(tmp).rglob("*") if p.is_file()})
                 finally:

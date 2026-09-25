@@ -30,21 +30,18 @@ THEME_MODES = ("system", "light", "dark", "oled")
 DEFAULT_THEME_CONFIG = {"theme": "system", "accent": {"source": DEFAULT_ACCENT},
                         "look": looks.DEFAULT_LOOK}
 
-# The polished default palette (04-UI-SPEC Color table). Base tokens are the
-# 60/30/10 split; `mut` is the muted-text token every existing surface already
-# consumes, kept as a fixed base token. Semantic verdict tokens are fixed per
-# mode, deuteranopia-safe, and independent of the custom accent.
+# Shared base surfaces keep cards and inset controls visible at low brightness.
+# `mut` is the muted-text token every existing surface already consumes.
+# Semantic verdict tokens stay fixed per mode, independent of the custom accent.
 BASE_TOKENS = {
     "light": {"bg": "#f3f5f4", "ink": "#171d1c", "card": "#ffffff",
               "chip": "#eef2f1", "line": "#dfe5e3", "mut": "#5f6d6a"},
-    "dark": {"bg": "#0e1413", "ink": "#e4ebe9", "card": "#161e1d",
-             "chip": "#1d2726", "line": "#26312f", "mut": "#8fa19d"},
-    # OLED true-black ground: dark's per-surface offset above bg, translated
-    # down so bg is #000000 (card = #161e1d - #0e1413, likewise chip and
-    # line); ink and mut are reused from dark verbatim, because a darker
-    # ground only raises their measured ratios.
-    "oled": {"bg": "#000000", "ink": "#e4ebe9", "card": "#080a0a",
-             "chip": "#0f1313", "line": "#181d1c", "mut": "#8fa19d"},
+    "dark": {"bg": "#0e1413", "ink": "#e4ebe9", "card": "#1a2220",
+             "chip": "#222c29", "line": "#3c4944", "mut": "#9caba6"},
+    # Preserve the true-black page while giving cards and inset controls
+    # distinct grounds. The fixed edge token still clears 3:1 on each surface.
+    "oled": {"bg": "#000000", "ink": "#e4ebe9", "card": "#121816",
+             "chip": "#1d2623", "line": "#34403b", "mut": "#9caba6"},
 }
 
 # `unknown`/`pending` and the three `*_bg` backgrounds close 14-UI-SPEC §3.3:
@@ -167,21 +164,21 @@ def _accent_for_mode(source, mode):
 
     Preserves hue and saturation; walks bounded lightness steps from the
     source toward the contrast-increasing extreme (darker in light mode,
-    lighter in dark mode) and stops at the nearest step meeting 4.5:1 on both
-    the card and the page background. The extreme always passes (black on a
+    lighter in dark mode) and stops at the nearest step meeting 4.5:1 on the
+    card, chip and page backgrounds. The extreme always passes (black on a
     light page, white on a dark page), so the scan is bounded by construction.
     """
     h, l, s = colorsys.rgb_to_hls(*[c / 255.0 for c in _rgb(source)])
     direction = -1.0 if mode == "light" else 1.0
     if all(contrast_ratio(source, BASE_TOKENS[mode][bg]) >= TEXT_CONTRAST
-           for bg in ("card", "bg")):
+           for bg in ("card", "chip", "bg")):
         return source, False
     for step in range(1, 401):
         candidate_l = max(0.0, min(1.0, l + direction * step * 0.0025))
         candidate = _rgb_hex([c * 255.0 for c in
                               colorsys.hls_to_rgb(h, candidate_l, s)])
         if all(contrast_ratio(candidate, BASE_TOKENS[mode][bg]) >= TEXT_CONTRAST
-               for bg in ("card", "bg")):
+               for bg in ("card", "chip", "bg")):
             return candidate, True
     extreme = _rgb_hex([c * 255.0 for c in
                         colorsys.hls_to_rgb(h, 0.0 if direction < 0 else 1.0, s)])

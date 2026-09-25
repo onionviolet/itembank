@@ -312,7 +312,7 @@ def test_derived_accents_meet_contrast_and_report_correction():
         d = derive_theme(source)
         for mode in ("light", "dark", "oled"):
             acc = d[mode]["accent"]
-            for bg_name in ("card", "bg"):
+            for bg_name in ("card", "chip", "bg"):
                 ratio = contrast_ratio(acc, d[mode][bg_name])
                 if ratio < 4.5:
                     fail("accent %s on %s (%s mode) is %.2f:1, below 4.5:1"
@@ -417,8 +417,8 @@ def test_palette_matches_binding_values():
     d = derive_theme("#0e6e62")
     light_base = {"bg": "#f3f5f4", "ink": "#171d1c", "card": "#ffffff",
                   "chip": "#eef2f1", "line": "#dfe5e3"}
-    dark_base = {"bg": "#0e1413", "ink": "#e4ebe9", "card": "#161e1d",
-                 "chip": "#1d2726", "line": "#26312f"}
+    dark_base = {"bg": "#0e1413", "ink": "#e4ebe9", "card": "#1a2220",
+                 "chip": "#222c29", "line": "#3c4944"}
     light_sem = {"ok": "#1b7a3d", "ok_bg": "#e8f4ec", "bad": "#b4272b",
                  "bad_bg": "#fbebeb", "warn": "#8a5900"}
     dark_sem = {"ok": "#4fbf74", "ok_bg": "#11291b", "bad": "#f0666a",
