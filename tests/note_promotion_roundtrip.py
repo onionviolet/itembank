@@ -192,6 +192,41 @@ POST_BASELINE_SCHEMA_KEYS = {
 }
 
 
+def _strip_additive_fill_profile_defaults(document):
+    """Remove only the six shipped `fill` additions from a schema copy.
+
+    The old digest remains authority. Exact before-plus-fill assertions keep
+    this reconstruction from hiding any other subject-profile change.
+    """
+    subject_profiles = document["properties"]["subject_profiles"]
+    shipped = subject_profiles["default"]["entries"]
+    entry_schemas = subject_profiles["properties"]["entries"]["properties"]
+    before_by_id = {
+        "emt": ["mc", "multi", "table", "dnd", "build", "short", "visual"],
+        "math": ["mc", "multi", "table", "dnd", "build", "short", "visual"],
+        "cs": ["check", "mc", "multi", "table", "dnd", "build", "short",
+               "visual"],
+    }
+    if (set(shipped) != set(before_by_id)
+            or set(entry_schemas) != set(before_by_id)):
+        fail("settings schema subject profile ids changed outside additive fill")
+        return False
+    for profile_id, before in before_by_id.items():
+        allowed_schema = (entry_schemas[profile_id]["properties"]
+                          ["allowed_item_types"])
+        schema_default = allowed_schema["default"]
+        for label, current in (("registry", shipped[profile_id]
+                                ["allowed_item_types"]),
+                               ("schema", schema_default)):
+            if current != before + ["fill"]:
+                fail("settings %s profile %s changed beyond additive fill: %r"
+                     % (label, profile_id, current))
+                return False
+        shipped[profile_id]["allowed_item_types"] = list(before)
+        allowed_schema["default"] = list(before)
+    return True
+
+
 def check_additivity():
     """The pre-16C world is byte-identical, and the degrade path still
     degrades."""
@@ -220,6 +255,9 @@ def check_additivity():
                 document.get("properties", {}).pop(key, None)
                 if key in document.get("required", []):
                     document["required"].remove(key)
+            if (path == "schemas/settings.schema.json"
+                    and not _strip_additive_fill_profile_defaults(document)):
+                continue
             stripped = json.dumps(document, indent=2,
                                   ensure_ascii=False) + "\n"
             actual = hashlib.sha256(stripped.encode("utf-8")).hexdigest()

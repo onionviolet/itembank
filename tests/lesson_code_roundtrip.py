@@ -455,9 +455,9 @@ def test_lesson_run_zero_evidence_and_session_delta():
 
 def test_run_cases_retains_phase5_contract():
     """Test 3: run_cases() keeps its comparison contract while delegating to
-    run_source() -- the per-case dicts stay (passed, actual, timed_out,
-    truncated, case_index) and the timeout signal still reaches the scorer
-    as no-verdict."""
+    run_source() -- the per-case dicts carry passed, bounded stdout/stderr,
+    exit status, timeout, truncation and case order, and the timeout signal
+    still reaches the scorer as no-verdict."""
     import runtime
     from model import parse_bank, parse_key_blocks
     workdir = cs_workdir()
@@ -474,9 +474,15 @@ def test_run_cases_retains_phase5_contract():
             fail("correct cases must pass: %r" % results)
         if [r["actual"] for r in results] != ["12\n", "3\n"]:
             fail("actual outputs wrong: %r" % results)
+        if [r["stderr"] for r in results] != ["", ""]:
+            fail("successful cases produced stderr: %r" % results)
+        if [r["exit_code"] for r in results] != [0, 0]:
+            fail("successful cases lost their zero exit status: %r" % results)
+        if any(r["timed_out"] or r["truncated"] for r in results):
+            fail("successful bounded cases carried a limit flag: %r" % results)
         for r in results:
             if set(r) != {"case_index", "passed", "actual", "timed_out",
-                          "truncated"}:
+                          "truncated", "stderr", "exit_code"}:
                 fail("run_cases dict shape changed: %r" % r)
         # The timeout signal survives as a None verdict (criterion 12).
         run = [{"passed": False, "actual": "", "timed_out": True,
