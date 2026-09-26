@@ -690,11 +690,9 @@ nobody opens.
 
 ## Item types
 
-Eight types ship. The first five span familiarity through discrimination with
-uniform scoring across them. `short` is constructed response, and it is the one
-the machine refuses to mark. `visual` is the interactive assessment protocol
-from phase 06.1, and `check` runs the learner's own code with no model anywhere
-in the path.
+Nine types ship. `short` holds prose for review. `fill` checks declared text,
+numeric, and measurement fields. `visual` supports declarative interactions,
+and `check` runs the learner's own code. The runtime owns every settled score.
 
 | Type | Task |
 |---|---|
@@ -706,14 +704,43 @@ in the path.
 | `short` | type an answer in prose; never auto-graded, marked later against a rubric |
 | `visual` | interactive plot or number-line item; the scene and scoring envelope are declarative JSON parsed as data, never executed |
 | `check` | write and run your own code; scored against hidden cases, dichotomously, with no model anywhere in the path |
+| `fill` | complete one or several labeled fields using explicit accepted text, numeric tolerances, or authored unit conversions |
 
-**Scoring is dichotomous on every type.** Two of three correct scores zero. This
-is deliberate: a half mark hides the exact gap the item exists to find.
+**Automatic scoring is all or nothing.** Every field in a `fill` item must
+pass. Prose remains pending review. Partial credit requires a separate scoring
+and evidence contract.
 
 The authoring contract grows additively. A type or field that ships in a later
 phase is added to `itembank spec`, never documented here before it exists.
 
 Run `itembank spec` for the full contract with examples.
+
+## The `fill` item type
+
+Use one or several named fields when the objective calls for a term, number,
+or measurement. Keep explanations, proofs, and unrestricted prose as `short`.
+This synthetic example shows the field metadata inside an ordinary item:
+
+```text
+[TYPE: fill]
+[FIELDS: [{"id":"color","label":"Color","kind":"text","accepted":["blue","azure"],"case_sensitive":false,"whitespace":"trim"},{"id":"length","label":"Length","kind":"numeric","answer":"1","atol":"0.01","rtol":"0","unit":"m","units":{"m":"1","cm":"0.01"}}]]
+```
+
+The response is a mapping of stable field IDs to original strings, such as
+`{"color":"BLUE","length":"100 cm"}`. Text rules declare case and whitespace.
+Unicode normalization preserves accents. Numeric input accepts decimals,
+fractions, and scientific notation without evaluating expressions. Tolerance
+uses the greater of absolute tolerance and relative tolerance times the
+absolute target. The boundary is inclusive. Unit aliases and positive scales
+are authored explicitly. Unknown units are entry errors.
+
+The served quiz and JSON session grade these fields through the runtime.
+Missing or malformed fields remain editable without recording an attempt.
+The source contract bounds counts and lengths and requires single-line text.
+Numeric fill withholds automatic glossary definitions while keyed content is
+closed because a finite string filter cannot cover equivalent quantities.
+Static builds show a served-session requirement. GIFT and Anki export refuse
+this type until they can preserve its checking rules.
 
 ## The `check` item type
 
@@ -959,7 +986,8 @@ installers/               NSIS installer sources
 scripts/                  build/asset generators, the OCR helpers, and preflight.py
                           (preflight.py runs the CI gates locally before a push)
 src-tauri/                the desktop shell (Tauri over the Python sidecar)
-fixtures/sample_bank.md   synthetic, exercises six of the eight types, lints clean
+fixtures/sample_bank.md   synthetic, exercises six of the nine types, lints clean
+fixtures/fill_bank.md     synthetic text, numeric, unit, and Unicode field checks
 fixtures/broken_bank.md   deliberately defective; CI asserts lint catches each defect
 GRADING.md                how to mark an attempt file; hand this to your marker
 AGENTS.md                 agent on-ramp: layers, boundaries, authoring + tutoring loops

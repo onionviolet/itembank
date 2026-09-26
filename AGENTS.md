@@ -294,7 +294,7 @@ python itembank.py day plan.md          # the day cockpit across subjects
 ## The authoring loop (writing a bank)
 
 1. `python itembank.py spec` and follow the contract. Items are `Qn.` blocks
-   with `[OBJECTIVE:]`, `[TYPE:]` (mc/multi/table/build/dnd/short/visual),
+   with `[OBJECTIVE:]`, `[TYPE:]` (mc/multi/table/build/dnd/short/check/visual/fill),
    `CORRECT:`,
    `WHY BEST:`, `KEY DISCRIMINATOR:`, `DISTRACTOR ANALYSIS:`, `TRAP:`,
    `CONFIDENCE:`. A bank may carry one optional `## LESSON` section of teaching
