@@ -2562,7 +2562,15 @@ function asCheck(q, body, act, card){
   mount.setAttribute("role", "textbox");
   mount.setAttribute("aria-label", "Source code");
   mount.setAttribute("aria-multiline", "true");
-  const editor = CheckEditorBoot.create(mount, {starter: starter});
+  let storageKey = null;
+  let initialSource = starter;
+  try {
+    storageKey = draftKey((BOOT && BOOT.bank) || "", q.id);
+    const raw = localStorage.getItem(storageKey);
+    const saved = raw === null ? null : JSON.parse(raw);
+    if(Array.isArray(saved) && typeof saved[0] === "string") initialSource = saved[0];
+  } catch(e) { storageKey = null; }
+  const editor = CheckEditorBoot.create(mount, {starter: initialSource});
   const hintLine = document.createElement("div");
   hintLine.className = "hint";
   hintLine.textContent = "Tab inserts a tab, Shift-Tab dedents; the focused Check control activates with Enter or Space.";
@@ -2570,7 +2578,10 @@ function asCheck(q, body, act, card){
   const sync = ()=>{ submit.disabled = editor.isEmpty(); };
   const origDispatch = editor.getView().dispatch;
   editor.getView().dispatch = function(tr){
-    origDispatch.call(this, tr); sync();
+    origDispatch.call(this, tr);
+    if(storageKey) try{ localStorage.setItem(storageKey,
+      JSON.stringify([editor.getSource()])); }catch(e){}
+    sync();
   };
   sync();
   submit.onclick = ()=>{
@@ -2578,7 +2589,9 @@ function asCheck(q, body, act, card){
     submit.disabled = true;
     submit.textContent = "Running…";
     editor.setReadOnly(true);
-    settle(q, src, card, act, null, ()=>{
+    settle(q, src, card, act, ()=>{
+      if(storageKey) try{ localStorage.removeItem(storageKey); }catch(e){}
+    }, ()=>{
       submit.textContent = "Submit answer";
       editor.setReadOnly(false);
       act.appendChild(submit);
@@ -4297,19 +4310,23 @@ function installDraft(baseline){
     if(!store) return;
     var bank = (BOOT && BOOT.bank) || "", iid = baseline.dataset.itemId;
     if(!bank || !iid) return;
-    var form = baseline.querySelector("[data-answer-form]");
-    if(!form) return;
     var prefix = "itembank.draft." + bank + ".";
     var key = draftKey(bank, iid);
     for(var i = store.length - 1; i >= 0; i--){
       var k = store.key(i);
       if(k && k.indexOf(prefix) === 0 && k !== key) store.removeItem(k);
     }
+    if(baseline.hasAttribute("data-feedback-pause")){
+      store.removeItem(key);
+      return;
+    }
+    var form = baseline.querySelector("[data-answer-form]");
+    if(!form) return;
     var fields = form.querySelectorAll("textarea, input[type=text]");
-    var saved = null;
-    try{ saved = JSON.parse(store.getItem(key) || "null"); }catch(e){ saved = null; }
+    var saved = null, raw = store.getItem(key);
+    try{ saved = raw === null ? null : JSON.parse(raw); }catch(e){ saved = null; }
     fields.forEach(function(el, idx){
-      if(saved && !el.value && typeof saved[idx] === "string") el.value = saved[idx];
+      if(Array.isArray(saved) && typeof saved[idx] === "string") el.value = saved[idx];
     });
     form.addEventListener("input", function(){
       var vals = [];

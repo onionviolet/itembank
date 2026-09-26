@@ -221,8 +221,9 @@ def check_offline_build_page():
 def check_draft_is_served_only_and_presentation_only():
     """13.9-05 sitting fallout, 2026-08-25. Draft autosave is a served-page
     enhancement over the script-free baseline: it lives in SERVED_JS only,
-    touches only text controls, restores only into empty controls (the
-    server echo wins), and never joins a submit payload."""
+    touches only text controls, restores the latest unanswered local edit over
+    authored defaults or an earlier server echo, clears after acknowledged
+    submission, and never joins a submit payload."""
     js = served_js()
     if "function installDraft(" not in js:
         fail("SERVED_JS lacks the draft installer")
@@ -235,15 +236,20 @@ def check_draft_is_served_only_and_presentation_only():
         fail("ASSIST_JS must stay storage-free; the assist layer has no session")
     if 'querySelectorAll("textarea, input[type=text]")' not in js:
         fail("the draft must touch only text controls")
-    if "if(saved && !el.value" not in js:
-        fail("restore must only fill EMPTY controls, so a server echo wins")
+    if 'typeof saved[idx] === "string") el.value = saved[idx]' not in js:
+        fail("the latest local draft must replace authored defaults and stale server echoes")
+    if "raw === null ? null : JSON.parse(raw)" not in js:
+        fail("restore must distinguish no draft from a deliberately empty draft")
+    if 'baseline.hasAttribute("data-feedback-pause")' not in js or \
+            "store.removeItem(key);" not in js:
+        fail("an acknowledged native submission must clear its saved draft")
     if "installDraft(baseline);" not in js:
         fail("the installer must run on the server-baseline branch of start()")
     if "function draftKey(bank, itemId)" not in js:
         fail("drafts must be keyed by bank and item, not session; a restart re-mints the session id")
     if '"itembank.draft." + sid' in js:
         fail("drafts must be keyed by bank and item, not session; a restart re-mints the session id")
-    ok("draft autosave: served-only, text-only controls, empty-only restore, "
+    ok("draft autosave: served-only, text-only controls, latest-edit restore, "
        "keyed by bank and item so a restart cannot orphan it")
 
 

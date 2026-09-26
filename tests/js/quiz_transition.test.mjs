@@ -31,6 +31,41 @@ const options = [
   { key: "A", text: "Alpha" }, { key: "B", text: "Beta" },
   { key: "C", text: "Gamma" }, { key: "D", text: "Delta" },
 ];
+
+async function bootBaselineDraft(t, { saved, value, feedbackPause = false,
+  control = "textarea" }) {
+  const pause = feedbackPause ? " data-feedback-pause" : "";
+  const field = control === "input"
+    ? `<input type="text" name="fill_count" value="${value}">`
+    : `<textarea name="answer">${value}</textarea>`;
+  const baseline = `<div id="host"><div data-server-baseline${pause}
+    data-session-id="session" data-item-id="q1" data-response-type="check">
+    <form data-answer-form>${field}</form>
+    </div></div>`;
+  const html = pages.check[1].replace('<div id="host"></div>', baseline);
+  const errors = [];
+  let dispose;
+  const console = new VirtualConsole();
+  console.on("jsdomError", error => errors.push(error));
+  const dom = new JSDOM(html, {
+    url: "http://localhost/quiz/synthetic", runScripts: "dangerously",
+    pretendToBeVisual: true, virtualConsole: console,
+    beforeParse(win) {
+      dispose = win.close.bind(win);
+      win.scrollTo = () => {};
+      win.HTMLElement.prototype.scrollIntoView = () => {};
+      if (saved !== undefined) {
+        win.localStorage.setItem("itembank.draft.synthetic.q1", JSON.stringify([saved]));
+      }
+    },
+  });
+  t.after(() => {
+    dispose();
+    assert.deepEqual(errors.map(error => error.message), []);
+  });
+  await flush();
+  return dom;
+}
 const choice = (type = "mc", extra = {}) => ({
   id: "q1", type, stem: "Choose the synthetic response.", objective: "synthetic",
   options, response_schema: { select: type === "multi" ? 2 : 1 }, ...extra,
@@ -44,7 +79,8 @@ const complete = {
   next: { status: "complete", summary: { auto_attempts: 2, auto_correct: 1, pending_manual: 0 } },
 };
 
-async function boot(t, item, replies = [], { initial, next, teach, random = 0 } = {}) {
+async function boot(t, item, replies = [], { initial, next, teach, random = 0,
+  draft = undefined } = {}) {
   const requests = [];
   const errors = [];
   let submitIndex = 0;
@@ -60,6 +96,9 @@ async function boot(t, item, replies = [], { initial, next, teach, random = 0 } 
       win.scrollTo = () => {};
       win.HTMLElement.prototype.scrollIntoView = () => {};
       win.Math.random = () => random;
+      if (draft !== undefined) {
+        win.localStorage.setItem(`itembank.draft.synthetic.${item.id}`, JSON.stringify([draft]));
+      }
       const zero = { x: 0, y: 0, top: 0, left: 0, right: 0, bottom: 0, width: 0, height: 0 };
       win.Range.prototype.getBoundingClientRect = () => zero;
       win.Range.prototype.getClientRects = () => [];
@@ -320,6 +359,52 @@ const checkItem = {
   id: "q1", type: "check", stem: "Run this synthetic program.", starter: "print('hello')",
   interaction_contract: { renderer_config: { language: "python", hidden_case_count: 1 } },
 };
+
+test("saved code replaces the starter template and is submitted unchanged", async t => {
+  const page = await boot(t, checkItem, [complete], { draft: "print('saved draft')" });
+  await page.submit();
+  assert.deepEqual(page.answers(), ["print('saved draft')"]);
+});
+
+test("a deliberately empty saved code draft stays empty over the starter", async t => {
+  const page = await boot(t, checkItem, [], { draft: "" });
+  assert.equal(page.button().disabled, true);
+  page.button().click();
+  await flush();
+  assert.deepEqual(page.answers(), []);
+});
+
+test("a fresh code item still starts from its authored template", async t => {
+  const page = await boot(t, checkItem, [complete]);
+  await page.submit();
+  assert.deepEqual(page.answers(), ["print('hello')"]);
+});
+
+test("native reload restores saved code over a nonempty starter", async t => {
+  const dom = await bootBaselineDraft(t, {
+    saved: "print('saved draft')", value: "print('starter')",
+  });
+  assert.equal(dom.window.document.querySelector("textarea").value, "print('saved draft')");
+});
+
+test("native reload restores the latest fill edit over an earlier invalid echo", async t => {
+  const dom = await bootBaselineDraft(t, {
+    saved: "5/2", value: "two", control: "input",
+  });
+  assert.equal(dom.window.document.querySelector('input[type="text"]').value, "5/2");
+});
+
+test("native reload preserves a deliberately empty saved draft", async t => {
+  const dom = await bootBaselineDraft(t, { saved: "", value: "print('starter')" });
+  assert.equal(dom.window.document.querySelector("textarea").value, "");
+});
+
+test("acknowledged native submission clears its saved draft", async t => {
+  const dom = await bootBaselineDraft(t, {
+    saved: "print('submitted')", value: "", feedbackPause: true,
+  });
+  assert.equal(dom.window.localStorage.getItem("itembank.draft.synthetic.q1"), null);
+});
 
 test("code refusal metadata reaches the actual code-check controls", async t => {
   const page = await boot(t, checkItem, [{ refused: true, refused_reason: "language" }]);
