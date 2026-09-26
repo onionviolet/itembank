@@ -183,7 +183,10 @@ def run_source(language, source, stdin_text="",
 def run_cases(q, source, timeout_seconds=DEFAULT_TIMEOUT_SECONDS,
               max_output_bytes=DEFAULT_MAX_OUTPUT_BYTES, languages=None):
     """Run source once per authored case, in order, returning one result
-    dict per case: case_index, passed, actual, timed_out and truncated.
+    dict per case: case_index, passed, actual, stderr, exit_code, timed_out and
+    truncated. stdout and harness matches pass only after a successful process
+    exit, so matching output printed before a runtime error is diagnostic data,
+    never evidence of a correct execution.
 
     languages defaults to LANGUAGES; plan 05-03 passes settings-derived
     values in. A case that timed out carries timed_out True and passed False;
@@ -195,7 +198,8 @@ def run_cases(q, source, timeout_seconds=DEFAULT_TIMEOUT_SECONDS,
     Every plain (non-harness) case delegates its process invocation to
     `run_source()` -- the same primitive lesson observations use (plan
     09-05 D-09) -- so there is exactly one spawn/drain/timeout/cap/tree-clean
-    implementation. The comparison contract is unchanged.
+    implementation. The exact, trimmed and regex comparison modes are
+    unchanged.
     """
     languages = LANGUAGES if languages is None else languages
     lang = q.get("lang") or "python"
@@ -232,13 +236,16 @@ def run_cases(q, source, timeout_seconds=DEFAULT_TIMEOUT_SECONDS,
             out = run_source(lang, source, case.get("stdin", ""),
                              timeout_seconds, max_output_bytes, languages)
             passed = False
-            if not out["timed_out"] and not out["truncated"]:
+            if (not out["timed_out"] and not out["truncated"]
+                    and out["exit_code"] == 0):
                 passed = case_passed(q.get("match", "trimmed"),
                                      case.get("expected", ""), out["stdout"])
             results.append({
                 "case_index": i,
                 "passed": passed,
                 "actual": out["stdout"],
+                "stderr": out["stderr"],
+                "exit_code": out["exit_code"],
                 "timed_out": out["timed_out"],
                 "truncated": out["truncated"]})
     return results
@@ -248,12 +255,13 @@ def run_one_case(argv, case, match_mode, timeout_seconds, max_output_bytes):
     """Spawn one fresh interpreter for one stdin/stdout case. Each case gets
     its own subprocess so a hang consumes only that case's budget and a crash
     cannot contaminate the one after it."""
-    actual, _stderr, _code, timed_out, truncated = _spawn_and_drain(
+    actual, stderr, exit_code, timed_out, truncated = _spawn_and_drain(
         argv, case.get("stdin", ""), timeout_seconds, max_output_bytes)
     passed = False
-    if not timed_out and not truncated:
+    if not timed_out and not truncated and exit_code == 0:
         passed = case_passed(match_mode, case.get("expected", ""), actual)
     return {"passed": passed, "actual": actual,
+            "stderr": stderr, "exit_code": exit_code,
             "timed_out": timed_out, "truncated": truncated}
 
 
@@ -267,13 +275,14 @@ def run_harness_case(argv, case, func_name, tolerance, timeout_seconds,
     args = _parse_call(case.get("call") or case.get("stdin", ""))
     call_argv = argv[:2] + [driver_path, argv[2], func_name,
                             json.dumps(args)]
-    actual, _stderr, _code, timed_out, truncated = _spawn_and_drain(
+    actual, stderr, exit_code, timed_out, truncated = _spawn_and_drain(
         call_argv, "", timeout_seconds, max_output_bytes)
     passed = False
-    if not timed_out and not truncated:
+    if not timed_out and not truncated and exit_code == 0:
         passed = _harness_passed(case.get("expected", ""),
                                  _parse_emitted(actual), tolerance)
     return {"passed": passed, "actual": actual,
+            "stderr": stderr, "exit_code": exit_code,
             "timed_out": timed_out, "truncated": truncated}
 
 
@@ -425,7 +434,8 @@ def _spawn_and_drain(argv, stdin_text, timeout_seconds, max_output_bytes):
     reading to EOF finishes its own read instead of sitting out the deadline
     -- stdout and stderr drained on two threads (never sequentially, which is
     the pipe-buffer deadlock), and killed by deadline or output cap through
-    the one kill_tree path. Returns (stdout, timed_out, truncated)."""
+    the one kill_tree path. Returns stdout, stderr, exit status, timeout and
+    truncation observations."""
     global _last_job_error
     kwargs = {}
     job_handle = None
