@@ -2655,7 +2655,7 @@ VISUAL LINT CODES
   activity.missing_a11y_equivalent
                             error     no accessibility equivalence
   activity.unsupported_response_form
-                            warning   a response form outside the eight shipped
+                            warning   a response form outside the shipped
                                       types; the activity falls back
   lesson.authored_key_disclosure
                             warning   authored text shown before a response
@@ -2724,7 +2724,7 @@ ACTIVITY_FEEDBACK = ("immediate", "after_commitment", "staged",
 ACTIVITY_EVIDENCE_STATES = ("not_recorded", "activity_trace",
                             "scored_by_runtime", "pending_human_mark")
 
-# The eight shipped item types. ACTIVITY-01 warrants a ninth only when scoring
+# The shipped item types. ACTIVITY-01 warrants a new type only when scoring
 # semantics or response structure cannot be expressed safely, and none of the
 # ten purposes above needs one on its own: an activity declaration is metadata
 # beside a shipped form, never a new form. A response schema outside this
@@ -3964,8 +3964,8 @@ def lint(questions, lesson=LESSON_UNCHECKED, terms=TERMS_UNCHECKED,
                 errors.append(finding)
 
         if uses_check:
-            from runtime import supports_auto_score
-            if not supports_auto_score(t):
+            from runtime import supports_auto_verdict
+            if not supports_auto_verdict(t):
                 warnings.append(LintError(
                     "item.no_normalizer", "type", tag,
                     "%s items have no registered normalizer; their responses "
@@ -4406,7 +4406,7 @@ def lint(questions, lesson=LESSON_UNCHECKED, terms=TERMS_UNCHECKED,
                     "activity.unsupported_response_form", "activities",
                     "BANK",
                     "item %s declares response form %s, which is not one of "
-                    "the eight shipped forms; the activity falls back to its "
+                    "the shipped forms; the activity falls back to its "
                     "declared static equivalent" % (item, form or "''")))
 
     # Authored text shown BEFORE a response exists, checked against the one

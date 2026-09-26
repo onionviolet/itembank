@@ -122,7 +122,11 @@ def main():
     # phase 05's check behaviour -- a None canonical is never a False verdict
     # (timeout) -- is preserved below it.
     import hashlib, inspect
-    pinned = "7471f61b39d25c77090bd81b6ca5f2f42e2c7f921068097b203ffdd934be3514"
+    # answers-03 adds the fill branch under the existing scoring authority.
+    # Its accepted variants, exact arithmetic, units, and refusal boundaries
+    # are exercised by fill_roundtrip.py. Legacy and pending behavior above
+    # remains pinned independently of this intentional additive source change.
+    pinned = "1f7a27712445ce7cdbc836dbd90d43aa3e329ad5bcabcce5bad32299bffb604e"
     src = inspect.getsource(itembank.score_response)
     if hashlib.sha256(src.encode("utf-8")).hexdigest() != pinned:
         fail("T-R4-01: runtime.score_response drifted from its pinned source "

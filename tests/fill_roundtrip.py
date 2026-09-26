@@ -62,9 +62,9 @@ class FillContract(unittest.TestCase):
         warnings = [w for w in model.lint(items)[1] if w.code == "item.no_normalizer"]
         self.assertEqual(len(warnings), 1)
         self.assertIn("short items", str(warnings[0]))
-        self.assertTrue(runtime.supports_auto_score("visual"))
-        self.assertTrue(runtime.supports_auto_score("fill"))
-        self.assertFalse(runtime.supports_auto_score("short"))
+        self.assertTrue(runtime.supports_auto_verdict("visual"))
+        self.assertTrue(runtime.supports_auto_verdict("fill"))
+        self.assertFalse(runtime.supports_auto_verdict("short"))
 
     def test_text_rules_and_multiple_fields(self):
         q = self.items[0]
