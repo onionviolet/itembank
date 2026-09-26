@@ -868,6 +868,27 @@ def test_16b_groups_additive():
         fail("the pre-existing settings document has %d keys, baseline "
              "recorded %d; the change was not additive"
              % (len(preserved), count))
+    # `fill` is one additive response form inside an existing settings group.
+    # Pin that exact delta, then remove only that token before comparing the
+    # pre-fill compatibility hash. Excluding all of subject_profiles would
+    # let any unrelated profile drift pass unnoticed.
+    preserved = json.loads(json.dumps(preserved))
+    profiles = preserved.get("subject_profiles", {}).get("entries", {})
+    pre_fill_types = {
+        "emt": ["mc", "multi", "table", "dnd", "build", "short", "visual"],
+        "math": ["mc", "multi", "table", "dnd", "build", "short", "visual"],
+        "cs": ["check", "mc", "multi", "table", "dnd", "build", "short",
+               "visual"],
+    }
+    if set(profiles) != set(pre_fill_types):
+        fail("subject profile ids changed outside the additive fill contract: %r"
+             % sorted(profiles))
+    for profile_id, before in pre_fill_types.items():
+        current = profiles[profile_id].get("allowed_item_types")
+        if current != before + ["fill"]:
+            fail("subject profile %s changed by more than additive fill: %r"
+                 % (profile_id, current))
+        profiles[profile_id]["allowed_item_types"] = before
     now = hashlib.sha256(
         json.dumps(preserved, sort_keys=True).encode()).hexdigest()
     if now != digest:

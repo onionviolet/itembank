@@ -110,7 +110,7 @@ def check_vocabularies():
                                      "scored_by_runtime",
                                      "pending_human_mark"),
         "RESPONSE_FORMS": ("mc", "multi", "table", "dnd", "build", "short",
-                           "check", "visual"),
+                           "check", "visual", "fill"),
     }
     for name, want in expected.items():
         got = getattr(model, name)
