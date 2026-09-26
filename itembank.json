@@ -123,7 +123,8 @@
           "dnd",
           "build",
           "short",
-          "visual"
+          "visual",
+          "fill"
         ],
         "verifier": "runtime"
       },
@@ -144,7 +145,8 @@
           "dnd",
           "build",
           "short",
-          "visual"
+          "visual",
+          "fill"
         ],
         "verifier": "runtime"
       },
@@ -168,7 +170,8 @@
           "dnd",
           "build",
           "short",
-          "visual"
+          "visual",
+          "fill"
         ],
         "verifier": "check"
       }

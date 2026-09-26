@@ -23,7 +23,7 @@ MARKERS = (
     "ROW)", "ITEM)", "STEP)", "CASE)",
     "[TYPE:", "[OBJECTIVE:", "[SELECT:", "[CATEGORIES:", "[ID:", "[HASH:",
     "[LESSON-REF:", "[PAIR:", "[PREREQ:", "[LANG:", "[MATCH:", "[INPUT:",
-    "[HARNESS:", "[TOLERANCE:",
+    "[HARNESS:", "[TOLERANCE:", "[FIELDS:",
     "MODEL:", "RUBRIC:", "WHY BEST:", "STARTER:",
 )
 
@@ -55,6 +55,15 @@ FINGERPRINT_SEP = "\x1f"
 def grab(pattern, block, flags=0):
     m = re.search(pattern, block, flags)
     return m.group(1).strip() if m else ""
+
+
+def _unique_field_members(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate field member")
+        result[key] = value
+    return result
 
 
 def parse_bank(text):
@@ -177,6 +186,16 @@ def parse_question(ch):
             "tolerance": float(tol) if tol else None,
             "starter": starter, "notes": notes(ch)})
         return common
+
+    if qtype == "fill":
+        raw = grab(r"(?m)^\[FIELDS:\s*(.+?)\s*\]\s*$", ch)
+        try:
+            fields = (json.loads(raw, object_pairs_hook=_unique_field_members)
+                      if len(raw) <= 65536 else None)
+        except (ValueError, TypeError, RecursionError):
+            fields = None
+        common.update({"fields_raw": raw, "fields": fields, "notes": notes(ch)})
+        return common if stem else None
 
     if qtype == "short":
         # Constructed response. Nothing here is machine-gradable by design: the
@@ -1933,6 +1952,9 @@ def content_fingerprint(q):
     elif t == "build":
         for i, s in enumerate(q["steps"]):
             parts.append("step:%d=%s" % (i, collapse(s)))
+    elif t == "fill":
+        parts.append("fields=" + json.dumps(q.get("fields"), sort_keys=True,
+                                             separators=(",", ":")))
     elif t == "short":
         parts.append("model=" + collapse(q["model"]))
         for i, r in enumerate(q["rubric"]):
@@ -2252,7 +2274,7 @@ SHARED FIELDS (all types)
   item [ID:] -- an unresolvable target or a dependency cycle is a `lint`
   error (prov.case_unknown / prov.prereq_unknown / prov.prereq_cycle).
 
-THE EIGHT ITEM TYPES
+THE NINE ITEM TYPES
 
 1. Multiple choice.  Default. No TYPE line needed.
      A) ...  B) ...  C) ...  D) ...
@@ -2303,7 +2325,7 @@ THE EIGHT ITEM TYPES
     + _check_section()
     + r"""
 
-7. Visual assessment.  Interactive plot or number-line item (protocol integer 1,
+8. Visual assessment.  Interactive plot or number-line item (protocol integer 1,
    phase 06.1). The scene and the private scoring envelope are declarative JSON
    fields, parsed as data and never executed; the served runtime projects only
    the key-free scene, and `score_response()` is the only scorer.
@@ -2398,6 +2420,34 @@ THE EIGHT ITEM TYPES
    semantic HTML state/control path remains present and operable. Committed
    semantic actions and runtime observations are append-only evidence; raw
    pointer movement is never recorded.
+
+9. Typed completion. One or several text, number, or measurement fields.
+     [TYPE: fill]
+     [FIELDS: [{"id":"term","label":"Term","kind":"text","accepted":["blue","azure"],"case_sensitive":false,"whitespace":"trim"},{"id":"length","label":"Length","kind":"numeric","answer":"1","unit":"m","units":{"m":"1","cm":"0.01"},"atol":"0","rtol":"0"}]]
+   FIELDS is one JSON line with 1 to 16 objects and no duplicate members.
+   Each id is a unique lowercase letter followed by up to 31 lowercase
+   letters, digits, or underscores. Each label is 1 to 200 characters.
+   Response: {"term":"Blue","length":"100 cm"}. All fields must be correct.
+   Text accepts 1 to 32 explicit strings. NFC normalization preserves accents
+   and punctuation. case_sensitive defaults to true. whitespace defaults to
+   trim and may be exact, trim, or collapse. No synonyms are guessed.
+   Numeric answer, atol, rtol, and unit scales are strings, never JSON floats.
+   Decimal, signed integer fractions, and scientific notation parse exactly.
+   Numeric tokens have at most 128 characters and exponents from -100 to 100.
+   Accept when abs(response-answer) <= max(atol, rtol*abs(answer)), inclusive.
+   Tolerances default to zero and cannot be negative. NaN, infinity, arbitrary
+   expressions, locale commas, and zero denominators are refused.
+   Optional units maps 1 to 16 exact names to positive conversion scales.
+   The named base unit must have scale 1. Names have 1 to 24 visible characters
+   without spaces. A response must separate its number and unit with a space.
+   No prefixes, dimensions, affine conversions, or aliases are inferred.
+   Every response value is a nonempty string of at most 4096 characters.
+   Missing, extra, malformed, or blank fields are refused before an attempt.
+   The submitted strings stay in evidence. Every checking rule affects HASH.
+   Private accepted answers and numeric rules never enter the public item.
+   The served runtime and CLI grade fill. Static build explains that a running
+   session is needed and includes no fill key. Anki/GIFT conversion is refused
+   until it can preserve these rules. Prose and proofs still use short.
 
 DISTRACTOR ANALYSIS
   For mc and multi, one line per option, keyed by letter:
@@ -2676,7 +2726,7 @@ ACTIVITY_EVIDENCE_STATES = ("not_recorded", "activity_trace",
 # tuple is a WARNING with a declared static fallback, not a reason to add a
 # type.
 RESPONSE_FORMS = ("mc", "multi", "table", "dnd", "build", "short", "check",
-                  "visual")
+                  "visual", "fill")
 
 # The semantic profile a lesson document was authored against (D-16A-4,
 # PORT-01's "additive, versioned semantic profile"). A document declaring
@@ -3853,6 +3903,11 @@ def lint(questions, lesson=LESSON_UNCHECKED, terms=TERMS_UNCHECKED,
             if not q.get("notes"):
                 warnings.append(LintError("item.missing_distractor_notes", "notes", tag,
                                 "no DISTRACTOR ANALYSIS bullets"))
+
+        elif t == "fill":
+            from runtime import fill_spec_errors
+            for field, message in fill_spec_errors(q):
+                errors.append(LintError("item.fill_invalid", field, tag, message))
 
         elif t == "short":
             if not q.get("model"):

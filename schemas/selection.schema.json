@@ -22,7 +22,7 @@
     },
     "type": {
       "type": "string",
-      "enum": ["mc", "multi", "table", "dnd", "build", "short"],
+      "enum": ["mc", "multi", "table", "dnd", "build", "short", "fill"],
       "description": "The item type to select; plain equality against q[\"type\"]."
     },
     "type_counts": {
@@ -36,7 +36,8 @@
         "build": {"type": "integer", "minimum": 1},
         "short": {"type": "integer", "minimum": 1},
         "check": {"type": "integer", "minimum": 1},
-        "visual": {"type": "integer", "minimum": 1}
+        "visual": {"type": "integer", "minimum": 1},
+        "fill": {"type": "integer", "minimum": 1}
       },
       "description": "Exact item mix for a configurable exam sitting. Count must equal the sum."
     },

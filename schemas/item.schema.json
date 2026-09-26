@@ -35,7 +35,8 @@
         "build",
         "short",
         "check",
-        "visual"
+        "visual",
+        "fill"
       ]
     },
     "stem": {
@@ -89,6 +90,9 @@
     },
     {
       "$ref": "#/$defs/short_item"
+    },
+    {
+      "$ref": "#/$defs/fill_item"
     },
     {
       "$ref": "#/$defs/check_item"
@@ -225,6 +229,155 @@
         },
         "response_schema": {
           "$ref": "#/$defs/short_response_schema"
+        }
+      }
+    },
+    "fill_item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "id",
+        "number",
+        "type",
+        "stem",
+        "difficulty",
+        "fields",
+        "response_schema"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "id": {
+          "type": "string"
+        },
+        "number": {
+          "type": "integer"
+        },
+        "type": {
+          "const": "fill"
+        },
+        "stem": {
+          "type": "string"
+        },
+        "difficulty": {
+          "type": "string"
+        },
+        "lesson_slug": {
+          "type": "string"
+        },
+        "fields": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "oneOf": [
+              {
+                "$ref": "#/$defs/fill_text_field"
+              },
+              {
+                "$ref": "#/$defs/fill_numeric_field"
+              }
+            ]
+          }
+        },
+        "response_schema": {
+          "$ref": "#/$defs/fill_response_schema"
+        }
+      }
+    },
+    "fill_text_field": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "label",
+        "kind",
+        "case_sensitive",
+        "whitespace"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "const": "text"
+        },
+        "case_sensitive": {
+          "type": "boolean"
+        },
+        "whitespace": {
+          "enum": [
+            "exact",
+            "trim",
+            "collapse"
+          ]
+        }
+      }
+    },
+    "fill_numeric_field": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "label",
+        "kind"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "const": "numeric"
+        },
+        "units": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "fill_response_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "required",
+        "values",
+        "additional_properties"
+      ],
+      "properties": {
+        "type": {
+          "const": "object"
+        },
+        "required": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "values": {
+          "const": "string"
+        },
+        "additional_properties": {
+          "const": false
         }
       }
     },

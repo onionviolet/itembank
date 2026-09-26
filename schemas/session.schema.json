@@ -303,7 +303,7 @@
         },
         "type": {
           "type": "string",
-          "enum": ["mc", "multi", "table", "dnd", "build", "short"]
+          "enum": ["mc", "multi", "table", "dnd", "build", "short", "fill"]
         },
         "answer": {
           "description": "The learner's raw response, shaped per item type -- a string, an array, or an object"

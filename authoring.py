@@ -130,10 +130,10 @@ def validate_request(request):
     if not isinstance(types, list) or not types:
         findings.append({"code": "request.item_types",
                          "message": "request needs a non-empty item_types list"})
-    elif not all(t in ("mc", "multi", "table", "build", "dnd", "short")
+    elif not all(t in ("mc", "multi", "table", "build", "dnd", "short", "fill")
                  for t in types):
         findings.append({"code": "request.item_type_invalid",
-                         "message": "item_types may contain only mc/multi/table/build/dnd/short"})
+                         "message": "item_types may contain only mc/multi/table/build/dnd/short/fill"})
     citations = request.get("citations")
     if not isinstance(citations, list) or not citations:
         findings.append({"code": "request.citations",

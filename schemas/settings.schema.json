@@ -1172,7 +1172,8 @@
               "dnd",
               "build",
               "short",
-              "visual"
+              "visual",
+              "fill"
             ],
             "verifier": "runtime"
           },
@@ -1193,7 +1194,8 @@
               "dnd",
               "build",
               "short",
-              "visual"
+              "visual",
+              "fill"
             ],
             "verifier": "runtime"
           },
@@ -1217,7 +1219,8 @@
               "dnd",
               "build",
               "short",
-              "visual"
+              "visual",
+              "fill"
             ],
             "verifier": "check"
           }
@@ -1325,7 +1328,8 @@
                     "dnd",
                     "build",
                     "short",
-                    "visual"
+                    "visual",
+                    "fill"
                   ],
                   "x-itembank-phase": 9,
                   "description": "Item types this subject's sitting may contain; the shared runtime item types, no check."
@@ -1431,7 +1435,8 @@
                     "dnd",
                     "build",
                     "short",
-                    "visual"
+                    "visual",
+                    "fill"
                   ],
                   "x-itembank-phase": 9,
                   "description": "Item types this subject's sitting may contain; the shared runtime item types, no check."
@@ -1540,7 +1545,8 @@
                     "dnd",
                     "build",
                     "short",
-                    "visual"
+                    "visual",
+                    "fill"
                   ],
                   "x-itembank-phase": 9,
                   "description": "Item types this subject's sitting may contain; CS alone permits the Phase 5 check type alongside the shared runtime types."

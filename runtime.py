@@ -9,7 +9,7 @@ It also draws the line the whole tool rests on: `public_item` is what a learner
 may see before answering and `explain_payload` is what they may see after. A
 surface that wants more than the first one has to ask.
 """
-import collections, fractions, hashlib, json, os, re, sys
+import collections, fractions, hashlib, json, os, re, sys, unicodedata
 
 
 # ---- agent assessment runtime ----------------------------------------------
@@ -60,6 +60,22 @@ def public_item(q, shuffle_seed=0):
         random.Random(shuffle_seed).shuffle(steps)
         out["steps"] = steps
         out["response_schema"] = {"type": "array", "items": "step text", "ordered": True}
+    elif q["type"] == "fill":
+        errors = fill_spec_errors(q)
+        if errors:
+            raise ValueError("invalid fill item: " + errors[0][1])
+        out["fields"] = []
+        for field in q["fields"]:
+            entry = {key: field[key] for key in ("id", "label", "kind")}
+            if field["kind"] == "text":
+                entry.update(case_sensitive=field.get("case_sensitive", True),
+                             whitespace=field.get("whitespace", "trim"))
+            elif field.get("units"):
+                entry["units"] = list(field["units"])
+            out["fields"].append(entry)
+        out["response_schema"] = {
+            "type": "object", "required": [f["id"] for f in q["fields"]],
+            "values": "string", "additional_properties": False}
     elif q["type"] == "short":
         input_format = q.get("input_format") or "plain"
         out["input_format"] = input_format
@@ -272,6 +288,14 @@ def canonical_response(q, answer):
     """
     answer = normalize_answer(answer)
     t = q["type"]
+    if t == "fill":
+        if fill_response_error(q, answer):
+            return ""
+        values = {f["id"]: (_fill_text(f, answer[f["id"]])
+                           if f["kind"] == "text"
+                           else str(_fill_quantity(f, answer[f["id"]])))
+                  for f in q["fields"]}
+        return json.dumps(values, sort_keys=True, ensure_ascii=False)
     if t == "visual":
         state = canonical_visual_response(q, answer)
         if state is None:
@@ -286,6 +310,8 @@ def canonical_response(q, answer):
 def canonical_key(q):
     """The canonical response that is correct, in the same shape as the above."""
     t = q["type"]
+    if t == "fill":
+        return None  # alternatives and intervals have no single canonical key
     if t == "visual":
         # The accepted-state set, canonicalized -- used by the static/offline
         # page_item() path (which holds a key by design) and by nothing else:
@@ -315,6 +341,23 @@ def score_response(q, answer):
     credit, no client authority input, and invalid responses are rejected
     (False), never approximated.
     """
+    if q["type"] == "fill":
+        if fill_response_error(q, answer):
+            return False
+        answer = normalize_answer(answer)
+        for field in q["fields"]:
+            raw = answer[field["id"]]
+            if field["kind"] == "text":
+                if _fill_text(field, raw) not in [
+                        _fill_text(field, value) for value in field["accepted"]]:
+                    return False
+            else:
+                target = fill_number(field["answer"])
+                tolerance = max(fill_number(field.get("atol", "0")),
+                                abs(target) * fill_number(field.get("rtol", "0")))
+                if abs(_fill_quantity(field, raw) - target) > tolerance:
+                    return False
+        return True
     key = canonical_key(q)
     if key is None:
         return None
@@ -324,6 +367,146 @@ def score_response(q, answer):
     if canon is None:
         return None          # a None canonical is not a False verdict (check timeout)
     return canon == key
+
+
+# ---- typed completion values ----------------------------------------------
+
+def fill_number(raw):
+    """Parse a bounded numeric literal exactly, without evaluating code."""
+    if not isinstance(raw, str) or not 1 <= len(raw) <= 128:
+        raise ValueError("use a number of at most 128 characters")
+    raw = raw.strip()
+    if re.fullmatch(r"[+-]?[0-9]+/[+-]?[0-9]+", raw):
+        numerator, denominator = raw.split("/")
+        if int(denominator) == 0:
+            raise ValueError("a fraction cannot have a zero denominator")
+        return fractions.Fraction(int(numerator), int(denominator))
+    if not re.fullmatch(r"[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]{1,3})?", raw):
+        raise ValueError("use a decimal, fraction, or scientific number")
+    exponent = re.search(r"[eE]([+-]?[0-9]+)$", raw)
+    if exponent and abs(int(exponent.group(1))) > 100:
+        raise ValueError("scientific exponents must be between -100 and 100")
+    return fractions.Fraction(raw)
+
+
+def _fill_text(field, raw):
+    value = unicodedata.normalize("NFC", raw)
+    whitespace = field.get("whitespace", "trim")
+    if whitespace == "trim":
+        value = value.strip()
+    elif whitespace == "collapse":
+        value = " ".join(value.split())
+    return value if field.get("case_sensitive", True) else unicodedata.normalize("NFC", value.casefold())
+
+
+def _fill_quantity(field, raw):
+    raw = raw.strip()
+    if field.get("units"):
+        parts = raw.rsplit(None, 1)
+        if len(parts) != 2 or parts[1] not in field["units"]:
+            raise ValueError("include an allowed unit after the number")
+        return fill_number(parts[0]) * fill_number(field["units"][parts[1]])
+    return fill_number(raw)
+
+
+def fill_spec_errors(q):
+    """Validate authored field data for both model lint and runtime entry."""
+    fields = q.get("fields")
+    if not isinstance(fields, list) or not 1 <= len(fields) <= 16:
+        return [("fields", "FIELDS must be a JSON array of 1 to 16 fields")]
+    errors, seen = [], set()
+    for index, field in enumerate(fields):
+        path = "fields.%d" % index
+        def fail(message, member=""):
+            errors.append((path + ("." + member if member else ""), message))
+        if not isinstance(field, dict):
+            fail("each field must be an object")
+            continue
+        ident = field.get("id")
+        if (not isinstance(ident, str)
+                or not re.fullmatch(r"[a-z][a-z0-9_]{0,31}", ident)
+                or ident in ("constructor", "prototype") or ident in seen):
+            fail("field IDs must be unique lowercase names of at most 32 characters", "id")
+        if isinstance(ident, str):
+            seen.add(ident)
+        label = field.get("label")
+        if not isinstance(label, str) or not label.strip() or len(label) > 200:
+            fail("each field needs a nonempty label of at most 200 characters", "label")
+        kind = field.get("kind")
+        common = {"id", "label", "kind"}
+        allowed = (common | {"accepted", "case_sensitive", "whitespace"} if kind == "text"
+                   else common | {"answer", "atol", "rtol", "unit", "units"})
+        if kind not in ("text", "numeric"):
+            fail("field kind must be text or numeric", "kind")
+            continue
+        if set(field) - allowed:
+            fail("unknown field members: " + ", ".join(sorted(set(field) - allowed)))
+        if kind == "text":
+            if type(field.get("case_sensitive", True)) is not bool:
+                fail("case_sensitive must be true or false", "case_sensitive")
+            if field.get("whitespace", "trim") not in ("exact", "trim", "collapse"):
+                fail("whitespace must be exact, trim, or collapse", "whitespace")
+            accepted = field.get("accepted")
+            if not isinstance(accepted, list) or not 1 <= len(accepted) <= 32:
+                fail("accepted must contain 1 to 32 strings", "accepted")
+            else:
+                for value in accepted:
+                    if (not isinstance(value, str) or not value.strip()
+                            or len(value) > 4096):
+                        fail("accepted answers must be nonempty strings up to 4096 characters",
+                             "accepted")
+                if all(isinstance(value, str) for value in accepted):
+                    canonical = [_fill_text(field, value) for value in accepted]
+                    if len(canonical) != len(set(canonical)):
+                        fail("accepted answers duplicate after normalization", "accepted")
+        else:
+            for member in ("answer", "atol", "rtol"):
+                try:
+                    number = fill_number(field.get(member, "0") if member != "answer"
+                                         else field.get(member))
+                    if member != "answer" and number < 0:
+                        raise ValueError("tolerances cannot be negative")
+                except ValueError as exc:
+                    fail(str(exc), member)
+            if "unit" in field or "units" in field:
+                units = field.get("units")
+                unit = field.get("unit")
+                if (not isinstance(units, dict) or not 1 <= len(units) <= 16
+                        or not isinstance(unit, str) or unit not in units):
+                    fail("units needs 1 to 16 named scales including the base unit", "units")
+                else:
+                    for name, scale in units.items():
+                        if (not isinstance(name, str) or not 1 <= len(name) <= 24
+                                or any(c.isspace() or not c.isprintable() for c in name)):
+                            fail("unit names must be 1 to 24 visible characters without spaces",
+                                 "units")
+                        try:
+                            number = fill_number(scale)
+                            if number <= 0 or (name == unit and number != 1):
+                                raise ValueError("unit scales must be positive and the base scale must be 1")
+                        except ValueError as exc:
+                            fail(str(exc), "units")
+    return errors
+
+
+def fill_response_error(q, answer):
+    """Return an entry error without disclosing accepted answers."""
+    if fill_spec_errors(q):
+        return "This item's answer fields need author review."
+    answer = normalize_answer(answer)
+    ids = {field["id"] for field in q["fields"]}
+    if not isinstance(answer, dict) or set(answer) != ids:
+        return "Complete every answer field without adding extra fields."
+    for field in q["fields"]:
+        value = answer[field["id"]]
+        if not isinstance(value, str) or not value.strip() or len(value) > 4096:
+            return "%s: enter a nonempty answer of at most 4096 characters." % field["label"]
+        if field["kind"] == "numeric":
+            try:
+                _fill_quantity(field, value)
+            except ValueError as exc:
+                return "%s: %s." % (field["label"], str(exc))
+    return ""
 
 
 # ---- visual assessment protocol (plan 06.1-01) ------------------------------
@@ -1571,6 +1754,11 @@ def answer_text(q):
         return "; ".join("%s -> %s" % (r["text"], r["cat"]) for r in q["rows"])
     if q["type"] == "build":
         return " -> ".join(q["steps"])
+    if q["type"] == "fill":
+        return "\n".join("%s: %s" % (
+            field["label"], " / ".join(field["accepted"]) if field["kind"] == "text"
+            else field["answer"] + (" " + field["unit"] if field.get("unit") else ""))
+            for field in q.get("fields") or [])
     if q["type"] == "check":
         # No keyed option and no model answer; describe what the item asks in
         # the same terse voice the other branches use. Never the case inputs
@@ -1651,6 +1839,16 @@ def glossable(qs, term):
         t = q["type"]
         if t in ("mc", "multi"):
             frags = [q["opts"][c] for c in q["correct"]]
+        elif t == "fill":
+            frags = []
+            for field in q.get("fields") or []:
+                frags.extend(field.get("accepted") or [])
+                if field.get("kind") == "numeric":
+                    frags.append(field.get("answer", ""))
+            # A one-character typed key is content, not an MC option label.
+            # Retain the conservative substring check for this form.
+            if any(_collapse(frag) in definition for frag in frags if _collapse(frag)):
+                return False
         elif t == "short":
             frags = [q.get("model", "")]
         elif t == "build":
@@ -1727,6 +1925,11 @@ def response_text(q, answer):
     """
     answer = normalize_answer(answer)
     t = q["type"]
+    if t == "fill":
+        if not isinstance(answer, dict):
+            return ""
+        return "\n".join("%s: %s" % (f["label"], answer.get(f["id"], ""))
+                         for f in q["fields"])
     if t == "short":
         return str(answer or "")
     if t in ("mc", "multi"):
@@ -1829,7 +2032,7 @@ def page_item(q, reveal=True, offline=False):
     OFFLINE_JS client renders the honest served-runtime-required state.
     """
     out = public_item(q)
-    if q["type"] == "visual" and offline:
+    if q["type"] in ("visual", "fill") and offline:
         out["served_required"] = True
         out.pop("key", None)
         return out
@@ -2205,6 +2408,10 @@ def teaching_transition(session, q, action, evidence_state=None):
 
     # kind == "submit"
     answer = normalize_answer(action.get("answer"))
+    if q["type"] == "fill":
+        error = fill_response_error(q, answer)
+        if error:
+            sys.exit(error)
     canon = _idempotent_canon(q, answer)
     genuine = bool(canon) and canon != rec["last_genuine_canonical"]
     score = score_response(q, answer)

@@ -426,7 +426,7 @@ def select(questions, spec, history, cooldown=None, decay=None, *,
             sys.exit("type_counts requires exam selection without type or pair")
         if not isinstance(type_counts, dict) or not type_counts or any(
                 name not in ("mc", "multi", "table", "dnd", "build",
-                             "short", "check", "visual") or
+                             "short", "check", "visual", "fill") or
                 not isinstance(amount, int) or isinstance(amount, bool) or amount < 1
                 for name, amount in type_counts.items()):
             sys.exit("type_counts must map supported item types to positive counts")

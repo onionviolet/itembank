@@ -251,7 +251,7 @@
         },
         "item_type": {
           "type": "string",
-          "enum": ["mc", "multi", "table", "dnd", "build", "short", "check", "visual"]
+          "enum": ["mc", "multi", "table", "dnd", "build", "short", "check", "visual", "fill"]
         },
         "bank": {
           "type": "string",

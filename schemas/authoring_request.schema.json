@@ -40,7 +40,7 @@
       "type": "array",
       "items": {
         "type": "string",
-        "enum": ["mc", "multi", "table", "build", "dnd", "short"]
+        "enum": ["mc", "multi", "table", "build", "dnd", "short", "fill"]
       },
       "minItems": 1,
       "description": "The allowed item types; every response item type must be a member."
