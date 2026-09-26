@@ -2447,6 +2447,9 @@ THE NINE ITEM TYPES
    Missing, extra, malformed, or blank fields are refused before an attempt.
    The submitted strings stay in evidence. Every checking rule affects HASH.
    Private accepted answers and numeric rules never enter the public item.
+   Automatic glossary definitions are withheld during numeric fill questions:
+   equivalent quantities and tolerance intervals cannot be checked safely by
+   matching a finite list of answer strings in free prose.
    The served runtime and CLI grade fill. Static build explains that a running
    session is needed and includes no fill key. Anki/GIFT conversion is refused
    until it can preserve these rules. Prose and proofs still use short.

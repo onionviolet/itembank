@@ -142,6 +142,18 @@ class FillContract(unittest.TestCase):
         self.assertIn("Rod length: 100 cm",
                       runtime.response_text(self.items[1], {"length": "100 cm"}))
 
+    def test_glossary_uses_text_equivalence_and_withholds_numeric_definitions(self):
+        text = copy.deepcopy(self.items[2])
+        self.assertFalse(runtime.glossable([text], {"def": "The name is cafe\u0301."}))
+        self.assertTrue(runtime.glossable([text], {"def": "A fictional place name."}))
+        text["fields"][0].update(accepted=["Straße"], case_sensitive=False)
+        self.assertFalse(runtime.glossable([text], {"def": "The answer is STRASSE."}))
+        quantity = copy.deepcopy(self.items[1])
+        quantity["fields"][0]["answer"] = "0.5"
+        self.assertTrue(runtime.score_response(quantity, {"length": "50 cm"}))
+        for definition in ("The answer is 50 cm.", "Use 1/2 m.", "An unrelated word."):
+            self.assertFalse(runtime.glossable([quantity], {"def": definition}))
+
     def test_cli_evidence_and_malformed_refusal(self):
         def run(*args, ok=True):
             result = subprocess.run([sys.executable, str(ROOT / "itembank.py"),

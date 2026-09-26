@@ -157,11 +157,13 @@ def _check_observation(q, index, case_result):
         reason = "timeout"
     elif truncated:
         reason = "output_cap"
+    elif case_result.get("exit_code") not in (None, 0):
+        reason = "runtime_error"
     elif case_result.get("passed"):
         reason = "passed"
     else:
         reason = "wrong_output"
-    return {
+    observation = {
         "case_index": index + 1,
         "passed": bool(case_result.get("passed")),
         "reason": reason,
@@ -170,6 +172,10 @@ def _check_observation(q, index, case_result):
         "expected_kind": "pattern" if q.get("match") == "regex" else "output",
         "input": case.get("call") if q.get("harness") else case.get("stdin", ""),
     }
+    if reason == "runtime_error":
+        observation["exit_code"] = case_result["exit_code"]
+        observation["stderr"] = case_result.get("stderr", "")
+    return observation
 
 
 def normalize_answer(answer):
@@ -1855,9 +1861,17 @@ def glossable(qs, term):
         elif t == "fill":
             frags = []
             for field in q.get("fields") or []:
-                frags.extend(field.get("accepted") or [])
                 if field.get("kind") == "numeric":
-                    frags.append(field.get("answer", ""))
+                    # A tolerance interval and converted quantities have many
+                    # equivalent spellings. Free prose cannot be proven free
+                    # of these answers by matching a finite fragment list.
+                    return False
+                candidate = _fill_text(field, raw_definition)
+                for accepted in field.get("accepted") or []:
+                    fragment = _fill_text(field, accepted)
+                    if fragment and fragment in candidate:
+                        return False
+                frags.extend(field.get("accepted") or [])
             # A one-character typed key is content, not an MC option label.
             # Retain the conservative substring check for this form.
             if any(_collapse(frag) in definition for frag in frags if _collapse(frag)):

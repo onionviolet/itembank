@@ -66,6 +66,17 @@ def check_matching_output_then_error_fails():
         fail("runtime error diagnostic was not retained: %r" % case)
     if runtime.score_response(output_question(), [case]) is not False:
         fail("runtime error did not reduce to a settled false verdict")
+    observation = runtime._check_observation(output_question(), 0, case)
+    if observation["reason"] != "runtime_error" or observation["exit_code"] == 0:
+        fail("matching output crash was mislabeled as wrong output: %r" % observation)
+    if "RuntimeError" not in observation["stderr"]:
+        fail("released crash observation lost its diagnostic: %r" % observation)
+    feedback = {"interaction_result": {"observations": [observation]}}
+    if runtime.submission_feedback(feedback, "practice") != feedback:
+        fail("practice lost released diagnostics")
+    for mode in ("exam", "diagnostic"):
+        if runtime.submission_feedback(feedback, mode):
+            fail("silent mode leaked crash diagnostics")
 
 
 def check_success_and_silent_crash():
