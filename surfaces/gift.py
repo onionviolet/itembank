@@ -201,6 +201,12 @@ def gift_item(q, errors, warnings, strict=False):
             "GIFT equivalent -- not exported" %
             (GIFT_TYPE_UNSUPPORTED, q["number"]))
         return None
+    if t == "fill":
+        errors.append(
+            "%s: Q%d: type 'fill' (typed text/numeric fields) has no GIFT "
+            "equivalent -- not exported" %
+            (GIFT_TYPE_UNSUPPORTED, q["number"]))
+        return None
     field = unexpressible_field(q)
     if field is not None:
         errors.append(

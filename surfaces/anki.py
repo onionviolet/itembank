@@ -99,6 +99,9 @@ def cmd_export(a):
     if not a.out:
         sys.exit("usage: itembank export BANK OUT --format basic|cloze|gift")
     qs = load(a.bank)
+    if any(q.get("type") == "fill" for q in qs):
+        sys.exit("export.fill_unsupported: typed fill rules cannot be preserved "
+                 "in Basic or Cloze export")
     errors, _ = lint(qs)
     if errors and not a.force:
         sys.exit("refusing to export a bank with errors; fix them or pass --force")

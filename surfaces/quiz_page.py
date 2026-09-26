@@ -43,7 +43,7 @@ RESPONSE_FORMAT_LABELS = {
     "mc": "Single choice", "multi": "Multiple choice",
     "table": "Table response", "build": "Build response",
     "dnd": "Ordering or matching", "short": "Short response",
-    "visual": "Visual interaction", "check": "Code check",
+    "fill": "Typed fields", "visual": "Visual interaction", "check": "Code check",
 }
 RESPONSE_FORMAT_INSTRUCTIONS = {
     "mc": "Choose one option.",
@@ -52,6 +52,7 @@ RESPONSE_FORMAT_INSTRUCTIONS = {
     "build": "Select every step in the order it should happen.",
     "dnd": "Match every row to a category. Dragging is not required.",
     "short": "Write your response. It stays pending until a marker reviews it.",
+    "fill": "Enter a response in every field. Include a unit when the label asks for one.",
     "visual": "Use the visual or its adjacent keyboard controls, then submit.",
     "check": "Edit the source, then run the check. The runtime records the verdict.",
 }
@@ -171,6 +172,15 @@ h1.stem{font-size:32px;font-weight:600;line-height:1.2;margin:0 0 14px;
   font:inherit;font-size:16px;padding:8px 12px;border:1px solid var(--edge);
   border-radius:8px;background:var(--card);color:inherit}
 .response-body{min-width:0;max-width:100%;overflow-wrap:anywhere}
+.fill-fields{display:grid;gap:12px;margin:4px 0}
+.fill-field{display:grid;gap:5px;font-family:var(--font-paper)}
+.fill-help{color:var(--mut);font:16px/1.4 var(--font-chrome)}
+.fill-field input{width:100%;min-width:0;min-height:44px;box-sizing:border-box;
+  font:inherit;font-size:16px;padding:8px 12px;border:1px solid var(--edge);
+  border-radius:8px;background:var(--card);color:inherit}
+.fill-field input:focus{outline:2px solid var(--accent);outline-offset:1px;
+  border-color:var(--accent)}
+.fill-field input:disabled{opacity:.75}
 .response-table,.response-dnd,.response-visual,.response-check{
   max-width:100%;overflow-x:auto;overscroll-behavior-inline:contain}
 .seg{display:flex;gap:5px;flex-wrap:wrap}
@@ -1069,6 +1079,36 @@ def _form_controls(item, prefill=None):
         return ('<div class="pend" role="note">This visual response needs the '
                 'interactive page. Enable JavaScript, then reload this item. '
                 'No response has been recorded.</div>')
+    if t == "fill":
+        rows = []
+        for field in item.get("fields") or []:
+            field_id = str(field.get("id", ""))
+            label = str(field.get("label", field_id))
+            name = "fill_" + field_id
+            value = _prefilled(prefill, name)
+            if field.get("kind") == "text":
+                case = ("Case matters." if field.get("case_sensitive", True)
+                        else "Uppercase and lowercase are treated the same.")
+                whitespace = {
+                    "exact": "Spaces count exactly as typed.",
+                    "collapse": "Repeated spaces are treated as one.",
+                    "trim": "Leading and trailing spaces are ignored.",
+                }.get(field.get("whitespace", "trim"), "")
+                help_text = "%s %s" % (case, whitespace)
+            else:
+                help_text = "Enter a decimal, fraction, or scientific number."
+                units = field.get("units") or []
+                if units:
+                    help_text += " Add a space, then one of: %s." % ", ".join(
+                        str(unit) for unit in units)
+            rows.append(
+                '<label class="fill-field"><span>%s</span>'
+                '<span class="fill-help">%s</span>'
+                '<input type="text" name="%s" value="%s" autocomplete="off" '
+                'inputmode="text" maxlength="4096"></label>' %
+                (html.escape(label), html.escape(help_text), html.escape(name, quote=True),
+                 html.escape(value, quote=True)))
+        return '<div class="fill-fields">%s</div>' % "".join(rows)
     label = "Code response" if t == "check" else "Your response"
     value = _prefilled(prefill, "answer")
     if t == "check" and not value:
@@ -1303,17 +1343,18 @@ const LESSON_LABEL = "__LESSON_LABEL__";
 const LETTERS = "ABCDEFGH";
 const LABEL = {mc:"multiple choice", multi:"multiple response",
                table:"options table", build:"build list", dnd:"drag-and-drop",
-               short:"short answer", check:"code check",
+               short:"short answer", fill:"typed fields", check:"code check",
                visual:"visual assessment"};
 const FORMAT_LABEL = {mc:"Single choice", multi:"Multiple choice",
   table:"Table response", build:"Build response", dnd:"Ordering or matching",
-  short:"Short response", visual:"Visual interaction", check:"Code check"};
+  short:"Short response", fill:"Typed fields", visual:"Visual interaction", check:"Code check"};
 const FORMAT_INSTRUCTION = {mc:"Choose one option.",
   multi:"Choose the requested number of options.",
   table:"Choose one category for every row.",
   build:"Select every step in the order it should happen.",
   dnd:"Match every row to a category. Dragging is not required.",
   short:"Write your response. It stays pending until a marker reviews it.",
+  fill:"Enter a response in every field. Include a unit when the label asks for one.",
   visual:"Use the visual or its adjacent keyboard controls, then submit.",
   check:"Edit the source, then run the check. The runtime records the verdict."};
 const FS = "\u001f", PS = "\u001e";   /* must match FIELD_SEP and PAIR_SEP */
@@ -1450,7 +1491,7 @@ function render(){
   host.innerHTML = "";
   host.appendChild(card);
   ({mc:asChoice, multi:asChoice, table:asAssign, dnd:asAssign, build:asBuild,
-    short:asShort, check:asCheck, visual:asVisualOffline}[q.type])(q, body, act, card);
+    short:asShort, fill:asFillOffline, check:asCheck, visual:asVisualOffline}[q.type])(q, body, act, card);
   scrollCardIfNeeded(card);
 }
 
@@ -1467,6 +1508,61 @@ function asVisualOffline(q, body, act, card){
     + "scoring and answer protection happen there. Open it with itembank serve "
     + "or the daemon.";
   body.appendChild(note);
+}
+
+function fillFields(q, body){
+  const controls = {};
+  const wrap = document.createElement("div");
+  wrap.className = "fill-fields";
+  (q.fields || []).forEach(field=>{
+    const label = document.createElement("label");
+    label.className = "fill-field";
+    const text = document.createElement("span");
+    text.textContent = field.label || field.id;
+    const help = document.createElement("span");
+    help.className = "fill-help";
+    if(field.kind === "text"){
+      const caseRule = field.case_sensitive === false
+        ? "Uppercase and lowercase are treated the same."
+        : "Case matters.";
+      const spaceRule = field.whitespace === "exact"
+        ? "Spaces count exactly as typed."
+        : (field.whitespace === "collapse"
+          ? "Repeated spaces are treated as one."
+          : "Leading and trailing spaces are ignored.");
+      help.textContent = caseRule + " " + spaceRule;
+    } else {
+      help.textContent = "Enter a decimal, fraction, or scientific number."
+        + ((field.units || []).length
+          ? " Add a space, then one of: " + field.units.join(", ") + "."
+          : "");
+    }
+    const input = document.createElement("input");
+    input.type = "text";
+    input.inputMode = "text";
+    input.autocomplete = "off";
+    input.maxLength = 4096;
+    input.name = "fill_" + field.id;
+    label.append(text, help, input);
+    wrap.appendChild(label);
+    controls[String(field.id)] = input;
+  });
+  body.appendChild(wrap);
+  return controls;
+}
+
+function asFillOffline(q, body, act, card){
+  fillFields(q, body);
+  const note = document.createElement("div");
+  note.className = "status";
+  note.setAttribute("role", "note");
+  note.textContent = "This typed response needs a served itembank session because "
+    + "the runtime checks text rules, numeric values, and units. Open it with "
+    + "itembank serve or the daemon.";
+  body.appendChild(note);
+  const submit = mkSubmit(act, "served runtime required");
+  submit.disabled = true;
+  submit.textContent = "Serve to check response";
 }
 
 /* ---- multiple choice (native radio) + multiple response (native checkboxes) */
@@ -1905,17 +2001,18 @@ const LESSON_LABEL = "__LESSON_LABEL__";
 const LETTERS = "ABCDEFGH";
 const LABEL = {mc:"multiple choice", multi:"multiple response",
                table:"options table", build:"build list", dnd:"drag-and-drop",
-               short:"short answer", check:"code check",
+               short:"short answer", fill:"typed fields", check:"code check",
                visual:"visual assessment"};
 const FORMAT_LABEL = {mc:"Single choice", multi:"Multiple choice",
   table:"Table response", build:"Build response", dnd:"Ordering or matching",
-  short:"Short response", visual:"Visual interaction", check:"Code check"};
+  short:"Short response", fill:"Typed fields", visual:"Visual interaction", check:"Code check"};
 const FORMAT_INSTRUCTION = {mc:"Choose one option.",
   multi:"Choose the requested number of options.",
   table:"Choose one category for every row.",
   build:"Select every step in the order it should happen.",
   dnd:"Match every row to a category. Dragging is not required.",
   short:"Write your response. It stays pending until a marker reviews it.",
+  fill:"Enter a response in every field. Include a unit when the label asks for one.",
   visual:"Use the visual or its adjacent keyboard controls, then submit.",
   check:"Edit the source, then run the check. The runtime records the verdict."};
 const FS = "\u001f", PS = "\u001e";   /* must match FIELD_SEP and PAIR_SEP */
@@ -1974,6 +2071,7 @@ async function verify(q, response){
           next: v.next,
           selection_feedback: v.selection_feedback,
           refused: v.refused, refused_reason: v.refused_reason,
+          entry_error: v.entry_error,
           interaction_result: v.interaction_result};
 }
 
@@ -2105,7 +2203,7 @@ function renderItem(view){
   host.innerHTML = "";
   host.appendChild(card);
   ({mc:asChoice, multi:asChoice, table:asAssign, dnd:asAssign, build:asBuild,
-    short:asShort, check:asCheck, visual:asVisual}[q.type])(q, body, act, card);
+    short:asShort, fill:asFill, check:asCheck, visual:asVisual}[q.type])(q, body, act, card);
   /* AgentAssist (plan 08-05): the assist client resets per item so the
      Get optional guidance control targets the current item's operation. */
   if(window.Assist) window.Assist.onItem(q);
@@ -2329,6 +2427,84 @@ function asShort(q, body, act, card){
     ta.disabled = true;
     submit.remove();
     settle(q, ta.value.trim(), card, act, null, revert);
+  };
+}
+
+function fillFields(q, body){
+  const controls = {};
+  const wrap = document.createElement("div");
+  wrap.className = "fill-fields";
+  (q.fields || []).forEach(field=>{
+    const label = document.createElement("label");
+    label.className = "fill-field";
+    const text = document.createElement("span");
+    text.textContent = field.label || field.id;
+    const help = document.createElement("span");
+    help.className = "fill-help";
+    if(field.kind === "text"){
+      const caseRule = field.case_sensitive === false
+        ? "Uppercase and lowercase are treated the same."
+        : "Case matters.";
+      const spaceRule = field.whitespace === "exact"
+        ? "Spaces count exactly as typed."
+        : (field.whitespace === "collapse"
+          ? "Repeated spaces are treated as one."
+          : "Leading and trailing spaces are ignored.");
+      help.textContent = caseRule + " " + spaceRule;
+    } else {
+      help.textContent = "Enter a decimal, fraction, or scientific number."
+        + ((field.units || []).length
+          ? " Add a space, then one of: " + field.units.join(", ") + "."
+          : "");
+    }
+    const input = document.createElement("input");
+    input.type = "text";
+    input.inputMode = "text";
+    input.autocomplete = "off";
+    input.maxLength = 4096;
+    input.name = "fill_" + field.id;
+    label.append(text, help, input);
+    wrap.appendChild(label);
+    controls[String(field.id)] = input;
+  });
+  body.appendChild(wrap);
+  return controls;
+}
+
+function asFill(q, body, act, card){
+  const controls = fillFields(q, body);
+  const ids = (q.fields || []).map(field=>String(field.id));
+  const submit = mkSubmit(act, "complete every field");
+  let storageKey = null;
+  try {
+    storageKey = draftKey((BOOT && BOOT.bank) || "", q.id);
+    const saved = JSON.parse(localStorage.getItem(storageKey) || "null");
+    if(saved && typeof saved === "object") ids.forEach(id=>{
+      if(typeof saved[id] === "string") controls[id].value = saved[id];
+    });
+  } catch(e) { storageKey = null; }
+  const response = ()=>{
+    const out = {};
+    ids.forEach(id=>{ out[id] = controls[id].value; });
+    return out;
+  };
+  const sync = ()=>{
+    submit.disabled = ids.length === 0 || ids.some(id=>controls[id].value.length === 0);
+    if(storageKey) try{ localStorage.setItem(storageKey, JSON.stringify(response())); }catch(e){}
+  };
+  ids.forEach(id=>{ controls[id].oninput = sync; });
+  sync();
+  function revert(){
+    ids.forEach(id=>{ controls[id].disabled = false; });
+    act.appendChild(submit);
+    sync();
+  }
+  submit.onclick = ()=>{
+    ids.forEach(id=>{ controls[id].disabled = true; });
+    submit.remove();
+    settle(q, response(), card, act, ()=>{
+      if(storageKey) try{ localStorage.removeItem(storageKey); }catch(e){}
+    }, revert);
   };
 }
 
@@ -3851,6 +4027,12 @@ function selectionCard(picks){
 }
 
 function close(q, card, act, v, revert){
+  if(v && v.entry_error){
+    if(revert) revert();
+    const fb = feedbackFor(card);
+    fb.innerHTML = `<div class="refused pend">${esc(v.entry_error)}</div>`;
+    return;
+  }
   /* Server-side refusal (plan 05-06): the daemon returned a normal
      `{"refused": ..., "refused_reason": ...}` body instead of a verdict --
      the served page's settle() surfaced it here, not in the catch block.

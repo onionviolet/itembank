@@ -27,7 +27,7 @@ import server
 import subjects
 from model import (lesson_slug, load, parse_activities, parse_bank,
                    parse_key_blocks, parse_lesson, parse_media, parse_terms)
-from runtime import (checkpoint_feedback, explain_payload, glossable,
+from runtime import (checkpoint_feedback, explain_payload, fill_response_error, glossable,
                      lesson_run_advance, lesson_run_record, read_lesson_run,
                      read_session, start_lesson_run, upgrade_session,
                      submission_feedback)
@@ -4109,6 +4109,9 @@ def _form_answer(item, fields):
     if t in ("table", "dnd"):
         return dict((str(i), one("row_%d" % i)) for i, _ in enumerate(item.get("rows") or []) if one("row_%d" % i))
     if t == "build": return [one("step_%d" % i) for i, _ in enumerate(item.get("steps") or []) if one("step_%d" % i)]
+    if t == "fill":
+        return dict((str(field.get("id", "")), one("fill_" + str(field.get("id", ""))))
+                    for field in item.get("fields") or [])
     return one("answer")
 
 
@@ -4307,6 +4310,9 @@ def handle_quiz_answer(handler, stem):
         body = _refusal_from_exit(exc.code, q)
         if body is not None:
             handler.send_json(body)
+        elif q is not None and q.get("type") == "fill" and \
+                str(exc.code) == fill_response_error(q, answer):
+            handler.send_json({"entry_error": str(exc.code)})
         else:
             handler.send_error(400, str(exc.code))
         return

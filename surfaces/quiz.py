@@ -11,7 +11,8 @@ import evidence
 import subjects
 from model import (HONEST_LIMITS_NOTE, grab, lesson_slug, lint, load,
                    parse_lesson, parse_terms)
-from runtime import INTERACTION_VERSION, glossable, page_item, score_response
+from runtime import (INTERACTION_VERSION, fill_response_error, glossable,
+                     page_item, score_response)
 from surfaces.session import run_check_source
 from surfaces import presentation, settings
 from surfaces.quiz_page import (AGENT_ASSIST_HTML, ASSIST_JS, OFFLINE_JS,
@@ -459,6 +460,10 @@ def record_answer(bank_path, qs, session_id, log, out_path, mode, q, response, e
         base = os.path.dirname(os.path.abspath(bank_path)) or "."
         run_result, answer, score = run_check_source(q, response, base)
     else:
+        if q["type"] == "fill":
+            problem = fill_response_error(q, response)
+            if problem:
+                raise SystemExit(problem)
         answer = response
         score = score_response(q, response)
     killed = bool(run_result) and any(c.get("timed_out") for c in run_result)
