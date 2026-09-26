@@ -1403,11 +1403,14 @@ def check_shelf_reorder_route_and_controls():
         status, body = get(url)
         if status != 200:
             fail("reorder shelf returned %d" % status)
-        for needle in ('data-course-shelf', 'data-drag-handle draggable="true"',
+        for needle in ('data-course-shelf', 'data-drag-handle',
                        'data-move="up"', 'data-move="down"',
-                       "pointerdown", "dragstart", "reorder_courses"):
+                       "pointerdown", "pointermove", "reorder_courses"):
             if needle not in body:
                 fail("reorder shelf omitted %r" % needle)
+        status, courses_body = get(url + "/courses")
+        if status != 200 or "data-course-shelf" not in courses_body or "data-drag-handle" not in courses_body:
+            fail("Courses page omitted its drag controls")
         status, result = _post_shelf(
             url, {"action": "reorder_courses", "course_ids": desired,
                   "expected_fingerprint": None})

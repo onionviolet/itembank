@@ -55,7 +55,8 @@ def check_ordered_shelf():
     assert '<span class="course-mark" aria-hidden="true">02</span>' in page
     assert '<summary>Course options</summary>' in page
     assert 'View source &lt;files&gt;' in page
-    assert 'data-drag-handle draggable="true"' in page
+    assert 'data-drag-handle' in page
+    assert page.index('data-drag-handle') < page.index('<details class="course-details">')
     assert 'data-move="up"' in page and 'data-move="down"' in page
     assert 'value="remove_sample_course"' in page
     assert 'value="advance_walkthrough"' in page

@@ -37,6 +37,8 @@ function setup(response) {
   };
   window.eval(fixture.script.replace(/^<script[^>]*>|<\/script>$/g, ""));
   const shelf = window.document.querySelector("[data-course-shelf]");
+  shelf.setPointerCapture = () => {};
+  shelf.releasePointerCapture = () => {};
   const focus = window.document.querySelector(".desk-focus");
   const status = window.document.querySelector("[data-shelf-status]");
   const order = () => [...shelf.querySelectorAll("[data-course-id]")]
@@ -56,6 +58,61 @@ function setup(response) {
 async function settle() {
   await new Promise(resolve => setImmediate(resolve));
 }
+
+function pointer(window, target, type, properties = {}) {
+  const event = new window.Event(type, { bubbles: true, cancelable: true });
+  for (const [name, value] of Object.entries({
+    pointerId: 1, pointerType: "mouse", button: 0, clientX: 40,
+    clientY: 10, ...properties,
+  })) {
+    Object.defineProperty(event, name, { value });
+  }
+  target.dispatchEvent(event);
+}
+
+test("visible drag handle saves a mouse reorder", async () => {
+  const app = setup({ ok: true, json: () => Promise.resolve({
+    fingerprint: "sha256:after", course_ids: ["second", "first"],
+  }) });
+  try {
+    const first = app.shelf.querySelector('[data-course-id="first"]');
+    const second = app.shelf.querySelector('[data-course-id="second"]');
+    const handle = first.querySelector('[data-drag-handle]');
+    assert.equal(handle.closest("details"), null, "drag must be visible without opening options");
+    assert.match(handle.textContent, /Drag/);
+    second.getBoundingClientRect = () => ({ top: 0, height: 100 });
+    app.window.document.elementFromPoint = () => second;
+    pointer(app.window, handle, "pointerdown");
+    pointer(app.window, app.shelf, "pointermove", { clientY: 90 });
+    pointer(app.window, app.shelf, "pointerup", { clientY: 90 });
+    await settle();
+    assert.deepEqual(app.order(), ["second", "first"]);
+    assert.equal(app.status.textContent, "Course order saved.");
+    assert.deepEqual(JSON.parse(app.requests[0].options.body).course_ids,
+      ["second", "first"]);
+  } finally {
+    app.dom.window.close();
+  }
+});
+
+test("cancelled touch drag restores the original order", () => {
+  const app = setup({ ok: true, json: () => Promise.resolve({}) });
+  try {
+    const first = app.shelf.querySelector('[data-course-id="first"]');
+    const second = app.shelf.querySelector('[data-course-id="second"]');
+    second.getBoundingClientRect = () => ({ top: 0, height: 100 });
+    app.window.document.elementFromPoint = () => second;
+    pointer(app.window, first.querySelector('[data-drag-handle]'),
+      "pointerdown", { pointerType: "touch" });
+    pointer(app.window, app.shelf, "pointermove",
+      { pointerType: "touch", clientY: 90 });
+    pointer(app.window, app.shelf, "pointercancel", { pointerType: "touch" });
+    assert.deepEqual(app.order(), ["first", "second"]);
+    assert.equal(app.requests.length, 0);
+  } finally {
+    app.dom.window.close();
+  }
+});
 
 test("move down saves the rendered shelf order and updates its lead", async () => {
   const app = setup({ ok: true, json: () => Promise.resolve({

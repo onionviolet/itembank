@@ -2865,8 +2865,9 @@ SHELF_SCRIPT = """<script>
   if (!shelf) { return; }
   var fingerprint = shelf.getAttribute("data-workspace-fingerprint") || null;
   var dragging = null;
-  var dragStartOrder = null;
   var pointerStartOrder = null;
+  var pointerId = null;
+  var pointerMoved = false;
   var saving = false;
 
   function cards() { return Array.from(shelf.querySelectorAll("[data-course-id]")); }
@@ -2949,76 +2950,48 @@ SHELF_SCRIPT = """<script>
     if (summary) { summary.focus(); }
   });
 
-  shelf.addEventListener("dragstart", function (event) {
-    var card = event.target.closest("[data-course-id]");
-    if (!card) { return; }
-    if (saving) { event.preventDefault(); return; }
-    dragging = card;
-    dragStartOrder = ids();
-    card.classList.add("is-dragging");
-    event.dataTransfer.effectAllowed = "move";
-    event.dataTransfer.setData("text/plain", card.dataset.courseId);
-  });
-  shelf.addEventListener("dragover", function (event) {
-    if (!dragging) { return; }
-    var target = event.target.closest("[data-course-id]");
-    if (!target || target === dragging) { return; }
+  shelf.addEventListener("pointerdown", function (event) {
+    var handle = event.target.closest("[data-drag-handle]");
+    if (!handle || saving || event.button !== 0) { return; }
+    dragging = handle.closest("[data-course-id]");
+    pointerStartOrder = ids();
+    pointerId = event.pointerId;
+    pointerMoved = false;
+    dragging.classList.add("is-dragging");
+    shelf.setPointerCapture(pointerId);
     event.preventDefault();
+  });
+  shelf.addEventListener("pointermove", function (event) {
+    if (!dragging || event.pointerId !== pointerId) { return; }
+    var under = document.elementFromPoint(event.clientX, event.clientY);
+    var target = under && under.closest("[data-course-id]");
+    if (!target || target === dragging || !shelf.contains(target)) { return; }
     var box = target.getBoundingClientRect();
     shelf.insertBefore(dragging, event.clientY < box.top + box.height / 2
                        ? target : target.nextSibling);
-  });
-  shelf.addEventListener("drop", function (event) {
-    if (!dragging) { return; }
+    pointerMoved = true;
     event.preventDefault();
-    var previous = dragStartOrder;
+  });
+  shelf.addEventListener("pointerup", function (event) {
+    if (!dragging || event.pointerId !== pointerId) { return; }
+    var previous = pointerStartOrder;
     dragging.classList.remove("is-dragging");
     dragging = null;
-    dragStartOrder = null;
-    saveOrder(previous);
+    pointerStartOrder = null;
+    pointerId = null;
+    shelf.releasePointerCapture(event.pointerId);
+    if (pointerMoved) { saveOrder(previous); }
+    pointerMoved = false;
   });
-  shelf.addEventListener("dragend", function () {
-    if (!dragging) { return; }
+  shelf.addEventListener("pointercancel", function (event) {
+    if (!dragging || event.pointerId !== pointerId) { return; }
+    var previous = pointerStartOrder;
     dragging.classList.remove("is-dragging");
     dragging = null;
-    if (dragStartOrder) { restore(dragStartOrder); }
-    dragStartOrder = null;
-  });
-
-  shelf.querySelectorAll("[data-drag-handle]").forEach(function (handle) {
-    handle.addEventListener("pointerdown", function (event) {
-      if (event.pointerType === "mouse" || saving) { return; }
-      dragging = handle.closest("[data-course-id]");
-      pointerStartOrder = ids();
-      dragging.classList.add("is-dragging");
-      handle.setPointerCapture(event.pointerId);
-      event.preventDefault();
-    });
-    handle.addEventListener("pointermove", function (event) {
-      if (!dragging || pointerStartOrder === null) { return; }
-      var under = document.elementFromPoint(event.clientX, event.clientY);
-      var target = under && under.closest("[data-course-id]");
-      if (!target || target === dragging) { return; }
-      var box = target.getBoundingClientRect();
-      shelf.insertBefore(dragging, event.clientY < box.top + box.height / 2
-                         ? target : target.nextSibling);
-      event.preventDefault();
-    });
-    handle.addEventListener("pointerup", function (event) {
-      if (!dragging || pointerStartOrder === null) { return; }
-      var previous = pointerStartOrder;
-      dragging.classList.remove("is-dragging");
-      dragging = null;
-      pointerStartOrder = null;
-      handle.releasePointerCapture(event.pointerId);
-      saveOrder(previous);
-    });
-    handle.addEventListener("pointercancel", function () {
-      if (pointerStartOrder) { restore(pointerStartOrder); }
-      if (dragging) { dragging.classList.remove("is-dragging"); }
-      dragging = null;
-      pointerStartOrder = null;
-    });
+    pointerStartOrder = null;
+    pointerId = null;
+    pointerMoved = false;
+    restore(previous);
   });
   syncButtons();
 })();
@@ -3079,7 +3052,7 @@ def _sample_course_controls(sample):
                presentation.esc(sample["confirm_copy"])))
 
 
-def _course_shelf_body(shelf, walkthrough=None, sample=None):
+def _course_shelf_body(shelf, walkthrough=None, sample=None, list_only=False):
     """Render the ordered course list with canonical actions and shelf hooks."""
     cards = []
     for index, card in enumerate(shelf["cards"]):
@@ -3088,16 +3061,21 @@ def _course_shelf_body(shelf, walkthrough=None, sample=None):
             links.append('<a class="go secondary" href="%s">%s</a>'
                          % (presentation.esc(action["href"]),
                             presentation.esc(action["label"])))
+        drag_control = ""
         order_controls = ""
         if shelf.get("reorderable"):
+            drag_control = (
+                '<span class="shelf-order-controls">'
+                '<button type="button" data-drag-handle '
+                'aria-label="Drag %s to a new position" title="Drag to reorder">'
+                '&#8597; Drag</button></span>'
+                % presentation.esc(card["name"]))
             order_controls = (
                 '<div class="shelf-order-controls" aria-label="Order %s">'
-                '<button type="button" data-drag-handle draggable="true" '
-                'aria-label="Drag %s to a new position" title="Drag to reorder">&#8597;</button>'
                 '<button type="button" data-move="up" aria-label="Move %s up"%s>&#8593;</button>'
                 '<button type="button" data-move="down" aria-label="Move %s down"%s>&#8595;</button>'
                 '</div>'
-                % (presentation.esc(card["name"]), presentation.esc(card["name"]),
+                % (presentation.esc(card["name"]),
                    presentation.esc(card["name"]), " disabled" if index == 0 else "",
                    presentation.esc(card["name"]),
                    " disabled" if index == len(shelf["cards"]) - 1 else ""))
@@ -3116,7 +3094,7 @@ def _course_shelf_body(shelf, walkthrough=None, sample=None):
             '<span class="chip">%s</span>'
             '<p class="resume-cue">%s</p></div>'
             '<div class="course-card-actions">'
-            '<a class="go" href="%s" aria-label="%s">%s</a></div>%s</article>'
+            '<a class="go" href="%s" aria-label="%s">%s</a>%s</div>%s</article>'
             % (presentation.esc(card["course_id"]),
                presentation.esc(card["attention"]),
                presentation.esc(card["token"]),
@@ -3127,6 +3105,7 @@ def _course_shelf_body(shelf, walkthrough=None, sample=None):
                presentation.esc(card["cta_href"]),
                presentation.esc(card["cta_label"]),
                presentation.esc(_course_action_label(card)),
+               drag_control,
                details))
     degraded = [card for card in shelf["cards"] if card["degraded"]]
     banner = ""
@@ -3154,6 +3133,9 @@ def _course_shelf_body(shelf, walkthrough=None, sample=None):
                    '</form></section>'
                    % (presentation.esc(shelf["empty_heading"]),
                       presentation.esc(shelf["empty_body"])))
+    if list_only:
+        return (content + '<p class="status" data-shelf-status role="status" '
+                'aria-live="polite"></p>')
     first = shelf["cards"][0] if shelf["cards"] else None
     guidance = ("Open a course or choose one of its options."
                 if cards else "Add the sample course to explore this workspace.")
@@ -3260,13 +3242,17 @@ def handle_courses_get(handler):
         })
     state = None if shelf.get("available") else {
         "kind": "unknown", "status": shelf.get("notice", "Courses unavailable")}
+    course_list = (_course_shelf_body(shelf, list_only=True)
+                   if shelf.get("available") and shelf.get("cards")
+                   else presentation.course_shelf(
+                       cards, empty="No courses are available yet.", state=state))
     body = (_app_nav("courses")
             + '<p class="area-lead">Every course stored on this device.</p>'
-            + presentation.course_shelf(
-                cards, empty="No courses are available yet.", state=state))
+            + course_list)
     profile, _notice = settings.resolve_presentation_profile(cfg)
     handler.send_html(presentation.surface_shell(
         "Courses", body, theme_css=theme.theme_css(cfg), palette=True,
+        noscript=SHELF_NOSCRIPT, tail=SHELF_SCRIPT,
         presentation_profile=profile).encode("utf-8"))
 
 
