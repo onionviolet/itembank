@@ -957,7 +957,7 @@ RESPONSE_FORMAT_LABELS = {
     "mc": "Single choice", "multi": "Multiple choice",
     "table": "Table response", "build": "Build response",
     "dnd": "Ordering or matching", "short": "Short response",
-    "visual": "Visual interaction", "check": "Code check",
+    "fill": "Typed fields", "visual": "Visual interaction", "check": "Code check",
     "reading": "Reading", "recall": "Recall and reveal",
 }
 RESPONSE_FORMAT_INSTRUCTIONS = {
@@ -967,6 +967,7 @@ RESPONSE_FORMAT_INSTRUCTIONS = {
     "build": "Select every step in the order it should happen.",
     "dnd": "Match every row to a category. Dragging is not required.",
     "short": "Write your response. It stays pending until a marker reviews it.",
+    "fill": "Enter a response in every field. Include a unit when the label asks for one.",
     "visual": "Use the visual or its adjacent keyboard controls, then submit.",
     "check": "Edit the source, then run the check. The runtime records the verdict.",
     "reading": "Read the passage in order or use its section navigation.",

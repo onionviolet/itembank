@@ -90,6 +90,7 @@ def check_response_type_presentation_matrix():
         "build": ("Build response", "Select every step in the order it should happen."),
         "dnd": ("Ordering or matching", "Dragging is not required."),
         "short": ("Short response", "stays pending until a marker reviews it"),
+        "fill": ("Typed fields", "Include a unit when the label asks for one."),
         "visual": ("Visual interaction", "adjacent keyboard controls"),
         "check": ("Code check", "runtime records the verdict"),
     }
@@ -104,15 +105,19 @@ def check_response_type_presentation_matrix():
             key: presentation.RESPONSE_FORMAT_INSTRUCTIONS[key] for key in expected}:
         fail("server-baseline instructions drifted from shared presentation instructions")
     public = {}
-    for name in ("sample_bank.md", "check_bank.md", "visual_bank.md"):
+    fill_items = []
+    for name in ("sample_bank.md", "check_bank.md", "fill_bank.md", "visual_bank.md"):
         for question in load(os.path.join(ROOT, "fixtures", name)):
-            public.setdefault(question["type"], runtime.public_item(question))
+            item = runtime.public_item(question)
+            public.setdefault(question["type"], item)
+            if question["type"] == "fill":
+                fill_items.append(item)
     if set(public) != set(expected):
         fail("public fixture matrix does not cover all canonical response types")
     schema_types = {
         "mc": "string", "multi": "array", "table": "object",
         "build": "array", "dnd": "object", "short": "string",
-        "visual": "object", "check": "string",
+        "fill": "object", "visual": "object", "check": "string",
     }
     for response_type, item in public.items():
         if item["response_schema"].get("type") != schema_types[response_type]:
@@ -120,6 +125,25 @@ def check_response_type_presentation_matrix():
     if public["check"]["response_schema"].get("format") != "source" or \
        public["check"].get("interaction_contract", {}).get("type") != "check":
         fail("code check stopped being an activity contract over a source response")
+    if [item["response_schema"] for item in fill_items] != [
+            {"type": "object", "required": ["color", "count"],
+             "values": "string", "additional_properties": False},
+            {"type": "object", "required": ["length"],
+             "values": "string", "additional_properties": False},
+            {"type": "object", "required": ["name"],
+             "values": "string", "additional_properties": False}]:
+        fail("fill fixtures stopped exposing one required raw string per field")
+    if fill_items[0]["fields"] != [
+            {"id": "color", "label": "Color", "kind": "text",
+             "case_sensitive": False, "whitespace": "trim"},
+            {"id": "count", "label": "Stripe count", "kind": "numeric"}] or \
+       fill_items[1]["fields"] != [
+            {"id": "length", "label": "Rod length", "kind": "numeric",
+             "units": ["m", "cm"]}] or \
+       fill_items[2]["fields"] != [
+            {"id": "name", "label": "Name", "kind": "text",
+             "case_sensitive": True, "whitespace": "exact"}]:
+        fail("fill fixtures stopped preserving their public field presentation")
     source = open(os.path.join(ROOT, "surfaces", "quiz_page.py"), encoding="utf-8").read()
     for response_type, (label, instruction) in expected.items():
         if presentation.RESPONSE_FORMAT_LABELS.get(response_type) != label:
@@ -155,7 +179,16 @@ def check_response_type_presentation_matrix():
             fail("visual no-script fallback omitted %r" % token)
     if "Submit answer" in baseline or 'name="answer"' in baseline:
         fail("visual no-script fallback rendered a dead response control")
-    ok("eight response types keep labels, instructions, profiles, pending/error states, and local overflow")
+    fill_baseline = quiz_page.baseline_for(
+        {"item": public["fill"], "session_id": "synthetic"}, {}, "/answer",
+        {"submit": "token", "hint": "hint", "stumped": "stumped"})
+    for token in ("Typed fields", "Color", "Stripe count", 'type="text"',
+                  'name="fill_color"', 'name="fill_count"'):
+        if token not in fill_baseline:
+            fail("fill no-script fallback omitted %r" % token)
+    if 'type="number"' in fill_baseline:
+        fail("fill no-script fallback blocked fractions or unit suffixes")
+    ok("nine response types keep labels, instructions, profiles, pending/error states, and local overflow")
 
 
 def check_migration_fallback_and_preview():
