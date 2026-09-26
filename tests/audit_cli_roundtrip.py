@@ -16,6 +16,7 @@ test can assert the repository-blind allowlist.
 """
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -36,6 +37,26 @@ def fail(msg):
 def read_text(path):
     with open(path, encoding="utf-8") as fh:
         return fh.read()
+
+
+def private_credential_field(value, path="$"):
+    """Name a nested credential field without scanning legitimate prose."""
+    if isinstance(value, dict):
+        for key, child in value.items():
+            member = str(key)
+            parts = [part for part in re.split(r"[^a-z0-9]+", member.lower())
+                     if part]
+            if any(part in ("secret", "token", "password") for part in parts):
+                return path + "." + member
+            found = private_credential_field(child, path + "." + member)
+            if found:
+                return found
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            found = private_credential_field(child, "%s[%d]" % (path, index))
+            if found:
+                return found
+    return ""
 
 
 # The clean draft the fake hosted adapter returns on its final attempt. The
@@ -179,14 +200,22 @@ def assert_repository_blind(capture):
                                           "mode"]):
             fail("cli: adapter request keys drifted: %s"
                  % rec["request_keys"])
+        request = json.loads(rec["serialized"])
+        private_field = private_credential_field(request)
+        if private_field:
+            fail("cli: credential field reached the adapter: %s"
+                 % private_field)
         serialized = rec["serialized"]
         for forbidden in ("model.py", "surfaces/", "audit_writer.py",
                           "authoring.py", "bank.md", "fixtures/",
-                          "/Users/", "/mnt/", "secret", "token",
-                          "password", "BANK_TEMPLATE"):
+                          "/Users/", "/mnt/", "BANK_TEMPLATE"):
             if forbidden in serialized:
                 fail("cli: repository context reached the adapter: %r"
                      % forbidden)
+
+    sentinel = {"request": {"api_token": "PRIVATE_AUTH_SENTINEL"}}
+    if private_credential_field(sentinel) != "$.request.api_token":
+        fail("cli: credential-field guard did not catch the token sentinel")
 
 
 def case_configured_adapter():

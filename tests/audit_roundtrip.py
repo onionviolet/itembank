@@ -12,6 +12,7 @@ mutated in place.
 """
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -143,6 +144,26 @@ class SpyAuthor:
     def __call__(self, payload):
         self.calls.append(payload)
         return self.drafts(len(self.calls))
+
+
+def private_credential_field(value, path="$"):
+    """Name a nested credential field without scanning legitimate prose."""
+    if isinstance(value, dict):
+        for key, child in value.items():
+            member = str(key)
+            parts = [part for part in re.split(r"[^a-z0-9]+", member.lower())
+                     if part]
+            if any(part in ("secret", "token", "password") for part in parts):
+                return path + "." + member
+            found = private_credential_field(child, path + "." + member)
+            if found:
+                return found
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            found = private_credential_field(child, "%s[%d]" % (path, index))
+            if found:
+                return found
+    return ""
 
 
 class SpyWriter:
@@ -446,6 +467,10 @@ def _assert_repository_blind(author_spy, bank_text):
         if not isinstance(payload["contract"], str) or \
                 "Qn." not in payload["contract"]:
             fail("tracer: callable must receive the public format contract")
+        private_field = private_credential_field(payload)
+        if private_field:
+            fail("tracer: credential field leaked to the author: %s"
+                 % private_field)
         serialized = json.dumps(payload, ensure_ascii=False)
         # Real leak indicators: repository file/module identifiers,
         # absolute paths, credentials, and fixture names -- never bare words
@@ -453,8 +478,7 @@ def _assert_repository_blind(author_spy, bank_text):
         for forbidden in ("model.py", "authoring.py", "audit_writer.py",
                           "auditor.py", "surfaces/", "tests/audit",
                           "audit_roundtrip", "/Users/", "\\Users\\",
-                          "C:/Users", "/mnt/", "secret", "token",
-                          "password", "BANK_TEMPLATE"):
+                          "C:/Users", "/mnt/", "BANK_TEMPLATE"):
             if forbidden in serialized:
                 fail("tracer: repository context leaked to the author: %r"
                      % forbidden)
@@ -463,6 +487,10 @@ def _assert_repository_blind(author_spy, bank_text):
             fail("tracer: bank text leaked to the author")
         if "prioritize airway management in a cardiac arrest" in serialized:
             fail("tracer: un-cited source prose leaked to the author")
+
+    sentinel = {"request": {"api_token": "PRIVATE_AUTH_SENTINEL"}}
+    if private_credential_field(sentinel) != "$.request.api_token":
+        fail("tracer: credential-field guard missed the token sentinel")
 
 
 def case_schemas():
