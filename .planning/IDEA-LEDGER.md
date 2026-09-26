@@ -2818,3 +2818,37 @@ records scope, verification, authority, recovery, and remaining uncertainty.
 The earlier research-only entry remains historical. Candidate visual styles
 remain changeable. Unimplemented subject interactions retain their Prototype
 or Backburner status. No idea is rejected or removed by this implementation.
+
+### IL-20260925-02: Question types and answer checking breadth
+
+- **Origin:** the
+  [exact audit request](USER-VISION-INBOX.md#2026-09-25-question-types-and-programmatic-answer-checking-audit).
+- **Owner and evidence:** the
+  [question-type audit](research/question-types-2026-09-25/README.md)
+  reconciles sampled live parser, runtime, runner, and renderer code with
+  synthetic tests and current primary documentation. Its recommendations are
+  inference. It does not accept new schemas, scoring rules, or dependencies.
+- **Prototype:** graded text and multiple blanks, numeric values and units,
+  bounded symbolic checking, and complete production code-checking flows.
+  Parser, runtime, quiz, and execution owners retain their existing authority.
+  Promotion needs explicit equivalence, feedback, evidence, accessibility,
+  recovery, and unavailable-state contracts. Cost comes from validation and
+  maintaining these rules across surfaces, not only adding input controls.
+- **Existing routes retained:** IL-20260828-04 owns inline-select teaching
+  cloze. IL-20260906-09 owns executable CS Dojo development. IL-20260912-02
+  owns code depth and task-specific presentation. The new audit distinguishes
+  existing interpreter checking from these broader unfinished experiences.
+- **Backburner:** SQL, notebooks, spreadsheet artifacts, chemistry structures,
+  audio and performance submissions, and test-writing tasks. Revisit when a
+  named course objective requires the capability. Dependencies are pinned
+  fixtures, domain validation, execution isolation where applicable, artifact
+  persistence, local data controls, accessible input, and reviewer workflows.
+- **Next evidence:** A1 records reproduced crash-as-correct and active-exam
+  disclosure defects before feature expansion. A2-A5 retain a proposed order
+  for typed answers, execution, mathematics, and subject adapters. A separate
+  minor lint defect falsely describes visual answers as pending. These remain
+  unfixed audit findings, not implementation claims.
+- **Recovery and limits:** remove only this entry, its uniquely titled inbox
+  capture, and the new audit directory to reverse the records pass. Preserve
+  concurrent edits. No existing idea is rejected or superseded. This bounded
+  audit does not establish installed, human, or full competitive acceptance.

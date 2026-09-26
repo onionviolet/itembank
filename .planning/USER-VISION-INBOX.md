@@ -1115,3 +1115,17 @@ Keep proposed styles and interactions provisional under the existing renewal.
 [the vision entry](USER-VISION.md#2026-09-25-implement-distinctive-app-craft).
 The [implementation record](research/ui-craft-2026-09-25/IMPLEMENTATION.md)
 owns this bounded production pass and its evidence.
+
+### 2026-09-25: question types and programmatic answer checking audit
+
+> audit types of quiestions from fill in the blank to other stuff and more? Like code interpretor based answer checking for cs and other stuff and more?
+
+**Disposition:** Route to the
+[question-type and checking audit](research/question-types-2026-09-25/README.md).
+This requests an inventory of current response types, actual checking behavior,
+and useful gaps across subjects. It extends the existing
+[code-question depth direction](USER-VISION.md#2026-09-16-beneficial-depth-levels-and-code-question-audit)
+and learner LaTeX input research. Interpreter checking is a capability to
+inspect, not evidence that execution is currently absent. Candidate additions
+remain proposals until their own implementation and acceptance gates pass.
+The audit does not authorize changing scoring, banks, or accepted schemas.
