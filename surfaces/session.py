@@ -38,7 +38,7 @@ from runtime import (INTERACTION_VERSION, REPORT_VERSION, SESSION_VERSION,
                      normalize_answer, public_item,
                      read_session, reconcile_teaching_state, score_response,
                      session_path, session_summary, session_view, teaching_key,
-                     teaching_payload, teaching_transition,
+                     teaching_payload, teaching_transition, submission_feedback,
                      visual_observation as runtime_visual_observation,
                      visual_state_in_domain, write_session)
 
@@ -1166,7 +1166,7 @@ def do_action(session_file, action, confidence=None, renderer_meta=None,
             # allows it carries this key at all, so no other body changes.
             # The transition decided the disclosure; this is passthrough.
             ret["selection_feedback"] = result["selection_feedback"]
-        return ret
+        return submission_feedback(ret, data["mode"])
     return {"accepted": accepted, "item_id": q["id"], "action": action_name,
             "hint": result.get("hint"),
             "status": next_data["status"], "evidence": evidence_result,

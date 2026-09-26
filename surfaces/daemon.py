@@ -29,7 +29,8 @@ from model import (lesson_slug, load, parse_activities, parse_bank,
                    parse_key_blocks, parse_lesson, parse_media, parse_terms)
 from runtime import (checkpoint_feedback, explain_payload, glossable,
                      lesson_run_advance, lesson_run_record, read_lesson_run,
-                     read_session, start_lesson_run, upgrade_session)
+                     read_session, start_lesson_run, upgrade_session,
+                     submission_feedback)
 from surfaces import (binding_cli, course_ops, day, evidence_cli, home, ia, launcher,
                       lesson, looks, palette, presentation, quiz, quiz_page,
                       retention_view, seeding, session, settings, study,
@@ -4293,13 +4294,6 @@ def handle_quiz_answer(handler, stem):
             legacy_mode = pre3.get("mode")
         except Exception:
             legacy_mode = None
-        if legacy_mode in ("diagnostic", "exam"):
-            # D-12/D-13: the legacy served route also withholds verdicts.
-            result.pop("score", None)
-            result.pop("explain", None)
-            # Defence in depth: the transition never releases own-selection
-            # feedback in a silent mode, and a silent mode never ships it.
-            result.pop("selection_feedback", None)
         if result.get("action") in ("advance", "complete") and q is not None:
             # The rebuild applies the reveal policy, and for a check item it
             # must carry the one run's per-case result (05-05 Task 1) or the
@@ -4308,7 +4302,7 @@ def handle_quiz_answer(handler, stem):
                 q, bool(sess.get("reveal")),
                 run_result=result.get("run_result"))
         _refresh_attempt_view(sess, api_id, qs, path)
-        payload = result
+        payload = submission_feedback(result, legacy_mode)
     except SystemExit as exc:
         body = _refusal_from_exit(exc.code, q)
         if body is not None:
@@ -5872,15 +5866,7 @@ def handle_api_submit(handler):
         result["explain"] = explain_payload(
             q, bool(cfg.get("reveal")) if cfg is not None else False,
             run_result=result.get("run_result"))
-    if mode in ("diagnostic", "exam"):
-        # D-12/D-13: diagnostic and unmarked exam responses carry no verdict,
-        # answer, hint, explanation, or key -- the score is stripped here so
-        # the served client cannot infer correctness before the release gate.
-        result.pop("score", None)
-        result.pop("explain", None)
-        # Defence in depth: the transition never releases own-selection
-        # feedback in a silent mode, and a silent mode never ships it.
-        result.pop("selection_feedback", None)
+    result = submission_feedback(result, mode)
     if cfg is not None and result.get("accepted") and qs:
         _refresh_attempt_view(cfg, session_id, qs, bank_path)
     handler.send_json(result)

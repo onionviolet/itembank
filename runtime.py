@@ -1349,6 +1349,33 @@ def visual_observation(q, state, verdict, hint_tier=None):
         "tolerance_policy_version": VISUAL_TOLERANCE_POLICY_VERSION,
     }
 
+def submission_feedback(payload, mode):
+    """Project a submission response through the runtime's feedback policy.
+
+    Silent sittings release review through the completion/report path, never
+    through submission observations. Walk nested adapters and replay envelopes
+    too, so moving a feedback field cannot accidentally make it public.
+    Durable evidence and session state do not pass through this projection.
+    """
+    policy = FEEDBACK_POLICIES.get(mode, FEEDBACK_POLICIES["practice"])
+    if policy["right"] != "defer_feedback":
+        return payload
+    private = {"score", "verdict", "passed", "expected", "run_result",
+               "interaction_result", "observations", "explain", "reveal",
+               "selection_feedback", "input", "actual", "stdout", "stderr",
+               "exit_code", "timed_out", "truncated"}
+
+    def project(value):
+        if isinstance(value, dict):
+            return {key: project(child) for key, child in value.items()
+                    if key not in private}
+        if isinstance(value, (list, tuple)):
+            return [project(child) for child in value]
+        return value
+
+    return project(payload)
+
+
 def interaction_result(q, response, verdict, observations):
     """The normalized post-submit result envelope for both interactive
     types, consumed by the served submit path and any agent adapter. It
