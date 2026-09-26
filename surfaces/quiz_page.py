@@ -1854,20 +1854,22 @@ function mkSubmit(act, hint){
 const CASE_STATUS = {
   passed:     ["Passed", ""],
   wrong_output:["Failed", ""],
+  runtime_error:["Failed — program stopped with exit code %d", "warn"],
   timeout:    ["Failed — timed out after %ss", "warn"],
   output_cap: ["Failed — output was cut off at %d KB", "warn"]
 };
-function caseStatus(reason, timeoutSecs, capKB){
+function caseStatus(reason, timeoutSecs, capKB, exitCode){
   const [tmpl, role] = CASE_STATUS[reason] || ["Failed", ""];
   const text = reason === "timeout"
     ? tmpl.replace("%s", String(timeoutSecs))
-    : reason === "output_cap" ? tmpl.replace("%d", String(capKB)) : tmpl;
+    : reason === "output_cap" ? tmpl.replace("%d", String(capKB))
+    : reason === "runtime_error" ? tmpl.replace("%d", String(exitCode)) : tmpl;
   return {text, role};
 }
 function checkMatrix(rows, timeoutSecs, capKB){
   let h = `<div class="check-matrix" role="list">`;
   rows.forEach(r=>{
-    const st = caseStatus(r.reason, timeoutSecs, capKB);
+    const st = caseStatus(r.reason, timeoutSecs, capKB, r.exit_code);
     const cls = r.passed ? "right" : "wrong";
     const warn = st.role === "warn" ? " warn" : "";
     h += `<div class="case ${cls}" role="listitem">
@@ -1877,6 +1879,8 @@ function checkMatrix(rows, timeoutSecs, capKB){
     h += `<div class="cf"><h5>${r.expected_kind === "pattern" ? "Expected (pattern)" : "Expected"}</h5>
       <pre>${esc(r.expected)}</pre></div>`;
     h += `<div class="cf"><h5>Your output</h5><pre>${esc(r.actual || "")}</pre></div>`;
+    if(r.reason === "runtime_error" && r.stderr)
+      h += `<div class="cf"><h5>Error output</h5><pre>${esc(r.stderr)}</pre></div>`;
     h += `</div>`;
   });
   return h + `</div>`;
@@ -2617,20 +2621,22 @@ function asCheck(q, body, act, card){
 const CASE_STATUS = {
   passed:     ["Passed", ""],
   wrong_output:["Failed", ""],
+  runtime_error:["Failed — program stopped with exit code %d", "warn"],
   timeout:    ["Failed — timed out after %ss", "warn"],
   output_cap: ["Failed — output was cut off at %d KB", "warn"]
 };
-function caseStatus(reason, timeoutSecs, capKB){
+function caseStatus(reason, timeoutSecs, capKB, exitCode){
   const [tmpl, role] = CASE_STATUS[reason] || ["Failed", ""];
   const text = reason === "timeout"
     ? tmpl.replace("%s", String(timeoutSecs))
-    : reason === "output_cap" ? tmpl.replace("%d", String(capKB)) : tmpl;
+    : reason === "output_cap" ? tmpl.replace("%d", String(capKB))
+    : reason === "runtime_error" ? tmpl.replace("%d", String(exitCode)) : tmpl;
   return {text, role};
 }
 function checkMatrix(rows, timeoutSecs, capKB){
   let h = `<div class="check-matrix" role="list">`;
   rows.forEach(r=>{
-    const st = caseStatus(r.reason, timeoutSecs, capKB);
+    const st = caseStatus(r.reason, timeoutSecs, capKB, r.exit_code);
     const cls = r.passed ? "right" : "wrong";
     const warn = st.role === "warn" ? " warn" : "";
     h += `<div class="case ${cls}" role="listitem">
@@ -2640,6 +2646,8 @@ function checkMatrix(rows, timeoutSecs, capKB){
     h += `<div class="cf"><h5>${r.expected_kind === "pattern" ? "Expected (pattern)" : "Expected"}</h5>
       <pre>${esc(r.expected)}</pre></div>`;
     h += `<div class="cf"><h5>Your output</h5><pre>${esc(r.actual || "")}</pre></div>`;
+    if(r.reason === "runtime_error" && r.stderr)
+      h += `<div class="cf"><h5>Error output</h5><pre>${esc(r.stderr)}</pre></div>`;
     h += `</div>`;
   });
   return h + `</div>`;

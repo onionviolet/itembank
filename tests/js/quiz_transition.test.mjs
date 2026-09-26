@@ -359,6 +359,45 @@ const checkItem = {
   id: "q1", type: "check", stem: "Run this synthetic program.", starter: "print('hello')",
   interaction_contract: { renderer_config: { language: "python", hidden_case_count: 1 } },
 };
+const fillItem = {
+  id: "q1", type: "fill", stem: "Enter the synthetic count.",
+  fields: [{ id: "count", label: "Count", kind: "numeric" }],
+  response_schema: { type: "object", required: ["count"], values: "string",
+    additional_properties: false },
+};
+
+function setFill(page, value) {
+  const input = page.document.querySelector('input[name="fill_count"]');
+  input.value = value;
+  input.dispatchEvent(new page.dom.window.Event("input", { bubbles: true }));
+  return input;
+}
+
+test("fill validation error keeps the raw input editable for retry", async t => {
+  const page = await boot(t, fillItem, [{ entry_error: "Count: use a number." }]);
+  const input = setFill(page, "two");
+  await page.submit();
+  assert.match(page.document.querySelector(".feedback").textContent, /Count: use a number/);
+  assert.equal(input.disabled, false);
+  assert.equal(input.value, "two");
+  assert.ok(page.button(), "validation refusal must restore Submit answer");
+});
+
+test("fill network uncertainty recovers the raw input without resubmitting", async t => {
+  const page = await boot(t, fillItem, [new Error("network lost")], {
+    next: viewFor(fillItem),
+  });
+  const input = setFill(page, "5/2");
+  await page.submit();
+  const recover = page.button("Check saved state");
+  assert.ok(recover);
+  recover.click();
+  await flush();
+  assert.equal(input.disabled, false);
+  assert.equal(input.value, "5/2");
+  assert.ok(page.button(), "saved-state recovery must restore Submit answer");
+  assert.deepEqual(page.answers(), [{ count: "5/2" }]);
+});
 
 test("saved code replaces the starter template and is submitted unchanged", async t => {
   const page = await boot(t, checkItem, [complete], { draft: "print('saved draft')" });
@@ -430,6 +469,22 @@ test("code-check case observations survive the submit response projection", asyn
   assert.match(matrix.textContent, /Case 1.*Passed/s);
   assert.match(matrix.textContent, /synthetic input/);
   assert.deepEqual(page.answers(), ["print('hello')"]);
+});
+
+test("code runtime errors show exit status and escaped stderr", async t => {
+  const page = await boot(t, checkItem, [{ ...complete,
+    interaction_result: { observations: [{
+      case_index: 1, passed: false, reason: "runtime_error", input: "",
+      expected_kind: "output", expected: "hello", actual: "hello",
+      stderr: "boom <script>window.pwned=true</script>", exit_code: 7,
+    }] },
+  }]);
+  await page.submit();
+  const matrix = page.document.querySelector(".check-matrix");
+  assert.match(matrix.textContent, /program stopped with exit code 7/i);
+  assert.match(matrix.textContent, /boom <script>window\.pwned=true<\/script>/);
+  assert.equal(matrix.querySelector("script"), null, "stderr must render as text");
+  assert.equal(page.dom.window.pwned, undefined);
 });
 
 for (const summary of [

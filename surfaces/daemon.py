@@ -122,6 +122,16 @@ def _refusal_from_exit(exc_code, q):
     return None
 
 
+def _fill_entry_error_body(exc_code, q, answer):
+    """Map the runtime's key-free fill validation refusal to a retryable body."""
+    if q is None or q.get("type") != "fill":
+        return None
+    message = fill_response_error(q, answer)
+    if message and str(exc_code) == message:
+        return {"entry_error": message}
+    return None
+
+
 SKIP_DIRS = {".git", ".github", "_attempts", "_evidence"}
 
 QUIZ_GET_RE = re.compile(r"^/quiz/(?P<stem>[^/]+)$")
@@ -4289,8 +4299,9 @@ def handle_quiz_answer(handler, stem):
             api_id = created["session_id"]
             sess["api_session_id"] = api_id
             session_file = out
+        answer = data.get("response")
         result = session.do_action(
-            session_file, {"kind": "submit", "answer": data.get("response")},
+            session_file, {"kind": "submit", "answer": answer},
             confidence=None, renderer_meta=None, elapsed_ms=elapsed_ms)
         try:
             pre3 = read_session(session_file)
@@ -4308,11 +4319,10 @@ def handle_quiz_answer(handler, stem):
         payload = submission_feedback(result, legacy_mode)
     except SystemExit as exc:
         body = _refusal_from_exit(exc.code, q)
+        if body is None:
+            body = _fill_entry_error_body(exc.code, q, answer)
         if body is not None:
             handler.send_json(body)
-        elif q is not None and q.get("type") == "fill" and \
-                str(exc.code) == fill_response_error(q, answer):
-            handler.send_json({"entry_error": str(exc.code)})
         else:
             handler.send_error(400, str(exc.code))
         return
@@ -5851,6 +5861,8 @@ def handle_api_submit(handler):
             confidence=confidence, renderer_meta=renderer_meta)
     except SystemExit as exc:
         body = _refusal_from_exit(exc.code, q)
+        if body is None:
+            body = _fill_entry_error_body(exc.code, q, answer)
         if body is not None:
             handler.send_json(body)
         else:

@@ -1,8 +1,15 @@
 #!/usr/bin/env python3
 """Focused surface checks for the typed `fill` response."""
+import json
 import os
+import re
+import subprocess
 import sys
 import tempfile
+import threading
+import time
+import urllib.error
+import urllib.request
 
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -10,6 +17,7 @@ sys.path.insert(0, ROOT)
 
 import model  # noqa: E402
 import runtime  # noqa: E402
+import evidence  # noqa: E402
 from surfaces import anki, daemon, gift, quiz, quiz_page  # noqa: E402
 
 
@@ -153,6 +161,88 @@ def check_anki_refusal_precedes_output():
             fail("Anki wrote output before refusing fill conversion")
 
 
+def start_daemon(workdir):
+    proc = subprocess.Popen(
+        [sys.executable, "-u", os.path.join(ROOT, "itembank.py"), "daemon",
+         workdir, "--no-open", "--port", "0"],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    lines = []
+    threading.Thread(target=lambda: [lines.append(line) for line in proc.stdout],
+                     daemon=True).start()
+    for _ in range(60):
+        time.sleep(0.1)
+        match = re.search(r"http://127\.0\.0\.1:\d+/", "".join(lines))
+        if match:
+            return proc, match.group(0)
+    proc.terminate()
+    fail("fill route daemon did not start: " + "".join(lines))
+
+
+def post_json(url, payload):
+    request = urllib.request.Request(
+        url, data=json.dumps(payload).encode("utf-8"), method="POST",
+        headers={"Content-Type": "application/json"})
+    try:
+        response = urllib.request.urlopen(request, timeout=5)
+    except urllib.error.HTTPError as exc:
+        response = exc
+    raw = response.read().decode("utf-8")
+    try:
+        body = json.loads(raw)
+    except ValueError:
+        body = raw
+    return response.status, body
+
+
+def response_events(workdir):
+    path = evidence.log_path(workdir)
+    if not os.path.exists(path):
+        return []
+    return [event for event in evidence.live_events(path)
+            if event.get("event_type") == "response"]
+
+
+def check_fill_route_retry(route):
+    with tempfile.TemporaryDirectory() as td:
+        bank = os.path.join(td, "fill.md")
+        with open(bank, "w", encoding="utf-8") as fh:
+            fh.write(BANK)
+        proc, base = start_daemon(td)
+        try:
+            if route == "api":
+                status, started = post_json(base + "api/start", {
+                    "bank": "fill", "count": 1, "mode": "practice"})
+                if status != 200:
+                    fail("fill API session did not start: %r" % (started,))
+                endpoint = base + "api/submit"
+                invalid = {"session_id": started["session_id"], "answer": {
+                    "color": "blue", "count": "two", "length": "100 cm"}}
+                valid = {"session_id": started["session_id"], "answer": {
+                    "color": "blue", "count": "5/2", "length": "100 cm"}}
+            else:
+                urllib.request.urlopen(base + "quiz/fill", timeout=5).read()
+                endpoint = base + "quiz/fill/answer"
+                invalid = {"id": "q1", "response": {
+                    "color": "blue", "count": "two", "length": "100 cm"}}
+                valid = {"id": "q1", "response": {
+                    "color": "blue", "count": "5/2", "length": "100 cm"}}
+            status, refused = post_json(endpoint, invalid)
+            if status != 200 or "entry_error" not in refused:
+                fail("%s fill validation was not a retryable JSON body: %r %r"
+                     % (route, status, refused))
+            if response_events(td):
+                fail("%s invalid fill response wrote evidence" % route)
+            status, accepted = post_json(endpoint, valid)
+            if status != 200 or accepted.get("accepted") is not True:
+                fail("%s fill retry did not succeed: %r %r"
+                     % (route, status, accepted))
+            if len(response_events(td)) != 1:
+                fail("%s fill retry did not write exactly one response" % route)
+        finally:
+            proc.terminate()
+            proc.wait(timeout=5)
+
+
 def main():
     check_public_and_offline_contract()
     check_native_form_and_decoder()
@@ -160,6 +250,8 @@ def main():
     check_invalid_legacy_response_is_not_recorded()
     check_gift_refusal()
     check_anki_refusal_precedes_output()
+    check_fill_route_retry("api")
+    check_fill_route_retry("legacy")
     print("fill surface roundtrip: ok")
 
 
