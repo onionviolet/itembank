@@ -575,7 +575,8 @@ def test_check_contract_pins():
         if name not in schema.get("$defs", {}):
             fail("item.schema.json lacks $def %r" % name)
     reason_enum = schema["$defs"]["case_observation"]["properties"]["reason"]["enum"]
-    if reason_enum != ["passed", "wrong_output", "timeout", "output_cap"]:
+    if reason_enum != ["passed", "wrong_output", "runtime_error",
+                       "timeout", "output_cap"]:
         fail("case_observation reason enum is %r" % reason_enum)
     verdict = schema["$defs"]["interaction_result"]["properties"]["verdict"]["type"]
     if verdict != ["boolean", "null"]:

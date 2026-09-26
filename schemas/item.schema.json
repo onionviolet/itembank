@@ -270,6 +270,7 @@
         "fields": {
           "type": "array",
           "minItems": 1,
+          "maxItems": 16,
           "items": {
             "oneOf": [
               {
@@ -298,12 +299,13 @@
       ],
       "properties": {
         "id": {
-          "type": "string",
-          "minLength": 1
+          "$ref": "#/$defs/fill_field_id"
         },
         "label": {
           "type": "string",
-          "minLength": 1
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^(?!\\s*$)(?![\\s\\S]*[\\u0000-\\u001f\\u007f-\\u009f\\u2028\\u2029])[\\s\\S]+$"
         },
         "kind": {
           "const": "text"
@@ -330,12 +332,13 @@
       ],
       "properties": {
         "id": {
-          "type": "string",
-          "minLength": 1
+          "$ref": "#/$defs/fill_field_id"
         },
         "label": {
           "type": "string",
-          "minLength": 1
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^(?!\\s*$)(?![\\s\\S]*[\\u0000-\\u001f\\u007f-\\u009f\\u2028\\u2029])[\\s\\S]+$"
         },
         "kind": {
           "const": "numeric"
@@ -343,13 +346,22 @@
         "units": {
           "type": "array",
           "minItems": 1,
+          "maxItems": 16,
           "uniqueItems": true,
           "items": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "maxLength": 24,
+            "pattern": "^(?![\\s\\S]*[\\s\\u0000-\\u001f\\u007f-\\u009f\\u2028\\u2029])[\\s\\S]+$"
           }
         }
       }
+    },
+    "fill_field_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 32,
+      "pattern": "^(?!(?:constructor|prototype)$)(?![\\s\\S]*[^a-z0-9_])[a-z][a-z0-9_]{0,31}$"
     },
     "fill_response_schema": {
       "type": "object",
@@ -367,10 +379,10 @@
         "required": {
           "type": "array",
           "minItems": 1,
+          "maxItems": 16,
           "uniqueItems": true,
           "items": {
-            "type": "string",
-            "minLength": 1
+            "$ref": "#/$defs/fill_field_id"
           }
         },
         "values": {
@@ -833,12 +845,19 @@
           "enum": [
             "passed",
             "wrong_output",
+            "runtime_error",
             "timeout",
             "output_cap"
           ]
         },
         "actual": {
           "type": "string"
+        },
+        "stderr": {
+          "type": "string"
+        },
+        "exit_code": {
+          "type": "integer"
         },
         "expected": {
           "type": "string"

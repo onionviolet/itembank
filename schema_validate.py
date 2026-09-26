@@ -5,7 +5,8 @@ There is no JSON Schema implementation in the Python standard library, and this
 is not a Draft 2020-12 reimplementation either. It is a subset validator scoped
 to the exact keywords the documents under `schemas/` use: `type`,
 `properties`, `required`, `additionalProperties`, `enum`, `const`, `items`,
-`minItems`, `uniqueItems`, `minLength`, `pattern`, `minimum`, `maximum`,
+`minItems`, `maxItems`, `uniqueItems`, `minLength`, `maxLength`, `pattern`,
+`minimum`, `maximum`,
 `$defs`, `$ref` (local `#/$defs/<name>` only), and `oneOf`. Nothing more.
 `uniqueItems` was added by plan 10-02: the lesson-completion contract
 requires the published schema itself to reject a duplicate objective list.
@@ -26,7 +27,8 @@ import sys
 
 SUPPORTED = frozenset([
     "type", "properties", "required", "additionalProperties", "enum", "const",
-    "items", "minItems", "uniqueItems", "minLength", "pattern",
+    "items", "minItems", "maxItems", "uniqueItems", "minLength",
+    "maxLength", "pattern",
     "minimum", "maximum", "$defs", "$ref", "oneOf",
 ])
 
@@ -194,6 +196,11 @@ def validate(instance, schema, root=None, path="$"):
             errors.append("%s: has %d items, fewer than minItems %d" %
                           (path, len(instance), schema["minItems"]))
 
+    if "maxItems" in schema and isinstance(instance, list):
+        if len(instance) > schema["maxItems"]:
+            errors.append("%s: has %d items, more than maxItems %d" %
+                          (path, len(instance), schema["maxItems"]))
+
     if "uniqueItems" in schema and isinstance(instance, list) \
             and schema["uniqueItems"]:
         try:
@@ -207,6 +214,11 @@ def validate(instance, schema, root=None, path="$"):
         if len(instance) < schema["minLength"]:
             errors.append("%s: has length %d, shorter than minLength %d" %
                           (path, len(instance), schema["minLength"]))
+
+    if "maxLength" in schema and isinstance(instance, str):
+        if len(instance) > schema["maxLength"]:
+            errors.append("%s: has length %d, longer than maxLength %d" %
+                          (path, len(instance), schema["maxLength"]))
 
     if "pattern" in schema and isinstance(instance, str):
         if re.search(schema["pattern"], instance) is None:
