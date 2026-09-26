@@ -3959,8 +3959,8 @@ def lint(questions, lesson=LESSON_UNCHECKED, terms=TERMS_UNCHECKED,
                 errors.append(finding)
 
         if uses_check:
-            from runtime import NORMALIZERS
-            if t not in NORMALIZERS:
+            from runtime import supports_auto_score
+            if not supports_auto_score(t):
                 warnings.append(LintError(
                     "item.no_normalizer", "type", tag,
                     "%s items have no registered normalizer; their responses "

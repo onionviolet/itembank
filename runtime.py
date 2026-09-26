@@ -247,6 +247,11 @@ NORMALIZERS = {
 }
 
 
+def supports_auto_score(item_type):
+    """Report scorer capability, including types with structured comparison."""
+    return item_type in NORMALIZERS or item_type in ("visual", "fill")
+
+
 def _key_mc(q):
     return q["correct"][0]
 

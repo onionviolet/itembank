@@ -53,6 +53,19 @@ class FillContract(unittest.TestCase):
             changed["fields"][0][key] = value
             self.assertNotEqual(model.content_fingerprint(changed), original)
 
+    def test_mixed_bank_reports_actual_scoring_capability(self):
+        # Visual and fill compare structured responses without a string normalizer.
+        # Adding a check item must not mislabel those types as pending.
+        items = self.items + model.load(str(ROOT / "fixtures" / "check_bank.md"))
+        items += model.load(str(ROOT / "fixtures" / "visual_bank.md"))
+        items += model.parse_bank("Q91. Synthetic prose.\n[TYPE: short]\n")
+        warnings = [w for w in model.lint(items)[1] if w.code == "item.no_normalizer"]
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("short items", str(warnings[0]))
+        self.assertTrue(runtime.supports_auto_score("visual"))
+        self.assertTrue(runtime.supports_auto_score("fill"))
+        self.assertFalse(runtime.supports_auto_score("short"))
+
     def test_text_rules_and_multiple_fields(self):
         q = self.items[0]
         self.assertTrue(runtime.score_response(q, {"color": " BLUE ", "count": "5/2"}))
