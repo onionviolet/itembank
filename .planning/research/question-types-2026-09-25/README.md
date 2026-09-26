@@ -5,6 +5,11 @@ Source baseline: `ee23d88`.
 Status: research and verified gap inventory. Recommendations are not accepted
 format changes or an implementation plan.
 
+**Implementation follow-up, 2026-09-26:** the later user instruction authorized
+the [typed-answer and checker implementation](IMPLEMENTATION.md). That record
+owns current source behavior, commits, verification, and remaining limits.
+This audit preserves the findings as observed at its original baseline.
+
 ## Result
 
 Itembank already has eight assessment response forms and a Python execution

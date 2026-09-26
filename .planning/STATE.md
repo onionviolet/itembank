@@ -6,7 +6,7 @@ current_phase_name: 20-extensible-ui-foundation-and-interaction-clarity-pass
 current_phase: 20
 status: "Parity and bounded course-journey changes are integrated into main. The journey branch passed remote CI; the rebuilt package and packaged daemon passed synthetic checks. Installed-app and human acceptance remain open."
 stopped_at: "Verify the installed desktop journey after the active learner session, then complete human accessibility and learning-transfer checks."
-last_updated: "2026-09-22"
+last_updated: "2026-09-26"
 last_activity: 2026-09-22
 last_activity_desc: "Fast-forwarded parity and source-first course journey changes into local main after the journey branch passed remote CI."
 progress:
@@ -17,6 +17,17 @@ progress:
   counting_rule: "phase directories under .planning/phases; a phase counts complete when frozen or when its execution gate is complete. Human, external, and waived legs remain named limits rather than active implementation phases. Reach phases 19A through 19E and Phase 20 have completed their recorded execution gates. A plan is complete only when its required gate passes; a summary file alone does not close it."
 ---
 # Project State
+
+**Parallel typed-answer candidate, 2026-09-26:**
+`codex/question-types-checking-20260926` adds graded text, numeric and unit
+fields, repairs Python check verdicts and premature feedback, and preserves
+drafts and invalid-entry retries. The
+[implementation record](research/question-types-2026-09-25/IMPLEMENTATION.md)
+owns its verification and atomic commit list. The final full preflight passed
+all 147 Python test scripts, the JavaScript suite, and the clean-tree gate.
+A temporary packaged CLI completed a synthetic sitting at 3/3. This candidate
+has not been merged, pushed, or installed. Browser acceptance is partial and
+human accessibility remains open. Existing integrated-main history follows.
 
 **Integrated parity and journey baseline, 2026-09-22:** Implementation commit
 `5d13ac8` includes the parity commits and a source-first course overview,

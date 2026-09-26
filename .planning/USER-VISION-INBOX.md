@@ -1129,3 +1129,15 @@ and learner LaTeX input research. Interpreter checking is a capability to
 inspect, not evidence that execution is currently absent. Candidate additions
 remain proposals until their own implementation and acceptance gates pass.
 The audit does not authorize changing scoring, banks, or accepted schemas.
+
+### 2026-09-26: implement question types and answer checking
+
+> setup and implement accordingl, atomic commits and consider other advancements and more, reflecting upon user vision and more
+
+**Disposition:** Promote the implementation direction to
+[the vision entry](USER-VISION.md#2026-09-26-implement-question-types-and-answer-checking).
+The [implementation record](research/question-types-2026-09-25/IMPLEMENTATION.md)
+owns the bounded source changes, atomic commits, verification, and retained
+advancements. This later instruction authorizes implementation after the
+earlier audit-only request. It does not turn every researched option into a
+completed feature or authorize replacing real course artifacts.

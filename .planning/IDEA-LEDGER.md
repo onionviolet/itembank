@@ -2852,3 +2852,30 @@ or Backburner status. No idea is rejected or removed by this implementation.
   capture, and the new audit directory to reverse the records pass. Preserve
   concurrent edits. No existing idea is rejected or superseded. This bounded
   audit does not establish installed, human, or full competitive acceptance.
+
+#### IL-20260925-02 implementation follow-up, 2026-09-26
+
+The [implementation instruction](USER-VISION.md#2026-09-26-implement-question-types-and-answer-checking)
+promotes a bounded Core source candidate: one `fill` form supports named text,
+numeric, and measurement fields. Python checking now rejects crashes despite
+matching output and explains released runtime errors. Silent feedback keeps
+case data private. Draft restoration and both submission routes preserve a
+retry after invalid input. The
+[implementation record](research/question-types-2026-09-25/IMPLEMENTATION.md)
+owns commit and verification evidence. The earlier unfixed audit remains a
+dated historical record, not the current implementation status.
+
+Bounded symbolic checking remains Prototype. Hostile-code isolation is Deferred
+until a portable boundary is selected and escape/resource tests pass. SQL,
+notebooks, spreadsheet artifacts, chemistry, audio, performance, and test-writing
+tasks remain Backburner under the course-objective triggers above. Inline
+blank placement, fractional credit, and two-option MC remain Backburner until
+their response, evidence, or item-policy contracts are explicitly extended.
+Binary classification still uses the existing table form. No proposal is
+rejected or deleted by this pass.
+
+The source candidate introduces no remote service or dependency. Real banks
+and existing evidence are unchanged. Native Python still executes trusted
+local code rather than providing hostile-code isolation. Installed and human
+acceptance remain open. Revert the named commits in reverse dependency order
+to undo this candidate.

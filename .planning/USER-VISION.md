@@ -3248,3 +3248,32 @@ all candidate styles or expanding assessment authority.
 **Relationship to earlier entries:** continues the distinctive craft research
 and the complete-journey renewal. This later instruction authorizes production
 implementation despite the earlier research-only status.
+
+### 2026-09-26: implement question types and answer checking
+
+> setup and implement accordingl, atomic commits and consider other advancements and more, reflecting upon user vision and more
+
+#### Interpretation recorded 2026-09-26
+
+**Status:** active implementation direction, bounded source candidate verified.
+
+**Current interpretation:** turn the question-type audit into working
+assessment capabilities, with atomic commits and attention to the broader
+learning workspace. Match response forms and checking rules to the objective.
+Preserve learner work, useful feedback, and further subject-specific options.
+
+**Open questions:** symbolic equivalence, hostile-code isolation, domain
+adapters, partial credit, and rich inline placement need separate contracts and
+evidence. Installed-app, mobile-browser, and human accessibility acceptance
+remain distinct from automated source verification.
+
+**Planning effect:** the
+[implementation record](research/question-types-2026-09-25/IMPLEMENTATION.md)
+owns typed completion, Python checking corrections, draft and retry recovery,
+and their tests. IL-20260925-02 retains the wider possibilities with costs and
+revisit triggers. The runtime remains the sole scoring authority.
+
+**Relationship to earlier entries:** continues the September 16 code-question
+depth, September 20 LaTeX input, and source-to-course direction. It advances
+the September 25 format audit into implementation without treating an input
+widget as proof of checking capability or learning benefit.
