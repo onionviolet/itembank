@@ -641,7 +641,7 @@ def scenario_media_metadata():
 
 
 def scenario_activity_declarations():
-    """ACTIVITY-01's ten purposes over the eight shipped response forms, with
+    """ACTIVITY-01's ten purposes over the nine shipped response forms, with
     every one of the ten declared fields filled on every row."""
     workdir = tempfile.mkdtemp(prefix="cap-tracer-activity-")
     path = lesson_capability_corpus.build_activity_set(workdir)
@@ -695,6 +695,19 @@ def scenario_activity_declarations():
              "existing forms serve the purposes"
              % (sorted(forms), missing))
 
+    questions = {question["id"]: question for question in model.load(path)}
+    fill_question = questions.get("q3")
+    if not fill_question or fill_question.get("type") != "fill":
+        fail("activities, fill hop: q3 declares fill but is not a real fill item")
+    fill_public = runtime.public_item(fill_question)
+    if fill_public.get("response_schema") != {
+            "type": "object", "required": ["term"], "values": "string",
+            "additional_properties": False} or fill_public.get("fields") != [{
+                "id": "term", "label": "Two-word term", "kind": "text",
+                "case_sensitive": False, "whitespace": "trim"}]:
+        fail("activities, fill hop: q3 does not expose its typed completion "
+             "through the runtime public contract")
+
     errors, warnings = model.lint(model.load(path),
                                   lesson=model.parse_lesson(path),
                                   activities=parsed)
@@ -738,12 +751,12 @@ def scenario_unsupported_response_form():
              "no activity registry supplied, so it is not sourced from the "
              "declaration")
 
-    # No ninth type was minted. Every item in a bank that declares ten
-    # purposes is still one of the eight shipped forms.
+    # No tenth type was minted. Every item in a bank that declares ten
+    # purposes is still one of the nine shipped forms.
     types = {q["type"] for q in qs}
     if not types <= set(model.RESPONSE_FORMS):
         fail("unsupported form, type hop: the bank carries item types %r, "
-             "which are not all shipped response forms; a ninth type was "
+             "which are not all shipped response forms; a tenth type was "
              "minted" % sorted(types - set(model.RESPONSE_FORMS)))
 
     # The declaration-is-not-authority proof. Rewrite every feedback cell to
