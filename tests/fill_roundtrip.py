@@ -80,7 +80,16 @@ class FillContract(unittest.TestCase):
             self.assertFalse(runtime.score_response(accented, {"name": wrong}))
         field = accented["fields"][0]
         field.update(accepted=["two words"], whitespace="collapse", case_sensitive=False)
-        self.assertTrue(runtime.score_response(accented, {"name": " TWO\t  words\n"}))
+        self.assertTrue(runtime.score_response(accented, {"name": " TWO   words "}))
+        for control in ("\n", "\r", "\t", "\x00", "\x85", "\u2028", "\u2029", "\ud800"):
+            value = "two" + control + "words"
+            self.assertTrue(runtime.fill_response_error(accented, {"name": value}))
+            changed = copy.deepcopy(accented)
+            changed["fields"][0]["accepted"] = [value]
+            self.assertTrue(runtime.fill_spec_errors(changed))
+            changed = copy.deepcopy(accented)
+            changed["fields"][0]["label"] = value
+            self.assertTrue(runtime.fill_spec_errors(changed))
         field["accepted"] = ["two words", "TWO WORDS"]
         self.assertTrue(runtime.fill_spec_errors(accented))
 

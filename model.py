@@ -2441,7 +2441,9 @@ THE NINE ITEM TYPES
    The named base unit must have scale 1. Names have 1 to 24 visible characters
    without spaces. A response must separate its number and unit with a space.
    No prefixes, dimensions, affine conversions, or aliases are inferred.
-   Every response value is a nonempty string of at most 4096 characters.
+   Labels, accepted text, and responses are single-line strings without control
+   characters or Unicode line separators. Every response value is nonempty and
+   at most 4096 characters.
    Missing, extra, malformed, or blank fields are refused before an attempt.
    The submitted strings stay in evidence. Every checking rule affects HASH.
    Private accepted answers and numeric rules never enter the public item.

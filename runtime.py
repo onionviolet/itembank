@@ -404,6 +404,11 @@ def _fill_text(field, raw):
     return value if field.get("case_sensitive", True) else unicodedata.normalize("NFC", value.casefold())
 
 
+def _fill_single_line(value):
+    """Keep authored and submitted text representable by a single-line input."""
+    return not any(unicodedata.category(c) in ("Cc", "Cs", "Zl", "Zp") for c in value)
+
+
 def _fill_quantity(field, raw):
     raw = raw.strip()
     if field.get("units"):
@@ -435,8 +440,9 @@ def fill_spec_errors(q):
         if isinstance(ident, str):
             seen.add(ident)
         label = field.get("label")
-        if not isinstance(label, str) or not label.strip() or len(label) > 200:
-            fail("each field needs a nonempty label of at most 200 characters", "label")
+        if (not isinstance(label, str) or not label.strip() or len(label) > 200
+                or not _fill_single_line(label)):
+            fail("each field needs a nonempty single-line label of at most 200 characters", "label")
         kind = field.get("kind")
         common = {"id", "label", "kind"}
         allowed = (common | {"accepted", "case_sensitive", "whitespace"} if kind == "text"
@@ -457,8 +463,8 @@ def fill_spec_errors(q):
             else:
                 for value in accepted:
                     if (not isinstance(value, str) or not value.strip()
-                            or len(value) > 4096):
-                        fail("accepted answers must be nonempty strings up to 4096 characters",
+                            or len(value) > 4096 or not _fill_single_line(value)):
+                        fail("accepted answers must be nonempty single-line strings up to 4096 characters",
                              "accepted")
                 if all(isinstance(value, str) for value in accepted):
                     canonical = [_fill_text(field, value) for value in accepted]
@@ -506,6 +512,8 @@ def fill_response_error(q, answer):
         value = answer[field["id"]]
         if not isinstance(value, str) or not value.strip() or len(value) > 4096:
             return "%s: enter a nonempty answer of at most 4096 characters." % field["label"]
+        if not _fill_single_line(value):
+            return "%s: use one line without control characters." % field["label"]
         if field["kind"] == "numeric":
             try:
                 _fill_quantity(field, value)
