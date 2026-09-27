@@ -136,3 +136,55 @@ recovered startup, but the initial cause was not established. Native inspection
 then confirmed the updated desk and Courses rows, readable controls, full
 accessible action names, and retained course/session destinations. The app
 was left open on Your desk. No commit or public release was made.
+
+## General reliability refinement, 2026-09-26
+
+User request: "more general improvements and more?"
+
+This bounded pass interprets the request as usability and reliability work in
+the existing app. It continues D5 and the complete-journey direction.
+The source changes are on `codex/general-quality-20260926`, based on `c5a2a8c`.
+They are uncommitted. The current task owns these changes.
+
+| Code | Observed defect and correction | Owner |
+| --- | --- | --- |
+| F1 | A note-save acknowledgement could erase wording typed while the request was pending. A save now captures its wording and edit version. Newer text remains an unsaved draft, unchanged retries retain their note identity, and refresh cannot enable a duplicate save. | `surfaces/reading_desk.py` |
+| F2 | Dynamic typed-field forms wrote ID-keyed drafts while the initial server form expected arrays. Both now use authored field IDs and continue reading existing positional drafts. Empty strings, fractions, and units survive the transition. | `surfaces/quiz_page.py` |
+| F3 | A course drag could become stuck after capture loss and could not be cancelled with Escape. Cancellation now restores order and usable focus. A second pointer cannot take over. Uncertain save responses no longer claim a conflict or a successful save. | `surfaces/daemon.py`, `SHELF_SCRIPT` |
+
+The runtime still owns scoring, disclosure, evidence, rights and accepted
+notes. These changes preserve its API and compare-and-swap behavior.
+Drafts and optimistic course order remain presentation state.
+No real course, note, answer or evidence was changed during verification.
+
+Focused checks passed: 35 quiz-transition JavaScript cases, 11 shelf cases,
+five reading-note cases, typed-fill Python checks, seven reading-desk Python
+cases, desk rendering and 27 IA route cases. The shelf regression cases failed
+before the correction. Independent review found no actionable defect in the
+shelf and typed-draft diffs. The integrator inspected the note-save diff.
+
+A disposable real daemon and browser verified drag cancellation and focus,
+typed text, fractions and units across reload and opening help, and note saving
+under a 1.2-second simulated network delay. The older wording was saved while
+newer wording remained editable and marked unsaved. Saving that newer draft
+then reloading retained both notes. The temporary network delay was reset.
+Native server-rendered quiz behavior was exercised in the browser. Dynamic
+and native renderer interchange was checked by the JavaScript behavior tests.
+
+Full preflight ran all 147 Python scripts and the JavaScript suite. It found
+one stale source-string assertion in `visual_accessibility_roundtrip.py`,
+which assumed the old positional restore occupied one line. The assertion now
+covers positional and field-ID restoration and tolerates the line break.
+That entire script passed on rerun. The other 146 Python scripts and the
+JavaScript suite passed in the full run. Final quick preflight and
+`git diff --check` passed. The clean-tree gate reports the intended uncommitted
+changes. The entire slow suite was not repeated after this test-only update.
+The two CI-only steps remain unrun locally.
+
+No installed application has been replaced by this pass. Human accessibility
+and learning outcomes remain separate. The large daemon and quiz modules were
+read by relevant symbols and diffs, not audited in full.
+
+To undo, revert only the three scoped source changes and their focused test
+changes. No accepted-file or evidence migration is required. Broader feature
+ideas keep their existing dispositions in the craft synthesis.

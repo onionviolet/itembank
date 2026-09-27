@@ -2921,6 +2921,7 @@ SHELF_SCRIPT = """<script>
   }
   function saveOrder(previous) {
     if (sameOrder(previous, ids())) { syncButtons(); return Promise.resolve(); }
+    var failureMessage = "Could not confirm the saved course order. Reload to check it before trying again.";
     saving = true;
     syncButtons();
     if (status) { status.textContent = "Saving course order..."; }
@@ -2929,18 +2930,28 @@ SHELF_SCRIPT = """<script>
       body: JSON.stringify({action: "reorder_courses", course_ids: ids(),
                            expected_fingerprint: fingerprint})
     }).then(function (response) {
-      if (!response.ok) { throw new Error("Course order changed elsewhere. Reload and try again."); }
+      if (!response.ok) {
+        if (response.status === 409) {
+          failureMessage = "Course order changed elsewhere. Reload and try again.";
+        } else if (response.status >= 400 && response.status < 500) {
+          failureMessage = "Course order could not be saved. Reload and try again.";
+        }
+        throw new Error(failureMessage);
+      }
       return response.json();
     }).then(function (result) {
+      if (!result || typeof result.fingerprint !== "string" || !result.fingerprint) {
+        throw new Error(failureMessage);
+      }
       fingerprint = result.fingerprint;
       shelf.setAttribute("data-workspace-fingerprint", fingerprint);
       saving = false;
       if (status) { status.textContent = "Course order saved."; }
       syncButtons();
-    }).catch(function (error) {
+    }).catch(function () {
       saving = false;
       restore(previous);
-      if (status) { status.textContent = error.message; }
+      if (status) { status.textContent = failureMessage; }
     });
   }
 
@@ -2963,7 +2974,7 @@ SHELF_SCRIPT = """<script>
 
   shelf.addEventListener("pointerdown", function (event) {
     var handle = event.target.closest("[data-drag-handle]");
-    if (!handle || saving || event.button !== 0) { return; }
+    if (!handle || saving || dragging || event.isPrimary === false || event.button !== 0) { return; }
     dragging = handle.closest("[data-course-id]");
     pointerStartOrder = ids();
     pointerId = event.pointerId;
@@ -2994,15 +3005,34 @@ SHELF_SCRIPT = """<script>
     if (pointerMoved) { saveOrder(previous); }
     pointerMoved = false;
   });
-  shelf.addEventListener("pointercancel", function (event) {
-    if (!dragging || event.pointerId !== pointerId) { return; }
+  function cancelDrag(returnFocus) {
+    if (!dragging) { return; }
     var previous = pointerStartOrder;
+    var handle = dragging.querySelector('[data-drag-handle]');
+    var capturedPointer = pointerId;
     dragging.classList.remove("is-dragging");
     dragging = null;
     pointerStartOrder = null;
     pointerId = null;
     pointerMoved = false;
     restore(previous);
+    if (shelf.hasPointerCapture && shelf.hasPointerCapture(capturedPointer)) {
+      shelf.releasePointerCapture(capturedPointer);
+    }
+    if (returnFocus && handle) { handle.focus(); }
+    if (status) { status.textContent = "Course move cancelled."; }
+  }
+  shelf.addEventListener("pointercancel", function (event) {
+    if (event.pointerId === pointerId) { cancelDrag(false); }
+  });
+  shelf.addEventListener("lostpointercapture", function (event) {
+    if (event.pointerId === pointerId) { cancelDrag(false); }
+  });
+  document.addEventListener("keydown", function (event) {
+    if (dragging && event.key === "Escape") {
+      event.preventDefault();
+      cancelDrag(true);
+    }
   });
   syncButtons();
 })();

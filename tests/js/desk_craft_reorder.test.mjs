@@ -33,7 +33,7 @@ function setup(response) {
   const requests = [];
   window.fetch = (url, options) => {
     requests.push({ url, options });
-    return Promise.resolve(response);
+    return typeof response === "function" ? response() : Promise.resolve(response);
   };
   window.eval(fixture.script.replace(/^<script[^>]*>|<\/script>$/g, ""));
   const shelf = window.document.querySelector("[data-course-shelf]");
@@ -114,6 +114,62 @@ test("cancelled touch drag restores the original order", () => {
   }
 });
 
+for (const reason of ["Escape", "lostpointercapture"]) {
+  test(`${reason} cancels a drag without saving and allows the next move`, async () => {
+    const app = setup({ ok: true, json: () => Promise.resolve({
+      fingerprint: "sha256:after", course_ids: ["second", "first"],
+    }) });
+    try {
+      const first = app.shelf.querySelector('[data-course-id="first"]');
+      const second = app.shelf.querySelector('[data-course-id="second"]');
+      const handle = first.querySelector('[data-drag-handle]');
+      second.getBoundingClientRect = () => ({ top: 0, height: 100 });
+      app.window.document.elementFromPoint = () => second;
+      pointer(app.window, handle, "pointerdown");
+      pointer(app.window, app.shelf, "pointermove", { clientY: 90 });
+      assert.deepEqual(app.order(), ["second", "first"]);
+      if (reason === "Escape") {
+        app.window.document.dispatchEvent(new app.window.KeyboardEvent("keydown", {
+          key: "Escape", bubbles: true, cancelable: true,
+        }));
+        assert.equal(app.window.document.activeElement, handle);
+      } else {
+        pointer(app.window, app.shelf, reason);
+      }
+      pointer(app.window, app.shelf, "pointerup");
+      assert.deepEqual(app.order(), ["first", "second"]);
+      assert.deepEqual(app.marks(), ["01", "02"]);
+      assert.equal(app.lead().title, "Logic and proofs");
+      assert.equal(app.requests.length, 0);
+      assert.equal(first.classList.contains("is-dragging"), false);
+      assert.equal(app.status.textContent, "Course move cancelled.");
+      first.querySelector('[data-move="down"]').click();
+      await settle();
+      assert.equal(app.requests.length, 1);
+      assert.equal(app.status.textContent, "Course order saved.");
+    } finally {
+      app.dom.window.close();
+    }
+  });
+}
+
+test("a second pointer cannot replace an active drag", () => {
+  const app = setup({ ok: true, json: () => Promise.resolve({}) });
+  try {
+    const first = app.shelf.querySelector('[data-course-id="first"]');
+    const second = app.shelf.querySelector('[data-course-id="second"]');
+    pointer(app.window, first.querySelector('[data-drag-handle]'), "pointerdown");
+    pointer(app.window, second.querySelector('[data-drag-handle]'), "pointerdown", {
+      pointerId: 2, isPrimary: false,
+    });
+    pointer(app.window, app.shelf, "pointercancel");
+    assert.equal(app.shelf.querySelector(".is-dragging"), null);
+    assert.equal(app.requests.length, 0);
+  } finally {
+    app.dom.window.close();
+  }
+});
+
 test("move down saves the rendered shelf order and updates its lead", async () => {
   const app = setup({ ok: true, json: () => Promise.resolve({
     fingerprint: "sha256:after", course_ids: ["second", "first"],
@@ -151,7 +207,7 @@ test("move down saves the rendered shelf order and updates its lead", async () =
 });
 
 test("rejected save restores the rendered order, lead, and status", async () => {
-  const app = setup({ ok: false });
+  const app = setup({ ok: false, status: 409 });
   try {
     const move = app.shelf.querySelector('[data-course-id="first"] [data-move="down"]');
     move.closest('details').open = true;
@@ -175,3 +231,26 @@ test("rejected save restores the rendered order, lead, and status", async () => 
     app.dom.window.close();
   }
 });
+
+for (const [reason, response] of [
+  ["network failure", () => Promise.reject(new TypeError("Failed to fetch"))],
+  ["server failure", { ok: false, status: 500 }],
+  ["unreadable acknowledgement", { ok: true, json: () => Promise.reject(new SyntaxError()) }],
+  ["missing fingerprint", { ok: true, json: () => Promise.resolve({}) }],
+]) {
+  test(`${reason} never claims the order changed elsewhere or was saved`, async () => {
+    const app = setup(response);
+    try {
+      const move = app.shelf.querySelector('[data-course-id="first"] [data-move="down"]');
+      move.click();
+      await settle();
+      assert.deepEqual(app.order(), ["first", "second"]);
+      assert.equal(app.shelf.dataset.workspaceFingerprint, "sha256:before");
+      assert.equal(app.status.textContent,
+        "Could not confirm the saved course order. Reload to check it before trying again.");
+      assert.equal(move.disabled, false);
+    } finally {
+      app.dom.window.close();
+    }
+  });
+}

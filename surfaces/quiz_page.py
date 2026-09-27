@@ -2482,9 +2482,9 @@ function asFill(q, body, act, card){
   let storageKey = null;
   try {
     storageKey = draftKey((BOOT && BOOT.bank) || "", q.id);
-    const saved = JSON.parse(localStorage.getItem(storageKey) || "null");
-    if(saved && typeof saved === "object") ids.forEach(id=>{
-      if(typeof saved[id] === "string") controls[id].value = saved[id];
+    const saved = readFillDraft(JSON.parse(localStorage.getItem(storageKey) || "null"), ids);
+    ids.forEach(id=>{
+      if(Object.prototype.hasOwnProperty.call(saved, id)) controls[id].value = saved[id];
     });
   } catch(e) { storageKey = null; }
   const response = ()=>{
@@ -4300,6 +4300,15 @@ function emptyState(){
 function draftKey(bank, itemId){
   return "itembank.draft." + bank + "." + itemId;
 }
+function readFillDraft(saved, ids){
+  const values = Object.create(null);
+  if(!saved || typeof saved !== "object") return values;
+  ids.forEach((id, index)=>{
+    const value = Array.isArray(saved) ? saved[index] : saved[id];
+    if(typeof value === "string") values[id] = value;
+  });
+  return values;
+}
 function installDraft(baseline){
   // Draft autosave is presentation state only (080bffc): it refills the
   // visible controls and is never read back as an answer, never sent
@@ -4333,12 +4342,21 @@ function installDraft(baseline){
     var fields = form.querySelectorAll("textarea, input[type=text]");
     var saved = null, raw = store.getItem(key);
     try{ saved = raw === null ? null : JSON.parse(raw); }catch(e){ saved = null; }
+    var fill = baseline.dataset.responseType === "fill";
+    var ids = fill ? Array.from(fields, function(el){ return el.name.slice(5); }) : [];
+    var fillValues = fill ? readFillDraft(saved, ids) : null;
     fields.forEach(function(el, idx){
-      if(Array.isArray(saved) && typeof saved[idx] === "string") el.value = saved[idx];
+      if(fill && Object.prototype.hasOwnProperty.call(fillValues, ids[idx]))
+        el.value = fillValues[ids[idx]];
+      else if(!fill && Array.isArray(saved) && typeof saved[idx] === "string")
+        el.value = saved[idx];
     });
     form.addEventListener("input", function(){
-      var vals = [];
-      fields.forEach(function(el){ vals.push(el.value); });
+      var vals = fill ? Object.create(null) : [];
+      fields.forEach(function(el, idx){
+        if(fill) vals[ids[idx]] = el.value;
+        else vals.push(el.value);
+      });
       try{ store.setItem(key, JSON.stringify(vals)); }catch(e){}
     });
   }catch(e){}

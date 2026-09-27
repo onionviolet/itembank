@@ -236,7 +236,8 @@ def check_draft_is_served_only_and_presentation_only():
         fail("ASSIST_JS must stay storage-free; the assist layer has no session")
     if 'querySelectorAll("textarea, input[type=text]")' not in js:
         fail("the draft must touch only text controls")
-    if 'typeof saved[idx] === "string") el.value = saved[idx]' not in js:
+    if not re.search(r'typeof saved\[idx\] === "string"\)\s*el.value = saved\[idx\]', js) or \
+            'el.value = fillValues[ids[idx]]' not in js:
         fail("the latest local draft must replace authored defaults and stale server echoes")
     if "raw === null ? null : JSON.parse(raw)" not in js:
         fail("restore must distinguish no draft from a deliberately empty draft")

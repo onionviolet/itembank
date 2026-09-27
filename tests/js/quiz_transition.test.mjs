@@ -32,14 +32,17 @@ const options = [
   { key: "C", text: "Gamma" }, { key: "D", text: "Delta" },
 ];
 
-async function bootBaselineDraft(t, { saved, value, feedbackPause = false,
-  control = "textarea" }) {
+async function bootBaselineDraft(t, { saved, savedRaw, value, feedbackPause = false,
+  control = "textarea", fillFields }) {
   const pause = feedbackPause ? " data-feedback-pause" : "";
-  const field = control === "input"
+  const field = fillFields
+    ? fillFields.map(({ id, value }) =>
+        `<input type="text" name="fill_${id}" value="${value}">`).join("")
+    : control === "input"
     ? `<input type="text" name="fill_count" value="${value}">`
     : `<textarea name="answer">${value}</textarea>`;
   const baseline = `<div id="host"><div data-server-baseline${pause}
-    data-session-id="session" data-item-id="q1" data-response-type="check">
+    data-session-id="session" data-item-id="q1" data-response-type="${fillFields || control === "input" ? "fill" : "check"}">
     <form data-answer-form>${field}</form>
     </div></div>`;
   const html = pages.check[1].replace('<div id="host"></div>', baseline);
@@ -54,8 +57,9 @@ async function bootBaselineDraft(t, { saved, value, feedbackPause = false,
       dispose = win.close.bind(win);
       win.scrollTo = () => {};
       win.HTMLElement.prototype.scrollIntoView = () => {};
-      if (saved !== undefined) {
-        win.localStorage.setItem("itembank.draft.synthetic.q1", JSON.stringify([saved]));
+      if (saved !== undefined || savedRaw !== undefined) {
+        win.localStorage.setItem("itembank.draft.synthetic.q1",
+          JSON.stringify(savedRaw !== undefined ? savedRaw : [saved]));
       }
     },
   });
@@ -80,7 +84,7 @@ const complete = {
 };
 
 async function boot(t, item, replies = [], { initial, next, teach, random = 0,
-  draft = undefined } = {}) {
+  draft = undefined, draftRaw = undefined } = {}) {
   const requests = [];
   const errors = [];
   let submitIndex = 0;
@@ -96,8 +100,9 @@ async function boot(t, item, replies = [], { initial, next, teach, random = 0,
       win.scrollTo = () => {};
       win.HTMLElement.prototype.scrollIntoView = () => {};
       win.Math.random = () => random;
-      if (draft !== undefined) {
-        win.localStorage.setItem(`itembank.draft.synthetic.${item.id}`, JSON.stringify([draft]));
+      if (draft !== undefined || draftRaw !== undefined) {
+        win.localStorage.setItem(`itembank.draft.synthetic.${item.id}`,
+          JSON.stringify(draftRaw !== undefined ? draftRaw : [draft]));
       }
       const zero = { x: 0, y: 0, top: 0, left: 0, right: 0, bottom: 0, width: 0, height: 0 };
       win.Range.prototype.getBoundingClientRect = () => zero;
@@ -365,6 +370,13 @@ const fillItem = {
   response_schema: { type: "object", required: ["count"], values: "string",
     additional_properties: false },
 };
+const fillPairItem = {
+  ...fillItem,
+  fields: [{ id: "count", label: "Count", kind: "numeric" },
+    { id: "unit_note", label: "Unit note", kind: "text" }],
+  response_schema: { type: "object", required: ["count", "unit_note"],
+    values: "string", additional_properties: false },
+};
 
 function setFill(page, value) {
   const input = page.document.querySelector('input[name="fill_count"]');
@@ -397,6 +409,53 @@ test("fill network uncertainty recovers the raw input without resubmitting", asy
   assert.equal(input.value, "5/2");
   assert.ok(page.button(), "saved-state recovery must restore Submit answer");
   assert.deepEqual(page.answers(), [{ count: "5/2" }]);
+});
+
+test("dynamic fill draft restores in the native form by authored field ID", async t => {
+  const page = await boot(t, fillPairItem);
+  setFill(page, "100 cm");
+  const saved = JSON.parse(page.dom.window.localStorage.getItem("itembank.draft.synthetic.q1"));
+  assert.deepEqual(saved, { count: "100 cm", unit_note: "" });
+  const native = await bootBaselineDraft(t, {
+    savedRaw: saved,
+    fillFields: [{ id: "unit_note", value: "stale echo" },
+      { id: "count", value: "earlier value" }],
+  });
+  assert.equal(native.window.document.querySelector('[name="fill_unit_note"]').value, "");
+  assert.equal(native.window.document.querySelector('[name="fill_count"]').value, "100 cm");
+});
+
+test("native fill edits restore in the dynamic form and retain numeric units", async t => {
+  const native = await bootBaselineDraft(t, {
+    fillFields: [{ id: "count", value: "" }, { id: "unit_note", value: "" }],
+  });
+  const count = native.window.document.querySelector('[name="fill_count"]');
+  count.value = "5/2 m";
+  count.dispatchEvent(new native.window.Event("input", { bubbles: true }));
+  const note = native.window.document.querySelector('[name="fill_unit_note"]');
+  note.value = "cm is smaller";
+  note.dispatchEvent(new native.window.Event("input", { bubbles: true }));
+  const saved = JSON.parse(native.window.localStorage.getItem("itembank.draft.synthetic.q1"));
+  assert.deepEqual(saved, { count: "5/2 m", unit_note: "cm is smaller" });
+  const page = await boot(t, fillPairItem, [complete], { draftRaw: saved });
+  assert.equal(page.document.querySelector('[name="fill_count"]').value, "5/2 m");
+  assert.equal(page.document.querySelector('[name="fill_unit_note"]').value, "cm is smaller");
+  await page.submit();
+  assert.deepEqual(page.answers(), [{ count: "5/2 m", unit_note: "cm is smaller" }]);
+});
+
+test("legacy array fill drafts remain readable in both renderers", async t => {
+  const saved = ["100 cm", ""];
+  const dynamic = await boot(t, fillPairItem, [], { draftRaw: saved });
+  assert.equal(dynamic.document.querySelector('[name="fill_count"]').value, "100 cm");
+  assert.equal(dynamic.document.querySelector('[name="fill_unit_note"]').value, "");
+  const native = await bootBaselineDraft(t, {
+    savedRaw: saved,
+    fillFields: [{ id: "count", value: "" },
+      { id: "unit_note", value: "stale echo" }],
+  });
+  assert.equal(native.window.document.querySelector('[name="fill_count"]').value, "100 cm");
+  assert.equal(native.window.document.querySelector('[name="fill_unit_note"]').value, "");
 });
 
 test("saved code replaces the starter template and is submitted unchanged", async t => {

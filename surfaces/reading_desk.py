@@ -13,18 +13,19 @@ main{max-width:1320px!important}.reading-layout{display:grid;grid-template-colum
 '''
 
 SCRIPT = r'''
-const ctx=__CONTEXT__;let intent=null,noteId=null,dirty=false,view=null;
+const ctx=__CONTEXT__;let intent=null,noteId=null,dirty=false,view=null,savingNote=false,noteVersion=0;
 const $=s=>document.querySelector(s);
+function updateSaveButton(){ $('#save-note').disabled=savingNote||!view||view.content===null||!!view.note_error; }
 async function api(op,extra={}){const r=await fetch('/api/course/'+op.replaceAll('_','-'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...ctx,...extra})});if(!r.ok)throw Error('Request refused. Keep your draft. Refresh the course or inspect recovery before trying again.');return r.json()}
 function status(s){return {'reported-read':'Reported read for this assignment','not-reported':'Not reported read','unavailable':'Reading history unavailable','unsupported':'Reading history unsupported. Restore or inspect it.'}[s]||s}
 async function refresh(){view=await api('reading_view');$('#reading-state').textContent=status(view.reading_state.state);$('#source-state').textContent=view.availability.message||view.availability.state;$('#source-content').textContent=view.content===null?'This source range is unavailable. Your notes and historical declaration remain separate.':view.content;
-$('#mark-read').disabled=view.content===null;$('#save-note').disabled=view.content===null||!!view.note_error;
+$('#mark-read').disabled=view.content===null;updateSaveButton();
 $('#note-state').textContent=view.note_error||'Private source notes. Shared across assignments using this source.';
 $('#saved-notes').replaceChildren();for(const n of view.notes){const article=document.createElement('article');article.className='reading-note';const p=document.createElement('p');p.textContent=n.learner_wording;const meta=document.createElement('small');meta.textContent=n.anchor_state+' · Private · '+n.owner;article.append(p,meta);$('#saved-notes').append(article)}
 }
 $('#mark-read').addEventListener('click',async()=>{const b=$('#mark-read');b.disabled=true;try{if(!intent){const c=await api('confirm_reading',{confirmation:'read'});intent=c.intent_id}await api('declare_reading',{intent_id:intent});await refresh();intent=null;b.textContent='I have read this range'}catch(e){$('#reading-state').textContent=e.message;b.textContent=intent?'Retry the same declaration':'I have read this range'}finally{b.disabled=view?.content===null}});
-$('#note').addEventListener('input',()=>{dirty=true;noteId=null;$('#save-state').textContent='Unsaved draft';});
-$('#save-note').addEventListener('click',async()=>{const b=$('#save-note');if(!$('#note').value.trim())return;b.disabled=true;noteId??=crypto.randomUUID().replaceAll('-','');try{await api('save_reading_note',{note_id:noteId,wording:$('#note').value,notes_fingerprint:view.notes_fingerprint});dirty=false;noteId=null;$('#note').value='';$('#save-state').textContent='Saved to your notes.';try{await refresh()}catch(e){$('#note-state').textContent='Saved. The note list could not refresh. Reopen the course to view it.'}}catch(e){$('#save-state').textContent=e.message}finally{b.disabled=view?.content===null||!!view?.note_error}});
+$('#note').addEventListener('input',()=>{noteVersion++;dirty=true;noteId=null;$('#save-state').textContent='Unsaved draft';});
+$('#save-note').addEventListener('click',async()=>{if(savingNote||!view||view.content===null||view.note_error)return;const field=$('#note'),wording=field.value;if(!wording.trim())return;const version=noteVersion,id=noteId??crypto.randomUUID().replaceAll('-',''),fingerprint=view.notes_fingerprint;noteId=id;savingNote=true;updateSaveButton();try{await api('save_reading_note',{note_id:id,wording,notes_fingerprint:fingerprint});if(noteVersion===version&&field.value===wording){dirty=false;noteId=null;field.value='';$('#save-state').textContent='Saved to your notes.'}else{$('#save-state').textContent='Earlier wording saved. Current draft is unsaved.'}try{await refresh()}catch(e){$('#note-state').textContent='Saved. The note list could not refresh. Reopen the course to view it.'}}catch(e){if(noteVersion===version&&field.value===wording)noteId=id;$('#save-state').textContent=e.message+(noteVersion===version&&field.value===wording?'':' Current draft is unsaved.')}finally{savingNote=false;updateSaveButton()}});
 window.addEventListener('beforeunload',e=>{if(dirty){e.preventDefault();e.returnValue=''}});
 refresh().catch(e=>{$('#reading-state').textContent=e.message});
 '''
