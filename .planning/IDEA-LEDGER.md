@@ -2879,3 +2879,34 @@ and existing evidence are unchanged. Native Python still executes trusted
 local code rather than providing hostile-code isolation. Installed and human
 acceptance remain open. Revert the named commits in reverse dependency order
 to undo this candidate.
+
+### IL-20260927-01: LearnHouse candidate capabilities
+
+- **Origin:** [the exact request](USER-VISION.md#2026-09-27-learnhouse-comparison-before-selective-adoption).
+- **Owner and evidence:** the [114-row inventory](research/LEARNHOUSE-GAP-INVENTORY-2026-09-27.md) maps the pinned LearnHouse `dev` README, docs, code routes, components, and selected test names against itembank's current source and contract. The inventory's existence findings are code-backed; its fit routes are recommendations. No live product or human learning comparison was run.
+- **Prototype:** visual authoring details, selected media/interaction forms, and assignment submission and feedback. First show one objective-linked learner or author task with the same source, local recovery, accessible fallback, and runtime authority. Cost comes from editor, media, or submission lifecycle design and testing.
+- **Registered:** course editing and preview controls, safe migration review, useful lesson media, and local operator affordances. These compose under existing course, source, lesson, and operation owners. Cost comes from accepted-revision handling, rights, accessibility, and packaging.
+- **Backburner:** collections, social discussion, shared boards, podcasts, certificates, course sales, and institution analytics. Revisit when a named creator, cohort, or institution use case is accepted. Cost comes from multi-user identity, moderation, hosting, data governance, and support.
+- **Deferred:** remote or executable lesson content, hosted code execution, login and access controls, payments, webhooks, and telemetry-backed analytics. Revisit after an explicit product-scope decision and rights, privacy, security, offline, and recovery review.
+- **Different:** multi-tenant hosted delivery and block content as canonical truth do not replace the current local-first file contract. Keep their underlying UI and authoring ideas available through the prototype and registered routes above. This is not a new hard rejection of each feature.
+- **Next evidence and recovery:** compare a representative course-building and learner-return journey in both products, then promote only a bounded capability with a named acceptance gate. Remove only this entry, the matching inbox and vision additions, and the new inventory to undo this research pass. Preserve concurrent work. No code, learner data, schema, scoring rule, or accepted product contract changed.
+
+
+### IL-20260928-01: parallel selective absorption programme
+
+- **Origin and owner:** [the exact request](USER-VISION.md#2026-09-28-parallel-selective-competitor-absorption). The root integrator owns [the extended plan](research/2026-09-27-source-feature-inventory-absorption-plan.md#parallel-adoption-programme-added-2026-09-28), with disjoint research output owners L1-L5.
+- **Prototype:** five comparison lanes cover workspace UI, source research, authoring, interactive teaching, and practice/evidence. These are recommendations pending inventory reconciliation and representative task evidence. Dependencies are existing audit IDs, live itembank ownership and shared synthetic fixtures. Cost is comparative source/UI verification and integration, not merely writing components. Existing feature-level dispositions remain with their owners.
+- **Backburner:** persona rosters, avatars and simulated classrooms remain outside the default wave under the user's direct-lesson preference. Social feeds, public rankings, commerce, tenants and certificates retain their existing later routes. Revisit only for a named learner, cohort or creator task. Costs include orchestration, media, identity, moderation and support. Contextual tutoring, accessibility audio and objective-specific role-play stay separately eligible.
+- **Deferred boundaries:** new hosted authority, deployment, synchronization or executable-content mechanisms require their own current contract, rights, recovery and security evidence. Preserve useful drafts, adaptation and integration through existing owners. No new hard rejection or blanket ban on conversation, audio, dependencies or agents is made.
+- **Next gate and recovery:** Wave 0 accounts for every substantive prior finding with a capability link, duplicate, or explicit reason and reports unresolved coverage. Research workers write separate reports and the integrator alone writes shared records. Undo only this entry and the matching dated plan/vision/inbox additions against their before images. Preserve all concurrent work. This pass authorizes no new production scope and claims no installed or human acceptance.
+
+
+### IL-20260928-02: Question and competitor implementation backlog
+
+**Origin:** [exact user direction](USER-VISION.md#2026-09-28-save-question-and-competitor-capabilities-for-implementation).
+
+**Owner:** [question implementation backlog](research/question-types-2026-09-25/BACKLOG.md), under absorption lanes L4/L5. It owns F1-F10, source evidence, dependencies, maintenance drivers, acceptance gates and the proposed next slice.
+
+**Disposition:** Registered UI extensions, Prototype new checking/composition behavior, and Backburner specialized adapters with named promotion triggers. Retain implementation intent across all rows. Existing fill and checker fixes stay under their implementation record. This extends IL-20260925-02 and IL-20260928-01 without erasing their history or accepting new scoring, schemas, dependencies or milestone scope.
+
+**Next action:** Reconcile the current baseline, then prepare one bounded existing-scorer completion/matching slice. Branching cases, executable Parsons and structured sketches remain subsequent prototype seeds. Recovery removes only this dated capture and its new owner file. No capability is rejected by this routing.

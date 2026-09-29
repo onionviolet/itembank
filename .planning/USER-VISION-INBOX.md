@@ -11,6 +11,16 @@ gets a dated disposition and link; it is not deleted from this inbox.
 
 ## Awaiting review
 
+### 2026-09-27: cross-audit fork and source absorption plan
+
+> Across all the audits I later want them to consider the best forks of the stuff and more and also audit and link to features accordingly into the same inventory? Make a plan to absorb the stuff in the inventory directly from source if possible
+
+**Disposition:** Route this cross-audit method to the
+[source-linked inventory and absorption plan](research/2026-09-27-source-feature-inventory-absorption-plan.md).
+The plan preserves direct source and fork evidence while requiring a separate
+decision for each production slice. Review for promotion to `USER-VISION.md`
+when the shared feature inventory becomes a binding product workflow.
+
 ### 2026-09-20: LaTeX answer input
 
 > Also put stuff into uservision in itembank for latex imputs to be supported?
@@ -1141,3 +1151,31 @@ owns the bounded source changes, atomic commits, verification, and retained
 advancements. This later instruction authorizes implementation after the
 earlier audit-only request. It does not turn every researched option into a
 completed feature or authorize replacing real course artifacts.
+
+### 2026-09-27: LearnHouse comparison before selective adoption
+
+> Consider [https://github.com/learnhouse/learnhouse ](https://github.com/learnhouse/learnhouse)has that we dont, first writing every little thing from there that we dont have, we wont be absorbing everything but I want to take them into consideration for what we are trying to do
+
+**Disposition:** Promote the selective-consideration direction to
+[the vision entry](USER-VISION.md#2026-09-27-learnhouse-comparison-before-selective-adoption).
+Route the repository link, comparison evidence, and all 114 provisional candidate
+routes to the [LearnHouse inventory](research/LEARNHOUSE-GAP-INVENTORY-2026-09-27.md).
+No candidate is accepted for implementation by this research step.
+
+
+### 2026-09-28: parallel selective competitor absorption
+
+> plan parallelzed absorbtion of everything and all the competetors that we looked at, considering Ui and more, some general features we wont need is the ai personas and stuff, right? consider similar stuff and more
+
+**Disposition:** Promote the selective product direction to [the vision entry](USER-VISION.md#2026-09-28-parallel-selective-competitor-absorption). Route execution design to [the existing absorption plan](research/2026-09-27-source-feature-inventory-absorption-plan.md#parallel-adoption-programme-added-2026-09-28). Planning covers all prior findings without promising blanket implementation or launching workers.
+
+
+### 2026-09-28: save question and competitor capabilities for implementation
+
+> all the question types we found in the audit that we dont have? drag in drops? more to consier?
+
+> anything from the competetor gitjubs and more?
+
+> save accordingly to be implemented
+
+**Disposition:** Promote to the [vision entry](USER-VISION.md#2026-09-28-save-question-and-competitor-capabilities-for-implementation). The [question implementation backlog](research/question-types-2026-09-25/BACKLOG.md) owns F1-F10, cross-cutting scoring policies and linked review/authoring workflows. Route to absorption lanes L4/L5 without starting implementation in this capture.

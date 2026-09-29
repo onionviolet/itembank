@@ -15,6 +15,56 @@ the difference rather than treating a prior summary as the user's intent.
 
 ## Verbatim goal statements
 
+### 2026-09-27: LearnHouse comparison before selective adoption
+
+> Consider [https://github.com/learnhouse/learnhouse ](https://github.com/learnhouse/learnhouse)has that we dont, first writing every little thing from there that we dont have, we wont be absorbing everything but I want to take them into consideration for what we are trying to do
+
+#### Interpretation recorded 2026-09-27
+
+**Status:** exploratory product direction; the requested first step is a detailed comparison.
+
+**Current interpretation:** Record LearnHouse capabilities and small workflow details that itembank lacks or only partly offers. Keep the whole candidate set available for later decisions. Selectively test ideas against itembank's learner-owned, source-to-course direction rather than treating the upstream feature list as a roadmap.
+
+**Open questions:** Which gaps matter in a real learner or author task? Which need a prototype or rights, privacy, and offline review before adoption?
+
+**Planning effect:** The [LearnHouse gap inventory](research/LEARNHOUSE-GAP-INVENTORY-2026-09-27.md) records 114 code-backed differences and provisional routes. It is research, not a change to the binding product contract or implementation scope.
+
+**Relationship to earlier entries:** Extends the September 8 selective competitor absorption and the September 27 OpenTutor comparison. It explicitly narrows the earlier broad word “absorb” to consideration before selection for this reference.
+
+### 2026-09-27: Open Notebook integration
+
+> incorporate [https://github.com/lfnovo/open-notebook](https://github.com/lfnovo/open-notebook) into itembank, that can be driven by local ai, api and by something like a subscription based version, we can fork directly and create tab to copy if thats easier
+
+#### Interpretation recorded 2026-09-27
+
+**Status:** active product direction; integration shape and subscription meaning need confirmation.
+
+**Current interpretation:** Give a learner an Open Notebook research workspace connected to an itembank course. Support local models and paid API providers, and investigate whether an existing AI subscription can legally and technically drive the notebook. A fork or a separate tab is an implementation option, not a requirement to copy Open Notebook's storage or scoring into itembank.
+
+**Open questions:** Does "subscription based version" mean an existing AI subscription or paid plans for itembank? Which notebook material should cross into the course, and through what reviewed import or link operation?
+
+**Planning effect:** `.planning/research/open-notebook-2026-09-27/INTEGRATION.md` compares integration shapes and defines the first safe vertical slice. This entry does not authorize automatic copying of sources or assessment content.
+
+**Relationship to earlier entries:** Extends the source-first course and notebook-style learning entries. Keeps the runtime's assessment authority and the separate learner-note ownership rule.
+
+### 2026-09-27: OpenTutor comparison and modular UI
+
+> absorb anything  [https://github.com/zijinz456/OpenTutor](https://github.com/zijinz456/OpenTutor) has that we dont, also absorb their ui and more modularly
+
+> we can start small, first first writing every little thing from there that we dont have, considering their UI and stuff too
+
+#### Interpretation recorded 2026-09-27
+
+**Status:** active product direction; the first step is a comparison inventory.
+
+**Current interpretation:** Inspect OpenTutor's shipped behavior and UI in detail, compare each useful mechanism with itembank's current implementation and binding contract, and record gaps before adopting them in small modules. The reference is an inspiration for learner workflows and composition, not an instruction to replace itembank's parser, scorer, accepted files, or desktop shell.
+
+**Open questions:** Which missing capability or UI mechanism should be the first production slice after the inventory, and which differences should be tested with a learner before adoption?
+
+**Planning effect:** `.planning/research/opentutor-2026-09-27/GAP-INVENTORY.md` records the initial code and screenshot comparison with status, fit, and proposed small slices. No upstream code or product behavior is accepted merely because it appears in OpenTutor.
+
+**Relationship to earlier entries:** Extends the 2026-08-13 source-to-course and visual-ambition entries and the 2026-09-18 UI renewal direction. It does not freeze the current prototype or replace the source-first course experience.
+
 ### 2026-09-20: LaTeX answer input
 
 > Also put stuff into uservision in itembank for latex imputs to be supported?
@@ -3277,3 +3327,41 @@ revisit triggers. The runtime remains the sole scoring authority.
 depth, September 20 LaTeX input, and source-to-course direction. It advances
 the September 25 format audit into implementation without treating an input
 widget as proof of checking capability or learning benefit.
+
+
+### 2026-09-28: parallel selective competitor absorption
+
+> plan parallelzed absorbtion of everything and all the competetors that we looked at, considering Ui and more, some general features we wont need is the ai personas and stuff, right? consider similar stuff and more
+
+#### Interpretation recorded 2026-09-28
+
+**Status:** exploratory direction with an actionable planning request.
+
+**Current interpretation:** Plan parallel consideration of the full prior competitor landscape, including forks, UI details, authoring, teaching, sources, practice and operations. Select useful capabilities for itembank rather than adopting every donor feature. Keep AI personas and simulated classroom presentation outside the default wave. This does not remove useful AI help, accessible audio or task-specific role-play.
+
+**Open questions:** Which remaining gaps improve real tasks after current implementation is reconciled? Which optional interactions justify their cost? Comparative evidence resolves these before promotion.
+
+**Planning effect:** Extend the [existing absorption plan](research/2026-09-27-source-feature-inventory-absorption-plan.md#parallel-adoption-programme-added-2026-09-28) with five independent lanes, coverage gates, single-writer integration and selective dispositions. Implementation and a new milestone are not implied by this planning request.
+
+**Relationship to earlier entries:** Extends the September 27 source-linked inventory and competitor comparisons. Confirms the September 8 direct-lesson preference and the September 25 distinctive UI direction. Preserves the separately authorized Open Notebook work and existing acceptance gaps.
+
+
+### 2026-09-28: save question and competitor capabilities for implementation
+
+> all the question types we found in the audit that we dont have? drag in drops? more to consier?
+
+> anything from the competetor gitjubs and more?
+
+> save accordingly to be implemented
+
+#### Interpretation recorded 2026-09-28
+
+**Status:** saved implementation direction with candidate-specific readiness gates.
+
+**Current interpretation:** Preserve the discussed question, checking, interaction and competitor capabilities for future implementation. Include F1-F10 and the related review/authoring workflows. Separate existing source capabilities from missing controls and new checking rules.
+
+**Open questions:** Specific milestone placement, domain checker contracts and prototype acceptance remain open. Donor documentation or templates do not prove learning benefit or installed behavior.
+
+**Planning effect:** The [question implementation backlog](research/question-types-2026-09-25/BACKLOG.md) owns scope, dispositions, evidence, dependencies, proposed sequence and acceptance gates. This turn saves the work without starting production implementation or accepting every donor mechanism.
+
+**Relationship to earlier entries:** Extends the September 26 question implementation and September 28 selective competitor absorption. Preserves typed fill as existing source work and retains broader capabilities under IL-20260928-02.
