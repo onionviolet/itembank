@@ -134,9 +134,12 @@ def evidence_drawer(row, claim=None, subject=None):
     state = row.get("state") or "unknown"
     observed = []
     if row.get("attempts") is not None:
-        observed.append("%d attempt(s), %d settled, %d correct"
-                        % (row["attempts"], row.get("settled") or 0,
-                           row.get("correct") or 0))
+        counts = "%d attempt(s), %d settled, %d correct" % (
+            row["attempts"], row.get("settled") or 0,
+            row.get("correct") or 0)
+        if row.get("missed") is not None:
+            counts += ", %d missed" % row["missed"]
+        observed.append(counts)
     if row.get("recent_accuracy") is not None:
         observed.append("recent accuracy %s"
                         % _fmt_rate(row["recent_accuracy"]))
@@ -146,6 +149,8 @@ def evidence_drawer(row, claim=None, subject=None):
         observed.append("average hint tier %s" % _fmt_rate(row["average_hint"]))
     if row.get("pending"):
         observed.append("%d pending manual review" % row["pending"])
+    if row.get("due"):
+        observed.append("due for review")
     if row.get("last_evidence"):
         observed.append("last evidence %s" % row["last_evidence"])
     if row.get("success_days") is not None:
@@ -305,24 +310,30 @@ def trend_table(payload):
         o = objectives[objective]
         state = o.get("state") or "unknown"
         rate = _fmt_rate(o.get("recent_accuracy"))
+        scheduler = o.get("scheduler") or {}
         rows.append(
-            "<tr><th scope=row>%s</th><td>%s</td><td>%s</td><td>%d</td>"
-            "<td>%d</td><td>%d</td><td>%d</td><td>%s</td><td>%s</td>"
-            "<td>%s</td></tr>"
-            % (esc(objective), objective_state(state), esc(rate),
+            "<tr><th scope=row>%s</th><td>%s</td><td>%s</td><td>%s</td>"
+            "<td>%d</td><td>%d</td><td>%d</td><td>%d</td><td>%d</td>"
+            "<td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>"
+            % (esc(objective), objective_state(state),
+               "Due" if o.get("due") else "Not due", esc(rate),
                o.get("attempts", 0), o.get("settled", 0),
-               o.get("correct", 0), o.get("pending", 0),
+               o.get("correct", 0), o.get("missed", 0),
+               o.get("pending", 0),
                esc("" if o.get("highest_hint") is None
                    else str(o["highest_hint"])),
+               esc(scheduler.get("due_date") or "Not scheduled"),
                esc(o.get("last_evidence") or ""),
                esc(o.get("risk_reason") or "")))
     return (
         '<div class="trend-wrap" tabindex="0" aria-label="trend table, '
         'horizontally scrollable">'
         '<table class="trend">'
-        "<thead><tr><th>Objective</th><th>State</th><th>Recent accuracy</th>"
-        "<th>Attempts</th><th>Settled</th><th>Correct</th><th>Pending</th>"
-        "<th>Highest hint</th><th>Last evidence</th><th>Risk reason</th>"
+        "<thead><tr><th>Objective</th><th>State</th><th>Due review</th>"
+        "<th>Recent accuracy</th><th>Attempts</th><th>Settled</th>"
+        "<th>Correct</th><th>Missed settled</th><th>Pending manual review</th>"
+        "<th>Highest hint</th><th>Scheduled review date</th>"
+        "<th>Last evidence</th><th>Risk reason</th>"
         "</tr></thead><tbody>%s</tbody></table></div>"
         '<p class="trend-note">Trend table -- The table is the complete '
         "report; the chart is an optional visual summary.</p>" % "".join(rows))
@@ -339,7 +350,11 @@ def objective_detail(row, claim=None):
         ("Attempts", str(row.get("attempts", 0))),
         ("Settled", str(row.get("settled", 0))),
         ("Correct", str(row.get("correct", 0))),
+        ("Missed settled", str(row.get("missed", 0))),
         ("Pending manual review", str(row.get("pending", 0))),
+        ("Due review", "Due" if row.get("due") else "Not due"),
+        ("Scheduled review date", (row.get("scheduler") or {}).get("due_date")
+         or "Not scheduled"),
         ("Recent accuracy", _fmt_rate(row.get("recent_accuracy"))),
         ("Highest hint tier",
          str(row["highest_hint"]) if row.get("highest_hint") is not None else ""),

@@ -266,7 +266,7 @@ const CARDS=__DATA__;
 const esc=s=>(s==null?"":String(s)).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
 const REDUCED=window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches;
 const deck=document.getElementById("deck"),status=document.getElementById("status"),prog=document.getElementById("prog");
-let mode="flash",order=[],i=0,queue=[],mastered=0;
+let mode="flash",order=[],i=0,queue=[],setAside=0;
 const selected={};
 function shuffle(a){for(let j=a.length-1;j>0;j--){const k=Math.floor(Math.random()*(j+1));[a[j],a[k]]=[a[k],a[j]]}return a}
 function cardEl(n){return deck.querySelector('[data-card="'+n+'"]')}
@@ -333,7 +333,7 @@ function wireNav(c){
     if(mode==="flash"){if(i<CARDS.length-1){i++;render()}else finish("Flashcards done.")}
     else{queue.push(queue.shift());render()}
   }));
-  c.querySelector("[data-got]").addEventListener("click",()=>{if(mode==="learn"){mastered++;queue.shift();render()}});
+  c.querySelector("[data-got]").addEventListener("click",()=>{if(mode==="learn"){setAside++;queue.shift();render()}});
   c.querySelector("[data-miss]").addEventListener("click",()=>{if(mode==="learn"){queue.push(queue.shift());render()}});
   c.querySelector("[data-reveal]").addEventListener("click",()=>reveal(c));
 }
@@ -348,11 +348,11 @@ function renderFlash(){
   if(r&&!REDUCED)r.focus({preventScroll:true});
 }
 function renderLearn(){
-  if(!queue.length)return finish("Learned all "+CARDS.length+".");
+  if(!queue.length)return finish("Review pile complete. This recall rating was not graded or saved.");
   show(queue[0]);const c=cardEl(queue[0]);
-  prog.style.width=(mastered/CARDS.length*100)+"%";
+  prog.style.width=(setAside/CARDS.length*100)+"%";
   syncState(c);
-  say("Learn · "+mastered+" mastered / "+CARDS.length+" · "+queue.length+" in pile");
+  say("Learn · "+setAside+" set aside / "+CARDS.length+" · "+queue.length+" in pile. Recall ratings are not graded or saved.");
   const r=c.querySelector("[data-reveal]");
   if(r&&!REDUCED)r.focus({preventScroll:true});
 }
@@ -363,7 +363,7 @@ function finish(msg){
 }
 function start(){
   order=shuffle([...Array(CARDS.length).keys()]);
-  if(mode==="flash"){i=0;renderFlash()}else{queue=[...order];mastered=0;renderLearn()}
+  if(mode==="flash"){i=0;renderFlash()}else{queue=[...order];setAside=0;renderLearn()}
 }
 deck.querySelectorAll("[data-card]").forEach(c=>{wireRecall(c);wireNav(c)});
 start();
@@ -419,7 +419,9 @@ def study_page(bank_path, qs):
         '<dl class="ib-activity-facts"><div><dt>Purpose</dt>'
         '<dd>Deliberate review</dd></div><div><dt>Response format</dt>'
         '<dd>Recall and reveal</dd></div><div><dt>Disclosure</dt>'
-        '<dd>Explanation after you choose to reveal it</dd></div></dl></details>'
+        '<dd>Explanation after you choose to reveal it</dd></div>'
+        '<div><dt>Recall rating</dt><dd>Local to this page, not graded or '
+        'saved as evidence</dd></div></dl></details>'
         '<div class="tabs">'
         '<button type="button" class="tab on" id="tFlash">Flashcards</button>'
         '<button type="button" class="tab" id="tLearn">Learn</button></div>'
