@@ -172,11 +172,14 @@ LINEPLOT_JS = """<script>
       function update() {
         const current = Number(value.value);
         if (!Number.isSafeInteger(current) || current < -2 || current > 2) return;
+        const shift = current - b;
         equation.textContent = 'y = ' + m + 'x ' + (current < 0 ? '- ' + Math.abs(current) : '+ ' + current);
         [-2,0,2].forEach((x, i) => { points[i].textContent = String(m*x + current); });
         line.setAttribute('points', [-2,0,2].map(x => coordinate(x,m*x+current)).join(' '));
         live.textContent = 'Intercept ' + current + '. At x = -2, 0, 2, y = ' +
-          [-2,0,2].map(x => m*x+current).join(', ') + '. Slope remains ' + m + '.';
+          [-2,0,2].map(x => m*x+current).join(', ') + '. Compared with the starting rule, each y value ' +
+          (shift > 0 ? 'increases by ' + shift : shift < 0 ?
+            'decreases by ' + Math.abs(shift) : 'is unchanged') + '. Slope remains ' + m + '.';
       }
       value.value = String(changed);
       commit.onclick = () => {
@@ -222,11 +225,11 @@ def render_lineplot(data, inline):
         'Points: %s. Each y value changes by %d and the slope stays %d.</p></div>'
         '<div class="lineplot-controls" hidden>'
         '<fieldset><legend>Predict before changing the intercept</legend>'
-        '<label for="lineplot-prediction-%s">Which plotted points change when only the intercept changes?</label>'
-        '<select class="lineplot-prediction" id="lineplot-prediction-%s">'
+        '<label>Which plotted points change when only the intercept changes?'
+        '<select class="lineplot-prediction">'
         '<option value="">Choose a prediction</option>'
         '<option value="all">All three points</option><option value="origin">Only the point at x = 0</option>'
-        '<option value="none">No points</option></select>'
+        '<option value="none">No points</option></select></label>'
         '<button class="lineplot-commit" type="button">Commit prediction</button></fieldset>'
         '<p class="lineplot-choice"></p>'
         '<div class="lineplot-manipulate" hidden>'
@@ -249,6 +252,4 @@ def render_lineplot(data, inline):
         % (m, b, changed, inline(introduction), inline(static_explanation), m, sign(b),
            html.escape(starting), changed, m, sign(changed),
            html.escape(later), changed-b, m,
-           '%d-%d-%d' % (m+2,b+2,changed+2),
-           '%d-%d-%d' % (m+2,b+2,changed+2),
            ''.join('<option value="%d">%d</option>' % (n,n) for n in range(-2,3))))

@@ -243,6 +243,19 @@ class LinkedLineTests(unittest.TestCase):
                           "sendBeacon", "innerHTML", "eval(", "new Function", "submit("):
             self.assertNotIn(forbidden, lesson_interaction.LINEPLOT_JS)
 
+    def test_repeated_scene_keeps_each_prediction_label_local(self):
+        data = model.parse_lesson_lineplot(
+            "[LINEPLOT: 1,0,2]\nPrediction: all?\n"
+            "Static explanation: Every point moves up by two.\n"
+            "Transfer: Try a different slope.")
+        rendered = lesson_interaction.render_lineplot(data, lambda s: s)
+        page = rendered + rendered
+        self.assertEqual(page.count('<label>Which plotted points change'), 2)
+        self.assertEqual(page.count('<select class="lineplot-prediction">'), 2)
+        self.assertEqual(page.count('No points</option></select></label>'), 2)
+        self.assertNotIn('id="lineplot-prediction-', page)
+        self.assertNotIn('for="lineplot-prediction-', page)
+
 
 if __name__ == "__main__":
     if "--serve" in sys.argv:
