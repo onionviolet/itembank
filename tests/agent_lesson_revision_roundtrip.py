@@ -10,19 +10,33 @@ sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, "tests"))
 
 from agent_operation_roundtrip import _Stub, local_profile  # noqa: E402
+import course  # noqa: E402
+import course_package  # noqa: E402
+import identity  # noqa: E402
+import journal  # noqa: E402
 from surfaces import agent_operation as ao  # noqa: E402
 
 
 def check_lesson_correction():
     with tempfile.TemporaryDirectory(prefix="itembank-author-review-") as base:
+        course.create_course(base, "Synthetic author review", "human", "tester")
+        rights = {operation: "granted" for operation in identity.RIGHTS_OPERATIONS}
         source = Path(base, "sources", "direct-reading.md")
         source.parent.mkdir()
         source.write_text("# Direct reading\n\nThis source stays a direct reading.\n",
                           encoding="utf-8")
+        source_row = journal.op_link(base, "source", "sources/direct-reading.md",
+                                     "human", "tester", rights=rights)
+        journal.op_adopt(base, source_row["object_id"],
+                         source_row["fingerprint"], "human", "tester")
         target = Path(base, "lessons", "missing-lesson.md")
         target.parent.mkdir()
         original = "## LESSON\n\n### Earlier note\n\nKeep this paragraph.\n"
         target.write_text(original, encoding="utf-8")
+        lesson_row = journal.op_link(base, "lesson", "lessons/missing-lesson.md",
+                                     "human", "tester", rights=rights)
+        journal.op_adopt(base, lesson_row["object_id"],
+                         lesson_row["fingerprint"], "human", "tester")
         source_before = source.read_bytes()
         first = "The draft explanation has a mistake. [Source: direct-reading.md]"
         corrected = "The corrected explanation cites the source. [Source: direct-reading.md]"
@@ -72,6 +86,16 @@ def check_lesson_correction():
         assert source.read_bytes() == source_before
         reopened = ao.status(base, pid)
         assert reopened["entry_id"] == accepted["entry_id"]
+        with tempfile.TemporaryDirectory(prefix="itembank-author-package-") as outside:
+            package = os.path.join(outside, "package")
+            destination = os.path.join(outside, "restored")
+            course_package.export_package(base, base, package)
+            os.makedirs(destination)
+            course_package.restore_package(package, destination, "human", "tester")
+            restored_lesson = Path(destination, "lessons", "missing-lesson.md")
+            restored_source = Path(destination, "sources", "direct-reading.md")
+            assert restored_lesson.read_text(encoding="utf-8") == revised["draft"]
+            assert restored_source.read_bytes() == source_before
         undone = ao.undo(base, pid, reviewer="author")
         assert undone["restored_byte_identical"] is True
         assert target.read_text(encoding="utf-8") == original
