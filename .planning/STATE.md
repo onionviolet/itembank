@@ -4,11 +4,11 @@ milestone: reach
 milestone_name: reach
 current_phase_name: 20-extensible-ui-foundation-and-interaction-clarity-pass
 current_phase: 20
-status: "Parity and bounded course-journey changes are integrated into main. The journey branch passed remote CI; the rebuilt package and packaged daemon passed synthetic checks. Installed-app and human acceptance remain open."
-stopped_at: "Verify the installed desktop journey after the active learner session, then complete human accessibility and learning-transfer checks."
-last_updated: "2026-09-26"
-last_activity: 2026-09-22
-last_activity_desc: "Fast-forwarded parity and source-first course journey changes into local main after the journey branch passed remote CI."
+status: "Audit research and first bounded capability slices are committed on codex/opentutor-gap-inventory-20260927. Full local preflight passes 152 Python scripts, JavaScript, and clean tree. Packaged, installed, and human acceptance remain open."
+stopped_at: "Review the committed authoring slice in the installed desktop journey, then continue the ranked audit slices under their owners."
+last_updated: "2026-09-29"
+last_activity: 2026-09-29
+last_activity_desc: "Committed the audit source inventory, CAP synthesis, and bounded authoring, source locator, notebook, practice, teaching, formal, and unavailable-state slices. Full local preflight passed."
 progress:
   total_phases: 41
   completed_phases: 41
@@ -17,6 +17,26 @@ progress:
   counting_rule: "phase directories under .planning/phases; a phase counts complete when frozen or when its execution gate is complete. Human, external, and waived legs remain named limits rather than active implementation phases. Reach phases 19A through 19E and Phase 20 have completed their recorded execution gates. A plan is complete only when its required gate passes; a summary file alone does not close it."
 ---
 # Project State
+
+**Audit backlog implementation, 2026-09-29:** Ten scoped local commits
+`29652b2` through `24478b8` preserve the September 27 source and fork audits,
+the [604-finding CAP crosswalk](FEATURE-INVENTORY.md), the
+[five-lane synthesis](research/absorption-2026-09-28/06-synthesis.md), and the
+[F1-F10 question backlog](research/question-types-2026-09-25/BACKLOG.md).
+The first ranked CAP-03 authoring slice now previews and corrects a cited
+lesson proposal before journal acceptance. A synthetic course test proves
+restart, byte-exact undo, and clean offline restore of an adopted reading and
+accepted lesson. Separate commits cover exact source locators, a local Open
+Notebook companion, honest practice-review labels, local lineplot controls,
+formal pending-prose behavior, and unavailable-state copy. Full local
+`scripts/preflight.py` passed all 152 Python test files, JavaScript, and the
+clean-tree gate. These commits are local on
+`codex/opentutor-gap-inventory-20260927` and have not been pushed or installed.
+The [Phase 20 crosswalk](phases/20-extensible-ui-foundation-and-interaction-clarity-pass/20-AUDIT-CROSSWALK.md)
+still owns human visual, touch and screen-reader checks. The
+[17C audit](phases/17C-maintenance-restore-audit/17C-AUDIT.md) still owns wider
+restore decisions. The remaining CAP slices and question extensions retain
+the synthesis and backlog gates; this source pass does not mark them accepted.
 
 **Parallel typed-answer candidate, 2026-09-26:**
 `codex/question-types-checking-20260926` adds graded text, numeric and unit
