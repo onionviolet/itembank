@@ -20,7 +20,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import graph
 import journal
-from surfaces import agent_operation, course_workbench, ia, session
+from surfaces import agent_operation, course_workbench, daemon, ia, session
 from daemon_roundtrip import get, start_daemon
 from agent_operation_roundtrip import _Stub, local_profile
 
@@ -54,6 +54,13 @@ def main():
         with open(os.path.join(course_dir, "course-graph.md"), encoding="utf-8") as stream:
             doc = graph.parse_course(stream.read())
         cid = doc["header"]["course_object_id"]
+        with mock.patch("course.read_course", side_effect=OSError):
+            unavailable_course = daemon._course_area_extra(
+                SimpleNamespace(root=root),
+                {"area": "map", "course_id": cid}, course_dir)
+        check("Course details are unavailable" in unavailable_course and
+              "No current source" not in unavailable_course,
+              "unreadable course was presented as an empty map")
         source_rel = "sources/fen_hydrology_field_notes.md"
         source_record = journal.op_link(course_dir, "source", source_rel,
                                         "human", "synthetic-test", rights={"read": "granted"})
@@ -141,6 +148,15 @@ def main():
               "evidence row has no detail link")
         check('id="evidence-sessions"' in page and "A count does not imply mastery" in page,
               "evidence detail is missing context")
+        failed_handler = SimpleNamespace(root=root, path="/course/%s/evidence" % cid)
+        failed_state = {"area": "evidence", "area_label": "Evidence", "course_id": cid}
+        with mock.patch.object(course_workbench.evidence, "events", side_effect=OSError):
+            failed_evidence = course_workbench.details(
+                failed_handler, failed_state, course_dir, doc,
+                [("unit3_bank", practice_bank)])
+        check("Evidence counts are unavailable" in failed_evidence and
+              "0 recorded" not in failed_evidence,
+              "unreadable evidence was presented as a clean zero")
         report_href = '/report?session=' + started["session_id"]
         check(report_href in page, "completed sitting has no report link")
         check(get(base + report_href.lstrip('/'))[0] == 200,

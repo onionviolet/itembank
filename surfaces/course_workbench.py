@@ -220,6 +220,7 @@ def details(handler, state, course_dir, doc, banks):
                                 activities + preview, back))
     else:
         counts = {"responses": 0, "marks": 0, "sessions": set()}
+        evidence_unavailable = False
         try:
             for event in evidence.events(evidence.log_path(course_dir)):
                 kind = event.get("event_type")
@@ -230,7 +231,7 @@ def details(handler, state, course_dir, doc, banks):
                 if event.get("session_id"):
                     counts["sessions"].add(event["session_id"])
         except (OSError, ValueError):
-            pass
+            evidence_unavailable = True
         for key, title, note in (
                 ("responses", "Responses", "Recorded attempts include pending and incorrect responses. A count does not imply mastery."),
                 ("marks", "Marks", "Settled marks are recorded by the assessment runtime."),
@@ -261,6 +262,10 @@ def details(handler, state, course_dir, doc, banks):
                         links.append('<li>%s</li>' % _link(href, 'Resume saved sitting'))
                 extra = ('<ul>%s</ul>' % ''.join(links) if links else
                          '<p>No completed sitting report is available here.</p>')
-            sections.append('<section id="evidence-%s"><h3>%s</h3><p>%d recorded. %s</p>%s%s</section>' % (
-                key, title, amount, presentation.esc(note), extra, back))
+            status = ('<p role="status">Evidence counts are unavailable until the local '
+                      'record can be read. Repair the evidence record, then reload.</p>'
+                      if evidence_unavailable else
+                      '<p>%d recorded. %s</p>' % (amount, presentation.esc(note)))
+            sections.append('<section id="evidence-%s"><h3>%s</h3>%s%s%s</section>' % (
+                key, title, status, extra, back))
     return '<div class="course-detail">%s</div>' % ''.join(sections)

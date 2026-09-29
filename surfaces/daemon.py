@@ -1545,7 +1545,8 @@ def _course_area_extra(handler, state, course_dir):
             import course
             doc = course.read_course(course_dir)["doc"]
         except Exception:
-            doc = {}
+            return ('<p role="status">Course details are unavailable until the '
+                    'course record can be read. Repair the course record, then reload.</p>')
         banks = _course_banks(handler, course_dir)
         detail = course_workbench.details(handler, state, course_dir, doc, banks)
         if state.get("area") != "sources":
