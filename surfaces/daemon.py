@@ -1554,6 +1554,8 @@ def _course_area_extra(handler, state, course_dir):
         detail = ""
     if course_dir is None or state.get("area") != "sources":
         return ""
+    from surfaces import open_notebook
+    detail += open_notebook.panel()
     try:
         reading = binding_cli.bindings(course_dir)
     except Exception:
