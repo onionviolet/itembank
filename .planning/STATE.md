@@ -4,7 +4,7 @@ milestone: reach
 milestone_name: reach
 current_phase_name: 20-extensible-ui-foundation-and-interaction-clarity-pass
 current_phase: 20
-status: "Audit research and first bounded capability slices are committed on codex/opentutor-gap-inventory-20260927. Full local preflight passes 152 Python scripts, JavaScript, and clean tree. Packaged, installed, and human acceptance remain open."
+status: "Audit research and first bounded capability slices are pushed on codex/opentutor-gap-inventory-20260927. Full local preflight passes 152 Python scripts, JavaScript, and clean tree. Packaged, installed, and human acceptance remain open."
 stopped_at: "Review the committed authoring slice in the installed desktop journey, then continue the ranked audit slices under their owners."
 last_updated: "2026-09-29"
 last_activity: 2026-09-29
@@ -18,7 +18,7 @@ progress:
 ---
 # Project State
 
-**Audit backlog implementation, 2026-09-29:** Ten scoped local commits
+**Audit backlog implementation, 2026-09-29:** Ten scoped commits
 `29652b2` through `24478b8` preserve the September 27 source and fork audits,
 the [604-finding CAP crosswalk](FEATURE-INVENTORY.md), the
 [five-lane synthesis](research/absorption-2026-09-28/06-synthesis.md), and the
@@ -30,8 +30,8 @@ accepted lesson. Separate commits cover exact source locators, a local Open
 Notebook companion, honest practice-review labels, local lineplot controls,
 formal pending-prose behavior, and unavailable-state copy. Full local
 `scripts/preflight.py` passed all 152 Python test files, JavaScript, and the
-clean-tree gate. These commits are local on
-`codex/opentutor-gap-inventory-20260927` and have not been pushed or installed.
+clean-tree gate. These commits are pushed on
+`codex/opentutor-gap-inventory-20260927` but have not been installed.
 The [Phase 20 crosswalk](phases/20-extensible-ui-foundation-and-interaction-clarity-pass/20-AUDIT-CROSSWALK.md)
 still owns human visual, touch and screen-reader checks. The
 [17C audit](phases/17C-maintenance-restore-audit/17C-AUDIT.md) still owns wider
