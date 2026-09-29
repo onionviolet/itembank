@@ -187,6 +187,19 @@ def main():
         proposal_id = urllib.parse.parse_qs(urllib.parse.urlsplit(final_url).query)["proposal"][0]
         check("synthetic source section" in page and "Proposed change diff" in page,
               "proposal does not show citation and diff")
+        check("Learner lesson preview" in page and "Plain Markdown draft" in page and
+              "Revise this paragraph" in page,
+              "pending lesson lacks preview and correction controls")
+        draft_token = agent_operation.draft_fingerprint(
+            agent_operation.status(course_dir, proposal_id)["draft"])
+        _, _, page = post(prefix + "build", {
+            "action": "revise", "proposal_id": proposal_id,
+            "before_paragraph": "A synthetic course draft.",
+            "after_paragraph": "A corrected synthetic course draft.",
+            "expected_draft_fingerprint": draft_token})
+        check("A corrected synthetic course draft." in page and
+              "Proposed change diff" in page,
+              "corrected proposal did not return to review")
         with open(target, encoding="utf-8") as stream:
             check("Original" in stream.read(), "start accepted a draft without review")
         _, _, page = post(prefix + "build", {"action": "accept", "proposal_id": proposal_id})

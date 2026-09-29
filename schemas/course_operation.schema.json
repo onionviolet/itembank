@@ -711,13 +711,16 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["operation", "course_id", "action"],
-      "description": "Start, inspect, accept, reject, or undo one stored agent proposal. Draft bytes, paths, rights, scoring, marking, keys, and authority claims are never request fields.",
+      "description": "Start, inspect, preview, correct, accept, reject, or undo one stored agent proposal. A correction names one paragraph and the reviewed draft fingerprint. Paths, rights, scoring, marking, keys, and authority claims are never request fields.",
       "properties": {
         "operation": {"type": "string", "const": "agent_operation"},
         "course_id": {"$ref": "#/$defs/course_id"},
-        "action": {"type": "string", "enum": ["start", "status", "accept", "reject", "undo"]},
+        "action": {"type": "string", "enum": ["start", "status", "preview", "revise", "accept", "reject", "undo"]},
         "skill": {"type": "string", "minLength": 1},
         "proposal_id": {"type": "string", "pattern": "^p_[0-9a-f]{32}$"},
+        "before_paragraph": {"type": "string", "minLength": 1, "maxLength": 16000},
+        "after_paragraph": {"type": "string", "minLength": 1, "maxLength": 16000},
+        "expected_draft_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
         "reason": {"type": "string"},
         "actor": {"$ref": "#/$defs/actor"}
       }

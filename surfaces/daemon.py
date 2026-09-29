@@ -1464,7 +1464,28 @@ def _agent_area_html(handler, state, course_dir):
         findings = "".join('<li>%s</li>' % presentation.esc(str(finding))
                            for finding in validation.get("findings") or [])
         controls = ""
+        lesson_review = ""
         if disposition == "proposed":
+            if active.get("kind") == "lesson":
+                try:
+                    preview = agent_op.lesson_preview(course_dir, pid)
+                except ValueError:
+                    lesson_review = '<p role="status">Lesson preview is unavailable for this draft.</p>'
+                else:
+                    lesson_review = (
+                        '<h4>Lesson preview</h4><div class="lesson-preview" '
+                        'role="region" aria-label="Learner lesson preview">%s</div>'
+                        '<details><summary>Plain Markdown draft</summary><pre>%s</pre></details>'
+                        '<form method="post" action="%s">%s%s%s'
+                        '<p><label>Paragraph to replace<textarea name="before_paragraph" '
+                        'required></textarea></label></p>'
+                        '<p><label>Replacement paragraph<textarea name="after_paragraph" '
+                        'required></textarea></label></p>'
+                        '<button class="go" type="submit">Revise this paragraph</button></form>'
+                        % (preview["html"], presentation.esc(preview["markdown"]),
+                           action_path, field("action", "revise"),
+                           field("proposal_id", pid),
+                           field("expected_draft_fingerprint", preview["draft_fingerprint"])))
             reject = ('<form method="post" action="%s">%s%s'
                       '<button class="go" type="submit" aria-label="Reject proposal %s">Reject proposal</button></form>'
                       % (action_path, field("action", "reject"), field("proposal_id", pid), presentation.esc(pid)))
@@ -1486,13 +1507,14 @@ def _agent_area_html(handler, state, course_dir):
                   '<dt>Expected fingerprint</dt><dd class="mono">%s</dd><dt>Validation</dt><dd>%s</dd>'
                   '<dt>Egress</dt><dd>%s</dd></dl><h4>Citations</h4><ul>%s</ul>'
                   '<h4>Validation findings</h4>%s'
-                  '<div class="vf-diff" role="region" aria-label="Proposed change diff"><pre>%s</pre></div>%s'
+                  '<div class="vf-diff" role="region" aria-label="Proposed change diff"><pre>%s</pre></div>%s%s'
                   '<details><summary>Review evidence</summary><p class="mono">Operation %s. Interaction %s. Journal %s. Undo %s.</p></details></section>'
                   % (presentation.esc(copy), presentation.esc(pid), presentation.esc(active.get("target") or "Unavailable"),
                      presentation.esc(active.get("expected_fingerprint") or "new file"),
                      presentation.esc(str(validation.get("state") or "unknown")),
                      presentation.esc(str((active.get("egress") or {}).get("destination") or "local")), citations,
-                     '<ul>%s</ul>' % findings if findings else '<p>No findings recorded.</p>', diff, controls,
+                     '<ul>%s</ul>' % findings if findings else '<p>No findings recorded.</p>', diff,
+                     lesson_review, controls,
                      presentation.esc(active.get("operation_id") or ""), presentation.esc(active.get("interaction_id") or ""),
                      presentation.esc(active.get("entry_id") or "none"), presentation.esc(active.get("undo_entry_id") or "none")))
     else:
@@ -1913,7 +1935,8 @@ def handle_course_area_post(handler, course_id, area):
         return
     request = {"course_id": course_id,
                "action": (fields.get("action") or [""])[-1]}
-    for name in ("skill", "proposal_id", "reason"):
+    for name in ("skill", "proposal_id", "reason", "before_paragraph",
+                 "after_paragraph", "expected_draft_fingerprint"):
         value = (fields.get(name) or [""])[-1]
         if value:
             request[name] = value

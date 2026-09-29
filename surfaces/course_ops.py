@@ -1929,14 +1929,23 @@ def _op_agent_operation(root, body, actor_kind, actor_name, base=None):
         result = agent_operation.start(body["skill"], cfg, base)
     elif action == "status":
         result = agent_operation.status(base, body["proposal_id"])
+    elif action == "preview":
+        result = agent_operation.lesson_preview(base, body["proposal_id"])
+    elif action == "revise":
+        result = agent_operation.revise(
+            base, body["proposal_id"], body.get("before_paragraph"),
+            body.get("after_paragraph"), body.get("expected_draft_fingerprint"))
     elif action == "accept":
         result = agent_operation.accept(body["proposal_id"], cfg, base=base,
                                         reviewer=actor_name)
     elif action == "reject":
         result = agent_operation.reject(base, body["proposal_id"], actor_name,
                                         body.get("reason") or "")
-    else:
+    elif action == "undo":
         result = agent_operation.undo(base, body["proposal_id"], actor_name)
+    else:
+        raise course_module.CourseError("course.invalid_request",
+                                        "unknown agent-operation action")
     if isinstance(result, dict):
         result.pop("base", None)
     return result

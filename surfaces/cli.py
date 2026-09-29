@@ -1394,16 +1394,22 @@ def build_parser():
     ct = s.add_subparsers(dest="action", required=True)
     agent = ct.add_parser(
         "agent-operation",
-        help="start, inspect, accept, reject, or undo a stored agent proposal")
+        help="start, inspect, preview, revise, accept, reject, or undo a stored agent proposal")
     agent.add_argument("course_id", help="the course id")
     agent.add_argument("action",
-                       choices=("start", "status", "accept", "reject", "undo"))
+                       choices=("start", "status", "preview", "revise", "accept", "reject", "undo"))
     agent.add_argument("--skill", default="",
                        help="configured skill id, required for start")
     agent.add_argument("--proposal-id", default="",
                        help="opaque proposal id, required after start")
     agent.add_argument("--reason", default="",
                        help="optional durable rejection reason")
+    agent.add_argument("--before-paragraph", default="",
+                       help="exact paragraph to replace in a pending lesson")
+    agent.add_argument("--after-paragraph", default="",
+                       help="replacement paragraph for a pending lesson")
+    agent.add_argument("--expected-draft-fingerprint", default="",
+                       help="fingerprint of the draft reviewed before revision")
     agent.add_argument("--root", default=".", help="workspace root")
     agent.add_argument("--actor", default="", help="reviewer name")
     agent.add_argument("--json", action="store_true")

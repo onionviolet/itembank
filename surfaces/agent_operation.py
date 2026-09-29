@@ -24,8 +24,10 @@ file the configuration already named, so a stray answer cannot choose
 what gets overwritten.
 """
 import difflib
+import hashlib
 import json
 import os
+import re
 import tempfile
 import uuid
 from datetime import datetime, timezone
@@ -236,8 +238,28 @@ def _run_spec(skill, settings):
         return None
     request = spec.get("request") or "Draft the configured target."
     citations = [str(value) for value in (spec.get("citations") or [])]
+    source_paths = spec.get("source_paths") or []
+    if not isinstance(source_paths, list) or any(
+            not isinstance(path, str) or not path or os.path.isabs(path) or
+            ".." in path.replace("\\", "/").split("/")
+            for path in source_paths):
+        return None
     return {"target": target, "kind": kind,
-            "request": str(request), "citations": citations}
+            "request": str(request), "citations": citations,
+            "source_paths": source_paths}
+
+
+def _source_fingerprints(base, paths):
+    """Hash only explicitly configured course-local source files."""
+    result = {}
+    root = os.path.realpath(base)
+    for rel in paths:
+        path = os.path.realpath(os.path.join(root, rel))
+        if os.path.commonpath((root, path)) != root:
+            raise ValueError("agent.source_outside_course")
+        with open(path, "rb") as fh:
+            result[rel] = hashlib.sha256(fh.read()).hexdigest()
+    return result
 
 
 def _bounded_diff(rel, before_raw, draft):
@@ -253,6 +275,95 @@ def _bounded_diff(rel, before_raw, draft):
     shown = full[:DIFF_MAX_LINES]
     return {"lines": shown, "shown": len(shown), "total": len(full),
             "withheld": max(0, len(full) - len(shown))}
+
+
+def draft_fingerprint(draft):
+    """Version token for a pending draft, independent of accepted content."""
+    return hashlib.sha256(draft.encode("utf-8")).hexdigest()
+
+
+def _lesson_preview_body(draft):
+    """Return only teaching prose from a standalone lesson draft.
+
+    Assessment markers are refused before rendering so a proposed lesson
+    cannot turn the review surface into an early answer-key disclosure.
+    """
+    if not re.search(r"(?m)^## LESSON\s*$", draft):
+        raise ValueError("agent.lesson_section_missing")
+    body = re.split(r"(?m)^## LESSON\s*$", draft, maxsplit=1)[1]
+    if not re.search(r"(?m)^###\s+\S", body):
+        raise ValueError("agent.lesson_heading_missing")
+    if re.search(r"(?im)^\s*(?:##\s+\S|Q\d+\.|CORRECT:|ANSWER:|KEY:|\[!KEY\])", body):
+        raise ValueError("agent.lesson_keyed_content")
+    return body.strip()
+
+
+def lesson_preview(base, proposal_id):
+    """Render a pending lesson through the learner's Markdown renderer.
+
+    This reads the durable proposal, not the accepted target. The returned
+    Markdown is the exact draft and the HTML is teaching prose only.
+    """
+    record = status(base, proposal_id)
+    if record.get("disposition") != "proposed" or record.get("kind") != "lesson":
+        raise ValueError("agent.lesson_preview_unavailable")
+    body = _lesson_preview_body(record["draft"])
+    from surfaces import lesson
+    return {"proposal_id": proposal_id,
+            "draft_fingerprint": draft_fingerprint(record["draft"]),
+            "markdown": record["draft"],
+            "html": lesson.render_markdown(body),
+            "citations": list(record.get("citations") or []),
+            "diff": record.get("diff")}
+
+
+def revise(base, proposal_id, before_paragraph, after_paragraph,
+           expected_draft_fingerprint):
+    """Correct exactly one paragraph in a pending lesson proposal.
+
+    The caller supplies the draft token it reviewed. A stale edit or an
+    ambiguous paragraph is refused, and accepted target bytes never change.
+    """
+    record = status(base, proposal_id)
+    if record.get("disposition") != "proposed" or record.get("kind") != "lesson":
+        raise ValueError("agent.lesson_revision_unavailable")
+    draft = record["draft"]
+    if draft_fingerprint(draft) != expected_draft_fingerprint:
+        raise ValueError("agent.draft_stale")
+    try:
+        sources_now = _source_fingerprints(base, record.get("source_paths") or [])
+    except (OSError, ValueError):
+        raise ValueError("agent.source_stale") from None
+    if sources_now != (record.get("source_fingerprints") or {}):
+        raise ValueError("agent.source_stale")
+    if not isinstance(before_paragraph, str) or not before_paragraph.strip() \
+            or not isinstance(after_paragraph, str) or not after_paragraph.strip():
+        raise ValueError("agent.paragraph_empty")
+    if "\n\n" in before_paragraph or "\n\n" in after_paragraph:
+        raise ValueError("agent.paragraph_not_single")
+    paragraphs = [part.strip() for part in draft.split("\n\n")]
+    if paragraphs.count(before_paragraph.strip()) != 1 or \
+            draft.count(before_paragraph) != 1 or \
+            re.match(r"^#{1,6}\s", before_paragraph.strip()) or \
+            re.match(r"^#{1,6}\s", after_paragraph.strip()):
+        raise ValueError("agent.paragraph_ambiguous")
+    updated = draft.replace(before_paragraph, after_paragraph, 1)
+    _lesson_preview_body(updated)
+    target = os.path.join(os.path.abspath(base), record["target"])
+    try:
+        with open(target, "rb") as fh:
+            current = fh.read()
+    except FileNotFoundError:
+        current = None
+    current_fingerprint = (identity.object_fingerprint(current, "lesson")
+                           if current is not None else None)
+    if current_fingerprint != record.get("expected_fingerprint"):
+        raise ValueError("agent.target_stale")
+    record.update({"draft": updated,
+                   "diff": _bounded_diff(record["target"], current or b"", updated),
+                   "updated_at": _now(),
+                   "next_action": "Review corrected proposal"})
+    return _write_record(base, record)
 
 
 def _author_payload(skill, spec):
@@ -299,6 +410,13 @@ def start(skill, settings, base):
             "inside the course directory this skill should draft."
             % (skill, skill))
 
+    try:
+        source_fingerprints = _source_fingerprints(base, spec["source_paths"])
+    except (OSError, ValueError):
+        return _settled(iid, skill, "agent.source_unavailable",
+                        "A configured source is missing or outside the course. "
+                        "Check source_paths and start again. Nothing was written.")
+
     request = model_adapter.request_from_operation(
         "author", iid, "",
         author_request=_author_payload(skill, spec))
@@ -326,6 +444,27 @@ def start(skill, settings, base):
 
     draft = candidate["draft"]
     citations = [str(c) for c in candidate["citations"]]
+    try:
+        source_now = _source_fingerprints(base, spec["source_paths"])
+    except (OSError, ValueError):
+        source_now = None
+    if source_now != source_fingerprints:
+        return _settled(iid, skill, "agent.source_stale",
+                        "A configured source changed during drafting. "
+                        "Review it and start again. Nothing was written.")
+    if spec["kind"] == "lesson":
+        try:
+            _lesson_preview_body(draft)
+        except ValueError as exc:
+            return _settled(iid, skill, str(exc),
+                            "The lesson draft cannot be previewed safely. "
+                            "Correct the model request and start again. "
+                            "Nothing was written.")
+        if not citations or any(c not in spec["citations"] for c in citations):
+            return _settled(iid, skill, "agent.citations_unverified",
+                            "The draft citations do not match the configured "
+                            "sources. Check source bindings and start again. "
+                            "Nothing was written.")
     target_path = os.path.join(base, spec["target"])
     raw = None
     if os.path.exists(target_path):
@@ -347,6 +486,8 @@ def start(skill, settings, base):
         "kind": spec["kind"],
         "draft": draft,
         "citations": citations,
+        "source_paths": spec["source_paths"],
+        "source_fingerprints": source_fingerprints,
         "expected_fingerprint":
             identity.object_fingerprint(raw, spec["kind"])
             if raw is not None else None,
@@ -413,6 +554,23 @@ def accept(state, settings, base=None, reviewer=""):
 
     if not base:
         raise ValueError("base is required")
+    try:
+        sources_now = _source_fingerprints(base, state.get("source_paths") or [])
+    except (OSError, ValueError):
+        sources_now = None
+    if sources_now != (state.get("source_fingerprints") or {}):
+        reason = ("A configured source changed or became unavailable since "
+                  "this draft was shown. Review it and start a new proposal. "
+                  "Nothing was written.")
+        if state.get("proposal_id"):
+            state.update({"state": "settled", "disposition": "conflicted",
+                          "code": "agent.source_stale", "reason": reason,
+                          "conflict": True, "updated_at": _now(),
+                          "reviewer": reviewer, "decided_at": _now(),
+                          "next_action": "Start a new proposal"})
+            return _write_record(base, state)
+        return _settled(iid, skill, "agent.source_stale", reason,
+                        conflict=True)
     rel = state["target"]
     kind = state["kind"]
 
@@ -484,6 +642,8 @@ def accept(state, settings, base=None, reviewer=""):
         "expected_fingerprint": state.get("expected_fingerprint"),
         "validation": state.get("validation"),
         "citations": state.get("citations"),
+        "source_paths": state.get("source_paths"),
+        "source_fingerprints": state.get("source_fingerprints"),
         "provider": state.get("provider"),
         "draft": state.get("draft"),
         "kind": kind,
