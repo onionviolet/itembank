@@ -2121,6 +2121,61 @@ def sidecar_path_for(md_rel_path):
     return md_rel_path + SIDECAR_SUFFIX
 
 
+def resolve_locator(base, source_id, locator_id, expected_fingerprint):
+    """Read one exact derived passage only while its accepted source is clean.
+
+    A repeated quote is addressed by locator id, never by searching its text.
+    The caller must retain the accepted fingerprint with the citation.
+    """
+    if not all(isinstance(value, str) and value for value in
+               (source_id, locator_id, expected_fingerprint)):
+        return {"status": "unsupported", "reason": "incomplete citation"}
+    try:
+        row = journal.read_registry(base).get(source_id)
+        if not row or row.get("kind") != "source":
+            return {"status": "unavailable", "reason": "source is not registered"}
+        if not identity.rights_granted(row.get("rights"), "read"):
+            return {"status": "unsupported", "reason": "source read right is not granted"}
+        if row.get("fingerprint") != expected_fingerprint:
+            return {"status": "stale", "reason": "accepted source revision changed"}
+        if journal.object_state(base, source_id) != "clean":
+            return {"status": "stale", "reason": "source bytes changed"}
+        root = os.path.realpath(base)
+        rel = row.get("path")
+        if not isinstance(rel, str) or os.path.isabs(rel):
+            return {"status": "unsupported", "reason": "source path is unsafe"}
+        source_path = os.path.realpath(os.path.join(root, rel))
+        sidecar_path = os.path.realpath(os.path.join(root, sidecar_path_for(rel)))
+        if any(os.path.commonpath((root, path)) != root for path in
+               (source_path, sidecar_path)):
+            return {"status": "unsupported", "reason": "source path is unsafe"}
+        with open(source_path, "rb") as stream:
+            raw = stream.read(auditor.MAX_SOURCE_BYTES + 1)
+        if len(raw) > auditor.MAX_SOURCE_BYTES or \
+                identity.object_fingerprint(raw, "source") != expected_fingerprint:
+            return {"status": "stale", "reason": "source bytes changed"}
+        with open(sidecar_path, encoding="utf-8") as stream:
+            sidecar = json.load(stream)
+        if schema_validate.validate(sidecar, _LOCATOR_SCHEMA) or \
+                sidecar["source_id"] != source_id or \
+                sidecar["fingerprint"] != expected_fingerprint:
+            return {"status": "unsupported", "reason": "locator sidecar is invalid"}
+        matches = [loc for loc in sidecar["locators"] if loc["id"] == locator_id]
+        if len(matches) != 1 or matches[0]["span_id"] is None:
+            return {"status": "unsupported", "reason": "locator is not unique and mapped"}
+        spans = auditor.normalize_source(raw, source_id, kind="markdown")["spans"]
+        matched = [span for span in spans
+                   if span["span_id"] == matches[0]["span_id"]]
+        if len(matched) != 1:
+            return {"status": "unsupported", "reason": "locator span is missing"}
+        return {"status": "ok", "source_id": source_id,
+                "fingerprint": expected_fingerprint, "locator_id": locator_id,
+                "span_id": matched[0]["span_id"], "text": matched[0]["verbatim"],
+                "origin": matches[0]["body"]}
+    except (OSError, ValueError, KeyError, TypeError, auditor.SourceError):
+        return {"status": "unavailable", "reason": "source or locator cannot be read"}
+
+
 def build_sidecar(source_id, adapter, md_bytes, origin, rights, locators,
                   reading_order, unsupported, confidence=None):
     """Return exactly the frozen envelope. The fingerprint comes from
@@ -2285,7 +2340,7 @@ def _import_source(base, adapter, raw_object_id, actor_kind, actor_name,
         base, source_id, "source", md_rel_path, "import", md_bytes,
         expected_fingerprint=None, actor_kind=actor_kind,
         actor_name=actor_name, create_if_missing=True,
-        source_object_id=raw_object_id,
+        source_object_id=raw_object_id, rights=rights,
         companions=({"path": sidecar_rel_path, "expected_digest": None,
                      "new_bytes": (json.dumps(sidecar, ensure_ascii=False, indent=2)
                                    + "\n").encode("utf-8")},))
