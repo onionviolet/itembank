@@ -170,8 +170,16 @@ class OrdinaryRestoreAtomicity(unittest.TestCase):
     def test_populated_root_merge_and_conflict_behavior_is_retained(self):
         self.dest.mkdir()
         (self.dest / 'private.txt').write_bytes(b'Unrelated draft')
+        before = files(self.dest)
+        with self.assertRaises(course_package.PackageError) as error:
+            course_package.restore_package(self.package, str(self.dest), 'human', 'test',
+                                           require_root_atomic=True)
+        self.assertEqual(error.exception.code, 'package.atomic_merge_unsupported')
+        self.assertEqual(files(self.dest), before)
         with mock.patch.object(course_package, 'publish_directory', side_effect=AssertionError('no replacement')):
-            self.assertTrue(self.restore()['complete'])
+            result = self.restore()
+            self.assertTrue(result['complete'])
+            self.assertEqual(result['publication'], 'per-object')
         self.assertEqual((self.dest / 'private.txt').read_bytes(), b'Unrelated draft')
         entry = self.manifest['entries'][-1]
         (self.dest / entry['relpath']).write_bytes(b'Changed outside journal')

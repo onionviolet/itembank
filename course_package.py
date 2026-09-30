@@ -1488,12 +1488,15 @@ def verify_manifest(package_root):
 
 
 def restore_package(package_root, dest, actor_kind, actor_name, _snapshot=None,
-                    _staging=False):
+                    _staging=False, require_root_atomic=False):
     """Restore a package into `dest` and report what was verified.
 
-    `dest` needs no shared journal, no shared registry, and no shared
-    evidence store: a restore mints the destination's own journal as it
-    writes, which is what makes a clean-machine restore a real one.
+    Fresh roots publish only after their journal and evidence validate.
+    Default populated replay provides per-object atomicity only. Set
+    `require_root_atomic=True` to require whole-root publication: populated
+    roots then admit exact, read-only retries only. Adding objects or evidence
+    under that guarantee requires a fresh sibling, because current writers
+    do not share a root-publication lock.
 
     Two loss lists come back and neither replaces the other: `losses` is the
     export-time report copied from the manifest, and `restore_losses` is what
@@ -1533,7 +1536,9 @@ def restore_package(package_root, dest, actor_kind, actor_name, _snapshot=None,
     if _staging:
         # The course operation owns this private stage and its one final
         # publication. Do not publish a second root inside that transaction.
-        return _restore_ordinary_package(snapshot, dest, actor_kind, actor_name)
+        result = _restore_ordinary_package(snapshot, dest, actor_kind, actor_name)
+        result['publication'] = 'private-stage'
+        return result
 
     dest = os.path.abspath(dest)
     parent = os.path.realpath(os.path.dirname(dest))
@@ -1568,15 +1573,110 @@ def restore_package(package_root, dest, actor_kind, actor_name, _snapshot=None,
                     except FileExistsError:
                         pass
                 raise
+            result['publication'] = 'whole-root'
             return result
+    if require_root_atomic:
+        return _verify_populated_restore(snapshot, dest)
     return _restore_ordinary_package(snapshot, dest, actor_kind, actor_name)
 
 
-def _restore_ordinary_package(snapshot, dest, actor_kind, actor_name):
-    """Replay through the existing journal, privately or into a populated root.
+def _ordinary_destination_preflight(snapshot, dest):
+    """Refuse identity/path/disk conflicts through existing authorities."""
+    destination_registry = journal.read_registry(dest)
+    for entry in snapshot['manifest']['entries']:
+        if entry['kind'] not in PACKAGED_KINDS:
+            continue
+        target = safe_target(dest, entry['relpath'])
+        existing = destination_registry.get(entry['object_id'])
+        if existing is not None:
+            if (existing.get('fingerprint') != entry['fingerprint'] or
+                    existing.get('path') != entry['relpath'] or
+                    existing.get('kind') != entry['kind'] or
+                    journal.object_state(dest, entry['object_id']) != 'clean'):
+                raise PackageError('package.object_conflict',
+                                   'Destination object changed. Nothing was overwritten.')
+        elif os.path.lexists(target) or any(
+                row.get('path') == entry['relpath'] for row in destination_registry.values()):
+            raise PackageError('package.object_conflict',
+                               'Destination path belongs to another object. Nothing was overwritten.')
+    return destination_registry
 
-    Populated-root merges keep per-object atomicity and conflict checks;
-    they do not promise atomic publication of the whole root.
+
+def _verify_populated_restore(snapshot, dest):
+    """Verify a no-write retry, never replay a partial package into a live root.
+
+    Reads are pinned and rechecked for observed races. This grants no writer
+    lease and makes no whole-root snapshot or publication claim.
+    """
+    manifest = snapshot['manifest']
+    tracked = [os.path.relpath(path, dest).replace(os.sep, '/') for path in
+               (journal.log_path(dest), journal.registry_path(dest), evidence.log_path(dest))]
+    tracked += [entry['relpath'] for entry in manifest['entries']
+                if entry['kind'] in PACKAGED_KINDS]
+    with _directory_handle(dest) as directory:
+        def capture():
+            result = {}
+            for relative in tracked:
+                try:
+                    result[relative] = _read_relative(directory, relative)
+                except FileNotFoundError:
+                    result[relative] = None
+            return result
+        before = capture()
+        root_stat = os.stat(dest, follow_symlinks=False)
+        registry = _ordinary_destination_preflight(snapshot, dest)
+        accepted = journal._compute_registry(dest)
+        missing = False
+        verified, losses = 0, []
+        for entry in manifest['entries']:
+            if entry['kind'] not in PACKAGED_KINDS:
+                losses.append(_loss_row('unsupported-kind', entry['object_id'],
+                                       LOSS_REASONS['unsupported-kind'] % entry['kind']))
+                continue
+            row = registry.get(entry['object_id'])
+            if row is None:
+                missing = True
+                continue
+            if (accepted.get(entry['object_id']) != row or
+                    before[entry['relpath']] != snapshot['payloads'][entry['object_id']]):
+                raise PackageError('package.object_conflict',
+                                   'Destination accepted bytes or history differ. Nothing was overwritten.')
+            verified += 1
+        existing = {event['event_id']: event for event in
+                    evidence._reading_history(evidence.log_path(dest))}
+        already = 0
+        for event in snapshot['evidence']:
+            prior = existing.get(event['event_id'])
+            if prior is None:
+                missing = True
+            elif prior != event:
+                raise PackageError('package.evidence_identity_conflict',
+                                   'An immutable evidence identity has different content.')
+            else:
+                already += 1
+        current = os.stat(dest, follow_symlinks=False)
+        if ((root_stat.st_dev, root_stat.st_ino) != (current.st_dev, current.st_ino) or
+                capture() != before):
+            raise PackageError('package.destination_changed',
+                               'Destination changed during verification. Preserve it and retry after the writer finishes.')
+    if missing:
+        raise PackageError('package.atomic_merge_unsupported',
+                           'Populated-root publication is unsupported with current writer locks. '
+                           'Restore to a new sibling directory, validate and reopen it, then review '
+                           'identity and evidence conflicts before any separately authorized merge. '
+                           'The populated destination was not mutated.')
+    return {'entries_verified': verified, 'entries_in_manifest': len(manifest['entries']),
+            'complete': verified == len(manifest['entries']),
+            'course_object_id': manifest['course_object_id'],
+            'losses': list(manifest.get('loss_report') or []), 'restore_losses': losses,
+            'evidence_recorded': 0, 'evidence_already_recorded': already,
+            'publication': 'unchanged'}
+
+
+def _restore_ordinary_package(snapshot, dest, actor_kind, actor_name):
+    """Replay through existing authorities, privately or into a populated root.
+
+    Populated replay provides per-object atomicity and conflict checks only.
     """
     manifest = snapshot['manifest']
     entries = manifest['entries']
@@ -1594,25 +1694,7 @@ def _restore_ordinary_package(snapshot, dest, actor_kind, actor_name):
             _restore_evidence(snapshot["evidence"], stage,
                               manifest["course_object_id"])
 
-    destination_registry = journal.read_registry(dest)
-    # Refuse every known destination conflict before restoring the first
-    # object. Registry equality alone cannot prove unchanged on-disk bytes.
-    for entry in entries:
-        if entry["kind"] not in PACKAGED_KINDS:
-            continue
-        target = safe_target(dest, entry["relpath"])
-        existing = destination_registry.get(entry["object_id"])
-        if existing is not None:
-            if (existing.get("fingerprint") != entry["fingerprint"] or
-                    existing.get("path") != entry["relpath"] or
-                    existing.get("kind") != entry["kind"] or
-                    journal.object_state(dest, entry["object_id"]) != "clean"):
-                raise PackageError("package.object_conflict",
-                                   "Destination object changed. Nothing was overwritten.")
-        elif os.path.lexists(target) or any(
-                row.get("path") == entry["relpath"] for row in destination_registry.values()):
-            raise PackageError("package.object_conflict",
-                               "Destination path belongs to another object. Nothing was overwritten.")
+    destination_registry = _ordinary_destination_preflight(snapshot, dest)
     verified, restore_losses = 0, []
     for entry in entries:
         if entry["kind"] not in PACKAGED_KINDS:
@@ -1652,6 +1734,7 @@ def _restore_ordinary_package(snapshot, dest, actor_kind, actor_name):
         "restore_losses": restore_losses,
         "evidence_recorded": recorded,
         "evidence_already_recorded": already,
+        "publication": "per-object",
     }
 
 
@@ -1721,6 +1804,7 @@ def _restore_reading_transport(snapshot, dest, actor_kind, actor_name):
                     os.fsync(stream.fileno())
             evidence._sync_evidence_directory(os.path.join(directory, 'sentinel'))
         if os.path.isdir(dest) and os.listdir(dest):
+            publication = 'unchanged'
             selected = set(transport['objects'])
             actual_receipts = [entry for entry in journal.entries(dest)
                                if entry.get('object_id') in selected or
@@ -1749,6 +1833,7 @@ def _restore_reading_transport(snapshot, dest, actor_kind, actor_name):
                         raise PackageError('package.object_conflict', 'Destination closure differs. Nothing was overwritten.')
             already, recorded = len(snapshot['evidence']), 0
         else:
+            publication = 'whole-root'
             if os.path.isdir(dest):
                 # rmdir refuses a raced nonempty directory. Publication also
                 # refuses a destination that appears after this empty removal.
@@ -1765,7 +1850,8 @@ def _restore_reading_transport(snapshot, dest, actor_kind, actor_name):
             'reading_acceptance': 'accepted' if accepted else 'unknown',
             'course_object_id': manifest['course_object_id'],
             'losses': list(manifest['loss_report']), 'restore_losses': [],
-            'evidence_recorded': recorded, 'evidence_already_recorded': already}
+            'evidence_recorded': recorded, 'evidence_already_recorded': already,
+            'publication': publication}
 
 
 def _restore_private_notes(stage, course_id, personal):
