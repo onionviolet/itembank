@@ -1,0 +1,257 @@
+diff --git a/model.py b/model.py
+index 0b473f5..78bddee 100644
+--- a/model.py
++++ b/model.py
+@@ -116,6 +116,7 @@ def parse_question(ch):
+         common["input_format"] = input_format
+ 
+     if qtype in ("mc", "multi"):
++        answer_format = grab(r"(?m)^\[FORMAT:\s*([\w-]+)\s*\]", ch).lower()
+         opts = {}
+         for L in LETTERS:
+             v = grab(rf"(?m)^{L}\)\s*(.*?)\s*(?=^[A-H]\)|^CORRECT:|\n\n)", ch, re.S)
+@@ -135,9 +136,12 @@ def parse_question(ch):
+             "opts": opts, "correct": correct, "da": da,
+             "select": int(sel) if sel else len(correct),
+         })
++        if answer_format:
++            common["answer_format"] = answer_format
+         return common
+ 
+     if qtype in ("table", "dnd"):
++        assignment = grab(r"(?m)^\[ASSIGNMENT:\s*([\w-]+)\s*\]", ch).lower()
+         cats = [c.strip() for c in grab(r"(?m)^\[CATEGORIES:\s*(.*?)\s*\]", ch).split("|") if c.strip()]
+         marker = "ROW" if qtype == "table" else "ITEM"
+         rows = []
+@@ -149,6 +153,8 @@ def parse_question(ch):
+         if not (stem and cats and rows):
+             return None
+         common.update({"cats": cats, "rows": rows, "notes": notes(ch)})
++        if assignment:
++            common["assignment"] = assignment
+         return common
+ 
+     if qtype == "build":
+@@ -1945,8 +1951,12 @@ def content_fingerprint(q):
+             parts.append("opt:%s=%s" % (L, collapse(q["opts"][L])))
+         parts.append("correct=" + ",".join(sorted(q["correct"])))
+         parts.append("select=%d" % q["select"])
++        if q.get("answer_format"):
++            parts.append("format=" + q["answer_format"])
+     elif t in ("table", "dnd"):
+         parts.append("cats=" + "|".join(q["cats"]))
++        if q.get("assignment"):
++            parts.append("assignment=" + q["assignment"])
+         for i, r in enumerate(q["rows"]):
+             parts.append("row:%d=%s::%s" % (i, collapse(r["text"]), r["cat"]))
+     elif t == "build":
+@@ -2279,6 +2289,9 @@ THE NINE ITEM TYPES
+ 1. Multiple choice.  Default. No TYPE line needed.
+      A) ...  B) ...  C) ...  D) ...
+      CORRECT: B
++   For an explicit true/false decision, use [FORMAT: true-false] and exactly
++   A) True and B) False (either order). Ordinary multiple choice still needs
++   at least three options. A subject's stricter structure policy still applies.
+ 
+ 2. Multiple response.  Pick a fixed number from five or six.
+      [TYPE: multi]
+@@ -2303,6 +2316,9 @@ THE NINE ITEM TYPES
+      [TYPE: dnd]
+      [CATEGORIES: Direct care | Readiness]
+      ITEM) Assessing the airway :: Direct care
++   For matching with each category used once, add [ASSIGNMENT: one-to-one].
++   Give each ITEM a distinct category and include every category exactly once.
++   The control clears an earlier match when that category is chosen again.
+ 
+ 6. Short answer.  Constructed response, typed in prose. NOT auto-graded, ever:
+    the answer is recorded and a human or an AI marks it against RUBRIC later.
+@@ -2914,6 +2930,8 @@ LOCKED_RULE_IDS = frozenset({
+ LINT_CODES = tuple(sorted({
+     "item.duplicate_number", "item.select_mismatch", "item.correct_unknown_option",
+     "item.too_few_options", "item.missing_second_best", "item.distractor_missing",
++    "item.unknown_format", "item.invalid_true_false",
++    "item.unknown_assignment", "item.invalid_one_to_one",
+     "item.distractor_no_would_be", "item.too_few_categories", "item.row_category_unknown",
+     "item.too_few_rows", "item.missing_distractor_notes", "item.too_few_steps",
+     "item.duplicate_steps", "item.missing_model", "item.too_few_rubric_points",
+@@ -3861,7 +3879,18 @@ def lint(questions, lesson=LESSON_UNCHECKED, terms=TERMS_UNCHECKED,
+                 if c not in q["opts"]:
+                     errors.append(LintError("item.correct_unknown_option", "correct", tag,
+                                   "CORRECT names option %s, which does not exist" % c))
+-            if len(q["opts"]) < 3:
++            answer_format = q.get("answer_format", "")
++            if answer_format and answer_format != "true-false":
++                errors.append(LintError("item.unknown_format", "format", tag,
++                              "FORMAT must be true-false when present"))
++            if answer_format == "true-false" and (t != "mc"
++                    or sorted(q["opts"]) != ["A", "B"]
++                    or [q["opts"][letter].strip().casefold() for letter in ("A", "B")]
++                    not in (["true", "false"], ["false", "true"])
++                    or len(q["correct"]) != 1):
++                errors.append(LintError("item.invalid_true_false", "format", tag,
++                              "true-false needs one correct answer and exactly True and False options"))
++            if len(q["opts"]) < 3 and answer_format != "true-false":
+                 errors.append(LintError("item.too_few_options", "opts", tag,
+                               "only %d options" % len(q["opts"])))
+             errors.extend(structure_findings(q, tag))
+@@ -3883,6 +3912,16 @@ def lint(questions, lesson=LESSON_UNCHECKED, terms=TERMS_UNCHECKED,
+                                     "distractor %s never says when it WOULD be correct" % L))
+ 
+         elif t in ("table", "dnd"):
++            assignment = q.get("assignment", "")
++            if assignment and assignment != "one-to-one":
++                errors.append(LintError("item.unknown_assignment", "assignment", tag,
++                              "ASSIGNMENT must be one-to-one when present"))
++            if assignment == "one-to-one" and (t != "dnd"
++                    or len(q["rows"]) != len(q["cats"])
++                    or len(set(q["cats"])) != len(q["cats"])
++                    or set(r["cat"] for r in q["rows"]) != set(q["cats"])):
++                errors.append(LintError("item.invalid_one_to_one", "assignment", tag,
++                              "one-to-one needs one ITEM for each unique category"))
+             if len(q["cats"]) < 2:
+                 errors.append(LintError("item.too_few_categories", "cats", tag,
+                               "needs at least two CATEGORIES"))
+diff --git a/runtime.py b/runtime.py
+index d9ece9b..a8ec61f 100644
+--- a/runtime.py
++++ b/runtime.py
+@@ -53,6 +53,8 @@ def public_item(q, shuffle_seed=0):
+     elif q["type"] in ("table", "dnd"):
+         out["rows"] = [{"text": r["text"], "id": i} for i, r in enumerate(q["rows"])]
+         out["categories"] = q["cats"]
++        if q.get("assignment") == "one-to-one":
++            out["assignment"] = "one-to-one"
+         out["response_schema"] = {"type": "object", "keys": "row id", "values": q["cats"]}
+     elif q["type"] == "build":
+         import random
+diff --git a/schemas/item.schema.json b/schemas/item.schema.json
+index 1ff1027..567e48b 100644
+--- a/schemas/item.schema.json
++++ b/schemas/item.schema.json
+@@ -67,6 +67,10 @@
+         "type": "string"
+       }
+     },
++    "assignment": {
++      "const": "one-to-one",
++      "description": "Matching mode for a dnd item with one unique category per row."
++    },
+     "steps": {
+       "type": "array",
+       "items": {
+@@ -150,7 +154,7 @@
+         },
+         "options": {
+           "type": "array",
+-          "minItems": 3,
++          "minItems": 2,
+           "items": {
+             "$ref": "#/$defs/option"
+           }
+@@ -189,6 +193,9 @@
+             "type": "string"
+           }
+         },
++        "assignment": {
++          "const": "one-to-one"
++        },
+         "response_schema": {
+           "$ref": "#/$defs/table_dnd_response_schema"
+         }
+diff --git a/schemas/lint_error.schema.json b/schemas/lint_error.schema.json
+index 062ceeb..49172cf 100644
+--- a/schemas/lint_error.schema.json
++++ b/schemas/lint_error.schema.json
+@@ -39,6 +39,8 @@
+         "item.duplicate_stem",
+         "item.duplicate_steps",
+         "item.input_format_invalid",
++        "item.invalid_one_to_one",
++        "item.invalid_true_false",
+         "item.lesson_ref_unknown",
+         "item.low_confidence",
+         "item.missing_distractor_notes",
+@@ -64,6 +66,8 @@
+         "item.too_few_rows",
+         "item.too_few_rubric_points",
+         "item.too_few_steps",
++        "item.unknown_assignment",
++        "item.unknown_format",
+         "item.visual_duplicate_id",
+         "item.visual_empty_accessibility",
+         "item.visual_executable_member",
+diff --git a/surfaces/quiz_page.py b/surfaces/quiz_page.py
+index 767e0d3..9248410 100644
+--- a/surfaces/quiz_page.py
++++ b/surfaces/quiz_page.py
+@@ -1665,6 +1665,14 @@ function asAssign(q, body, act, card){
+       const b = document.createElement("button");
+       b.type="button"; b.textContent=c; b.setAttribute("aria-pressed","false");
+       b.onclick = ()=>{
++        if(q.assignment==="one-to-one"){
++          Object.keys(chosen).forEach(other=>{
++            if(other!==id && chosen[other]===c){
++              delete chosen[other];
++              segs[other].forEach(x=>x.setAttribute("aria-pressed","false"));
++            }
++          });
++        }
+         chosen[id]=c;
+         bs.forEach(x=>x.setAttribute("aria-pressed", x.textContent===c?"true":"false"));
+         submit.disabled = Object.keys(chosen).length !== q.rows.length;
+@@ -2330,6 +2338,14 @@ function asAssign(q, body, act, card){
+       const b = document.createElement("button");
+       b.type="button"; b.textContent=c; b.setAttribute("aria-pressed","false");
+       b.onclick = ()=>{
++        if(q.assignment==="one-to-one"){
++          Object.keys(chosen).forEach(other=>{
++            if(other!==id && chosen[other]===c){
++              delete chosen[other];
++              segs[other].forEach(x=>x.setAttribute("aria-pressed","false"));
++            }
++          });
++        }
+         chosen[id]=c;
+         bs.forEach(x=>x.setAttribute("aria-pressed", x.textContent===c?"true":"false"));
+         submit.disabled = Object.keys(chosen).length !== q.rows.length;
+diff --git a/tests/js/quiz_transition.test.mjs b/tests/js/quiz_transition.test.mjs
+index 3b60916..aae0291 100644
+--- a/tests/js/quiz_transition.test.mjs
++++ b/tests/js/quiz_transition.test.mjs
+@@ -148,6 +148,36 @@ test("empty MC starts disabled and cannot send an empty answer", async t => {
+   assert.doesNotMatch(page.document.querySelector(".feedback").textContent, /not correct/i);
+ });
+ 
++test("explicit two-option choice submits through the normal runtime route", async t => {
++  const item = choice("mc", { options: [
++    { key: "A", text: "True" }, { key: "B", text: "False" },
++  ] });
++  const page = await boot(t, item, [complete]);
++  page.input("B").click();
++  await page.submit();
++  assert.deepEqual(page.answers(), ["B"]);
++});
++
++test("one-to-one matching clears a previous use of the same category", async t => {
++  const item = { id: "q1", type: "dnd", stem: "Match the invented items.",
++    rows: [{ id: 0, text: "Lantern" }, { id: 1, text: "Bell" }],
++    categories: ["Glow", "Chime"], assignment: "one-to-one",
++    response_schema: { type: "object" } };
++  const page = await boot(t, item, [complete]);
++  const rows = Array.from(page.document.querySelectorAll(".rowline"));
++  const byName = name => rows.find(row => row.querySelector(".rowtext").textContent === name);
++  const pick = (name, category) => Array.from(byName(name).querySelectorAll("button"))
++    .find(button => button.textContent === category);
++  pick("Lantern", "Glow").click();
++  pick("Bell", "Glow").click();
++  assert.equal(pick("Lantern", "Glow").getAttribute("aria-pressed"), "false");
++  assert.equal(pick("Bell", "Glow").getAttribute("aria-pressed"), "true");
++  assert.equal(page.button().disabled, true);
++  pick("Lantern", "Chime").click();
++  await page.submit();
++  assert.deepEqual(page.answers(), [{ "0": "Chime", "1": "Glow" }]);
++});
++
+ for (const type of ["mc", "multi"]) {
+   test(`${type} wrong answer retains an editable, functioning retry control`, async t => {
+     const page = await boot(t, choice(type), [hold, complete]);

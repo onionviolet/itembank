@@ -1,0 +1,42 @@
+{
+  "audited-question-features": {
+    "base_commit": "c5a2a8c6bf2ed0c1a4779ecc6771e73062aa5ec2",
+    "patch_sha256": "0202cb3bb58d09a7e415f13b2ef3185ac0a5f123e19329a4ec521a0bb59f19f6",
+    "dirty_files_sha256": {
+      "model.py": "0699ba0a4293634da837ecce0fa56f763eb29f5d4b793484e6ed0aa1eb9f5bb2",
+      "runtime.py": "016b2b145f92256bde624806bbea513a949b7df5772f6693ed8032503233b6ff",
+      "schemas/item.schema.json": "f199fe32e72547d7eca095e5957ab18b732b9a0de8bb323550d616a4faef9e3d",
+      "schemas/lint_error.schema.json": "a9dbb63559099b139fce079ff08fc26652775761c93a5c462512a25b18ea318e",
+      "surfaces/quiz_page.py": "dece645e3c19f7fdbb416eb83fcf1eb88cb4e5fced77a7269264c36092f2180d",
+      "tests/js/quiz_transition.test.mjs": "8bdfa1327669a5c82590bfe8997ae6acc1b97853cb2339c457bc0330bef4e7de",
+      "tests/audited_question_features_roundtrip.py": "797a6cf0e0854bee11442d4adfda9e9a6710de8c6e4ee167c2ad142150a98c01"
+    },
+    "untracked_files": [
+      "tests/audited_question_features_roundtrip.py"
+    ]
+  },
+  "matching-interaction": {
+    "base_commit": "af105e1b031dec792778d024a9cf5545ce3fecd5",
+    "patch_sha256": "383174b7452f2d164ce56a436cacb192a1b0a45df55ceb70f6249e5238cdeb73",
+    "dirty_files_sha256": {
+      "surfaces/quiz_page.py": "5c26703d073634c7df50cbc67f22e7495158fa24185d8144a11baa9a92bb3651",
+      "tests/js/matching_drag.test.mjs": "6351a36d6176bc3d77957056965eea787002aec40646abfff71b01768b0c25b5"
+    },
+    "untracked_files": [
+      "tests/js/matching_drag.test.mjs"
+    ]
+  },
+  "ui-audit-details": {
+    "base_commit": "af105e1b031dec792778d024a9cf5545ce3fecd5",
+    "patch_sha256": "f2ee7975157008eeb850cba23eb36746ade32070a775112540a454c15b301419",
+    "dirty_files_sha256": {
+      "prototypes/ui-renewal-20260918/README.md": "4058c5308243337abef01723208aa195e5a5eb64b1da785939c4e81575b349ce",
+      "prototypes/ui-renewal-20260918/app.js": "2fbf23c878d0714ddc0bced4ae8c0618d30d65a7c8ff29e0a0a666649f0994b7",
+      "prototypes/ui-renewal-20260918/index.html": "7f93c938199df7c553a187192edad1e6f57a7f72a848057a9a43e33d6c51d620",
+      "prototypes/ui-renewal-20260918/question-types.js": "7b67dfb811219ac4e4cb556e20a6007dee21d9da6b68263e5acf2c75769eb730",
+      "prototypes/ui-renewal-20260918/style.css": "d25139cdd67f2d2bc874981c696d2c13b40a5a9b776d268a0b7dda6100039d37",
+      "surfaces/lesson_interaction.py": "de5449c408efaeb3874d211ef2c8f3c6bd631e578459368ca058bdff83bbe678"
+    },
+    "untracked_files": []
+  }
+}

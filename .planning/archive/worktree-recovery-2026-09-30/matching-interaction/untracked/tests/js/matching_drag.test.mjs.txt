@@ -1,0 +1,83 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import { JSDOM, VirtualConsole } from "jsdom";
+import { python } from "./python_bin.mjs";
+
+const html = execFileSync(python, ["-c", `
+import tempfile
+from pathlib import Path
+from surfaces import quiz
+with tempfile.TemporaryDirectory() as tmp:
+    bank = Path(tmp) / "synthetic.md"
+    bank.write_text("# Matching interaction\\n", encoding="utf-8")
+    print(quiz.page_for(str(bank), [{"id": "q1", "type": "dnd"}],
+        serve=True, bank_stem="synthetic", mode="practice")[1])
+`], { cwd: new URL("../..", import.meta.url), encoding: "utf8" });
+
+const item = {
+  id: "q1", type: "dnd", stem: "Match the synthetic rows.",
+  rows: [{ id: "r1", text: "First row" }, { id: "r2", text: "Second row" }],
+  categories: ["Alpha", "Beta"], response_schema: {},
+};
+const flush = async () => {
+  await new Promise(resolve => setTimeout(resolve, 0));
+  await new Promise(resolve => setTimeout(resolve, 0));
+};
+
+test("drag and category buttons produce the same saved response", async t => {
+  const requests = [];
+  const errors = [];
+  const console = new VirtualConsole();
+  console.on("jsdomError", error => errors.push(error.message));
+  let dispose;
+  const dom = new JSDOM(html, {
+    url: "http://localhost/quiz/synthetic", runScripts: "dangerously",
+    pretendToBeVisual: true, virtualConsole: console,
+    beforeParse(win) {
+      dispose = win.close.bind(win);
+      win.scrollTo = () => {};
+      win.HTMLElement.prototype.scrollIntoView = () => {};
+      win.Math.random = () => 0;
+      win.fetch = async (url, init) => {
+        requests.push({ url, payload: JSON.parse(init.body) });
+        const data = url === "/api/start"
+          ? { session_id: "synthetic", item, position: 0, total: 1 }
+          : { action: "hold", score: false, explain: {} };
+        return { ok: true, json: async () => data };
+      };
+    },
+  });
+  t.after(() => { dispose(); assert.deepEqual(errors, []); });
+  await flush();
+
+  const document = dom.window.document;
+  const rows = [...document.querySelectorAll(".dnd-row")];
+  const buckets = [...document.querySelectorAll(".dnd-bucket")];
+  const submit = document.querySelector("button.go");
+  assert.equal(rows.length, 2);
+  assert.equal(buckets.length, 2);
+  assert.equal(submit.disabled, true);
+
+  const transfer = { value: "", setData(_kind, value) { this.value = value; },
+    getData() { return this.value; } };
+  const drag = new dom.window.Event("dragstart", { bubbles: true });
+  drag.dataTransfer = transfer;
+  rows.find(row => row.textContent === "First row").dispatchEvent(drag);
+  const drop = new dom.window.Event("drop", { bubbles: true, cancelable: true });
+  drop.dataTransfer = transfer;
+  buckets.find(bucket => bucket.textContent === "Alpha").dispatchEvent(drop);
+  assert.equal(buckets[0].querySelector(".dnd-chip")?.textContent, "First row");
+  assert.equal(submit.disabled, true);
+
+  const second = [...document.querySelectorAll(".rowline")]
+    .find(line => line.querySelector(".rowtext").textContent === "Second row");
+  [...second.querySelectorAll("button")]
+    .find(button => button.textContent === "Beta").click();
+  assert.equal(submit.disabled, false);
+  submit.click();
+  await flush();
+  const sent = requests.find(request => request.url === "/api/submit");
+  assert.ok(sent, "the served page submitted through the runtime API");
+  assert.deepEqual(sent.payload.answer, { r1: "Alpha", r2: "Beta" });
+});

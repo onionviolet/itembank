@@ -1,0 +1,89 @@
+#!/usr/bin/env python3
+"""Exercise explicit true/false and one-to-one matching through the runtime."""
+import os
+import sys
+import json
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, ROOT)
+
+import model
+import runtime
+import schema_validate
+from surfaces import quiz_page
+
+
+def item(text):
+    parsed = model.parse_bank(text)
+    assert len(parsed) == 1, parsed
+    return parsed[0]
+
+
+def codes(question):
+    errors, _ = model.lint([question])
+    return {error.code for error in errors}
+
+
+with open(os.path.join(ROOT, "schemas", "item.schema.json"), encoding="utf-8") as source:
+    item_schema = json.load(source)
+
+
+binary = item("""Q1. The invented beacon is lit.
+[FORMAT: true-false]
+A) True
+B) False
+CORRECT: B
+WHY BEST: The beacon is off.
+KEY DISCRIMINATOR: Check its light.
+SECOND-BEST: True would fit a lit beacon.
+DISTRACTOR ANALYSIS:
+- A) This would be correct if the beacon were lit.
+- B) Correct for an unlit beacon.
+TRAP: Guessing from its name.
+CONFIDENCE: high
+""")
+assert not codes(binary), codes(binary)
+assert runtime.score_response(binary, "B") is True
+assert runtime.score_response(binary, "A") is False
+assert runtime.public_item(binary)["response_schema"]["allowed"] == ["A", "B"]
+assert not schema_validate.validate(runtime.public_item(binary), item_schema)
+assert runtime.page_item(binary, offline=True)["key"] == runtime.canonical_key(binary)
+
+ordinary = dict(binary, answer_format="")
+assert "item.too_few_options" in codes(ordinary)
+bad_binary = dict(binary, opts={"A": "Yes", "B": "No"})
+assert "item.invalid_true_false" in codes(bad_binary)
+
+matching = item("""Q1. Match each invented instrument to its signal.
+[TYPE: dnd]
+[ASSIGNMENT: one-to-one]
+[CATEGORIES: Glow | Chime | Pulse]
+ITEM) Lantern :: Glow
+ITEM) Bell :: Chime
+ITEM) Sensor :: Pulse
+WHY BEST: Each instrument has one signal.
+KEY DISCRIMINATOR: Match the named signals.
+DISTRACTOR ANALYSIS:
+- The names are invented for this fixture.
+TRAP: Reusing a signal.
+CONFIDENCE: high
+""")
+assert not codes(matching), codes(matching)
+public = runtime.public_item(matching)
+assert public["assignment"] == "one-to-one"
+assert "cat" not in public["rows"][0]
+assert not schema_validate.validate(public, item_schema)
+assert runtime.score_response(matching, {"0": "Glow", "1": "Chime", "2": "Pulse"}) is True
+assert runtime.score_response(matching, {"0": "Glow", "1": "Glow", "2": "Pulse"}) is False
+assert runtime.page_item(matching, offline=True)["key"] == runtime.canonical_key(matching)
+
+bad_matching = dict(matching, rows=matching["rows"][:2])
+assert "item.invalid_one_to_one" in codes(bad_matching)
+bad_matching = dict(matching, rows=[matching["rows"][0]] * 3)
+assert "item.invalid_one_to_one" in codes(bad_matching)
+
+# Both the saved offline quiz and served sitting expose the same keyboard
+# control behavior. Matching remains an ordinary runtime-scored dnd response.
+assert 'q.assignment==="one-to-one"' in quiz_page.OFFLINE_JS
+assert 'q.assignment==="one-to-one"' in quiz_page.SERVED_JS
+print("audited question features: passed")

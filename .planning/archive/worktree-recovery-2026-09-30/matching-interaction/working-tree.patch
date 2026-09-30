@@ -1,0 +1,204 @@
+diff --git a/surfaces/quiz_page.py b/surfaces/quiz_page.py
+index 5d6f8cd..35068a4 100644
+--- a/surfaces/quiz_page.py
++++ b/surfaces/quiz_page.py
+@@ -168,6 +168,14 @@ h1.stem{font-size:32px;font-weight:600;line-height:1.2;margin:0 0 14px;
+   padding:9px 0;border-bottom:1px solid var(--line)}
+ .rowline:last-of-type{border-bottom:0}
+ .rowtext{flex:1 1 240px;min-width:0;font-family:var(--font-paper)}
++.dnd-buckets{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 14px}
++.dnd-bucket{border:2px dashed var(--edge);border-radius:8px;padding:9px 12px;
++  min-height:44px;box-sizing:border-box;background:var(--card)}
++.dnd-bucket.over{border-color:var(--accent);background:var(--accent-soft)}
++.dnd-chip{display:block;margin-top:6px;padding:4px 7px;border-radius:5px;
++  background:var(--accent-soft);color:var(--ink);font-family:var(--font-paper)}
++.dnd-row{cursor:grab}
++.dnd-row:active{cursor:grabbing}
+ .rowline select{flex:1 1 12rem;min-width:0;max-width:100%;min-height:44px;
+   font:inherit;font-size:16px;padding:8px 12px;border:1px solid var(--edge);
+   border-radius:8px;background:var(--card);color:inherit}
+@@ -1352,7 +1360,7 @@ const FORMAT_INSTRUCTION = {mc:"Choose one option.",
+   multi:"Choose the requested number of options.",
+   table:"Choose one category for every row.",
+   build:"Select every step in the order it should happen.",
+-  dnd:"Match every row to a category. Dragging is not required.",
++  dnd:"Drag a row to a category, or use its category buttons.",
+   short:"Write your response. It stays pending until a marker reviews it.",
+   fill:"Enter a response in every field. Include a unit when the label asks for one.",
+   visual:"Use the visual or its adjacent keyboard controls, then submit.",
+@@ -1653,30 +1661,73 @@ function asAssign(q, body, act, card){
+   const rows = shuffled(q.rows);
+   const chosen = {};                 // row id -> category
+   const segs = {};
++  const rowTexts = {};
++  const submit = mkSubmit(act, "assign every row");
++  let locked = false;
++  const buckets = new Map();
++  const chips = new Map();
++  function choose(id, category){
++    if(locked || !Object.prototype.hasOwnProperty.call(segs, id)) return;
++    chosen[id] = category;
++    segs[id].forEach(b=>b.setAttribute("aria-pressed", b.textContent===category?"true":"false"));
++    if(q.type === "dnd"){
++      if(!chips.has(id)){
++        const row = rows.find(r=>String(r.id)===id);
++        const chip = document.createElement("span");
++        chip.className = "dnd-chip";
++        chip.textContent = row.text;
++        chips.set(id, chip);
++      }
++      buckets.get(category).appendChild(chips.get(id));
++    }
++    submit.disabled = Object.keys(chosen).length !== q.rows.length;
++  }
++  if(q.type === "dnd"){
++    const bucketList = document.createElement("div");
++    bucketList.className = "dnd-buckets";
++    bucketList.setAttribute("aria-hidden", "true");
++    q.categories.forEach(c=>{
++      const bucket = document.createElement("div");
++      bucket.className = "dnd-bucket";
++      bucket.textContent = c;
++      bucket.ondragover = e=>{ e.preventDefault(); bucket.classList.add("over"); };
++      bucket.ondragleave = ()=>bucket.classList.remove("over");
++      bucket.ondrop = e=>{
++        e.preventDefault(); bucket.classList.remove("over");
++        choose(e.dataTransfer.getData("text/plain"), c);
++      };
++      buckets.set(c, bucket);
++      bucketList.appendChild(bucket);
++    });
++    body.appendChild(bucketList);
++  }
+   rows.forEach(r=>{
+     const id = String(r.id);
+     const line = document.createElement("div");
+     line.className = "rowline";
+     const t = document.createElement("div");
+     t.className = "rowtext"; t.textContent = r.text;
++    if(q.type === "dnd"){
++      t.classList.add("dnd-row");
++      t.draggable = true;
++      t.ondragstart = e=>e.dataTransfer.setData("text/plain", id);
++      rowTexts[id] = t;
++    }
+     const seg = document.createElement("div");
+     seg.className = "seg";
+     const bs = q.categories.map(c=>{
+       const b = document.createElement("button");
+       b.type="button"; b.textContent=c; b.setAttribute("aria-pressed","false");
+-      b.onclick = ()=>{
+-        chosen[id]=c;
+-        bs.forEach(x=>x.setAttribute("aria-pressed", x.textContent===c?"true":"false"));
+-        submit.disabled = Object.keys(chosen).length !== q.rows.length;
+-      };
++      b.onclick = ()=>choose(id, c);
+       seg.appendChild(b); return b;
+     });
+     segs[id] = bs;
+     line.appendChild(t); line.appendChild(seg); body.appendChild(line);
+   });
+-  const submit = mkSubmit(act, "assign every row");
+   submit.onclick = ()=>{
++    locked = true;
+     rows.forEach(r=>segs[String(r.id)].forEach(b=>{ b.disabled = true; }));
++    Object.values(rowTexts).forEach(t=>{ t.draggable = false; });
+     submit.remove();
+     settle(q, Object.assign({}, chosen), card, act, v=>{
+       const cats = (v.explain||{}).row_cats || {};
+@@ -2014,7 +2065,7 @@ const FORMAT_INSTRUCTION = {mc:"Choose one option.",
+   multi:"Choose the requested number of options.",
+   table:"Choose one category for every row.",
+   build:"Select every step in the order it should happen.",
+-  dnd:"Match every row to a category. Dragging is not required.",
++  dnd:"Drag a row to a category, or use its category buttons.",
+   short:"Write your response. It stays pending until a marker reviews it.",
+   fill:"Enter a response in every field. Include a unit when the label asks for one.",
+   visual:"Use the visual or its adjacent keyboard controls, then submit.",
+@@ -2318,35 +2369,80 @@ function asAssign(q, body, act, card){
+   const rows = shuffled(q.rows);
+   const chosen = {};                 // row id -> category
+   const segs = {};
++  const rowTexts = {};
++  const submit = mkSubmit(act, "assign every row");
++  let locked = false;
++  const buckets = new Map();
++  const chips = new Map();
++  function choose(id, category){
++    if(locked || !Object.prototype.hasOwnProperty.call(segs, id)) return;
++    chosen[id] = category;
++    segs[id].forEach(b=>b.setAttribute("aria-pressed", b.textContent===category?"true":"false"));
++    if(q.type === "dnd"){
++      if(!chips.has(id)){
++        const row = rows.find(r=>String(r.id)===id);
++        const chip = document.createElement("span");
++        chip.className = "dnd-chip";
++        chip.textContent = row.text;
++        chips.set(id, chip);
++      }
++      buckets.get(category).appendChild(chips.get(id));
++    }
++    submit.disabled = Object.keys(chosen).length !== q.rows.length;
++  }
++  if(q.type === "dnd"){
++    const bucketList = document.createElement("div");
++    bucketList.className = "dnd-buckets";
++    bucketList.setAttribute("aria-hidden", "true");
++    q.categories.forEach(c=>{
++      const bucket = document.createElement("div");
++      bucket.className = "dnd-bucket";
++      bucket.textContent = c;
++      bucket.ondragover = e=>{ e.preventDefault(); bucket.classList.add("over"); };
++      bucket.ondragleave = ()=>bucket.classList.remove("over");
++      bucket.ondrop = e=>{
++        e.preventDefault(); bucket.classList.remove("over");
++        choose(e.dataTransfer.getData("text/plain"), c);
++      };
++      buckets.set(c, bucket);
++      bucketList.appendChild(bucket);
++    });
++    body.appendChild(bucketList);
++  }
+   rows.forEach(r=>{
+     const id = String(r.id);
+     const line = document.createElement("div");
+     line.className = "rowline";
+     const t = document.createElement("div");
+     t.className = "rowtext"; t.textContent = r.text;
++    if(q.type === "dnd"){
++      t.classList.add("dnd-row");
++      t.draggable = true;
++      t.ondragstart = e=>e.dataTransfer.setData("text/plain", id);
++      rowTexts[id] = t;
++    }
+     const seg = document.createElement("div");
+     seg.className = "seg";
+     const bs = q.categories.map(c=>{
+       const b = document.createElement("button");
+       b.type="button"; b.textContent=c; b.setAttribute("aria-pressed","false");
+-      b.onclick = ()=>{
+-        chosen[id]=c;
+-        bs.forEach(x=>x.setAttribute("aria-pressed", x.textContent===c?"true":"false"));
+-        submit.disabled = Object.keys(chosen).length !== q.rows.length;
+-      };
++      b.onclick = ()=>choose(id, c);
+       seg.appendChild(b); return b;
+     });
+     segs[id] = bs;
+     line.appendChild(t); line.appendChild(seg); body.appendChild(line);
+   });
+-  const submit = mkSubmit(act, "assign every row");
+   function revert(){
++    locked = false;
+     rows.forEach(r=>segs[String(r.id)].forEach(b=>{ b.disabled = false; }));
++    Object.values(rowTexts).forEach(t=>{ t.draggable = true; });
+     act.appendChild(submit);
+     submit.disabled = Object.keys(chosen).length !== q.rows.length;
+   }
+   submit.onclick = ()=>{
++    locked = true;
+     rows.forEach(r=>segs[String(r.id)].forEach(b=>{ b.disabled = true; }));
++    Object.values(rowTexts).forEach(t=>{ t.draggable = false; });
+     submit.remove();
+     settle(q, Object.assign({}, chosen), card, act, v=>{
+       const cats = (v.explain||{}).row_cats || {};

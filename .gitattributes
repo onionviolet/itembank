@@ -1,3 +1,11 @@
+# These two launcher shims are parsed by bash/freedesktop on macOS and
+# Linux; a CRLF-terminated shebang line breaks them outright. Force LF
+# regardless of the checkout machine's core.autocrlf setting, since
+# build.py's copy_launchers() copies the working-tree file verbatim into
+# the release directory.
+launchers/itembank.command text eol=lf
+launchers/itembank.desktop text eol=lf
+
 # Literal recovery diffs use a single space for an empty context line.
 # Preserve patch bytes rather than treating that grammar as source whitespace.
 *.patch -whitespace
