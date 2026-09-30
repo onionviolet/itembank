@@ -2,6 +2,10 @@
 const root = document.querySelector('#renewal');
 const main = document.querySelector('#main');
 let position = 'lesson', step = 1, checked = false, picked = '', completed = false;
+let explorationTime = 5;
+let lastRenderedRoute = '';
+let historyNavigation = false;
+const viewState = new Map();
 const button = (text, route, secondary = false) => `<a class="button ${secondary ? 'secondary' : ''}" href="#${route}">${text} <span aria-hidden="true">→</span></a>`;
 const graph = `<svg viewBox="0 0 300 145" role="img" aria-label="A line rises at a constant rate as time increases"><g stroke="currentColor" opacity=".12"><path d="M20 20H285M20 55H285M20 90H285M20 125H285M20 20V125M85 20V125M150 20V125M215 20V125M280 20V125"/></g><path d="M25 115L85 96L150 76L215 56L280 36" fill="none" stroke="var(--accent)" stroke-width="3"/><g fill="var(--accent)"><circle cx="25" cy="115" r="4"/><circle cx="150" cy="76" r="4"/><circle cx="280" cy="36" r="4"/></g><text x="237" y="137" fill="currentColor" font-size="9">Time →</text></svg>`;
 function pathSteps() {return `<ol class="steps"><li><span class="step-num">1</span>See the relationship<small>Lesson</small></li><li class="current"><span class="step-num">2</span>Change one thing<small>Explore</small></li><li><span class="step-num">3</span>Try it yourself<small>Practice</small></li></ol>`;}
@@ -13,11 +17,73 @@ const questions = [
  {stem:'The time doubles. What happens to the distance gap?',context:'Both cyclists keep their original steady speeds.',options:['The gap stays the same','The gap doubles','The gap becomes four times larger'],explanation:'A fixed difference in speed produces a gap proportional to time. Twice as much time means twice the gap.', hint:'Think about what happens to each cyclist’s distance when the time doubles.'},
  {stem:'Which change would keep both cyclists together?',context:'They start at the same place and travel for the same amount of time.',options:['Give both cyclists the same speed','Let the faster cyclist ride longer','Double both original speeds'], explanation:'With the same starting point, speed, and elapsed time, both cyclists cover the same distance.',hint:'Which quantity controls how much distance each cyclist covers per second?'}
 ];
-function practice(){position='practice';const q=questions[step-1];return `<div class="practice-head"><div><p class="eyebrow">PATTERNS & CHANGE / PRACTICE</p><span class="micro">Question ${step} of 3 · Comparing rates</span></div><div class="progress" aria-label="Question ${step} of 3">${[1,2,3].map(n=>`<i class="${n<=step?'on':''}"></i>`).join('')}</div></div><div class="learning-layout"><section class="card lesson-card question"><h1 tabindex="-1">${q.stem}</h1><p class="lead">${q.context}</p><fieldset ${checked?'disabled':''}><legend>Choose one answer</legend>${q.options.map((s,i)=>`<label class="option"><input type="radio" name="answer" value="${i}" ${picked===String(i)?'checked':''}><span>${s}</span></label>`).join('')}</fieldset>${checked?`<section class="feedback" tabindex="-1" aria-label="Sample explanation"><p class="eyebrow">SAMPLE FEEDBACK · NOT GRADED</p><h2>Make the relationship explicit.</h2><p>${q.explanation}</p></section><div class="action-row"><span class="micro">Take your time. Advance when ready.</span><button class="button" id="next">${step<3?`Next question, ${step+1} of 3`:'Review this session'} <span aria-hidden="true">→</span></button></div>`:`<details><summary>Show sample hint</summary><p>${q.hint}</p></details><div class="action-row"><a href="#course" class="text-link">Back to course</a><button class="button" id="check" ${picked===''?'disabled':''}>Preview feedback <span aria-hidden="true">→</span></button></div>`}<p class="fixture-note">Presentation fixture. Your selection is not scored. Real practice uses runtime-authorized hints and feedback.</p></section><aside class="rail"><section class="card"><p class="eyebrow">ONE THING AT A TIME</p><h3>Read. Decide. Reflect.</h3><p>Your explanation stays visible until you choose the next question.</p><a class="text-link" href="#lesson">Revisit the example →</a></section><section class="card"><h3>A connected learning path</h3><p>Course context follows you into practice and back into review.</p><a class="text-link" href="#desk">Return to study desk →</a></section></aside></div>`;}
+function practice(){position='practice';const q=questions[step-1];return `<div class="practice-head"><div><p class="eyebrow">PATTERNS & CHANGE / PRACTICE</p><span class="micro">Question ${step} of 3 · Comparing rates</span></div><div class="progress" aria-label="Question ${step} of 3">${[1,2,3].map(n=>`<i class="${n<=step?'on':''}"></i>`).join('')}</div></div><div class="learning-layout"><section class="card lesson-card question"><h1 tabindex="-1">${q.stem}</h1><p class="lead">${q.context}</p><fieldset ${checked?'disabled':''}><legend>Choose one answer</legend>${q.options.map((s,i)=>`<label class="option"><input type="radio" name="answer" value="${i}" ${picked===String(i)?'checked':''}><span>${s}</span></label>`).join('')}</fieldset>${checked?`<section class="feedback" tabindex="-1" aria-label="Sample explanation"><p class="eyebrow">SAMPLE FEEDBACK · NOT GRADED</p><h2>Make the relationship explicit.</h2><p>${q.explanation}</p></section><div class="action-row"><a href="#course" class="text-link">Back to course</a><button class="button" id="next">${step<3?`Next question, ${step+1} of 3`:'Review this session'} <span aria-hidden="true">→</span></button></div>`:`<details><summary>Show sample hint</summary><p>${q.hint}</p></details><div class="action-row"><a href="#course" class="text-link">Back to course</a><button class="button" id="check" ${picked===''?'disabled':''}>Preview feedback <span aria-hidden="true">→</span></button></div>`}<p class="fixture-note">Presentation fixture. Your selection is not scored. Real practice uses runtime-authorized hints and feedback.</p></section><aside class="rail"><section class="card"><p class="eyebrow">ONE THING AT A TIME</p><h3>Read. Decide. Reflect.</h3><p>Your explanation stays visible until you choose the next question.</p><a class="text-link" href="#lesson">Revisit the example →</a></section><section class="card"><h3>A connected learning path</h3><p>Course context follows you into practice and back into review.</p><a class="text-link" href="#desk">Return to study desk →</a></section></aside></div>`;}
 function review(){return `<p class="eyebrow">PATTERNS & CHANGE / SESSION REVIEW</p><h1>${completed?'Make the idea stick.':'Your session, in context.'}</h1><p class="lead">A useful review connects what you tried to what you can do next.</p><div class="grid-two" style="margin-top:28px"><section class="card"><h2>Comparing rates</h2>${completed?`<div class="review-item"><h3>What the examples showed</h3><p>Compare speeds, connect the difference to time, and explain what changes when time doubles.</p></div><div class="review-item"><h3>What this preview knows</h3><p>You reached the end of three presentation screens in this tab. No answers were graded and no mastery claim is made.</p></div>`:'<p class="empty-note">No sample session completed yet. Try the lesson and practice flow to see its review state.</p>'}<div class="action-row">${button(completed?'Revisit the explanation':'Start with the lesson','lesson')}<a class="text-link" href="#course">Course overview →</a></div></section><section class="card"><p class="eyebrow">A meaningful next step</p><h2>Explain it in your own words.</h2><p>Why does the distance gap double when the time doubles? Revisit the visual and use it to check your reasoning.</p><p class="micro">Production review must derive next steps from actual evidence, including pending and ungraded responses.</p></section></div>`;}
-function render(){const route=location.hash.slice(1)||'desk';const pages={desk,course,lesson,practice,review,examples,references:referencePage};const current=pages[route]?route:'desk'; main.innerHTML=pages[current]();main.classList.remove('entered');void main.offsetWidth;main.classList.add('entered');document.querySelector('#breadcrumb').innerHTML=`${['desk','examples','references'].includes(current)?'Workspace':'Patterns & change'} <span>/</span> ${{desk:'Study desk',course:'Course overview',lesson:'Learn',practice:'Practice',review:'Review',examples:'Question formats',references:'References'}[current]}`;document.querySelectorAll('[data-nav]').forEach(a=>{const active=a.dataset.nav===(['lesson','practice'].includes(current)?'course':current);a.classList.toggle('active',active);if(active)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');});document.title=`Itembank · ${current[0].toUpperCase()+current.slice(1)}`;main.focus({preventScroll:true});window.scrollTo(0,0);}
-main.addEventListener('input',e=>{if(e.target.id==='time'){const t=Number(e.target.value);document.querySelector('#bar-a').style.width=`${t*6}%`;document.querySelector('#bar-b').style.width=`${t*10}%`;document.querySelector('#distance-a').textContent=`${t*3} m`;document.querySelector('#distance-b').textContent=`${t*5} m`;document.querySelector('#time-value').textContent=`${t} ${t===1?'second':'seconds'}`;document.querySelector('#observation').textContent=`After ${t} ${t===1?'second':'seconds'}, B has traveled ${t*2} m farther.`;}if(e.target.name==='answer'){picked=e.target.value;document.querySelector('#check').disabled=false;}});
-main.addEventListener('click',e=>{if(e.target.closest('#reset-time')){const slider=document.querySelector('#time');slider.value='5';slider.dispatchEvent(new Event('input',{bubbles:true}));slider.focus();}if(e.target.closest('#check')){checked=true;render();document.querySelector('.feedback').focus();}if(e.target.closest('#next')){if(step<3){step++;checked=false;picked='';render();document.querySelector('.question h1').focus();}else{completed=true;location.hash='review';}}});
+function saveView(route) {
+  const active = document.activeElement;
+  const href = active?.getAttribute?.('href');
+  const matches = href ? [...main.querySelectorAll('a[href]')].filter(a => a.getAttribute('href') === href) : [];
+  viewState.set(route, {scrollX, scrollY, href, index: matches.indexOf(active)});
+}
+function restoreView(route) {
+  const saved = viewState.get(route);
+  if (!saved) {
+    const heading = main.querySelector('h1');
+    heading?.setAttribute('tabindex','-1');
+    requestAnimationFrame(() => { heading?.focus({preventScroll:true}); window.scrollTo(0, 0); });
+    return;
+  }
+  const matches = saved.href ? [...main.querySelectorAll('a[href]')].filter(a => a.getAttribute('href') === saved.href) : [];
+  const target = matches[saved.index] || main.querySelector('h1');
+  if (target === main.querySelector('h1')) target?.setAttribute('tabindex','-1');
+  requestAnimationFrame(() => { target?.focus({preventScroll:true}); window.scrollTo(saved.scrollX, saved.scrollY); });
+}
+function syncLessonTime() {
+  const slider = main.querySelector('#time');
+  if (!slider) return;
+  const t = explorationTime;
+  slider.value = String(t);
+  main.querySelector('#bar-a').style.width = `${t*6}%`;
+  main.querySelector('#bar-b').style.width = `${t*10}%`;
+  main.querySelector('#distance-a').textContent = `${t*3} m`;
+  main.querySelector('#distance-b').textContent = `${t*5} m`;
+  main.querySelector('#time-value').textContent = `${t} ${t===1?'second':'seconds'}`;
+  main.querySelector('#observation').textContent = `After ${t} ${t===1?'second':'seconds'}, B has traveled ${t*2} m farther.`;
+}
+function render(navigation = false) {
+  const route = location.hash.slice(1) || 'desk';
+  const pages = {desk,course,lesson,practice,review,examples,references:referencePage};
+  const current = pages[route] ? route : 'desk';
+  const previousScroll = [scrollX, scrollY];
+  main.innerHTML = pages[current]();
+  main.classList.remove('entered');
+  void main.offsetWidth;
+  main.classList.add('entered');
+  document.querySelector('#breadcrumb').innerHTML = `${['desk','examples','references'].includes(current)?'Workspace':'Patterns & change'} <span>/</span> ${{desk:'Study desk',course:'Course overview',lesson:'Learn',practice:'Practice',review:'Review',examples:'Question formats',references:'References'}[current]}`;
+  document.querySelectorAll('[data-nav]').forEach(a => {
+    const active = a.dataset.nav === (['lesson','practice'].includes(current)?'course':current);
+    a.classList.toggle('active',active);
+    if (active) a.setAttribute('aria-current','page'); else a.removeAttribute('aria-current');
+  });
+  document.title = `Itembank · ${current[0].toUpperCase()+current.slice(1)}`;
+  syncLessonTime();
+  lastRenderedRoute = current;
+  if (navigation) {
+    if (historyNavigation) restoreView(current);
+    else {
+      const heading = main.querySelector('h1');
+      heading?.setAttribute('tabindex','-1');
+      requestAnimationFrame(() => { heading?.focus({preventScroll:true}); window.scrollTo(0,0); });
+    }
+    historyNavigation = false;
+    document.querySelector('.mobile-nav')?.removeAttribute('open');
+  } else window.scrollTo(...previousScroll);
+}
+
+main.addEventListener('input',e=>{if(e.target.id==='time'){explorationTime=Number(e.target.value);syncLessonTime();}if(e.target.name==='answer'){picked=e.target.value;document.querySelector('#check').disabled=false;}});
+main.addEventListener('click',e=>{if(e.target.closest('#reset-time')){const slider=document.querySelector('#time');explorationTime=5;syncLessonTime();slider.focus();}if(e.target.closest('#check')){checked=true;render();document.querySelector('.feedback').focus();}if(e.target.closest('#next')){if(step<3){step++;checked=false;picked='';render();document.querySelector('.question h1').focus();}else{completed=true;location.hash='review';}}});
 document.querySelector('#theme').addEventListener('click',()=>{const dark=root.classList.toggle('dark');document.querySelector('#theme').textContent=dark?'Light appearance':'Dark appearance';document.querySelector('#theme').setAttribute('aria-label',`Switch to ${dark?'light':'dark'} theme`);});
 document.querySelector('.skip').addEventListener('click',e=>{e.preventDefault();main.focus();main.scrollIntoView({block:'start'});});
-window.addEventListener('hashchange',render);render();
+document.addEventListener('click',e=>{const link=e.target.closest('a[href^="#"]');if(link&&link.hash!==location.hash)saveView(lastRenderedRoute);});
+window.addEventListener('popstate',()=>{saveView(lastRenderedRoute);historyNavigation=true;});
+window.addEventListener('hashchange',()=>render(true));render(true);

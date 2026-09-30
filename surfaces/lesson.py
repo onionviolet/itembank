@@ -24,9 +24,9 @@ from surfaces.presentation import (SHARED_CSS, PRODUCT_CSS,
 
 def product_reader_css():
     return product_theme_css() + PRODUCT_CSS + """
-.wrap{max-width:1040px;background:var(--paper);color:var(--product-ink);
+.wrap{max-width:1200px;background:var(--paper);color:var(--product-ink);
   padding-block:var(--space-5) var(--space-7)}
-.wrap>header,.wrap>.reader-nav,.wrap>.lesson-context,.wrap>.lesson-context-nav,.wrap>#lesson-content{
+.wrap>header,.wrap>.reader-nav,.wrap>.lesson-context,.wrap>.lesson-context-nav{
   max-width:var(--measure-prose);margin-inline:auto}
 .wrap>header{padding-bottom:var(--space-4);border-bottom:1px solid var(--line)}
 .wrap>header h1{font-family:var(--font-paper);font-weight:400;
@@ -38,14 +38,37 @@ def product_reader_css():
 #lesson-content>section>h2{font-family:var(--font-paper);font-size:var(--text-heading);
   font-weight:400;line-height:1.3;letter-spacing:-.015em}
 #lesson-content.card{background:transparent;border:0;border-radius:0;padding:0}
+.overhaul-lesson #lesson-content{max-width:var(--measure-prose);margin-inline:auto}
+.overhaul-lesson #lesson-content:has(.runnable,.lesson-comparison,.lesson-lineplot,pre,table,svg){max-width:100%}
+.overhaul-lesson:has(.runnable,.lesson-comparison,.lesson-lineplot,pre,table,svg)>:is(header,.reader-nav,.lesson-context,.lesson-context-nav){margin-inline:0}
+.overhaul-lesson #lesson-content :is(p,ul,ol,blockquote){max-width:var(--measure-prose)}
+.overhaul-lesson #lesson-content>section{padding-block:var(--space-4);border-block-end:1px solid var(--line)}
+.overhaul-lesson #lesson-content>section:last-child{border-block-end:0}
+.overhaul-lesson #lesson-content :is(pre,.runnable,figure){min-width:0;max-width:100%}
+.overhaul-lesson #lesson-content pre{overflow-x:auto}
+.overhaul-lesson .reader-nav{margin-block:var(--space-3)}
+
 .wrap>.lesson-context-nav{font-family:var(--font-chrome);padding-block:var(--space-2)}
 #lesson-content .callout{border-radius:var(--r-1);box-shadow:none;background:transparent;
   padding:var(--space-4);margin-block:var(--space-4)}
 #lesson-content :is(.callout-tip,.callout-note){border:0;border-inline-start:2px solid var(--line);
   padding-block:var(--space-2)}
-#lesson-content .callout-excerpt{border:0;border-inline-start:2px solid var(--accent);
-  padding-block:var(--space-2)}
-#lesson-content .callout-example{border:1px solid var(--line)}
+#lesson-content .callout-excerpt{border:0;border-inline-start:3px solid var(--source-mark);
+  padding-block:var(--space-2);background:var(--source-bg)}
+#lesson-content .callout-excerpt .callout-label{color:var(--source-mark)}
+#lesson-content .callout-note{border-inline-start:3px solid var(--note-mark);
+  background:var(--note-bg)}
+#lesson-content .callout-note .callout-label{color:var(--note-mark)}
+#lesson-content .callout-example{background:var(--card);border:1px solid var(--line);
+  border-inline-start:3px solid var(--edge)}
+#lesson-content .callout-example .callout-label{color:var(--ink)}
+#lesson-content pre{border:1px solid var(--line);border-radius:var(--r-1);
+  background:var(--card);padding:var(--space-3)}
+.wrap .run-source-label,.wrap .run-output-label{font-family:var(--font-chrome);
+  letter-spacing:.02em}
+#lesson-content :is(.lesson-comparison,.lesson-lineplot){padding:var(--space-3);
+  border-block-start:1px solid var(--edge);background:var(--card)}
+#lesson-content :is(.comparison-controls,.lineplot-controls){font-family:var(--font-chrome)}
 #lesson-content .callout-label{font-family:var(--font-chrome);font-size:var(--text-xs);
   letter-spacing:.04em;font-weight:600}
 @media(max-width:767px){.wrap{padding:var(--space-4) var(--space-3) 96px}}
@@ -384,7 +407,7 @@ __RUNNABLE_CSS__
 __PRODUCT_CSS__
 </style>
 __MATH_ASSETS__
-</head><body><div class="wrap ib-profile ib-profile-__PRESENTATION_PROFILE__" data-presentation-profile="__PRESENTATION_PROFILE__">__PRODUCT_NAV__
+</head><body><div class="wrap overhaul-lesson ib-profile ib-profile-__PRESENTATION_PROFILE__" data-presentation-profile="__PRESENTATION_PROFILE__">__PRODUCT_NAV__
 <header>
   <p class="sub">Application: itembank</p>
   <h1>__TITLE__</h1>
@@ -1153,6 +1176,17 @@ def _gate_check_answer(q):
                 '<div class="gate-row"><span>%s</span> <select name="row_%d">'
                 "<option value=\"\"></option>%s</select></div>"
                 % (esc(r["text"]), i, opts))
+    elif t == "build" and "ordering" in q:
+        import random
+        blocks = list(q.get("blocks") or [])
+        random.Random(0).shuffle(blocks)
+        opts = "".join('<option value="%s">%s (%s)</option>' %
+                       (esc(block["id"]), esc(block["text"]), esc(block["id"]))
+                       for block in blocks)
+        for i in range(len(blocks)):
+            out.append('<div class="gate-row"><label>Position %d '
+                       '<select name="step_%d"><option value=""></option>'
+                       '%s</select></label></div>' % (i + 1, i, opts))
     elif t == "build":
         import random
         steps = list(q.get("steps") or [])

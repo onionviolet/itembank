@@ -13,8 +13,11 @@ identical in both places.
 Standard library only. Run directly: python tests/preflight_roundtrip.py
 """
 import os
+import contextlib
+import io
 import re
 import sys
+from unittest import mock
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
@@ -72,6 +75,35 @@ check(sorted(ci_messages) == sorted(preflight.BROKEN_MESSAGES),
 # Gate ids are unique and usable on a command line.
 ids = [g[0] for g in preflight.GATES]
 check(len(ids) == len(set(ids)), "duplicate preflight gate id: %s" % ids)
+
+# Source-only verification must never launch one of the fresh archive tests,
+# while default CI parity still runs the whole inventory.
+names = sorted(preflight.APP_BUILD_TESTS) + ["protocol_roundtrip.py"]
+with mock.patch.object(preflight.os, "listdir", return_value=names), \
+        mock.patch.object(preflight, "run", return_value=(0, "")) as runner, \
+        mock.patch("builtins.print"):
+    ok, message = preflight.gate_tests(source_only=True)
+    check(ok and runner.call_count == 1 and "deferred" in message,
+          "source-only tests launched a fresh archive or hid the deferred gate")
+    runner.reset_mock()
+    preflight.gate_tests()
+    check(runner.call_count == len(names), "default preflight omitted an archive test")
+
+with mock.patch.object(preflight.shutil, "which", return_value="available"), \
+        mock.patch.object(preflight, "run", return_value=(0, "")) as runner:
+    ok, _message = preflight.gate_js_tests(source_only=True)
+    check(ok is not False, "installed JS dependency inspection failed")
+    check(not any(call.args[0][:2] == ["npm", "ci"] for call in runner.call_args_list),
+          "source-only JS gate installed dependencies")
+
+# A long first failure must not hide another failing script or its traceback.
+diagnostics = "== tests/first.py\n" + "detail\n" * 30 + "== tests/later.py\nlate failure"
+output = io.StringIO()
+with mock.patch.object(preflight, "GATES", [("tests", "Synthetic suite", lambda: (False, diagnostics), False)]), \
+        mock.patch.object(sys, "argv", ["preflight.py"]), contextlib.redirect_stdout(output):
+    status = preflight.main()
+check(status == 1 and "== tests/later.py" in output.getvalue() and "late failure" in output.getvalue(),
+      "preflight hid a later suite failure behind truncated diagnostics")
 
 if failures:
     for f in failures:

@@ -9,6 +9,7 @@ import html
 CSS = """
 .lesson-comparison {overflow-wrap:anywhere}
 .lesson-comparison strong {font-weight:700}
+.comparison-static strong {text-shadow:0 0 .45em color-mix(in srgb,var(--accent) 30%,transparent)}
 .comparison-static {white-space:pre-line}
 .comparison-controls {margin-block:1.5rem;border-top:1px solid var(--line);padding-top:1rem;
   font-family:var(--font-chrome)}
@@ -26,8 +27,8 @@ CSS = """
 .comparison-bars {display:grid;gap:.75rem;margin-block:1rem;font-variant-numeric:tabular-nums}
 .comparison-bars meter {width:100%;height:1.5rem}
 .comparison-result {font-weight:600;border-top:1px solid var(--line);padding-top:.75rem}
-@media print {.comparison-controls {display:none!important}}
-@media (forced-colors:active) {.lesson-comparison strong {color:CanvasText;background:Canvas;text-decoration:underline}}
+@media print {.comparison-controls {display:none!important}.comparison-static strong {text-shadow:none}}
+@media (forced-colors:active) {.lesson-comparison strong {color:CanvasText;background:Canvas;text-decoration:underline;text-shadow:none}}
 """
 
 

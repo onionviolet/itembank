@@ -1,29 +1,18 @@
 ---
 name: media-intake
-description: "Stub: bring images, diagrams, and other media into course artifacts with rights, credit, accessible alternatives, derivation records, local and remote policy, and stale tracking. Not usable yet; its command surface has not shipped."
+description: "Stub: the integrated guided media-intake workflow has not shipped. Use the existing source adapters and media contracts for approved extraction, provenance and accessible lesson assets."
 ---
 
-# Intake media for course artifacts (stub)
+# Intake media with provenance
 
-**Provenance:** stubbed 2026-08-14 (reframe slice 4b) per
-`.planning/research/phase-16/14-synthesis.md` section 10.
+The guided skill remains unavailable. Existing source adapters can extract approved images, documents and transcripts; they do not imply a universal media registry or automatic rights clearance.
 
-**This skill is a stub; its command surface has not shipped.**
+Read [OPERATION-CONTRACT.md](../OPERATION-CONTRACT.md) and the source's rights and course policy. Distinguish reading, quoting, transforming, remote processing, packaging, export and sharing. Unknown rights remain restrictive. A publicly reachable asset is not permission to copy or upload it.
 
-Intent: teach an agent client to intake and manage media (images, diagrams,
-audio, video stills) for lessons and items: rights and credit per asset,
-required accessible alternatives (alt text, captions, described fallbacks),
-derivation records for generated or converted media, local versus remote
-storage and egress policy, and staleness tracking when a source asset
-changes.
+Inspect `python itembank.py source import --help`. Use `--preview` for extraction without durable writes; select an adapter listed by the current checkout. An adapter being registered does not prove its local dependencies or model are available. Report the named dependency gap instead of silently changing privacy or egress policy.
 
-It will cover: per-asset rights grants (unknown stays restrictive), credit
-and citation format, the accessible alternative every asset must carry,
-derivation and conversion provenance, and how a changed or missing asset
-marks dependent artifacts stale.
+Record the original locator, fingerprint, credit, derivation, extraction uncertainty and permitted use. Keep source bytes and derived material distinct. OCR text cannot establish a diagram's relationships or region coordinates without visual evidence.
 
-Ships after: subphase 16A (semantic capability and activity contract),
-which owns the media and citation policy this skill would document. Until
-then, media decisions are recorded manually per the rights and
-accessibility rules in `../OPERATION-CONTRACT.md` and
-`.planning/SOURCE-TO-COURSE.md`.
+Provide alt text for images, captions or transcripts where needed, and a useful static representation of interactive content. Follow current lesson and item grammar; never invent a media field. Missing or changed assets require checking affected bindings and derivatives, not resetting unrelated evidence.
+
+After authorized intake, verify the locator sidecar and artifact, inspect the visual output when relevant, and check the actual journal and reversal behavior. No source import or rich preview proves human accessibility, source accuracy or learning completion.

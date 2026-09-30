@@ -90,8 +90,9 @@ above the first question:
 
 ### Section One Heading
 
-Prose paragraphs, bullet or numbered lists, pipe tables, inline code, fenced
-code, bold, italic, links. That is the whole toolbox; write plain prose.
+Prose paragraphs, lists, tables, code and links form the plain fallback.
+Use additional semantic lesson capabilities only when the current spec
+defines them and they improve this objective.
 ```
 
 Rules from the contract: subheadings are `###` and each becomes a section an
@@ -129,7 +130,7 @@ was added or changed in the bank.
 After acceptance:
 
 ```bash
-python itembank.py id-assign bank.md   # mint opaque ids and fingerprints (the only direct writer)
+python itembank.py id-assign bank.md   # mint opaque ids and fingerprints
 python itembank.py stats bank.md       # objective coverage and difficulty spread; rebalance if lopsided
 python itembank.py coverage bank.md    # the objective map re-computed
 ```
@@ -137,8 +138,7 @@ python itembank.py coverage bank.md    # the objective map re-computed
 Optional: `serve` for a sitting, `study` for flashcards. Close with a
 durable report: treatments chosen and deferred, locators cited, what was
 drafted versus linked, the undo step for each write (re-editing the bank is
-reviewable; `audit undo` applies only to `audit author` writes), what is now
-stale (no command surface yet; state it), and remaining uncertainty,
+reviewable; `audit undo` applies only to `audit author` writes), affected dependencies and current course staleness results, with unsupported tracking stated explicitly, and remaining uncertainty,
 including any passage you were unsure how to read.
 
 ## Boundaries

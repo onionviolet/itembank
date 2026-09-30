@@ -43,7 +43,8 @@ def check_lesson_correction():
         draft = ("## LESSON\n\n### New concept\n\n" + first +
                  "\n\nA second paragraph remains exactly as drafted.\n")
         citation = "source:direct-reading.md"
-        stub = _Stub(candidate={"draft": draft, "citations": [citation]})
+        stub = _Stub(candidate={"draft": draft, "citations": [citation],
+                                "validation": {"state": "passed", "findings": []}})
         settings = {"model_backend": {"active": "local-qwen",
                                      "profiles": [local_profile(stub.port)]},
                     "auditor_autonomy": "draft_and_approve",
@@ -57,6 +58,7 @@ def check_lesson_correction():
         finally:
             stub.close()
         assert proposed["disposition"] == "proposed", proposed
+        assert proposed["validation"]["state"] == "passed", proposed
         pid = proposed["proposal_id"]
         assert target.read_text(encoding="utf-8") == original
         before_preview = ao.lesson_preview(base, pid)
@@ -66,6 +68,8 @@ def check_lesson_correction():
         assert corrected in revised["draft"]
         assert "A second paragraph remains exactly as drafted." in revised["draft"]
         assert first not in revised["draft"]
+        assert revised["validation"] == {"state": "not_run", "findings": []}
+        assert ao.status(base, pid)["validation"] == revised["validation"]
         assert target.read_text(encoding="utf-8") == original
         try:
             ao.revise(base, pid, corrected, first,
@@ -82,6 +86,7 @@ def check_lesson_correction():
         assert any(corrected in line for line in preview["diff"]["lines"])
         accepted = ao.accept(pid, settings, base=base, reviewer="author")
         assert accepted["disposition"] == "accepted", accepted
+        assert accepted["validation"] == revised["validation"]
         assert target.read_text(encoding="utf-8") == revised["draft"]
         assert source.read_bytes() == source_before
         reopened = ao.status(base, pid)
@@ -134,7 +139,10 @@ def check_changed_source_refuses_accept():
 def check_keyed_content_refused():
     for draft in ("## LESSON\n\n### Topic\n\nCORRECT: B\n",
                   "## LESSON\n\n### Topic\n\nQ1. Secret answer\n",
-                  "## LESSON\n\n### Topic\n\nSafe prose.\n\n## ANSWER KEY\n\nB\n"):
+                  "## LESSON\n\n### Topic\n\nSafe prose.\n\n## ANSWER KEY\n\nB\n",
+                  "CORRECT: B\n\n## LESSON\n\n### Topic\n\nSafe prose.\n",
+                  "Q1. Secret answer\n\n## LESSON\n\n### Topic\n\nSafe prose.\n",
+                  "## ANSWER KEY\n\nB\n\n## LESSON\n\n### Topic\n\nSafe prose.\n"):
         try:
             ao._lesson_preview_body(draft)
         except ValueError as exc:

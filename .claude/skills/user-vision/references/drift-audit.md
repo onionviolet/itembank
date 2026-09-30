@@ -27,7 +27,7 @@ are written down as open items.
    direction.
 8. **Product invariants intact:** no plan from this pass weakens a named
    non-negotiable the project declared (its authority boundaries, safety gates,
-   or quality promises). Fill in the project's specific invariants here.
+   or quality promises). For this installation, retain one parser, one runtime scorer and evidence authority, runtime-gated disclosure, local accepted data, rights and egress controls, reviewed atomic writes, and honest recovery. Run `diff -rq .agents/skills .claude/skills` for mirror parity; deterministic checks do not certify human accessibility.
 9. **House style:** the pass respects the project's own prose and formatting
    rules in generated text.
 

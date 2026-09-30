@@ -11,7 +11,7 @@ import evidence
 import subjects
 from model import (HONEST_LIMITS_NOTE, grab, lesson_slug, lint, load,
                    parse_lesson, parse_terms)
-from runtime import (INTERACTION_VERSION, fill_response_error, glossable,
+from runtime import (INTERACTION_VERSION, fill_response_error, ordering_response_error, glossable,
                      page_item, score_response)
 from surfaces.session import run_check_source
 from surfaces import presentation, settings
@@ -76,6 +76,10 @@ def record_gate_check(bank_path, check_id, answer, mode="practice",
     q = _resolve_check_item(qs, check_id)
     if q is None:
         return None
+    if "ordering" in q:
+        problem = ordering_response_error(q, answer)
+        if problem:
+            raise SystemExit(problem)
     score = score_response(q, answer)
     bank_dir = os.path.dirname(os.path.abspath(bank_path)) or "."
     log = evidence.log_path(bank_dir)
@@ -84,7 +88,7 @@ def record_gate_check(bank_path, check_id, answer, mode="practice",
     attempt = evidence.attempt_number(log, session_id, key, canon)
     event = evidence.response_event(
         session_id=session_id, q=q,
-        answer=(json.dumps(answer, ensure_ascii=False)
+        answer=(answer if "ordering" in q else json.dumps(answer, ensure_ascii=False)
                 if isinstance(answer, (dict, list)) else answer),
         score=score, mode=mode, attempt_num=attempt,
         bank=os.path.basename(bank_path), context=context)
@@ -279,6 +283,9 @@ def page_for(bank_path, qs, serve=False, reveal=False, post_path="/answer",
     -- the daemon is the only caller that sets it, so build/offline mode
     ships no assist at all.
     """
+    if not serve and getattr(qs, "staged_cases", []):
+        sys.exit("Staged answer/reason activities require the served runtime. "
+                 "Use itembank serve or the daemon; the source Markdown remains readable.")
     text = open(bank_path, encoding="utf-8").read()
     title = grab(r"(?m)^#\s+(.*?)\s*$", text) or os.path.basename(bank_path)
     counts = collections.Counter(q["type"] for q in qs)
@@ -408,13 +415,24 @@ def page_for(bank_path, qs, serve=False, reveal=False, post_path="/answer",
                  .replace("__MATH_SCRIPT__", math_script)
                  .replace("__PRODUCT_CSS__", presentation.product_theme_css()
                           + presentation.PRODUCT_CSS
-                          + ".wrap{max-width:860px;background:var(--paper);color:var(--product-ink)}"
-                          + ".card{padding:var(--space-4)}"
-                          + "h1.stem{font-size:var(--text-heading);line-height:1.4;max-width:62ch;margin-bottom:var(--space-3)}"
-                          + ".hint{margin-bottom:var(--space-3)}"
-                          + ".choice{min-height:48px;padding:var(--space-2) var(--space-3)}"
-                          + ".choice .ot{font-size:var(--text-body);line-height:1.4}"
-                          + "@media(max-width:767px){.card{padding:var(--space-3)}}")
+                          + """
+.overhaul-quiz{max-width:1120px;background:var(--paper);color:var(--product-ink)}
+.overhaul-quiz #host{max-width:var(--measure-prose);margin:var(--space-5) auto;padding:0}
+.overhaul-quiz #host:has(.response-check,.response-visual,.response-dnd,.response-build,.response-table,[data-response-type=check],[data-response-type=visual],[data-response-type=dnd],[data-response-type=build],[data-response-type=table]){max-width:100%}
+.overhaul-quiz .overhaul-question{background:transparent;border:0;border-radius:0;padding:var(--space-4) 0;box-shadow:none}
+.overhaul-quiz h1.stem{font-family:var(--font-paper);font-size:var(--text-heading);font-weight:400;line-height:1.4;max-width:var(--measure-prose);margin-bottom:var(--space-4)}
+.overhaul-quiz .hint{margin-bottom:var(--space-3)}
+.overhaul-quiz .overhaul-response{border-block-start:1px solid var(--line);padding-block-start:var(--space-4);margin-block-start:var(--space-4);min-width:0}
+.overhaul-quiz .overhaul-response .fill-field{display:grid;grid-template-columns:minmax(0,1fr);align-items:start;gap:var(--space-2);padding:0;min-width:0}
+.overhaul-quiz .fill-field .fill-help{grid-column:1/-1;max-width:100%;overflow-wrap:anywhere;order:3}
+.overhaul-quiz .fill-field input{grid-column:1/-1;min-width:0;width:100%;order:2}
+.overhaul-quiz .choice{min-height:48px;padding:var(--space-3);border-radius:var(--r-1)}
+.overhaul-quiz .choice .ot{font-size:var(--text-body);line-height:1.5}
+.overhaul-quiz .feedback:not(:empty){border-block-start:2px solid var(--accent);padding-block-start:var(--space-4);margin-block-start:var(--space-4)}
+.overhaul-quiz .support-region{border-block-start:1px solid var(--line);padding-block-start:var(--space-3)}
+.overhaul-quiz .session-details{max-width:var(--measure-prose);margin-inline:auto}
+@media(max-width:767px){.overhaul-quiz #host{margin-block:var(--space-3)}.overhaul-quiz .overhaul-question{padding:var(--space-3) 0}}
+""")
                  .replace("__PRODUCT_NAV__", presentation.standalone_product_nav())
                  .replace("__SERVE__", "true" if serve else "false")
                  .replace("__CTX_TOTAL__", str(len(qs)))
@@ -460,6 +478,10 @@ def record_answer(bank_path, qs, session_id, log, out_path, mode, q, response, e
         base = os.path.dirname(os.path.abspath(bank_path)) or "."
         run_result, answer, score = run_check_source(q, response, base)
     else:
+        if "ordering" in q:
+            problem = ordering_response_error(q, response)
+            if problem:
+                raise SystemExit(problem)
         if q["type"] == "fill":
             problem = fill_response_error(q, response)
             if problem:

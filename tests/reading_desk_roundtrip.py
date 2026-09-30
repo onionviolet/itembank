@@ -174,6 +174,9 @@ class ReadingDesk(unittest.TestCase):
         self.assertIn('First synthetic paragraph.',page)
         self.assertNotIn('Second paragraph.',page)
         self.assertIn('A note to yourself',page)
+        self.assertEqual(desk.source_status({'state': 'available'}), 'Source available.')
+        self.assertIn('The source changed', desk.source_status({'state': 'course.reading_source_stale'}))
+        self.assertNotIn('course.', desk.source_status({'state': 'course.unrecognized_state'}))
         body=dict(course_id='synthetic',**self.context(row),note_id='f'*32,
                   wording='HTTP learner wording',notes_fingerprint=None)
         status,payload=json_request(url+'/api/course/save-reading-note',body)

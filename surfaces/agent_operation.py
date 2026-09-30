@@ -215,6 +215,159 @@ def pending(base):
             if row.get("disposition") == "proposed"]
 
 
+def propose_staged_cases(base, target, cases, expected_bank_fingerprint):
+    """Propose one local bank-header edit through the existing revision route."""
+    import model
+    if (not isinstance(target, str) or not target or os.path.isabs(target)
+            or ".." in target.replace("\\", "/").split("/")):
+        raise ValueError("agent.staged_target_invalid")
+    path = os.path.realpath(os.path.join(base, target))
+    if os.path.commonpath([os.path.realpath(base), path]) != os.path.realpath(base):
+        raise ValueError("agent.staged_target_invalid")
+    with open(path, "rb") as stream:
+        raw = stream.read()
+    fingerprint = identity.object_fingerprint(raw, "bank")
+    if not expected_bank_fingerprint or fingerprint != expected_bank_fingerprint:
+        raise ValueError("agent.target_stale")
+    text = raw.decode("utf-8")
+    questions = model.parse_bank(text)
+    if model.staged_case_spec_errors(questions):
+        raise ValueError("agent.staged_existing_invalid")
+    header, rest = re.split(r"(?m)(?=^Q\d+\.)", text, maxsplit=1)
+    declaration = "STAGED-CASES: " + json.dumps(cases, ensure_ascii=False, separators=(",", ":"))
+    if re.search(r"(?m)^STAGED-CASES:.*$", header):
+        header = re.sub(r"(?m)^STAGED-CASES:.*$", lambda _: declaration, header)
+    else:
+        header += ("" if not header or header.endswith("\n") else "\n") + declaration + "\n"
+    draft = header + rest
+    errors, _ = model.lint(model.parse_bank(draft))
+    if errors:
+        raise ValueError("agent.staged_draft_invalid: " + errors[0].message)
+    created = _now()
+    record = {"schema_version": RECORD_VERSION, "state": "proposed", "disposition": "proposed",
+              "proposal_id": "p_" + uuid.uuid4().hex, "operation_id": "op_" + uuid.uuid4().hex,
+              "skill": "staged-cases", "interaction_id": None, "target": target, "kind": "bank",
+              "draft": draft, "citations": [], "source_paths": [], "source_fingerprints": {},
+              "expected_fingerprint": fingerprint, "diff": _bounded_diff(target, raw, draft),
+              "provider": {"kind": "local-edit", "egress": "none"},
+              "validation": {"state": "valid", "findings": []},
+              "egress": {"destination": "local", "spans": []}, "created_at": created,
+              "updated_at": created, "next_action": "Review staged declaration and unchanged question blocks"}
+    return _write_record(base, record)
+
+
+def propose_course_outline(base, treatments, order=None, proposal_id=None,
+                           expected_draft_fingerprint=None,
+                           expected_course_fingerprint=None):
+    """Local editable proposal, preserving accepted bindings and objective IDs.
+
+    Treatments are additive. In particular an adequate direct reading is never
+    replaced by a generated lesson. No source text leaves the machine.
+    """
+    import course
+    import graph
+
+    read = course.read_course(base)
+    if read["state"] != "clean":
+        raise ValueError("agent.course_not_clean")
+    if expected_course_fingerprint is not None and expected_course_fingerprint != read["fingerprint"]:
+        raise ValueError("agent.course_stale")
+    prior = status(base, proposal_id) if proposal_id else None
+    if prior:
+        if prior.get("skill") != "course-outline" or prior.get("disposition") != "proposed":
+            raise ValueError("agent.course_proposal_settled")
+        if expected_draft_fingerprint != draft_fingerprint(prior["draft"]):
+            raise ValueError("agent.draft_stale")
+        if prior["expected_fingerprint"] != read["fingerprint"]:
+            raise ValueError("agent.course_stale")
+        if _source_fingerprints(base, prior["source_paths"]) != prior["source_fingerprints"]:
+            raise ValueError("agent.source_stale")
+    doc = read["doc"]
+    ids = [row["id"] for row in doc["objectives"]]
+    if order is not None:
+        if len(order) != len(ids) or set(order) != set(ids):
+            raise ValueError("agent.outline_identity_change")
+        for row in doc["objectives"]:
+            if row.get("origin") == "imported":
+                if order.index(row["id"]) != ids.index(row["id"]):
+                    raise ValueError("agent.imported_outline_immutable")
+                continue
+            row["order"] = str(order.index(row["id"]) + 1)
+        doc["objectives"].sort(key=lambda row: order.index(row["id"]))
+    sources = {row["source_object_id"] for row in doc["sources"]}
+    registry = journal.read_registry(base)
+    source_paths = set()
+    for binding in doc["bindings"]:
+        if binding.get("treatment_kind") != "direct-reading":
+            continue
+        sid = binding["source_object_id"]
+        source = registry.get(sid) or {}
+        if source.get("kind") != "source" or journal.object_state(base, sid) != "clean":
+            raise ValueError("agent.source_not_clean")
+        if course.rights_for_binding(base, sid, "read") != "granted":
+            raise ValueError("agent.treatment_right_not_granted")
+        source_paths.add(source["path"])
+    choices = []
+    for choice in treatments:
+        if set(choice) != {"objective", "source", "treatment", "locator"}:
+            raise ValueError("agent.invalid_treatment_choice")
+        if not all(isinstance(value, str) for value in choice.values()) or not choice["locator"].strip():
+            raise ValueError("agent.invalid_treatment_choice")
+        if choice["objective"] not in ids or choice["source"] not in sources:
+            raise ValueError("agent.unknown_treatment_endpoint")
+        right = graph.treatment_right(choice["treatment"])
+        if course.rights_for_binding(base, choice["source"], right) != "granted":
+            raise ValueError("agent.treatment_right_not_granted")
+        source = registry.get(choice["source"]) or {}
+        if source.get("kind") != "source" or journal.object_state(base, choice["source"]) != "clean":
+            raise ValueError("agent.source_not_clean")
+        source_paths.add(source["path"])
+        existing = any(row.get("binding_kind") == "treatment" and
+                       row.get("objective") == choice["objective"] and
+                       row.get("source_object_id") == choice["source"] and
+                       row.get("treatment_kind") == choice["treatment"] and
+                       row.get("locator") == choice["locator"] for row in doc["bindings"])
+        if not existing:
+            graph.add_binding(doc, "treatment", choice["objective"], choice["source"],
+                              treatment_kind=choice["treatment"], locator=choice["locator"],
+                              state="unknown", confidence="unknown", rights_snapshot="granted")
+        choices.append(dict(choice))
+    draft = graph.serialize_course(doc)
+    graph.parse_course(draft)
+    record = {"schema_version": RECORD_VERSION, "proposal_id": proposal_id or "p_" + uuid.uuid4().hex,
+              "state": "proposed", "disposition": "proposed", "skill": "course-outline",
+              "kind": "course", "target": course.COURSE_SIDECAR_FILENAME,
+              "interaction_id": None, "expected_fingerprint": read["fingerprint"],
+              "source_paths": sorted(source_paths),
+              "source_fingerprints": _source_fingerprints(base, sorted(source_paths)),
+              "draft": draft, "treatment_choices": choices,
+              "diff": _bounded_diff(course.COURSE_SIDECAR_FILENAME, read["text"].encode("utf-8"), draft),
+              "validation": {"state": "passed", "findings": graph.validate_order(doc)},
+              "citations": [choice["source"] + ": " + choice["locator"] for choice in choices],
+              "provider": {"kind": "local-edit", "egress": "none"}, "updated_at": _now(),
+              "next_action": "Review the outline and additive treatments, then accept or cancel"}
+    return _write_record(base, record)
+
+
+def _validate_course_proposal(base, state):
+    """Re-read binding rights at acceptance, never trust the proposal snapshot."""
+    import course
+    import graph
+
+    doc = graph.parse_course(state["draft"])
+    if _source_fingerprints(base, state.get("source_paths") or []) != state.get("source_fingerprints"):
+        raise journal.JournalError("agent.source_stale", "The source changed during review.")
+    for choice in state.get("treatment_choices") or []:
+        right = graph.treatment_right(choice["treatment"])
+        if course.rights_for_binding(base, choice["source"], right) != "granted":
+            raise journal.JournalError("agent.treatment_right_not_granted",
+                                       "The treatment right changed. Review the source rights again.")
+    for binding in doc["bindings"]:
+        if binding.get("treatment_kind") == "direct-reading" and course.rights_for_binding(base, binding["source_object_id"], "read") != "granted":
+            raise journal.JournalError("agent.treatment_right_not_granted",
+                                       "The direct reading's read right changed. Review the source rights again.")
+
+
 def _settled(iid, skill, code, reason, **extra):
     state = {"state": "settled", "ok": False, "skill": skill,
              "interaction_id": iid, "code": code, "reason": reason,
@@ -290,10 +443,14 @@ def _lesson_preview_body(draft):
     """
     if not re.search(r"(?m)^## LESSON\s*$", draft):
         raise ValueError("agent.lesson_section_missing")
-    body = re.split(r"(?m)^## LESSON\s*$", draft, maxsplit=1)[1]
+    marker = re.search(r"(?m)^## LESSON\s*$", draft)
+    body = draft[marker.end():]
     if not re.search(r"(?m)^###\s+\S", body):
         raise ValueError("agent.lesson_heading_missing")
-    if re.search(r"(?im)^\s*(?:##\s+\S|Q\d+\.|CORRECT:|ANSWER:|KEY:|\[!KEY\])", body):
+    # The plain preview also shows the preamble, so guard both sides of the
+    # one allowed section marker before returning any preview content.
+    preview_text = draft[:marker.start()] + body
+    if re.search(r"(?im)^\s*(?:##\s+\S|Q\d+\.|CORRECT:|ANSWER:|KEY:|\[!KEY\])", preview_text):
         raise ValueError("agent.lesson_keyed_content")
     return body.strip()
 
@@ -361,6 +518,7 @@ def revise(base, proposal_id, before_paragraph, after_paragraph,
         raise ValueError("agent.target_stale")
     record.update({"draft": updated,
                    "diff": _bounded_diff(record["target"], current or b"", updated),
+                   "validation": {"state": "not_run", "findings": []},
                    "updated_at": _now(),
                    "next_action": "Review corrected proposal"})
     return _write_record(base, record)
@@ -505,7 +663,7 @@ def start(skill, settings, base):
     return dict(record, base=base)
 
 
-def accept(state, settings, base=None, reviewer=""):
+def accept(state, settings, base=None, reviewer="", expected_draft_fingerprint=None):
     """Turn a proposal into exactly one journalled change, or refuse.
 
     - On an already-settled state (or any non-proposal) it returns the
@@ -532,6 +690,8 @@ def accept(state, settings, base=None, reviewer=""):
         return state
     if state.get("state") != "proposed":
         return state
+    if expected_draft_fingerprint is not None and expected_draft_fingerprint != draft_fingerprint(state["draft"]):
+        raise ValueError("agent.draft_stale")
 
     skill = state.get("skill") or ""
     iid = state.get("interaction_id")
@@ -584,12 +744,26 @@ def accept(state, settings, base=None, reviewer=""):
     operation = "edit_in_place" if existing else "mint"
 
     try:
-        record = journal.commit_operation(
-            base, object_id, kind, rel, operation,
-            state["draft"].encode("utf-8"),
-            expected_fingerprint=state.get("expected_fingerprint"),
-            actor_kind="agent", actor_name="agent-area:%s" % skill,
-            create_if_missing=True)
+        if skill == "staged-cases":
+            import model
+            findings, _ = model.lint(model.parse_bank(state["draft"]))
+            if findings:
+                raise ValueError("agent.staged_draft_invalid: " + findings[0].message)
+        if skill == "course-outline":
+            import course
+            import graph
+            _validate_course_proposal(base, state)
+            record = course.write_course(
+                base, graph.parse_course(state["draft"]), state["expected_fingerprint"],
+                "human", reviewer,
+                precommit=lambda: _validate_course_proposal(base, state))
+        else:
+            record = journal.commit_operation(
+                base, object_id, kind, rel, operation,
+                state["draft"].encode("utf-8"),
+                expected_fingerprint=state.get("expected_fingerprint"),
+                actor_kind="agent", actor_name="agent-area:%s" % skill,
+                create_if_missing=True)
     except journal.JournalError as exc:
         conflict = exc.code in ("journal.conflict", "journal.stale_preflight")
         if conflict:

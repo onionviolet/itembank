@@ -47,18 +47,21 @@ def check_ordered_shelf():
     assert 'Open Logic &lt;&amp; &quot;proofs&quot;' in page
     assert 'aria-label="Open Logic &lt;&amp; &quot;proofs&quot;">Open</a>' in page
     assert 'data-course-id="a&quot;&lt;id&gt;"' in page
-    assert 'data-ia-token="cue&quot;&lt;red&gt;"' in page
-    assert 'data-workspace-fingerprint="sha256:abc&quot;&lt;x&gt;"' in page
-    assert '<div class="course-shelf" role="list"' in page
-    assert page.count('class="course-card"') == 2
-    assert '<span class="course-mark" aria-hidden="true">01</span>' in page
-    assert '<span class="course-mark" aria-hidden="true">02</span>' in page
-    assert '<summary>Course options</summary>' in page
-    assert 'View source &lt;files&gt;' in page
-    assert 'data-drag-handle' in page
-    assert page.index('data-drag-handle') < page.index('<details class="course-details">')
-    assert 'data-move="up"' in page and 'data-move="down"' in page
-    assert 'value="remove_sample_course"' in page
+    collection = daemon._course_shelf_body(shelf, sample=sample, list_only=True)
+    assert 'data-ia-token="cue&quot;&lt;red&gt;"' in collection
+    assert 'data-workspace-fingerprint="sha256:abc&quot;&lt;x&gt;"' in collection
+    assert '<div class="course-shelf" role="list"' in collection
+    assert collection.count('class="course-card"') == 2
+    assert '<span class="course-mark" aria-hidden="true">01</span>' in collection
+    assert '<span class="course-mark" aria-hidden="true">02</span>' in collection
+    assert '<summary>Course options</summary>' in collection
+    assert 'View source &lt;files&gt;' in collection
+    assert 'data-drag-handle' in collection
+    assert collection.index('data-drag-handle') < collection.index('<details class="course-details">')
+    assert 'data-move="up"' in collection and 'data-move="down"' in collection
+    assert 'value="remove_sample_course"' in collection
+    assert 'overhaul-course-choices' in page and 'All courses and options' in page
+    assert 'data-drag-handle' not in page
     assert 'value="advance_walkthrough"' in page
     assert 'value="skip_walkthrough"' in page
     assert 'value="replay_walkthrough"' in page

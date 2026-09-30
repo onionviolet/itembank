@@ -21,10 +21,7 @@ epistemic confidence, validation state, rights state, and availability as
 separate state axes. Preserve every viable alternative path or treatment
 with a durable disposition rather than silently dropping it.
 
-The shipped product has no graph, course, or binding command. The objective
-map today is a reviewable planning artifact (tables in a plan file) plus the
-`[OBJECTIVE:]` lines in real banks, measured by shipped commands. The graph
-kernel surface is pending (subphase 14B).
+Course graph and binding commands now exist. Use `course structure` and `bind list` to inspect accepted state, and retain a planning table for proposed changes and gaps. This skill proposes curriculum; it does not accept graph migrations or write lesson and bank artifacts without the separately granted operation.
 
 When the course includes an exam, graded assignment, competency check, or
 completion threshold, read `../ASSESSMENT-INTAKE.md` and produce its assessment
@@ -58,7 +55,7 @@ hierarchical name the bank's `[OBJECTIVE:]` lines can share:
 
 ```text
 Airway / positioning
-Math 1400 / derivatives / chain rule
+Discrete mathematics / proofs / direct proof
 CSCI 1100 / loops / while
 ```
 
@@ -112,7 +109,7 @@ which item types and difficulties are used, and its status:
 ```text
 Objective                    | Lesson section | Items | Types     | Status
 Airway / positioning         | The Airway...  | 3     | mc, table | covered
-Math 1400 / derivatives / .. | Chain Rule     | 1     | mc        | thin
+Discrete mathematics / proofs | Direct Proof     | 1     | mc        | thin
 CSCI 1100 / loops / while    | (missing)      | 0     | none      | gap
 ```
 
@@ -149,8 +146,7 @@ the proposal as a bounded, reviewable plan; hand item authoring to
 `author-bank` and source treatments to `absorb-book` on approval. If the map
 itself changes (renamed or split objectives), present that as a migration
 proposal with its effect on existing `[OBJECTIVE:]` lines and evidence
-filters, and mark dependent material stale in the handoff (staleness has no
-command surface yet).
+filters. Inspect `course staleness` and record affected dependencies and unsupported cases in the handoff; never transfer prior evidence automatically.
 
 After approved writes land, re-measure instead of asserting:
 

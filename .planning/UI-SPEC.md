@@ -335,6 +335,7 @@ Approval opens an explicit confirmation naming the one reversible unit. Success 
 | surface 30% | `--card`, `--chip`, `--line` | panels, sticky context, tables, disclosures |
 | accent 10% | derived `--accent`, `--accent-soft` | focus rings; current/selected navigational text; explicit primary action; source-link affordances; never correctness, mastery, warning, or all buttons |
 | semantic | `--ok`, `--bad`, `--warn`, `--unknown`, `--pending` | paired with text/icon/structure; never color alone |
+| teaching, added 2026-09-29 | `--source-mark`, `--source-bg`, `--note-mark`, `--note-bg` | labeled source excerpts and private notes, independent of custom action accents and assessment verdicts; text contrast checked across looks and modes |
 
 **RECOMMENDED reconciliation:** Phase 4 tokens become the cross-surface default. Existing 03 reader and 05 editor may retain their documented local size/details where required for compatibility, but new components use the four sizes above. Do not introduce a third font weight or a second literal-hex palette.
 
@@ -784,6 +785,18 @@ not replace it.
 | Progress claim | The honest-progress tuple: claim kind, scope and version, numerator, denominator or indeterminate, rule, snapshot or window, settled/pending/unknown, authority, and uncertainty; never one aggregate score |
 
 ### 15.3 Visual direction: Structured Studio (RECOMMENDED, synthesis 9.3, supersedes prior default-direction language)
+
+September 30 source implementation: use the expressive learning workshop as a
+reversible working treatment of this direction. The shared desktop frame is
+compact horizontal navigation; narrow screens retain four reachable destinations.
+Home offers saved activity and compact course choices, while Courses holds the
+full collection controls. Reading pairs measured source with separate private
+notes; lessons and responses widen for supported code, tables and diagrams.
+Source, notes, input and runtime feedback retain distinct roles. Both same-content
+quiet/workshop candidates and measured source evidence live in the
+[overhaul packet](research/ui-overhaul-2026-09-30.md). Human visual preference,
+representative accessibility and installed acceptance remain open. No semantic
+assessment or content-format contract changes with this presentation choice.
 
 Adopt **Structured Studio** as the default visual direction. Borrow **Quiet
 Workbench** calm density for long reading and review, and use **Guided Canvas**

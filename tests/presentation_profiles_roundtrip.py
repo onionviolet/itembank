@@ -5,6 +5,7 @@ This fixture uses public presentation data only. It deliberately does not
 start a real sitting or read a real learner's evidence.
 """
 import os
+import re
 import json
 import shutil
 import sys
@@ -156,8 +157,12 @@ def check_response_type_presentation_matrix():
             page = presentation.render_profile(fixture(response_type=response_type), profile)
             if label not in page:
                 fail("%s profile lost %s label" % (profile, response_type))
-    for token in ('body.className = `response-body response-${q.type}`',
-                  '.response-table,.response-dnd,.response-visual,.response-check',
+    response_classes = re.findall(r'body\.className = `([^`]+)`', source)
+    if not response_classes or any('response-body' not in value.split() or
+                                   'response-${q.type}' not in value.split()
+                                   for value in response_classes):
+        fail('response clients lost the shared root or response-type class')
+    for token in ('.response-table,.response-dnd,.response-visual,.response-check',
                   'overflow-x:auto', 'overscroll-behavior-inline:contain',
                   'role="status"', 'aria-live="polite"',
                   'data-server-baseline'):

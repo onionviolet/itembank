@@ -12,6 +12,8 @@ backends, and any compatible agent. The backend changes capability, latency,
 cost, and privacy disclosure. It never changes the artifact or authority
 contract.
 
+Resolve sibling reference paths from the skill directory; repository paths and CLI commands use the checkout root. Use only source content permitted by the current course policy, not a cached course example in this skill library.
+
 ## The one operation protocol
 
 Every consequential operation follows the same sequence:
@@ -85,44 +87,34 @@ copy, move, edit-in-place, supersede, migrate, and synchronize are distinct
 operations, never synonyms. Same ID with divergent bytes is a conflict, never
 a silent overwrite. Similar names never justify identity.
 
-## Shipped surfaces for the protocol steps
+## Current surfaces and capability checks
 
-Skills document only shipped command surfaces. These exist today:
+Check `python itembank.py --help` and the relevant subcommand's `--help` before composing an operation. The table names command families, not complete invocations. CLI presence proves a route exists, not that its dependencies, configured agent skill, installed package or human acceptance are ready.
 
-| Protocol step | Shipped surface |
+| Operation | Current surface |
 |---|---|
-| Contract and grammar | `python itembank.py spec`, `schema`, `usage`, `config` |
-| Inventory a bank | `stats BANK`, `coverage BANK`, `select` |
-| Inventory a source | `audit source FILE` (read-only, locator-faithful) |
-| Source-versus-bank coverage | `audit coverage --source S --bank B` (read-only) |
-| Deterministic validation | `lint BANK` (errors and warnings by item number) |
-| Plain preview | `lesson BANK`, `study BANK`, the bank file itself in a Markdown reader |
-| Rich preview | `build BANK` (static HTML), `serve BANK`, `render-style` |
-| Bounded model-backed writes | `audit material`, `audit author --mode ... --state-dir ...` (manifest, before-image, pending set, exact-id approval) |
-| Identity and fingerprints | `id-assign BANK` (the only direct bank writer) |
-| Undo | `audit undo WRITE_ID --bank B --state-dir DIR` (refuses stale work) |
-| Evidence, honestly | `evidence`, `trends`, `report`, `retract`, `mark`, `render` |
-| Ship gate | `guard .` (no real bank committed; CI enforces it) |
+| Format and agent boundaries | `spec`, `schema`, `usage`, `config` |
+| Bank inventory and validation | `stats`, `coverage`, `lint`, `audit source`, `audit coverage` |
+| Source extraction and registration | `source import --preview`, accepted `source import`, `course register-source`, `course add-source` |
+| Course graph and bindings | `course create`, `course show`, `course structure`, `course add-objective`, `course add-edge`, `bind list`, `bind source`, `bind treatment`, `bind rights` |
+| Policy and operation record | `course autonomy`, `course begin-operation`, `course replay` |
+| Reviewed agent proposals | `course agent-operation` start/status/preview/revise/accept/reject/undo, for configured supported skill IDs |
+| Bounded bank proposals | `audit material`, `audit author`, `audit undo`, `seed` |
+| IDs and fingerprints | `id-assign BANK`; not a general acceptance or undo mechanism |
+| Plain and rich inspection | Plain authored Markdown, `lesson`, `study`, `build`, `serve`, daemon views |
+| Assessment and evidence | `start`, `next`, `submit`, `hint`, `teach`, `report`, `evidence`, `trends`, `marks`, `mark`, `retract`, `render` |
+| Dependencies and recovery | `course audit`, `course staleness`, `course reverse-operation`, proposal `undo` |
+| Course packages | `course export-package`, `course verify-package`, `course restore-package`, `course package-losses` |
+| Repository privacy gate | `guard .` |
 
-## Pending surfaces
+## Limits and partial integrations
 
-The following section-10 capabilities have no shipped command yet. Where a
-skill needs one, it states the manual planning-level procedure and marks the
-surface as pending. Do not invent commands for them:
-
-- A course manifest or course package command (14B).
-- Discovery, binding, link/import/move/supersede, and reconciliation commands
-  across multiple roots (14A/14B). Today this is a manual, read-only,
-  documented inventory.
-- A rights-grant record or per-operation rights command. Today rights are
-  stated in the operation manifest prose and unknown stays restrictive.
-- A general expected-fingerprint compare-and-swap write surface outside the
-  `audit author` loop. Today, bounded writes go through `audit author` or are
-  ordinary reviewed file edits with the diff shown before writing.
-- Dependency and staleness marking. Today staleness is reported in the
-  handoff, not recorded by a command.
-- The semantic lesson profile, media policy, and legacy-upgrade tooling
-  (16A/16C). See the stub skills.
+- Multi-root discovery still needs an explicit approved-root inventory; graph and binding commands do not authorize a wider scan.
+- The three `Stub:` skills describe unavailable guided automation, with bounded manual workflows against existing primitives. Their UI availability must remain honest.
+- `upgrade_audit` has its own source, rights and media availability checks. General course records do not automatically populate those legacy audit rows.
+- Use the source's real grants, not agent-proposed permissions. Never impersonate a human actor or add `--confirm` to bypass configured review.
+- Recovery surfaces are distinct. `audit undo` reverses its own bank write; proposal undo and course reversal operate on their recorded objects. Verify before-images, newly created files, sidecars, stale-base refusal and package losses before promising exact recovery. Command presence is not proof of lossless undo.
+- These are course-artifact controls. Ordinary repository instruction or code edits follow host Git and review rules; they do not require a fabricated course operation record.
 
 ## Hard limits in every skill
 

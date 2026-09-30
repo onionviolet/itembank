@@ -21,6 +21,7 @@ that is still correct for the CLI; containing it is the daemon's job
 (`surfaces/daemon.py`'s `/api/*` handlers), not this module's.
 """
 import datetime, json, os, re, sys
+import contextlib, functools, threading
 
 import evidence
 import retention
@@ -38,10 +39,84 @@ from runtime import (INTERACTION_VERSION, REPORT_VERSION, SESSION_VERSION,
                      normalize_answer, public_item,
                      read_session, reconcile_teaching_state, score_response,
                      session_path, session_summary, session_view, teaching_key,
+                     staged_case, staged_activity, staged_binding, staged_feedback,
+                     validate_staged_binding,
+                     assessment_feedback_released, report_feedback,
                      teaching_payload, teaching_transition, submission_feedback,
                      visual_observation as runtime_visual_observation,
                      visual_state_in_domain, write_session)
 
+
+
+_SESSION_LOCKS = {}
+_SESSION_LOCKS_GUARD = threading.Lock()
+
+
+@contextlib.contextmanager
+def session_owner_lock(path):
+    """Serialize same-owner readers and writers across threads and processes."""
+    path = session_path(path)
+    with _SESSION_LOCKS_GUARD:
+        lock = _SESSION_LOCKS.setdefault(path, threading.RLock())
+    with lock:
+        with open(path + ".lock", "a+b") as stream:
+            with evidence.locked(stream):
+                yield
+
+
+def _session_owner(function):
+    @functools.wraps(function)
+    def guarded(session_file, *args, **kwargs):
+        with session_owner_lock(session_file):
+            return function(session_file, *args, **kwargs)
+    return guarded
+
+
+def _reconcile_staged(data, qs):
+    """Repair exact durable child events without re-scoring or replaying."""
+    validate_staged_binding(data, qs)
+    if not data.get("staged_cases"):
+        return data
+    log = evidence.log_path(os.path.dirname(data["bank"]))
+    events = [event for event in evidence.live_events(log)
+              if event.get("session_id") == data["session_id"]
+              and event.get("event_type") == evidence.RESPONSE_EVENT_TYPE]
+    for case in data["staged_cases"]:
+        for index, position in enumerate(case["positions"]):
+            child = case["children"][index]
+            matches = [event for event in events if event.get("child_id") == child]
+            q = qs[data["items"][position]]
+            unlinked = [event for event in events
+                        if event.get("item_ref") == q["id"] and event not in matches]
+            if unlinked or len(matches) > 1:
+                sys.exit("ambiguous staged evidence; preserve session and restore accepted evidence")
+            if not matches:
+                if any(row.get("item_id") == q["id"] for row in data["responses"]):
+                    sys.exit("staged response evidence unavailable; restore evidence before resuming")
+                continue
+            event = matches[0]
+            if any(event.get(name) != value for name, value in (
+                    ("activity_id", case["activity_id"]),
+                    ("case_revision", case["case_revision"]),
+                    ("stage", case["order"][index]), ("item_ref", q["id"]),
+                    ("item_id", child), ("mode", data["mode"]))):
+                sys.exit("staged evidence binding conflict; restore accepted revision")
+            row = {"item_id": q["id"], "objective": q.get("objective", ""),
+                   "type": q["type"], "answer": event["answer"],
+                   "score": event["score"], "status": "recorded",
+                   "event_id": event["event_id"]}
+            existing = [entry for entry in data["responses"] if entry.get("item_id") == q["id"]]
+            if existing:
+                if existing != [row]:
+                    sys.exit("staged session/evidence conflict; restore accepted session")
+            elif data["cursor"] == position:
+                data["responses"] = list(data["responses"]) + [row]
+                data["cursor"] += 1
+                if data["cursor"] == len(data["items"]):
+                    data["status"] = "complete"
+            else:
+                sys.exit("staged event sequence conflict; restore accepted session")
+    return data
 
 # Phase 6 renderer handoff (06-02, D-12): the only thing a served client may
 # send beyond the Phase 6 action envelope is one short opaque renderer
@@ -389,6 +464,7 @@ def do_start(bank_path, spec, mode, out, force, *, override_token=None,
             items = [i for i in items if i != hit]
             items.insert(0, hit)
             items = items[:sel_spec.get("count", selection.DEFAULT_COUNT)]
+    case_binding = staged_binding(bank_path, qs, items)
     out = out or os.path.join(os.path.dirname(os.path.abspath(bank_path)) or ".", "_attempts",
                               "session_%s.json" % uuid.uuid4().hex[:12])
     session_id = override["session_id"] if override else (preset_session_id or uuid.uuid4().hex)
@@ -399,6 +475,8 @@ def do_start(bank_path, spec, mode, out, force, *, override_token=None,
             "seed": sel_spec.get("seed", 0),
             "served_ts": evidence.utc_now(),
             "teaching_state": {},
+            "staged_cases": case_binding,
+            "staged_binding_required": bool(case_binding),
             "selection_mode": sel_spec.get("selection_mode", "practice"),
             "subject_profile": subject_snapshot,
             # D-01 (10-03): the sitting's retention binding -- the one
@@ -552,9 +630,12 @@ def _expire_timed_exam(session_file, data):
     return data
 
 
+@_session_owner
 def do_next(session_file):
-    data = _expire_timed_exam(session_file, read_session(session_file))
+    data = read_session(session_file)
     qs = load(data["bank"])
+    data = _reconcile_staged(data, qs)
+    data = _expire_timed_exam(session_file, data)
     # Collect the marker's desk before serving. A sitting parked on a pending
     # prose answer stays parked until a human rules on it; once the mark is
     # recorded, the item is settled and `next` means the FOLLOWING item, not
@@ -637,8 +718,12 @@ def run_check_source(q, source, base):
 def do_submit(session_file, answer, confidence):
     """Compatibility wrapper: the CLI/legacy submit path becomes a Phase 6
     submit action over the one session adapter."""
-    return do_action(session_file, {"kind": "submit", "answer": answer},
-                     confidence=confidence)
+    data = read_session(session_file)
+    activity = staged_activity(data) or {}
+    action = {"kind": "submit", "answer": answer}
+    action.update({name: activity[name] for name in
+                   ("activity_id", "child_id", "submission_token") if name in activity})
+    return do_action(session_file, action, confidence=confidence)
 
 
 ACTION_ID_RE = re.compile(
@@ -664,10 +749,12 @@ def do_interact(session_file, action):
     `conflict`, and nonvisual sessions, stale versions, unknown actions,
     malformed/out-of-domain state, and completed sessions are named refusals.
     """
-    data = _expire_timed_exam(session_file, read_session(session_file))
+    data = read_session(session_file)
+    qs = load(data["bank"])
+    data = _reconcile_staged(data, qs)
+    data = _expire_timed_exam(session_file, data)
     if data["status"] != "active":
         sys.exit("session is already complete")
-    qs = load(data["bank"])
     if data["cursor"] >= len(data["items"]):
         data["status"] = "complete"
         write_session(session_file, data)
@@ -786,6 +873,9 @@ def do_hint(session_file, retry=False, stumped=None):
     branch is left working so nothing calling it mid-phase breaks; plan 14-08
     removes it once no caller remains. The sentinel value None (the CLI path)
     selects the model orchestration; a real bool selects the Phase 6 reveal."""
+    data = read_session(session_file)
+    if staged_case(data) is not None:
+        sys.exit("commit both staged children before requesting model hints")
     if stumped is not None:
         return do_action(session_file, {"kind": "stumped" if stumped else "hint"})
     return invoke_hint(session_file, retry=retry)
@@ -853,6 +943,9 @@ def _teach_read(session_file):
         os.path.dirname(os.path.abspath(data["bank"])) or ".")
     group = cfg.get("teaching") or settings.teaching_defaults()
     preview = group.get("hint_locked_preview") or "full"
+    validate_staged_binding(data, qs)
+    if staged_case(data):
+        return teaching_payload(q, None, "exam", preview), q, data
     return teaching_payload(q, rec, data["mode"], preview), q, data
 
 
@@ -971,6 +1064,7 @@ def settled_mark_refs(log, session_id):
     return marked
 
 
+@_session_owner
 def do_action(session_file, action, confidence=None, renderer_meta=None,
               elapsed_ms=None):
     """The ONE session adapter for every sitting action (D-01/D-02): it
@@ -983,15 +1077,22 @@ def do_action(session_file, action, confidence=None, renderer_meta=None,
     parameter reaches the runtime transition.
     """
     _validate_renderer_meta(renderer_meta)     # discarded before policy
-    data = _expire_timed_exam(session_file, read_session(session_file))
+    data = read_session(session_file)
+    qs = load(data["bank"])
+    data = _reconcile_staged(data, qs)
+    data = _expire_timed_exam(session_file, data)
     if data["status"] != "active":
         sys.exit("session is already complete")
-    qs = load(data["bank"])
     if data["cursor"] >= len(data["items"]):
         data["status"] = "complete"
         write_session(session_file, data)
         sys.exit("session is already complete")
     q = qs[data["items"][data["cursor"]]]
+    active_case = staged_case(data)
+    active_activity = staged_activity(data)
+    if active_case is None and any(name in action for name in (
+            "activity_id", "child_id", "submission_token", "stage")):
+        sys.exit("staged submission is stale; refresh the current item")
 
     # Phase 9 (D-04): a legacy session whose null profile slot was never
     # filled resolves once from the bank and persists the snapshot with this
@@ -1106,7 +1207,8 @@ def do_action(session_file, action, confidence=None, renderer_meta=None,
             check_source=check_source,
             interaction_version=INTERACTION_VERSION if q["type"] == "check"
             else None,
-            error_category="timeout" if killed else None)
+            error_category="timeout" if killed else None,
+            staged=active_activity)
         evidence_result = evidence.append_event(log, event)
         if q["type"] == "check":
             # The normalized result is data for feedback, not a second
@@ -1129,7 +1231,8 @@ def do_action(session_file, action, confidence=None, renderer_meta=None,
             next_data["responses"] = list(next_data.get("responses") or []) + [{
                 "item_id": q["id"], "objective": q.get("objective", ""),
                 "type": q["type"], "answer": event_answer, "score": score,
-                "status": "recorded"}]
+                "status": "recorded",
+                **({"event_id": event["event_id"]} if active_case else {})}]
     else:
         # hint / stumped
         evidence_result = None
@@ -1166,6 +1269,18 @@ def do_action(session_file, action, confidence=None, renderer_meta=None,
             # allows it carries this key at all, so no other body changes.
             # The transition decided the disclosure; this is passthrough.
             ret["selection_feedback"] = result["selection_feedback"]
+        if result.get("ordering_diagnostic") is not None:
+            ret["ordering_diagnostic"] = result["ordering_diagnostic"]
+        if q["type"] == "fill" and any(f.get("kind") == "polynomial" for f in q.get("fields", [])):
+            from runtime import polynomial_outcomes, polynomial_feedback
+            ret["checker_outcomes"] = polynomial_feedback(
+                polynomial_outcomes(q, event_answer), result.get("hint_tier"))
+        if active_case:
+            feedback = staged_feedback(next_data, qs, active_case)
+            if feedback is not None:
+                ret["activity_feedback"] = feedback
+            else:
+                return submission_feedback(ret, "exam")
         return submission_feedback(ret, data["mode"])
     return {"accepted": accepted, "item_id": q["id"], "action": action_name,
             "hint": result.get("hint"),
@@ -1173,23 +1288,23 @@ def do_action(session_file, action, confidence=None, renderer_meta=None,
             "next": session_view(next_data, qs)}
 
 
+@_session_owner
 def do_report(session_file):
     """The report: the session summary joined with live-derived teaching
     outcomes (D-17) and the runtime's diagnostic/exam review availability.
     Never reads a mutable hint counter."""
-    data = _expire_timed_exam(session_file, read_session(session_file))
+    data = read_session(session_file)
+    qs = load(data["bank"])
+    data = _reconcile_staged(data, qs)
+    data = _expire_timed_exam(session_file, data)
     log = evidence.log_path(os.path.dirname(data["bank"]))
     outcomes = evidence.teaching_outcomes(log, data["session_id"])
     summary = session_summary(data, settled_mark_refs(log, data["session_id"]))
-    if data["status"] == "active" and data["mode"] in ("diagnostic", "exam"):
+    if not assessment_feedback_released(data["mode"], data):
         # Completion is the release gate for correctness in silent modes.
         # Preserve progress and pending work, but no score-derived field may
         # reach CLI, API, or HTML while the sitting is active.
-        summary["auto_correct"] = None
-        summary["objectives"] = {
-            name: {"attempts": row["attempts"], "correct": None,
-                   "pending": row["pending"]}
-            for name, row in summary["objectives"].items()}
+        summary = report_feedback(summary, data)
     else:
         summary["teaching_outcomes"] = outcomes["teaching_outcomes"]
     return {"schema_version": REPORT_VERSION, "session_id": data["session_id"],

@@ -37,7 +37,8 @@ def read_bytes(relpath):
     """
     direct = os.path.join(ROOT, relpath)
     if os.path.exists(direct):
-        return open(direct, "rb").read()
+        with open(direct, "rb") as stream:
+            return stream.read()
     archive = archive_path()
     if archive is not None:
         with zipfile.ZipFile(archive) as zf:

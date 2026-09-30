@@ -603,7 +603,8 @@ def main():
     fixture, oled, negative = build_pages(work)
 
     with sync_playwright() as pw:
-        browser = pw.chromium.launch()
+        browser = pw.chromium.launch(
+            channel=os.environ.get("ITEMBANK_VISUAL_QA_CHANNEL") or None)
         try:
             from importlib.metadata import version
             pw_version = version("playwright")

@@ -32,7 +32,7 @@ import collections, fractions, hashlib, json, os, re, sys, unicodedata
 # unavailable capabilities. New sessions persist the complete snapshot; the
 # v2-to-v3 upgrade leaves the slot null and the session adapter fills it once
 # from the bank on the first action (D-04).
-SESSION_VERSION = 3
+SESSION_VERSION = 4
 ITEM_VERSION = 1
 REPORT_VERSION = 1
 # The public interaction-contract version for a check item (plan 05-01):
@@ -48,14 +48,36 @@ def public_item(q, shuffle_seed=0):
            "difficulty": q.get("difficulty", ""), "lesson_slug": q.get("lesson_slug", "")}
     if q["type"] in ("mc", "multi"):
         out["options"] = [{"key": k, "text": q["opts"][k]} for k in sorted(q["opts"])]
+        if q.get("answer_format"):
+            out["answer_format"] = q["answer_format"]
         out["response_schema"] = {"type": "array" if q["type"] == "multi" else "string",
                                    "select": q["select"], "allowed": sorted(q["opts"])}
     elif q["type"] in ("table", "dnd"):
-        out["rows"] = [{"text": r["text"], "id": i} for i, r in enumerate(q["rows"])]
+        if "matching" in q:
+            from model import matching_spec_errors
+            errors = matching_spec_errors(q)
+            if errors:
+                raise ValueError(errors[0])
+            out["matching"] = q["matching"]
+        out["rows"] = [{"text": r["text"], "id": r.get("id", i)} for i, r in enumerate(q["rows"])]
         out["categories"] = q["cats"]
         out["response_schema"] = {"type": "object", "keys": "row id", "values": q["cats"]}
     elif q["type"] == "build":
         import random
+        if "ordering" in q:
+            from model import content_fingerprint, ordering_spec_errors
+            errors = ordering_spec_errors(q)
+            if errors:
+                raise ValueError(errors[0])
+            blocks = [dict(b) for b in q["blocks"]]
+            random.Random(shuffle_seed).shuffle(blocks)
+            out["ordering"] = {"version": q["ordering"]["version"],
+                               "revision": content_fingerprint(q)}
+            out["blocks"] = blocks
+            out["steps"] = [b["text"] for b in blocks]
+            out["response_schema"] = {"type": "array", "items": "block id",
+                                      "allowed": [b["id"] for b in blocks], "ordered": True}
+            return out
         steps = q["steps"][:]
         random.Random(shuffle_seed).shuffle(steps)
         out["steps"] = steps
@@ -64,12 +86,18 @@ def public_item(q, shuffle_seed=0):
         errors = fill_spec_errors(q)
         if errors:
             raise ValueError("invalid fill item: " + errors[0][1])
+        if q.get("fill_layout") == "inline":
+            out["fill_layout"] = "inline"
         out["fields"] = []
         for field in q["fields"]:
             entry = {key: field[key] for key in ("id", "label", "kind")}
             if field["kind"] == "text":
                 entry.update(case_sensitive=field.get("case_sensitive", True),
                              whitespace=field.get("whitespace", "trim"))
+            elif field["kind"] == "polynomial":
+                entry["checker"] = {key: field["checker"][key] for key in
+                                    ("domain", "checker_version", "variable", "required_form")}
+                entry["checker"].update(grammar=POLYNOMIAL_GRAMMAR, limits=dict(POLYNOMIAL_LIMITS))
             elif field.get("units"):
                 entry["units"] = list(field["units"])
             out["fields"].append(entry)
@@ -208,7 +236,29 @@ def _canonical_multi(q, answer):
     return ",".join(sorted(str(x).strip().upper() for x in given))
 
 
+def matching_response_error(q, answer):
+    """Validate construction and capacity without revealing any keyed mapping."""
+    if "matching" not in q:
+        return None
+    from model import matching_spec_errors
+    if matching_spec_errors(q):
+        return "This matching item has an invalid declaration. Ask its author to repair it."
+    if not isinstance(answer, dict) or set(answer) != {r["id"] for r in q["rows"]}:
+        return "Match every row using its stable row ID."
+    values = list(answer.values())
+    if any(not isinstance(v, str) or v not in q["cats"] for v in values):
+        return "Choose an available choice for every row."
+    if q["matching"]["reuse"] == "once" and len(set(values)) != len(values):
+        return "Each choice can be used only once. Revise the repeated choice."
+    return None
+
+
 def _canonical_table_dnd(q, answer):
+    if "matching" in q:
+        if matching_response_error(q, answer):
+            return ""
+        return FIELD_SEP.join("%s%s%s" % (r["id"], PAIR_SEP, answer[r["id"]])
+                              for r in q["rows"])
     if isinstance(answer, list):
         answer = {str(i): v for i, v in enumerate(answer)}
     if not isinstance(answer, dict) or len(answer) != len(q["rows"]):
@@ -218,7 +268,55 @@ def _canonical_table_dnd(q, answer):
 
 
 def _canonical_build(q, answer):
+    if "ordering" in q:
+        return "" if ordering_response_error(q, answer) else json.dumps(answer, ensure_ascii=False)
     return FIELD_SEP.join(str(x) for x in answer) if isinstance(answer, list) else ""
+
+
+def ordering_response_error(q, answer):
+    """Refuse invalid construction, without exposing structural key material."""
+    if "ordering" not in q:
+        return None
+    from model import ordering_spec_errors
+    if ordering_spec_errors(q):
+        return "This ordering item has an invalid declaration. Ask its author to repair it."
+    answer = normalize_answer(answer)
+    if not isinstance(answer, list) or any(not isinstance(i, str) or i not in q["ordering"]["blocks"] for i in answer):
+        return "Submit an ordered array of available block IDs."
+    if len(set(answer)) != len(answer):
+        return "Each block can be selected only once. Remove the repeated block."
+    return None
+
+
+def ordering_diagnostic(q, answer):
+    """Private structural checker categories; teaching policy controls release."""
+    if ordering_response_error(q, answer):
+        return "invalid_response"
+    answer = normalize_answer(answer)
+    required = q["ordering"]["required"]
+    if any(i not in required for i in answer):
+        return "selected_distractor"
+    if any(i not in answer for i in required):
+        return "missing_required"
+    positions = {ident: index for index, ident in enumerate(answer)}
+    if any(positions[before] >= positions[after] for before, after in q["ordering"]["dependencies"]):
+        return "dependency_violation"
+    return "correct"
+
+
+def ordering_example(q):
+    """One deterministic valid ordering for post-release explanations only."""
+    spec = q["ordering"]
+    pending = set(spec["required"])
+    result = []
+    while pending:
+        ready = [i for i in spec["blocks"] if i in pending and not any(
+            after == i and before in pending for before, after in spec["dependencies"])]
+        if not ready:
+            return []
+        result.extend(ready)
+        pending.difference_update(ready)
+    return result
 
 
 def check_normalizer(q, answer):
@@ -267,7 +365,7 @@ def _key_multi(q):
 
 
 def _key_table_dnd(q):
-    return FIELD_SEP.join("%d%s%s" % (i, PAIR_SEP, r["cat"])
+    return FIELD_SEP.join("%s%s%s" % (r.get("id", i), PAIR_SEP, r["cat"])
                           for i, r in enumerate(q["rows"]))
 
 
@@ -304,7 +402,11 @@ def canonical_response(q, answer):
             return ""
         values = {f["id"]: (_fill_text(f, answer[f["id"]])
                            if f["kind"] == "text"
-                           else str(_fill_quantity(f, answer[f["id"]])))
+                           else ({"checker_version": POLYNOMIAL_VERSION,
+                                  "vector": [str(v) for v in polynomial_canonicalize(answer[f["id"]])[0]],
+                                  "required_form": polynomial_canonicalize(answer[f["id"]])[1]}
+                                 if f["kind"] == "polynomial"
+                                 else str(_fill_quantity(f, answer[f["id"]]))))
                   for f in q["fields"]}
         return json.dumps(values, sort_keys=True, ensure_ascii=False)
     if t == "visual":
@@ -321,6 +423,8 @@ def canonical_response(q, answer):
 def canonical_key(q):
     """The canonical response that is correct, in the same shape as the above."""
     t = q["type"]
+    if "ordering" in q:
+        return None  # a dependency graph has multiple equally valid responses
     if t == "fill":
         return None  # alternatives and intervals have no single canonical key
     if t == "visual":
@@ -352,8 +456,23 @@ def score_response(q, answer):
     credit, no client authority input, and invalid responses are rejected
     (False), never approximated.
     """
+    if "ordering" in q:
+        return ordering_diagnostic(q, answer) == "correct"
     if q["type"] == "fill":
-        if fill_response_error(q, answer):
+        error = fill_response_error(q, answer)
+        if error:
+            if any(f.get("kind") == "polynomial" for f in q.get("fields", []) if isinstance(f, dict)):
+                spec_errors = fill_spec_errors(q)
+                if any(message.startswith("Checker failed;") for _, message in spec_errors):
+                    raise PolynomialRefusal("error", "Checker failed; preserve input and retry.")
+                if spec_errors:
+                    raise PolynomialRefusal("unavailable", "This item's answer fields need author review.")
+                values = normalize_answer(answer)
+                if isinstance(values, dict):
+                    for field in q["fields"]:
+                        if field["kind"] == "polynomial" and field["id"] in values:
+                            polynomial_analyze(values[field["id"]], field["checker"])
+                raise PolynomialRefusal("invalid", error)
             return False
         answer = normalize_answer(answer)
         for field in q["fields"]:
@@ -361,6 +480,9 @@ def score_response(q, answer):
             if field["kind"] == "text":
                 if _fill_text(field, raw) not in [
                         _fill_text(field, value) for value in field["accepted"]]:
+                    return False
+            elif field["kind"] == "polynomial":
+                if polynomial_analyze(raw, field["checker"])["state"] != "correct":
                     return False
             else:
                 target = fill_number(field["answer"])
@@ -425,6 +547,318 @@ def _fill_quantity(field, raw):
     return fill_number(raw)
 
 
+POLYNOMIAL_VERSION = "a5-rational-polynomial-v2"
+POLYNOMIAL_LIMITS = {"characters": 160, "tokens": 96, "nodes": 64, "depth": 16,
+          "literal_digits": 12, "degree": 4, "coefficient": 10**6,
+          "arithmetic_steps": 64}
+_POLYNOMIAL_TOKEN = re.compile(r"[0-9]+(?:\.[0-9]+)?|\.[0-9]+|x|[()+*/^\-]")
+
+
+class PolynomialRefusal(ValueError):
+    def __init__(self, state, message):
+        self.state = state
+        super().__init__(message)
+
+
+def _polynomial_refuse(state, message):
+    raise PolynomialRefusal(state, message)
+
+
+class _PolynomialParser:
+    def __init__(self, raw):
+        if not isinstance(raw, str) or not raw.strip():
+            _polynomial_refuse("invalid", "Enter a polynomial expression.")
+        if len(raw) > POLYNOMIAL_LIMITS["characters"]:
+            _polynomial_refuse("unsupported", "Use at most 160 characters.")
+        self.tokens = []
+        pos = 0
+        while pos < len(raw):
+            if raw[pos] in " \t":
+                pos += 1
+                continue
+            if raw[pos] in "\r\n" or ord(raw[pos]) < 32:
+                _polynomial_refuse("invalid", "Use a single line without control characters.")
+            match = _POLYNOMIAL_TOKEN.match(raw, pos)
+            if not match:
+                if raw[pos] == ".":
+                    _polynomial_refuse("invalid", "A decimal point needs following digits.")
+                _polynomial_refuse("unsupported", "Use x, ASCII numbers and explicit + - * / ^ ( ).")
+            self.tokens.append(match.group())
+            pos = match.end()
+        if len(self.tokens) > POLYNOMIAL_LIMITS["tokens"]:
+            _polynomial_refuse("unsupported", "Use at most 96 tokens.")
+        self.pos = self.nodes = 0
+
+    def peek(self):
+        return self.tokens[self.pos] if self.pos < len(self.tokens) else ""
+
+    def take(self):
+        value = self.peek()
+        self.pos += 1
+        return value
+
+    def node(self, kind, *children):
+        self.nodes += 1
+        if self.nodes > POLYNOMIAL_LIMITS["nodes"]:
+            _polynomial_refuse("unsupported", "Use at most 64 syntax nodes.")
+        return (kind, *children)
+
+    def expression(self, depth=0):
+        left = self.term(depth)
+        while self.peek() in ("+", "-"):
+            op = self.take()
+            left = self.node(op, left, self.term(depth))
+        return left
+
+    def term(self, depth):
+        left = self.unary(depth)
+        while self.peek() == "*":
+            self.take()
+            if self.peek() == "*":
+                _polynomial_refuse("unsupported", "Use ^ for powers.")
+            left = self.node("*", left, self.unary(depth))
+        if self.peek() == "/":
+            _polynomial_refuse("unsupported", "Only integer/integer rational literals allow division.")
+        return left
+
+    def unary(self, depth):
+        if depth > POLYNOMIAL_LIMITS["depth"]:
+            _polynomial_refuse("unsupported", "Use at most 16 nested parentheses or signs.")
+        if self.peek() in ("+", "-"):
+            return self.node("unary" + self.take(), self.unary(depth + 1))
+        base = self.atom(depth)
+        if self.peek() == "^":
+            self.take()
+            exponent = self.take()
+            if not exponent:
+                _polynomial_refuse("invalid", "A power needs an integer exponent.")
+            if not exponent.isascii() or not exponent.isdigit():
+                _polynomial_refuse("unsupported", "Use an unsigned integer exponent from 0 to 4.")
+            if len(exponent) > 1 or int(exponent) > POLYNOMIAL_LIMITS["degree"]:
+                _polynomial_refuse("unsupported", "Use an integer exponent from 0 to 4 without leading zeros.")
+            base = self.node("^", base, int(exponent))
+        return base
+
+    def atom(self, depth):
+        token = self.take()
+        if token == "x":
+            return self.node("x")
+        if token == "(":
+            child = self.expression(depth + 1)
+            if self.take() != ")":
+                _polynomial_refuse("invalid", "Close every parenthesis.")
+            return child
+        if token and (token[0].isdigit() or token[0] == "."):
+            if sum(c.isdigit() for c in token) > POLYNOMIAL_LIMITS["literal_digits"]:
+                _polynomial_refuse("unsupported", "Use at most 12 digits per numeric literal.")
+            if self.peek() == "/":
+                self.take()
+                denominator = self.take()
+                if not denominator:
+                    _polynomial_refuse("invalid", "A fraction needs a denominator.")
+                if not token.isdigit() or not denominator.isdigit():
+                    _polynomial_refuse("unsupported", "Fractions require unsigned integer literals.")
+                if len(denominator) > POLYNOMIAL_LIMITS["literal_digits"]:
+                    _polynomial_refuse("unsupported", "Use at most 12 denominator digits.")
+                if int(denominator) == 0:
+                    _polynomial_refuse("invalid", "A fraction denominator cannot be zero.")
+                return self.node("number", fractions.Fraction(int(token), int(denominator)))
+            return self.node("number", fractions.Fraction(token))
+        _polynomial_refuse("invalid", "Expected a number, x or a parenthesized expression.")
+
+    def parse(self):
+        tree = self.expression()
+        if self.peek():
+            if self.peek() == "^":
+                _polynomial_refuse("unsupported", "Chained powers are outside this grammar.")
+            _polynomial_refuse("invalid", "Unexpected token; write multiplication explicitly.")
+        return tree
+
+
+class _PolynomialExpansion:
+    def __init__(self):
+        self.steps = 0
+
+    def step(self):
+        self.steps += 1
+        if self.steps > POLYNOMIAL_LIMITS["arithmetic_steps"]:
+            _polynomial_refuse("unsupported", "This expression exceeds the 64-step arithmetic limit; simplify it.")
+
+    def bound(self, values):
+        while len(values) > 1 and values[-1] == 0:
+            values.pop()
+        if len(values) > POLYNOMIAL_LIMITS["degree"] + 1 or any(
+                abs(v.numerator) > POLYNOMIAL_LIMITS["coefficient"] or
+                v.denominator > POLYNOMIAL_LIMITS["coefficient"] for v in values):
+            _polynomial_refuse("unsupported", "Intermediate degree or coefficient bound exceeded.")
+        return values
+
+    def product(self, left, right):
+        if len(left) + len(right) - 2 > POLYNOMIAL_LIMITS["degree"]:
+            _polynomial_refuse("unsupported", "Intermediate degree exceeds four.")
+        out = [fractions.Fraction(0)] * (len(left) + len(right) - 1)
+        for i, a in enumerate(left):
+            for j, b in enumerate(right):
+                self.step()
+                out[i + j] += a * b
+                self.bound(out[:])
+        return self.bound(out)
+
+    def visit(self, node):
+        kind = node[0]
+        if kind == "number":
+            return self.bound([node[1]])
+        if kind == "x":
+            return [fractions.Fraction(0), fractions.Fraction(1)]
+        left = self.visit(node[1])
+        if kind.startswith("unary"):
+            return [(-v if kind == "unary-" else v) for v in left]
+        if kind == "^":
+            out = [fractions.Fraction(1)]
+            for _ in range(node[2]):
+                out = self.product(out, left)
+            return out
+        right = self.visit(node[2])
+        if kind == "*":
+            return self.product(left, right)
+        out = [fractions.Fraction(0)] * max(len(left), len(right))
+        for i in range(len(out)):
+            self.step()
+            out[i] = (left[i] if i < len(left) else 0) + (
+                1 if kind == "+" else -1) * (right[i] if i < len(right) else 0)
+        return self.bound(out)
+
+
+def _polynomial_monomial(node):
+    """Return variable-factor count, or None if distribution/reduction is needed."""
+    kind = node[0]
+    if kind == "number":
+        return 0
+    if kind == "x" or (kind == "^" and node[1][0] == "x"):
+        return 1
+    if kind.startswith("unary"):
+        return _polynomial_monomial(node[1])
+    if kind == "*":
+        left, right = _polynomial_monomial(node[1]), _polynomial_monomial(node[2])
+        if left is not None and right is not None and left + right <= 1:
+            return left + right
+    return None
+
+
+def _polynomial_expanded(node):
+    return (_polynomial_expanded(node[1]) and _polynomial_expanded(node[2]) if node[0] in ("+", "-")
+            else _polynomial_monomial(node) is not None)
+
+
+def polynomial_canonicalize(raw):
+    tree = _PolynomialParser(raw).parse()
+    return _PolynomialExpansion().visit(tree), _polynomial_expanded(tree)
+
+
+
+POLYNOMIAL_GRAMMAR = "Use ASCII numbers, x, explicit + - * / ^ and parentheses; integer fractions; powers 0 to 4."
+
+
+def polynomial_validate_spec(spec):
+    expected = {"domain": "rational-polynomial", "checker_version": POLYNOMIAL_VERSION,
+                "variable": "x", "required_form": "expanded"}
+    if not isinstance(spec, dict) or set(spec) != set(expected) | {"target", "diagnostics"}:
+        _polynomial_refuse("unavailable", "Checker specification has missing or unknown fields.")
+    if any(spec[k] != v for k, v in expected.items()):
+        _polynomial_refuse("unavailable", "Checker specification uses an unsupported contract.")
+    try:
+        target, form = polynomial_canonicalize(spec["target"])
+        if not form:
+            _polynomial_refuse("unavailable", "Teacher answer must satisfy expanded form.")
+        rules = spec["diagnostics"]
+        if not isinstance(rules, list) or len(rules) > 2:
+            _polynomial_refuse("unavailable", "Author at most two named diagnostic rules.")
+        diagnostics = []
+        for rule in rules:
+            if (not isinstance(rule, dict) or set(rule) != {"id", "answer"}
+                    or not isinstance(rule["id"], str)
+                    or not re.fullmatch(r"[a-z][a-z0-9-]{0,47}", rule["id"])):
+                _polynomial_refuse("unavailable", "Diagnostic rules require bounded ASCII identifiers and answers.")
+            vector, _ = polynomial_canonicalize(rule["answer"])
+            if vector == target or any(name == rule["id"] or vector == previous
+                                      for name, previous in diagnostics):
+                _polynomial_refuse("unavailable", "Diagnostic rules overlap each other or the teacher answer.")
+            diagnostics.append((rule["id"], vector))
+        return target, diagnostics
+    except PolynomialRefusal as exc:
+        _polynomial_refuse("unavailable", "This checker needs author review: " + str(exc))
+
+
+def polynomial_analyze(raw, spec):
+    """Private bounded comparison under the sole runtime scoring authority."""
+    try:
+        target, diagnostics = polynomial_validate_spec(spec)
+        vector, form = polynomial_canonicalize(raw)
+        state = "correct" if vector == target and form else (
+            "wrong_form" if vector == target else "mathematically_wrong")
+        result = {"checker_version": POLYNOMIAL_VERSION, "state": state,
+                  "vector": [str(v) for v in vector], "required_form": form}
+        if state == "mathematically_wrong":
+            for name, answer in diagnostics:
+                if vector == answer:
+                    result["diagnostic_id"] = name
+                    break
+        return result
+    except PolynomialRefusal:
+        raise
+    except Exception as exc:
+        raise PolynomialRefusal("error", "Checker failed; preserve input and retry.") from exc
+
+
+def polynomial_field_errors(field):
+    """Replay required private authored tests before accepting a declaration."""
+    errors = []
+    if set(field) != {"id", "label", "kind", "checker", "checker_tests"}:
+        return [("checker", "polynomial fields require checker and checker_tests with no unknown members")]
+    try:
+        _, diagnostics = polynomial_validate_spec(field["checker"])
+    except PolynomialRefusal as exc:
+        return [("checker", str(exc))]
+    except Exception:
+        return [("checker", "Checker failed; preserve input and retry.")]
+    tests = field["checker_tests"]
+    if not isinstance(tests, list) or not 5 <= len(tests) <= 128:
+        return [("checker_tests", "author 5 to 128 private pinned checker tests")]
+    covered, diagnostic_ids = set(), set()
+    target_tested = False
+    for row in tests:
+        if (not isinstance(row, dict) or set(row) != {"input", "state", "diagnostic_id", "checker_version"}
+                or not isinstance(row["input"], str)
+                or row["checker_version"] != POLYNOMIAL_VERSION
+                or row["state"] not in ("correct", "mathematically_wrong", "wrong_form", "invalid", "unsupported")):
+            errors.append(("checker_tests", "every test requires input, state, diagnostic_id and the pinned checker_version"))
+            continue
+        try:
+            actual = polynomial_analyze(row["input"], field["checker"])
+        except PolynomialRefusal as exc:
+            actual = {"state": exc.state}
+        if (actual["state"] != row["state"]
+                or actual.get("diagnostic_id") != row["diagnostic_id"]):
+            errors.append(("checker_tests", "authored expectation differs from bounded checker"))
+        covered.add(actual["state"])
+        if actual.get("diagnostic_id"):
+            diagnostic_ids.add(actual["diagnostic_id"])
+        target_tested |= row["input"] == field["checker"]["target"] and actual["state"] == "correct"
+    if not target_tested or not {"correct", "mathematically_wrong", "wrong_form", "invalid", "unsupported"} <= covered:
+        errors.append(("checker_tests", "tests must cover the teacher answer, wrong mathematics, wrong form and both refusal states"))
+    if diagnostic_ids != {name for name, _ in diagnostics}:
+        errors.append(("checker_tests", "tests must reproduce every authored diagnostic"))
+    return errors
+
+
+def polynomial_outcomes(q, answer):
+    """Private evidence data, never an unfiltered public field projection."""
+    answer = normalize_answer(answer)
+    return {field["id"]: {k: v for k, v in polynomial_analyze(answer[field["id"]], field["checker"]).items()
+                           if k not in ("vector", "required_form")}
+            for field in q.get("fields", []) if field.get("kind") == "polynomial"}
+
+
 def fill_spec_errors(q):
     """Validate authored field data for both model lint and runtime entry."""
     fields = q.get("fields")
@@ -453,8 +887,12 @@ def fill_spec_errors(q):
         common = {"id", "label", "kind"}
         allowed = (common | {"accepted", "case_sensitive", "whitespace"} if kind == "text"
                    else common | {"answer", "atol", "rtol", "unit", "units"})
-        if kind not in ("text", "numeric"):
-            fail("field kind must be text or numeric", "kind")
+        if kind not in ("text", "numeric", "polynomial"):
+            fail("field kind must be text, numeric or polynomial", "kind")
+            continue
+        if kind == "polynomial":
+            for member, message in polynomial_field_errors(field):
+                fail(message, member)
             continue
         if set(field) - allowed:
             fail("unknown field members: " + ", ".join(sorted(set(field) - allowed)))
@@ -503,6 +941,16 @@ def fill_spec_errors(q):
                                 raise ValueError("unit scales must be positive and the base scale must be 1")
                         except ValueError as exc:
                             fail(str(exc), "units")
+    layout = q.get("fill_layout")
+    if layout not in (None, "fields", "inline") or q.get("fill_layout_count", 1) != 1:
+        errors.append(("fill_layout", "FILL-LAYOUT must be one declaration of fields or inline"))
+    elif layout == "inline":
+        stem = q.get("stem", "")
+        markers = re.findall(r"\{\{([^{}]*)\}\}", stem)
+        remainder = re.sub(r"\{\{[^{}]*\}\}", "", stem)
+        if ("{{" in remainder or "}}" in remainder or len(markers) != len(seen)
+                or set(markers) != seen or len(set(markers)) != len(markers)):
+            errors.append(("fill_layout", "inline stems must contain each {{field_id}} exactly once, with no other markers"))
     return errors
 
 
@@ -520,7 +968,12 @@ def fill_response_error(q, answer):
             return "%s: enter a nonempty answer of at most 4096 characters." % field["label"]
         if not _fill_single_line(value):
             return "%s: use one line without control characters." % field["label"]
-        if field["kind"] == "numeric":
+        if field["kind"] == "polynomial":
+            try:
+                polynomial_analyze(value, field["checker"])
+            except PolynomialRefusal as exc:
+                return "%s: %s" % (field["label"], str(exc))
+        elif field["kind"] == "numeric":
             try:
                 _fill_quantity(field, value)
             except ValueError as exc:
@@ -1551,6 +2004,65 @@ def visual_observation(q, state, verdict, hint_tier=None):
         "tolerance_policy_version": VISUAL_TOLERANCE_POLICY_VERSION,
     }
 
+def assessment_feedback_released(mode, session=None):
+    """Release silent-mode correctness only from a verified closed sitting."""
+    if session and staged_case(session) is not None:
+        return False
+    policy = FEEDBACK_POLICIES.get(mode, FEEDBACK_POLICIES["practice"])
+    return policy["right"] != "defer_feedback" or bool(
+        session and session.get("mode") == mode
+        and session.get("status") == "complete")
+
+
+def report_feedback(summary, session):
+    """Project a derived report without changing its evidence or session."""
+    if assessment_feedback_released(session.get("mode"), session):
+        return summary
+    return dict(summary, auto_correct=None, objectives={
+        name: dict(row, correct=None)
+        for name, row in summary["objectives"].items()})
+
+
+def staged_event_released(event, session):
+    """Resolve each linked event's own case independently of the current case."""
+    if not event.get("activity_id"):
+        return assessment_feedback_released(event.get("mode"), session)
+    if not session or session.get("session_id") != event.get("session_id") or session.get("mode") != event.get("mode"):
+        return False
+    case = next((case for case in session.get("staged_cases", [])
+                 if case["activity_id"] == event["activity_id"]), None)
+    if case is None or case["case_revision"] != event.get("case_revision"):
+        return False
+    if event.get("child_id") not in case["children"]:
+        return False
+    index = case["children"].index(event["child_id"])
+    if event.get("stage") != case["order"][index]:
+        return False
+    if not any(row.get("event_id") == event.get("event_id")
+               for row in session.get("responses", [])):
+        return False
+    policy = FEEDBACK_POLICIES.get(event.get("mode"), FEEDBACK_POLICIES["practice"])
+    if policy["right"] == "defer_feedback":
+        return session.get("status") == "complete"
+    return session.get("cursor", 0) > case["positions"][-1]
+
+
+def evidence_feedback(event, session=None):
+    """Fail closed when a held event's owning sitting cannot be verified."""
+    if staged_event_released(event, session):
+        out = dict(event)
+        if "checker_outcomes" in out:
+            out["checker_outcomes"] = polynomial_feedback(out["checker_outcomes"], event.get("hint_tier"))
+        return out
+    return submission_feedback(event, "exam")
+
+
+def learner_evidence(events, sessions):
+    """Exclude withheld events before deriving learner-facing score summaries."""
+    return tuple(event for event in events if staged_event_released(
+        event, sessions.get(event.get("session_id"))))
+
+
 def submission_feedback(payload, mode):
     """Project a submission response through the runtime's feedback policy.
 
@@ -1564,7 +2076,8 @@ def submission_feedback(payload, mode):
         return payload
     private = {"score", "verdict", "passed", "expected", "run_result",
                "interaction_result", "observations", "explain", "reveal",
-               "selection_feedback", "input", "actual", "stdout", "stderr",
+               "selection_feedback", "ordering_diagnostic", "activity_feedback", "input", "actual", "stdout", "stderr",
+               "checker_outcomes", "diagnostic_id", "runtime_comparison",
                "exit_code", "timed_out", "truncated"}
 
     def project(value):
@@ -1576,6 +2089,13 @@ def submission_feedback(payload, mode):
         return value
 
     return project(payload)
+
+
+def polynomial_feedback(outcomes, hint_tier=None):
+    """Diagnostic identity is teaching content released at the trap tier."""
+    return {ident: {key: value for key, value in result.items()
+                    if key != "diagnostic_id" or isinstance(hint_tier, int) and hint_tier >= 2}
+            for ident, result in outcomes.items()}
 
 
 def interaction_result(q, response, verdict, observations):
@@ -1622,6 +2142,7 @@ SESSION_UPGRADES = {
     # never inspects a bank or settings; the first action on a legacy session
     # resolves and persists the snapshot once (D-04).
     2: lambda data: dict(data, subject_profile=None),
+    3: lambda data: dict(data, staged_cases=[]),
 }
 
 
@@ -1653,7 +2174,8 @@ def upgrade_session(data):
 
 def read_session(path):
     try:
-        data = json.load(open(session_path(path), encoding="utf-8"))
+        with open(session_path(path), encoding="utf-8") as stream:
+            data = json.load(stream)
     except (OSError, ValueError) as exc:
         sys.exit("cannot read session %s: %s" % (path, exc))
     return upgrade_session(data)
@@ -1694,7 +2216,83 @@ def write_session(path, data):
         raise
 
 
+
+def staged_case(data, position=None):
+    """Resolve a case from the one canonical sitting cursor."""
+    position = data.get("cursor", 0) if position is None else position
+    return next((case for case in data.get("staged_cases", [])
+                 if position in case["positions"]), None)
+
+
+def staged_token(data, case):
+    value = [data["session_id"], case["case_revision"],
+             case["bank_fingerprint"], data["cursor"], len(data["responses"])]
+    return hashlib.sha256(json.dumps(value).encode()).hexdigest()
+
+
+def staged_activity(data):
+    case = staged_case(data)
+    if case is None or data.get("status") != "active":
+        return None
+    stage = case["positions"].index(data["cursor"])
+    result = {"activity_id": case["activity_id"],
+              "case_revision": case["case_revision"],
+              "stimulus": case["stimulus"], "stage": case["order"][stage],
+              "child_id": case["children"][stage],
+              "submission_token": staged_token(data, case)}
+    if stage:
+        result["committed_answer"] = next(row["answer"] for row in data["responses"]
+            if row["item_id"] == case["item_refs"][0])
+    return result
+
+
+def staged_binding(bank_path, qs, indices):
+    """Bind declarations to the exact accepted bytes and selected positions."""
+    with open(bank_path, "rb") as stream:
+        fingerprint = "sha256:" + hashlib.sha256(stream.read()).hexdigest()
+    selected = {qs[index].get("item_id"): pos for pos, index in enumerate(indices)}
+    bound = []
+    for declaration in getattr(qs, "staged_cases", []):
+        children = declaration["children"]
+        present = [child in selected for child in children]
+        if any(present) and not all(present):
+            sys.exit("staged case must retain both children; increase count or exclude the whole case")
+        if all(present):
+            positions = [selected[child] for child in children]
+            if positions[1] != positions[0] + 1:
+                sys.exit("staged case requires adjacent answer then reason; remove focus or change selection")
+            revision = "sha256:" + hashlib.sha256(json.dumps(
+                declaration, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+            bound.append(dict(declaration, case_revision=revision,
+                              bank_fingerprint=fingerprint, positions=positions,
+                              item_refs=[qs[indices[pos]]["id"] for pos in positions]))
+    return bound
+
+
+def validate_staged_binding(data, qs):
+    if data.get("staged_binding_required") and not data.get("staged_cases"):
+        sys.exit("staged binding missing; restore the accepted session before resuming")
+    if not data.get("staged_cases"):
+        return
+    current = staged_binding(data["bank"], qs, data["items"])
+    if current != data["staged_cases"]:
+        sys.exit("staged binding changed or unavailable; restore the accepted bank before resuming")
+
+
+def staged_feedback(data, qs, case):
+    if data["cursor"] <= case["positions"][-1]:
+        return None
+    policy = FEEDBACK_POLICIES.get(data["mode"], FEEDBACK_POLICIES["practice"])
+    if policy["right"] == "defer_feedback" and data["status"] != "complete":
+        return None
+    return [{"child_id": child, "item_id": qs[data["items"][pos]]["id"],
+             "score": next(row["score"] for row in data["responses"]
+                           if row["item_id"] == qs[data["items"][pos]]["id"]),
+             "explain": explain_payload(qs[data["items"][pos]], True)}
+            for child, pos in zip(case["children"], case["positions"])]
+
 def session_view(data, qs):
+    validate_staged_binding(data, qs)
     selected = data["items"]
     cursor = data["cursor"]
     view = {"schema_version": SESSION_VERSION, "session_id": data["session_id"],
@@ -1724,8 +2322,17 @@ def session_view(data, qs):
         view["subject_id"] = ""
     if data["status"] == "active" and cursor < len(selected):
         view["item"] = public_item(qs[selected[cursor]], data.get("seed", 0) + cursor)
+        activity = staged_activity(data)
+        if activity is not None:
+            view["activity"] = activity
     else:
         view["summary"] = session_summary(data)
+    if data.get("mode") not in ("exam", "diagnostic"):
+        for case in data.get("staged_cases", []):
+            if cursor == case["positions"][-1] + 1:
+                feedback = staged_feedback(data, qs, case)
+                if feedback is not None:
+                    view["activity_feedback"] = feedback
     return view
 
 
@@ -1770,12 +2377,17 @@ def answer_text(q):
     if q["type"] in ("mc", "multi"):
         return "; ".join("%s) %s" % (c, q["opts"][c]) for c in q["correct"])
     if q["type"] in ("table", "dnd"):
-        return "; ".join("%s -> %s" % (r["text"], r["cat"]) for r in q["rows"])
+        labels = {c["id"]: c["text"] + " (" + c["id"] + ")" for c in (q.get("matching") or {}).get("choices", [])}
+        return "; ".join("%s -> %s" % (r["text"], labels.get(r["cat"], r["cat"])) for r in q["rows"])
     if q["type"] == "build":
+        if "ordering" in q:
+            texts = {b["id"]: b["text"] for b in q["blocks"]}
+            return "One valid order: " + " -> ".join(texts[i] for i in ordering_example(q))
         return " -> ".join(q["steps"])
     if q["type"] == "fill":
         return "\n".join("%s: %s" % (
             field["label"], " / ".join(field["accepted"]) if field["kind"] == "text"
+            else field["checker"]["target"] if field["kind"] == "polynomial"
             else field["answer"] + (" " + field["unit"] if field.get("unit") else ""))
             for field in q.get("fields") or [])
     if q["type"] == "check":
@@ -1861,7 +2473,7 @@ def glossable(qs, term):
         elif t == "fill":
             frags = []
             for field in q.get("fields") or []:
-                if field.get("kind") == "numeric":
+                if field.get("kind") in ("numeric", "polynomial"):
                     # A tolerance interval and converted quantities have many
                     # equivalent spellings. Free prose cannot be proven free
                     # of these answers by matching a finite fragment list.
@@ -1968,7 +2580,7 @@ def response_text(q, answer):
             answer = dict((str(i), v) for i, v in enumerate(answer))
         if not isinstance(answer, dict):
             return ""
-        return "; ".join("%s -> %s" % (r["text"], answer.get(str(i), "(unassigned)"))
+        return "; ".join("%s -> %s" % (r["text"], answer.get(str(r.get("id", i)), "(unassigned)"))
                          for i, r in enumerate(q["rows"]))
     if t == "build":
         return " -> ".join(str(x) for x in answer) if isinstance(answer, list) else ""
@@ -2006,9 +2618,17 @@ def explain_payload(q, reveal=True, run_result=None):
         out["correct"] = q["correct"]
         out["da"] = dict((k, v) for k, v in (q.get("da") or {}).items() if v)
     elif t in ("table", "dnd"):
-        out["row_cats"] = dict((str(i), r["cat"]) for i, r in enumerate(q["rows"]))
+        out["row_cats"] = dict((str(r.get("id", i)), r["cat"]) for i, r in enumerate(q["rows"]))
     elif t == "build":
-        out["steps"] = q["steps"]
+        if "ordering" in q:
+            example = ordering_example(q)
+            texts = {b["id"]: b["text"] for b in q["blocks"]}
+            out["steps"] = [texts[i] for i in example]
+            out["answer_text"] = " -> ".join(out["steps"])
+            out["ordering"] = q["ordering"]
+            out["example_order"] = example
+        else:
+            out["steps"] = q["steps"]
     elif t == "short":
         # The model answer stays hidden unless asked for, because reading it
         # turns every item after this one into recognition rather than recall.
@@ -2059,7 +2679,7 @@ def page_item(q, reveal=True, offline=False):
     OFFLINE_JS client renders the honest served-runtime-required state.
     """
     out = public_item(q)
-    if q["type"] in ("visual", "fill") and offline:
+    if (q["type"] in ("visual", "fill") or "ordering" in q) and offline:
         out["served_required"] = True
         out.pop("key", None)
         return out
@@ -2425,6 +3045,30 @@ def teaching_transition(session, q, action, evidence_state=None):
     if rec is None:
         rec = new_teaching_record()
 
+    case = staged_case(session)
+    if case is not None:
+        if kind != "submit":
+            sys.exit("commit both staged children before requesting teaching feedback")
+        expected = staged_activity(session)
+        for name in ("activity_id", "child_id", "submission_token"):
+            if action.get(name) != expected[name]:
+                sys.exit("stale or missing staged commitment binding; reload the current activity")
+        if "stage" in action and action["stage"] != expected["stage"]:
+            sys.exit("client stage does not match the current staged child")
+        answer = normalize_answer(action.get("answer"))
+        if not isinstance(answer, str) or answer not in q["opts"]:
+            sys.exit("staged commitment requires one valid MC option")
+        if rec["attempt_count"]:
+            sys.exit("staged child already committed; reload the activity")
+        next_rec = dict(rec, attempt_count=1,
+                        last_genuine_canonical=_idempotent_canon(q, answer))
+        state = dict(state)
+        state[teaching_key(q)] = next_rec
+        cursor, status = _advance_cursor(session)
+        return {"action": "defer_feedback", "hint_tier": None,
+                "session": dict(session, teaching_state=state,
+                                cursor=cursor, status=status)}
+
     if kind in ("hint", "stumped"):
         unlock_path = "stumped" if kind == "stumped" else "attempt"
         payload, next_rec = _next_reveal(q, rec, unlock_path)
@@ -2435,6 +3079,14 @@ def teaching_transition(session, q, action, evidence_state=None):
 
     # kind == "submit"
     answer = normalize_answer(action.get("answer"))
+    if "ordering" in q:
+        error = ordering_response_error(q, answer)
+        if error:
+            sys.exit(error)
+    if "matching" in q:
+        error = matching_response_error(q, answer)
+        if error:
+            sys.exit(error)
     if q["type"] == "fill":
         error = fill_response_error(q, answer)
         if error:
@@ -2529,6 +3181,9 @@ def teaching_transition(session, q, action, evidence_state=None):
         state[teaching_key(q)] = next_rec
         held = {"action": "hold", "session": dict(session, teaching_state=state),
                 "hint_tier": hint_tier, "tier_unlocked": unlocked}
+        if "ordering" in q:
+            held["ordering_diagnostic"] = {"version": q["ordering"]["version"],
+                                            "category": ordering_diagnostic(q, answer)}
         if policy.get("selection") == "own_picks":
             picks = selection_feedback(q, answer)
             if picks is not None:
@@ -2858,6 +3513,8 @@ def hint_context(session_data, q):
     A constructed (short) response is pending review, never wrong (T-06-05),
     so it is not a valid hint context.
     """
+    if staged_case(session_data) is not None:
+        return None
     state = session_data.get("teaching_state")
     if not isinstance(state, dict):
         return None
@@ -2899,9 +3556,12 @@ def invoke_hint(session_file, retry=False):
     from surfaces import settings as _settings
 
     data = read_session(session_file)
+    if staged_case(data) is not None:
+        sys.exit("commit both staged children before requesting model hints")
     if data["status"] != "active":
         sys.exit("session is already complete")
     qs = model.load(data["bank"])
+    validate_staged_binding(data, qs)
     if data["cursor"] >= len(data["items"]):
         data["status"] = "complete"
         write_session(session_file, data)
@@ -3028,6 +3688,7 @@ def invoke_rubric_review(session_file):
     if data["status"] != "active":
         sys.exit("session is already complete")
     qs = model.load(data["bank"])
+    validate_staged_binding(data, qs)
     if data["cursor"] >= len(data["items"]):
         data["status"] = "complete"
         write_session(session_file, data)

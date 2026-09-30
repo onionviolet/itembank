@@ -66,7 +66,7 @@
       ],
       "x-itembank-phase": 4,
       "default": {
-        "source": "#0e6e62"
+        "source": "#315fa6"
       },
       "properties": {
         "source": {
@@ -74,7 +74,7 @@
           "pattern": "^#[0-9a-fA-F]{6}$",
           "description": "The learner's chosen source accent as a normalized opaque #RRGGBB hex color. Written only through itembank theme set/pick, which normalize and validate the exact six-digit hex form before persisting; the schema enforces the exact #RRGGBB pattern so a hand-edited file or a config set cannot carry a source the renderer silently ignores.",
           "minLength": 7,
-          "default": "#0e6e62",
+          "default": "#315fa6",
           "x-itembank-phase": 4
         }
       }

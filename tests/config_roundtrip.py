@@ -20,7 +20,7 @@ SCHEMA_PATH = os.path.join(ROOT, "schemas", "settings.schema.json")
 SETTINGS_ON_DISK = os.path.join(ROOT, "itembank.json")
 
 sys.path.insert(0, ROOT)
-from surfaces import settings                              # noqa: E402
+from surfaces import settings, theme                       # noqa: E402
 
 CODES_SEEN = set()
 
@@ -147,12 +147,11 @@ def test_schema_names_every_project_key():
 def test_theme_schema_additive_accent():
     """The persisted contract is exactly the existing theme string plus one
     required top-level accent object whose only persisted field is the
-    normalized opaque source, defaulting to #0e6e62 (04-UI-SPEC / 04-RESEARCH
-    binding resolution of the additive-schema open question).
+    normalized opaque source, defaulting to the current app accent.
     """
     schema = json.load(open(SCHEMA_PATH, encoding="utf-8"))
-    theme = schema["properties"]["theme"]
-    if theme["enum"] != ["system", "light", "dark", "oled"] or theme["default"] != "system":
+    mode = schema["properties"]["theme"]
+    if mode["enum"] != ["system", "light", "dark", "oled"] or mode["default"] != "system":
         fail("theme property changed; it must stay system|light|dark|oled default system")
     accent = schema["properties"].get("accent")
     if not accent:
@@ -162,8 +161,10 @@ def test_theme_schema_additive_accent():
     if accent.get("additionalProperties") is not False:
         fail("accent must reject unknown keys")
     src = accent.get("properties", {}).get("source")
-    if not src or src.get("default") != "#0e6e62":
-        fail("accent.source default is not #0e6e62")
+    if not src or src.get("default") != theme.DEFAULT_ACCENT:
+        fail("accent.source schema default differs from the theme default")
+    if accent.get("default") != {"source": theme.DEFAULT_ACCENT}:
+        fail("accent object schema default differs from the theme default")
     if "accent" not in schema.get("required", []):
         fail("accent is not a top-level required key")
 
@@ -422,7 +423,7 @@ def test_missing_schema_key_reads_as_default():
 def test_old_file_missing_accent_loads_with_default():
     """A pre-Phase-4 settings file (no accent key at all) remains loadable:
     settings loading merges schema defaults before validation, so the source
-    reads back as #0e6e62 rather than absent.
+    reads back as the current schema default rather than absent.
     """
     base = fresh_base()
     data = json.load(open(settings_file(base), encoding="utf-8"))
@@ -432,8 +433,8 @@ def test_old_file_missing_accent_loads_with_default():
     if r.returncode != 0:
         fail("an old settings file missing accent no longer loads: %s" %
              (r.stdout + r.stderr))
-    if "#0e6e62" not in r.stdout:
-        fail("accent.source did not read back as the schema default #0e6e62")
+    if theme.DEFAULT_ACCENT not in r.stdout:
+        fail("accent.source did not read back as the current schema default")
     shutil.rmtree(base, ignore_errors=True)
 
 
@@ -479,8 +480,8 @@ def test_theme_set_reset_contract():
     if r3.returncode != 0:
         fail("theme reset with confirmation failed: %s" % (r3.stdout + r3.stderr))
     data = json.load(open(settings_file(base), encoding="utf-8"))
-    if data["accent"]["source"] != "#0e6e62":
-        fail("theme reset did not restore the schema default #0e6e62")
+    if data["accent"]["source"] != theme.DEFAULT_ACCENT:
+        fail("theme reset did not restore the current schema default")
 
     before = sha(base)
     r4 = run_theme(["reset"], base)
@@ -496,10 +497,11 @@ def test_theme_set_reset_contract():
 
 def test_theme_set_invalid_colors_rejected():
     base = fresh_base()
+    original_source = json.load(open(settings_file(base), encoding="utf-8")).get("accent", {}).get("source")
     for bad in ("notacolor", "#12345", "#12345g", "#gggggg"):
         assert_rejected_theme(base, ["set", bad], "settings.invalid_value")
     data = json.load(open(settings_file(base), encoding="utf-8"))
-    if data.get("accent", {}).get("source") not in (None, "#0e6e62"):
+    if data.get("accent", {}).get("source") != original_source:
         fail("a rejected color still mutated accent.source")
     shutil.rmtree(base, ignore_errors=True)
 

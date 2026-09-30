@@ -76,8 +76,14 @@ BANK = os.path.join(ROOT, "fixtures", "sample_bank.md")
 # Re-taken 2026-09-25 after the shared palette, typography, and control
 # refinement. The no-sections API and mode authority remain unchanged.
 # Previous: f362984c5118bf900558ce30bbe134263e5bca03b70f4a0034659796f911d6e6.
+# Re-taken 2026-09-29 after the authorized D4-D7 neutral palette and teaching
+# roles updated the shared theme/presentation CSS. Saved accents are preserved.
+# Previous: e160024fc1629e13c7537122256af03fd612bf7cbd55fb3a955c0fb8594209e9.
+# Re-taken 2026-09-30 after the authorized compact frame and workshop CSS.
+# The no-sections equality, saved-accent and fixed-layer authority checks remain.
+# Previous: b557e9ce75f9eea3a35ac9d2be05676c9c34000d346cf3ab16a9f79c15c270aa.
 THEME_PAGE_BASELINE = \
-    "e160024fc1629e13c7537122256af03fd612bf7cbd55fb3a955c0fb8594209e9"
+    "1f7622c4611c983a8001b2ff35441b5fe2d5f61c539036a5a80859f9c1f47804"
 
 # Phase 16C appends rows here rather than creating a second fixture. Each row
 # is (setting_name, requests, expected_winning_layer, expected_value).
@@ -260,8 +266,13 @@ def check_fixed_rows_are_read_only():
 
 
 def check_theme_page_unchanged_by_default():
-    """theme_page with no sections argument is byte-identical to before."""
-    page = theme.theme_page(settings.load_settings(ROOT))
+    """Omitting sections matches explicit empty sections and the current baseline."""
+    cfg = settings.load_settings(ROOT)
+    page = theme.theme_page(cfg)
+    if page != theme.theme_page(cfg, sections=""):
+        fail("omitted sections differ from explicit empty sections")
+    if 'data-settings-source value="%s"' % cfg["accent"]["source"] not in page:
+        fail("theme page does not preserve the saved source accent")
     digest = hashlib.sha256(page.encode("utf-8")).hexdigest()
     if digest != THEME_PAGE_BASELINE:
         fail("theme_page(cfg) with no sections argument changed: %s, "

@@ -2176,6 +2176,124 @@ def resolve_locator(base, source_id, locator_id, expected_fingerprint):
         return {"status": "unavailable", "reason": "source or locator cannot be read"}
 
 
+def _validate_context_scope(scope):
+    """A local inclusion set is explicit, versioned and independent of paging."""
+    required = {"version", "object_id", "course_id", "sources", "note_ids", "notes_fingerprint"}
+    if not isinstance(scope, dict) or set(scope) != required or scope["version"] != 1:
+        raise ValueError("unsupported research scope")
+    if not all(isinstance(scope[key], str) and scope[key] for key in ("object_id", "course_id")):
+        raise ValueError("missing research scope identity")
+    if not isinstance(scope["sources"], list) or not isinstance(scope["note_ids"], list):
+        raise ValueError("inclusion must be explicit lists")
+    seen = set()
+    for ref in scope["sources"]:
+        if not isinstance(ref, dict) or set(ref) != {"source_id", "locator_id", "fingerprint"}:
+            raise ValueError("incomplete source citation")
+        if not all(isinstance(value, str) and value for value in ref.values()):
+            raise ValueError("incomplete source citation")
+        key = (ref["source_id"], ref["locator_id"])
+        if key in seen:
+            raise ValueError("duplicate citation")
+        seen.add(key)
+    ids = scope["note_ids"]
+    if any(not isinstance(value, str) or not value for value in ids) or len(set(ids)) != len(ids):
+        raise ValueError("invalid note inclusion")
+    if (ids and not isinstance(scope["notes_fingerprint"], str)) or \
+            (not ids and scope["notes_fingerprint"] is not None):
+        raise ValueError("note inclusion requires its accepted document fingerprint")
+
+
+def read_context_scope(scope_root, course_id):
+    """Read the private accepted scope; never discover or auto-include content."""
+    path = os.path.join(scope_root, "research-scope.json")
+    if not os.path.lexists(path):
+        return None
+    if os.path.islink(path):
+        raise ValueError("research scope must stay inside its private root")
+    with open(path, "rb") as stream:
+        raw = stream.read(1024 * 1024 + 1)
+    if len(raw) > 1024 * 1024:
+        raise ValueError("research scope is too large")
+    scope = json.loads(raw)
+    _validate_context_scope(scope)
+    if scope["course_id"] != course_id or journal.object_state(scope_root, scope["object_id"]) != "clean":
+        raise ValueError("research scope changed or belongs to another course")
+    return {"scope": scope, "fingerprint": identity.object_fingerprint(raw, "component")}
+
+
+def resolve_context_scope(base, scope, notes_root=None):
+    """Build local advisory context or return no content on any stale input.
+
+    No provider is called and inclusion never grants remote processing rights.
+    Learner notes remain labeled separately from original source passages.
+    """
+    import notes
+    _validate_context_scope(scope)
+    sources, selected_notes, failures = [], [], []
+    for ref in scope["sources"]:
+        resolved = resolve_locator(base, ref["source_id"], ref["locator_id"], ref["fingerprint"])
+        if resolved["status"] == "ok":
+            rights = journal.read_registry(base)[ref["source_id"]].get("rights")
+            if not all(identity.rights_granted(rights, operation) for operation in ("quote", "transform")):
+                resolved = {"status": "unsupported", "reason": "context needs quote and transform grants"}
+        if resolved["status"] != "ok":
+            failures.append({"kind": "source", "id": ref["source_id"],
+                             "locator_id": ref["locator_id"], "state": resolved["status"]})
+        else:
+            sources.append(resolved)
+    if scope["note_ids"]:
+        try:
+            document = notes.read_note_document(notes_root, scope["course_id"]) if notes_root else None
+            if not document or document["fingerprint"] != scope["notes_fingerprint"]:
+                raise ValueError("notes changed")
+            for note_id in scope["note_ids"]:
+                matches = [note for note in document["sidecar"]["notes"]
+                           if note["note_id"] == note_id and note["status"] != "deleted"]
+                if len(matches) != 1:
+                    raise ValueError("note missing or ambiguous")
+                selected_notes.append({"kind": "learner_note", "note_id": note_id,
+                                       "wording": matches[0]["learner_wording"],
+                                       "targets": matches[0]["targets"]})
+        except (ValueError, OSError, journal.JournalError):
+            failures.append({"kind": "learner_note", "state": "stale"})
+    if failures:
+        return {"status": "conflict", "sources": [], "notes": [], "failures": failures}
+    return {"status": "ok", "sources": sources, "notes": selected_notes, "failures": [],
+            "egress": "none", "purpose": "local_advisory_context"}
+
+
+def write_context_scope(scope_root, course_id, sources, note_ids, notes_fingerprint,
+                        expected_fingerprint, base, notes_root=None, confirm=False):
+    """Accept explicit inclusion through the existing private CAS journal.
+
+    The caller supplies approved roots and the base shown in its preview.
+    Cancel does not even create the destination directory.
+    """
+    if not confirm:
+        return {"status": "canceled"}
+    if notes_root and os.path.realpath(scope_root) == os.path.realpath(notes_root):
+        raise ValueError("research scope and private notes need distinct journal roots")
+    current = read_context_scope(scope_root, course_id)
+    if (current["fingerprint"] if current else None) != expected_fingerprint:
+        raise ValueError("research scope changed; reload before saving")
+    scope = {"version": 1, "object_id": current["scope"]["object_id"] if current else identity.new_object_id(),
+             "course_id": course_id, "sources": sources, "note_ids": note_ids,
+             "notes_fingerprint": notes_fingerprint}
+    _validate_context_scope(scope)
+    def validate_inputs():
+        if resolve_context_scope(base, scope, notes_root)["status"] != "ok":
+            raise ValueError("selected content changed; keep your draft")
+    validate_inputs()
+    raw = (json.dumps(scope, ensure_ascii=False, sort_keys=True, indent=2) + "\n").encode("utf-8")
+    if current and identity.object_fingerprint(raw, "component") == current["fingerprint"]:
+        return current
+    os.makedirs(scope_root, mode=0o700, exist_ok=True)
+    journal.commit_operation(scope_root, scope["object_id"], "component", "research-scope.json",
+                             "edit_in_place" if current else "mint", raw, expected_fingerprint,
+                             "human", "local", create_if_missing=not current, precommit=validate_inputs)
+    return read_context_scope(scope_root, course_id)
+
+
 def build_sidecar(source_id, adapter, md_bytes, origin, rights, locators,
                   reading_order, unsupported, confidence=None):
     """Return exactly the frozen envelope. The fingerprint comes from

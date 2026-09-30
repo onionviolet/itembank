@@ -27,6 +27,7 @@ import os
 
 import evidence
 import retention
+from runtime import evidence_feedback, learner_evidence, read_session
 
 # The named seam for 14B: today every card is a bank file on disk.
 HOME_UNIT = "bank"
@@ -119,6 +120,18 @@ def _resume(root, banks, sessions, stem):
     return ({"state": state, "session_id": session_id}, progress, None)
 
 
+def feedback_sessions(root):
+    """Resolve recorded sittings; unreadable or missing owners stay withheld."""
+    from surfaces.daemon import session_index
+    result = {}
+    for ident, path in session_index(root).items():
+        try:
+            result[ident] = read_session(path)
+        except (SystemExit, OSError, ValueError):
+            pass
+    return result
+
+
 def _next_action(root, banks):
     """(action dict or None, blocker sentence or None).
 
@@ -129,6 +142,7 @@ def _next_action(root, banks):
     log = evidence.log_path(root)
     events = evidence.capture_events(log) \
         if os.path.exists(log) else ()
+    events = learner_evidence(events, feedback_sessions(root))
     cfg = None
     try:
         from surfaces import settings as settings_mod
@@ -189,17 +203,20 @@ def _activity(root, banks=None):
         return by_abspath.get(os.path.abspath(bank)) if bank else None
 
     rows = []
+    sessions = feedback_sessions(root)
     for ev in evidence.events(log):
         if ev.get("event_type") != evidence.RESPONSE_EVENT_TYPE:
             continue
+        ev = evidence_feedback(ev, sessions.get(ev.get("session_id")))
         outcome = {True: "correct", False: "wrong",
                    None: "pending review"}.get(ev.get("score"), "scored")
         stem = stem_of(ev)
         where = " of %s" % stem if stem else ""
         rows.append({"when": ev.get("ts") or "",
-                     "text": "Answered %s%s (%s)"
+                     "text": "Answered %s%s%s"
                              % (ev.get("item_ref") or ev.get("item_id")
-                                or "an item", where, outcome)})
+                                or "an item", where,
+                                " (%s)" % outcome if "score" in ev else "")})
     rows.reverse()
     return rows[:ACTIVITY_MAX]
 
@@ -334,8 +351,8 @@ def _cards_html(state):
                _esc(_resume_line(card)), badge, _card_links(card)))
     if rows:
         return ('<ul class="home-cards">%s</ul>'
-                "<p class=\"vf-status\">These are %ss: files on disk. A "
-                "course object that groups them arrives in phase 14B.</p>"
+                "<p class=\"vf-status\">These are %ss: files on disk. "
+                '<a href="/courses">Open Courses</a> to find grouped learning material.</p>'
                 % ("\n".join(rows), _esc(state["unit"])))
     return ("<p class=\"vf-status\">No %s files are being served here "
             "yet.</p>" % _esc(state["unit"]))

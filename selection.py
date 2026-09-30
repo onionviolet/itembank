@@ -555,6 +555,35 @@ def select(questions, spec, history, cooldown=None, decay=None, *,
         else:
             items = ordered_pool[:count]
 
+    # Cases are indivisible selection units, validated before evidence exists.
+    cases = getattr(questions, "staged_cases", [])
+    selected_ids = {q.get("item_id") for q in items}
+    candidate_ids = {q.get("item_id") for q in candidates}
+    by_stable = {q.get("item_id"): q for q in questions}
+    units = {}
+    for case in cases:
+        children = case["children"]
+        present = [child in candidate_ids for child in children]
+        if any(present) and not all(present):
+            sys.exit("selection filters split a staged case; exclude both children or remove the filter")
+        chosen_children = [child in selected_ids for child in children]
+        if any(chosen_children) and not all(chosen_children):
+            sys.exit("count splits a staged case; increase count or exclude both children")
+        if all(chosen_children):
+            for child in children:
+                units[child] = children
+    ordered, seen = [], set()
+    for q in items:
+        stable = q.get("item_id")
+        if stable in units:
+            for child in units[stable]:
+                if child not in seen:
+                    ordered.append(by_stable[child])
+                    seen.add(child)
+        else:
+            ordered.append(q)
+    items = ordered
+
     chosen = []
     for pos, q in enumerate(items):
         admitted = []

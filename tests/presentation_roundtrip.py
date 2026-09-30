@@ -446,7 +446,7 @@ def test_static_build_uses_settings_beside_bank():
     if r.returncode != 0:
         fail("itembank build without settings failed: %s" % r.stdout)
     page2 = open(out2, encoding="utf-8").read()
-    default = derive_theme("#0e6e62")["light"]["accent"]
+    default = derive_theme("#315fa6")["light"]["accent"]
     if token_value(style_css(page2), "accent") != default:
         fail("build without a settings file did not use schema defaults")
 
@@ -457,7 +457,7 @@ def test_forced_modes_preserve_semantic_tokens():
     """
     sys.path.insert(0, ROOT)
     from surfaces.theme import SEMANTIC_TOKENS
-    for mode, expected_bg in (("light", "#f3f5f4"), ("dark", "#0e1413")):
+    for mode, expected_bg in (("light", "#f5f4f0"), ("dark", "#14161b")):
         workdir = tempfile.mkdtemp()
         shutil.copy(BANK, os.path.join(workdir, "sample_bank.md"))
         write_settings_file(workdir, {"theme": mode, "accent.source": "#c00040"})

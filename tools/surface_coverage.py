@@ -116,7 +116,8 @@ CELLS = {
         "http": ["POST /api/course/rename",
                  "POST /api/course/add-container", "POST /api/course/bind-blueprint",
                  "POST /api/course/accept-migration", "POST /api/course/reject-migration",
-                 "POST /course/<course_id>/<area>"],
+                 "POST /course/<course_id>/<area>",
+                 "POST /course/<course_id>/outline/<action>"],
         "note": "Renaming and adding a structural container are both "
                 "reached. A container adds zero edges, because where a unit "
                 "sits in the outline is structure and not a prerequisite "
@@ -205,10 +206,10 @@ CELLS = {
     },
     ("source", "inspect"): {
         "cli": ["source recheck"], "http": ["POST /api/source/recheck",
-                                            "GET /course/<course_id>/<area>"],
-        "note": "The Sources area lists bound sources by name. There is no "
-                "reader: no surface opens a source and shows the passage an "
-                "objective cites.",
+                                            "GET /course/<course_id>/<area>",
+                                            "GET /course/<course_id>/research"],
+        "note": "The Sources area lists bound sources. Research previews an "
+                "accepted occurrence using its exact locator.",
     },
     ("source binding", "inspect"): {
         "cli": ["bind list"],
@@ -321,12 +322,12 @@ CELLS = {
     },
     ("learner note", "create"): {
         "cli": ["course save-reading-note"],
-        "http": ["POST /api/course/save-reading-note"],
+        "http": ["POST /api/course/save-reading-note", "POST /course/<course_id>/research"],
         "note": "A reading note is saved separately from accepted source text.",
     },
     ("learner note", "inspect"): {
-        "cli": [], "http": [],
-        "note": "Same module, same absence: nothing renders a note.",
+        "cli": [], "http": ["GET /course/<course_id>/research"],
+        "note": "The Research view lists private notes for explicit context inclusion.",
     },
     ("evidence event", "create"): {
         "cli": ["submit", "mark", "retract", "interact", "course declare-reading"],

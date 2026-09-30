@@ -24,7 +24,7 @@ diff without auditing first, so this is a property of the code rather than a
 rule you have to remember.
 
 The `sources`, `rights`, and `media` rows read `plan-text stand-in` today,
-because their backing records have not shipped. That is the honest answer,
+because this audit implementation does not consume backing records for those rows. General course source and rights commands do exist; they do not turn these rows into passes. That is the honest answer,
 not a pass. Do not report those three as checked, and do not fill them in
 from your own reading of the artifact.
 

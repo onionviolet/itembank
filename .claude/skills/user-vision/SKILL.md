@@ -48,7 +48,7 @@ purpose is the failure this skill is supposed to prevent, not a clean install.
 - A new statement seems to change an earlier direction and both must survive.
 - You are deciding what belongs in the authoritative vision versus a research or
   planning file.
-- Another agent (or a future you) must pick up the project cold.
+- A handoff must resolve product intent or an unresolved direction change. Routine cold-start code work uses the existing project entry point without a fresh vision audit.
 - You are about to write requirements and want to preserve breadth without
   shipping everything at once.
 
@@ -70,7 +70,7 @@ to the most recent summary.
 
 ## 1. Capture
 
-Every meaningful user statement first enters the capture funnel
+Apply the host workflow's consequence tiers: routine task mechanics need no new vision entry or disposition. Every meaningful product-direction statement first enters the capture funnel
 (`templates/USER-VISION-INBOX.md`), verbatim. Then decide its route:
 
 - **Promote** to the authoritative vision (`templates/USER-VISION.md`) only

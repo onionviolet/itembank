@@ -294,6 +294,26 @@ questions used to predict, notice, retrieve, explain, compare, diagnose,
 practice, transfer, and formally assess. Do not add a question type merely
 because a competitor has one or because it is visually novel.
 
+The September 30 [production coordination](research/question-types-2026-09-25/PRODUCTION-COORDINATION-2026-09-30.md)
+records the user's approval of two bounded assessment extensions. Fixed
+answer/reason cases bind two existing MC items as one selection unit, commit
+each once, and hold practice feedback until both commitments. Formal release
+continues to depend on the whole sitting. Each child retains its objective and
+attempt; session v4, revision binding and evidence linkage preserve recovery.
+Static staged HTML refuses with a served-session recovery action; the Markdown
+stimulus and prompts remain readable. Reviewed header proposals reuse the
+existing fingerprint, journal acceptance, cancellation and undo authorities.
+
+The polynomial field extension supports only the pinned rational-polynomial
+grammar, variable `x`, expanded-form rule and fixed resource bounds. Exact
+comparison belongs to the existing runtime scorer. Authored teacher,
+diagnostic, wrong-form and refusal tests validate the private configuration.
+Invalid, unsupported, unavailable and internal-error checks refuse without a
+wrong or pending-prose attempt. Private diagnostic identity follows hint-tier
+release; formal active views withhold outcomes. These extensions do not imply
+general symbolic algebra, prose grading, new domain adapters or whole-family
+acceptance. Source, human, packaged and installed gates remain separate.
+
 The authored representation may behave like an itembank document type, but it
 should remain an open, inspectable semantic contract built on portable files
 unless research proves that this cannot represent the required learning

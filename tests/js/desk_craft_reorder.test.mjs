@@ -20,7 +20,9 @@ cards = [
 shelf = {"cards": cards, "reorderable": True,
          "workspace_fingerprint": "sha256:before",
          "empty_heading": "No courses yet", "empty_body": "Add a course"}
-print(json.dumps({"body": daemon._course_shelf_body(shelf),
+# Reorder lives on Courses. Keep the production optional focus helper in the
+# fixture so the existing saved-session lead assertions remain covered too.
+print(json.dumps({"body": daemon._desk_hero(cards[0]) + daemon._course_shelf_body(shelf, list_only=True),
                   "script": daemon.SHELF_SCRIPT}))
 `], { cwd: new URL("../..", import.meta.url), encoding: "utf8" }));
 
@@ -58,6 +60,37 @@ function setup(response) {
 async function settle() {
   await new Promise(resolve => setImmediate(resolve));
 }
+
+test("moving an idle course ahead keeps the saved-session lead and runtime position", async () => {
+  const app = setup({ ok: true, json: () => Promise.resolve({
+    fingerprint: "sha256:after", course_ids: ["second", "first"],
+  }) });
+  try {
+    const active = app.shelf.querySelector('[data-course-id="first"]');
+    active.dataset.resumable = "true";
+    active.dataset.sessionContext = "Practice · Question 3 of 6";
+    const action = active.querySelector('.course-card-actions a');
+    action.href = "/quiz/logic?session=known&course=first";
+    action.textContent = "Resume";
+    action.setAttribute("aria-label", "Resume Logic and proofs");
+    const move = app.shelf.querySelector('[data-course-id="second"] [data-move="up"]');
+    move.closest("details").open = true;
+    move.focus();
+    move.click();
+    await settle();
+    assert.deepEqual(app.order(), ["second", "first"]);
+    assert.equal(app.lead().title, "Logic and proofs");
+    assert.equal(app.lead().label, "Resume");
+    assert.equal(app.focus.querySelector(".desk-eyebrow").textContent, "Continue a saved session");
+    const context = app.focus.querySelector(".desk-session-context");
+    assert.equal(context.hidden, false);
+    assert.equal(context.textContent, "Practice · Question 3 of 6");
+    const href = new URL(app.focus.querySelector(".desk-focus-actions a").href);
+    assert.equal(href.searchParams.get("session"), "known");
+  } finally {
+    app.dom.window.close();
+  }
+});
 
 function pointer(window, target, type, properties = {}) {
   const event = new window.Event(type, { bubbles: true, cancelable: true });

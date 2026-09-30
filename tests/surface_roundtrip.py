@@ -967,7 +967,7 @@ def check_study_theme_and_palette():
         default_page = study_page(bank2, qs)
         default_accent = presentation_roundtrip.token_value(
             presentation_roundtrip.style_css(default_page), "accent")
-        if default_accent != derive_theme("#0e6e62")["light"]["accent"]:
+        if default_accent != derive_theme(settings_mod.load_settings(tmp2)["accent"]["source"])["light"]["accent"]:
             fail("study page without settings did not use schema defaults")
     finally:
         shutil.rmtree(tmp, ignore_errors=True)

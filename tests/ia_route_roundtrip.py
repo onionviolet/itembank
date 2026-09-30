@@ -21,6 +21,7 @@ Standard library only, no test framework, runnable as
 import hashlib, html, inspect, io, json, os, random, re, shutil
 import subprocess, sys, tempfile
 import urllib.request
+from html.parser import HTMLParser
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
@@ -35,6 +36,19 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from daemon_roundtrip import start_daemon, get, json_request  # noqa: E402,F401
 
 BANK = os.path.join(ROOT, "fixtures", "sample_bank.md")
+
+
+def course_card_count(body):
+    class Cards(HTMLParser):
+        count = 0
+
+        def handle_starttag(self, tag, attrs):
+            if 'course-card' in dict(attrs).get('class', '').split():
+                self.count += 1
+
+    parser = Cards()
+    parser.feed(body)
+    return parser.count
 
 
 def fail(msg):
@@ -646,9 +660,9 @@ def check_shelf_end_to_end():
         status, body = get(url)
         if status != 200:
             fail("GET / returned %d with courses present" % status)
-        if body.count('class="course-card"') != 2:
+        if course_card_count(body) != 2:
             fail("GET / rendered %d course cards, expected 2"
-                 % body.count('class="course-card"'))
+                 % course_card_count(body))
         plain = html.unescape(body)
         # The landed 14B course record carries no resume cue at all, so the
         # real module yields the Start form rather than the Resume form. The
@@ -705,7 +719,7 @@ def check_shelf_falls_back_to_bank_index():
             status, body = get(url)
             if status != 200:
                 fail("the bank-index fallback returned %d" % status)
-            if 'class="course-card"' in body:
+            if course_card_count(body):
                 fail("a course card rendered with the course module absent")
             if "sample_bank" not in body:
                 fail("the shipped bank listing did not render")
@@ -739,7 +753,7 @@ def check_shelf_falls_back_to_bank_index():
                 fail("the empty index returned %d" % status)
             if "Nothing to serve here yet" not in body:
                 fail("D1's shipped empty-state heading was replaced")
-            if 'class="course-card"' in body:
+            if course_card_count(body):
                 fail("a course card rendered on an empty index")
         finally:
             proc.terminate()
@@ -1400,7 +1414,7 @@ def check_shelf_reorder_route_and_controls():
         original = _shelf_course_ids(workdir)
         desired = list(reversed(original))
         proc, url, lines = start_daemon(workdir)
-        status, body = get(url)
+        status, body = get(url + 'courses')
         if status != 200:
             fail("reorder shelf returned %d" % status)
         for needle in ('data-course-shelf', 'data-drag-handle',
@@ -1436,7 +1450,7 @@ def check_shelf_reorder_route_and_controls():
         proc.wait(timeout=5)
         proc = None
         proc, url, lines = start_daemon(workdir)
-        status, restarted = get(url)
+        status, restarted = get(url + 'courses')
         positions = [restarted.find('data-course-id="%s"' % course_id)
                      for course_id in desired]
         if any(position < 0 for position in positions) or positions != sorted(positions):
@@ -1467,7 +1481,6 @@ def check_first_launch_offline():
         if status != 200:
             fail("first launch returned %d" % status)
         for needle in ("Study Skills Basics (Sample)",
-                       "For exploring itembank. Remove it anytime.",
                        "New here? A short walkthrough shows how a course "
                        "works.",
                        "Start walkthrough", "Skip for now",
@@ -1483,8 +1496,14 @@ def check_first_launch_offline():
             if needle not in body:
                 fail("walkthrough control missed shared treatment: %r"
                      % needle)
-        if 'class="course-card"' not in body:
+        if not course_card_count(body):
             fail("the walkthrough offer replaced or blocked the shelf")
+
+        status, collection = get(url + 'courses')
+        if status != 200 or 'For exploring itembank. Remove it anytime.' not in html.unescape(collection):
+            fail('Courses omitted sample removal guidance')
+        if 'value="remove_sample_course"' not in collection:
+            fail('Courses omitted the sample removal control')
 
         status, _ = get(url + "course/" + sample_course.SAMPLE_COURSE_ID)
         if status != 200:

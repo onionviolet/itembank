@@ -19,6 +19,52 @@ from surfaces import presentation
 esc = presentation.esc
 
 
+def course_review_history(payload):
+    """Render an already-derived course history; answers stay with the runtime."""
+    parts = ['<section id="course-review-history"><h3>Review and confusion history</h3>',
+             '<p>Missed responses identify work to revisit, not a diagnosed misconception. '
+             'Detailed feedback follows the sitting\'s release policy.</p>']
+    for failure in payload.get("failures") or []:
+        parts.append('<p role="status">%s</p>' % esc(failure))
+    counts = payload["counts"]
+    parts.append('<p>Readable saved history: %d settled responses, %d missed responses, %d pending prose responses. '
+                 '%d responses with feedback withheld. %d reading declarations, separate from assessment scores.</p>' % (
+                     counts["settled"], counts["missed"], counts["pending"], counts["withheld"], counts["reading_reported"]))
+    parts.append('<p>Self-rating: %s. Flashcard ratings are session-only; they do not change a settled score.</p>' % esc(payload["self_rating"]))
+    if payload["session_state"] == "unavailable":
+        parts.append('<p role="status">Some sitting history is unavailable. Restore the exact bank revision and sitting before resuming.</p>')
+    if not payload["rows"]:
+        parts.append('<p>No readable saved response history is available.</p>')
+    for row in payload["rows"]:
+        parts.append('<article id="review-%s"><h4>%s: %s</h4><p>%s. %s</p>' % (
+            esc(row["event_id"]), esc(row["item_ref"]), esc(row["status"]),
+            esc(row["objective"]), esc(row["timestamp"])))
+        parts.append('<p><a href="%s">Open recorded sitting feedback</a></p>' % esc(row["feedback_href"]))
+        if row["resume_href"]:
+            parts.append('<p><a href="%s">Resume this exact sitting</a></p>' % esc(row["resume_href"]))
+        for link in row.get("context_links") or []:
+            parts.append('<p>%s: <a href="%s">%s</a></p>' % (esc(link["origin"]), esc(link["href"]), esc(link["label"])))
+        if row.get("confidence") is not None:
+            parts.append('<p>Reported confidence: %s. Separate from the settled result.</p>' % esc(str(row["confidence"])))
+        parts.append('</article>')
+    due = payload.get("due")
+    if due is None:
+        parts.append('<p role="status">Due work is unavailable until the local evidence and sitting checks pass.</p>')
+    if due:
+        parts.append(snapshot_stamp(due["claim"]))
+        due_rows = [(oid, row) for oid, row in due["objectives"].items() if row["due"]]
+        if due_rows:
+            parts.append('<h4>Due objective work</h4><ul>')
+            for oid, row in due_rows:
+                parts.append('<li>%s: %s. %d settled responses, %d pending. %s</li>' % (
+                    esc(oid), esc(row["state"]), row["settled"], row["pending"], esc(row.get("risk_reason") or '')))
+            parts.append('</ul>')
+        else:
+            parts.append('<p>No due objective recommendation in this evidence snapshot.</p>')
+    parts.append('</section>')
+    return ''.join(parts)
+
+
 def _fmt_rate(value):
     """A rate as text, or 'unknown' -- reading the already-derived number,
     never recomputing it (D-15: no arithmetic in the renderer)."""

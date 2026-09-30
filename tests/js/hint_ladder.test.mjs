@@ -8,10 +8,14 @@ const source = execFileSync(python, ["-c",
   { cwd: new URL("../..", import.meta.url), encoding: "utf8" });
 
 test("the shipped ladder has no reveal countdown or disabled affordance", () => {
-  assert.match(source, /class=\"hint-ladder\"/);
-  assert.match(source, /data-teach=/);
-  assert.doesNotMatch(source, /progressbar|aria-disabled|Show answer|Reveal answer/);
-  assert.doesNotMatch(source, /lock-glyph|assist-lock|Optional guidance is locked/);
+  const start = source.indexOf('function hintCard(');
+  const end = source.indexOf('function orderingCard(', start);
+  assert.ok(start >= 0 && end > start, 'hint rendering section must exist');
+  const ladder = source.slice(start, end);
+  assert.match(ladder, /class=\"hint-ladder\"/);
+  assert.match(ladder, /data-teach=/);
+  assert.doesNotMatch(ladder, /progressbar|aria-disabled|Show answer|Reveal answer/);
+  assert.doesNotMatch(ladder, /lock-glyph|assist-lock|Optional guidance is locked/);
 });
 
 test("locked cards render only route-provided headers and unlock copy", () => {

@@ -1,0 +1,265 @@
+--- dirty-base/surfaces/presentation.py
++++ surfaces/presentation.py
+@@ -480,41 +480,41 @@
+ # It changes presentation only. Theme colors still come from theme.py, and all
+ # behavior and authority remain with the existing route and runtime owners.
+ PRODUCT_CSS = r"""
++html{scroll-padding-top:88px}
+ body{margin:0;background:var(--paper);color:var(--product-ink)}
+-.product-shell{min-height:100vh;display:grid;grid-template-columns:224px minmax(0,1fr)}
+-.product-sidebar{position:sticky;top:0;height:100vh;border-right:1px solid var(--product-line);
+-  font-family:var(--font-chrome);
+-  padding:var(--space-4) var(--space-3);display:flex;flex-direction:column;background:var(--paper)}
+-.standalone-product-nav{position:fixed;left:0;z-index:20;width:224px;background:var(--paper)}
+-.wrap:has(.standalone-product-nav){margin-left:max(224px,calc((100vw - 1040px) / 2 + 112px))}
+-.product-brand{font-family:var(--font-chrome);font-size:var(--text-body);font-weight:600;
+-  color:var(--product-ink);display:flex;align-items:center;min-height:44px;padding:0 12px;
++.product-workspace .context-line{position:static}
++.product-shell{min-height:100vh;display:block}
++.product-sidebar{position:sticky;top:0;z-index:20;min-height:64px;
++  border-bottom:1px solid var(--product-line);font-family:var(--font-chrome);
++  padding:var(--space-2) var(--space-4);display:flex;align-items:center;
++  gap:var(--space-4);background:var(--card)}
++.standalone-product-nav{width:100%}
++.wrap:has(.standalone-product-nav){margin-left:auto}
++.product-brand{font-family:var(--font-chrome);font-size:var(--text-heading);font-weight:600;
++  color:var(--product-ink);display:flex;align-items:center;min-height:44px;
+   letter-spacing:-.02em}
+-.product-nav{display:grid;gap:2px;margin-top:var(--space-5)}
+-.product-nav a{min-height:44px;padding:10px 12px;border-radius:var(--r-1);
+-  color:var(--product-muted);display:flex;align-items:center;gap:12px;position:relative}
++.product-nav{display:flex;flex-wrap:wrap;gap:var(--space-2);margin:0}
++.product-nav a{min-height:44px;padding:var(--space-2) var(--space-3);border-radius:var(--r-1);
++  color:var(--product-muted);display:flex;align-items:center;gap:var(--space-2);position:relative}
+ .product-nav a:hover{background:var(--product-active);color:var(--product-ink);text-decoration:none}
+-.product-nav a[aria-current]{background:var(--product-active);color:var(--product-ink);font-weight:600}
+-.product-nav a[aria-current]:before{content:"";position:absolute;left:0;top:10px;bottom:10px;
+-  width:2px;border-radius:2px;background:var(--accent)}
++.product-nav a[aria-current]{background:var(--accent-soft);color:var(--accent);font-weight:600}
++.product-nav a[aria-current]:before{content:"";position:absolute;left:var(--space-3);
++  right:var(--space-3);bottom:0;height:2px;background:var(--accent)}
+ .product-nav svg{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;
+   stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+-.product-local{margin-top:auto;border-top:1px solid var(--product-line);padding-top:var(--space-3);
+-  color:var(--product-muted);font-size:var(--text-xs);padding-left:12px}
++.product-local{margin:0 0 0 auto;color:var(--product-muted);font-size:var(--text-xs)}
+ .product-workspace{min-width:0}
+-.product-topbar{min-height:56px;border-bottom:1px solid var(--product-line);padding:0 var(--space-6);
+-  display:flex;align-items:center;justify-content:space-between;color:var(--product-muted);
++.product-topbar{min-height:44px;max-width:1200px;margin:auto;padding:var(--space-2) var(--space-5);
++  display:flex;align-items:center;color:var(--product-muted);
+   font-size:var(--text-xs);gap:var(--space-3)}
+ .product-topbar span{overflow-wrap:anywhere}
+-.product-topbar span:last-child{flex:none}
+-.surface,.surface.wide{max-width:1120px;margin:0 auto;padding:var(--space-5) var(--space-6) var(--space-7)}
++.surface,.surface.wide{max-width:1200px;margin:0 auto;padding:var(--space-4) var(--space-5) var(--space-7)}
+ .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
+   clip:rect(0,0,0,0);border:0}
+ .surface:has(.desk-heading)>h1{position:absolute;width:1px;height:1px;padding:0;
+   margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}
+ .product-workspace h1{font-family:var(--font-chrome);font-weight:600;
+   font-size:var(--text-display);letter-spacing:-.025em;line-height:1.2}
+-.product-topbar{background:var(--card)}
+ .product-workspace h2{font-size:var(--text-heading);line-height:1.25;overflow-wrap:anywhere}
+ .app-nav{display:none}
+ button.go,a.go{border-radius:var(--r-1);padding-inline:var(--space-4)}
+@@ -555,7 +555,7 @@
+   font-weight:600;color:var(--product-muted)}
+ .desk-focus{display:flex;align-items:center;justify-content:space-between;gap:var(--space-5);
+   padding:var(--space-4) var(--space-5);margin-bottom:var(--space-5);
+-  border:1px solid var(--product-line);border-left:3px solid var(--product-green);
++  border:1px solid var(--product-line);border-left:3px solid var(--accent);
+   border-radius:var(--r-1);background:var(--card)}
+ .desk-focus-copy{min-width:0}
+ .desk-focus h2{font-family:var(--font-chrome);font-size:var(--text-heading);
+@@ -648,25 +648,63 @@
+   border-bottom:1px solid var(--product-line);border-radius:0;padding:var(--space-4) 0}
+ .row-head{display:flex;flex-wrap:wrap;justify-content:space-between;gap:var(--space-2)}
+ .row-note,.area-lead{color:var(--product-muted)}
++@media(min-width:768px) and (max-width:1000px){
++  .product-sidebar{padding-inline:var(--space-3);gap:var(--space-3)}
++  .product-local{display:none}
++  .product-nav a{padding-inline:var(--space-2)}
++}
++/* Home's course choices and activity roots share the workshop's rhythm. */
++.overhaul-course-choices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
++  gap:var(--space-3)}
++.overhaul-course-choice{border:1px solid var(--line);border-radius:var(--r-2);
++  background:var(--card);padding:var(--space-4)}
++.overhaul-course-heading{border-block-start:3px solid var(--accent);
++  padding-block-start:var(--space-4);margin-bottom:var(--space-4)}
++.overhaul-saved-sittings{border:1px solid var(--line);background:var(--card);
++  padding:var(--space-4);border-radius:var(--r-2)}
++.overhaul-reading,.overhaul-lesson,.overhaul-quiz{min-width:0}
++@media(max-width:767px){.overhaul-course-choices{grid-template-columns:minmax(0,1fr)}}
++/* A shared workshop composition, with prose measured inside a wider activity. */
++.overhaul-journey{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);
++  gap:var(--space-5);align-items:start}
++.overhaul-journey>*{min-width:0}
++.overhaul-lead{padding:var(--space-5);background:var(--card);
++  border:1px solid var(--line);border-block-start:4px solid var(--accent);
++  border-radius:var(--r-2);margin-bottom:var(--space-5)}
++.overhaul-lead h2{font-family:var(--font-paper);font-size:var(--text-display);
++  margin:var(--space-2) 0 var(--space-3)}
++.overhaul-prose{font-family:var(--font-paper);max-width:var(--measure-prose)}
++.overhaul-prose p{font-size:var(--text-lesson);line-height:var(--leading-lesson)}
++.overhaul-source{border-inline-start:3px solid var(--source-mark);
++  background:var(--source-bg);padding:var(--space-4)}
++.overhaul-notes{border-inline-start:3px solid var(--note-mark);
++  background:var(--note-bg);padding:var(--space-4)}
++.overhaul-source h2,.overhaul-notes h2{margin:0 0 var(--space-3)}
++.overhaul-notes textarea{width:100%;min-height:120px;font:inherit;
++  padding:var(--space-3);background:var(--card);color:var(--ink);border:1px solid var(--edge)}
++.overhaul-response{padding:var(--space-4);border:1px solid var(--edge);
++  background:var(--card);border-radius:var(--r-2);margin-top:var(--space-4)}
++.overhaul-response legend{font-size:var(--text-body);font-weight:600}
++.overhaul-response label{display:flex;align-items:center;gap:var(--space-2);
++  min-height:44px;font-size:var(--text-body)}
++@media(max-width:1000px){.overhaul-journey{grid-template-columns:minmax(0,1fr)}}
+ .vf-diff,.ib-diff{border-radius:var(--r-2);overflow:auto}
+ @media(max-width:767px){
++  html{scroll-padding-top:var(--space-3);scroll-padding-bottom:112px}
+   .course-nav-desktop{display:none}
+-  .product-shell{display:block}.product-sidebar{position:fixed;z-index:20;top:auto;bottom:0;
+-    left:0;right:0;width:100%;height:70px;padding:0 var(--space-1);border:0;
+-    border-top:1px solid var(--product-line);
+-    background:var(--paper)}
+-  .product-brand,.product-local{display:none}.product-nav{height:100%;display:grid;
++  .product-sidebar{position:fixed;z-index:20;top:auto;bottom:0;
++    left:0;right:0;width:100%;min-height:70px;padding:0 var(--space-1);border:0;
++    border-top:1px solid var(--product-line);background:var(--card)}
++  .product-brand,.product-local{display:none}.product-nav{width:100%;display:grid;
+     grid-template-columns:repeat(4,minmax(0,1fr));gap:0;margin:0}
+-  .product-nav a{display:flex;flex-direction:column;justify-content:center;gap:2px;
+-    padding:var(--space-1);min-height:44px;text-align:center;font-size:var(--text-xs)}
+-  .product-nav a[aria-current]{background:transparent}
+-  .product-nav a[aria-current]:before{left:calc(50% - 16px);right:calc(50% - 16px);
+-    top:0;bottom:auto;width:auto;height:2px}
+-  .product-nav svg{width:19px;height:19px}
+-  .product-topbar{min-height:52px;padding:0 var(--space-3)}
+-  .wrap:has(.standalone-product-nav){margin-left:auto}
++  .product-nav a{display:flex;flex-direction:column;justify-content:center;gap:var(--space-1);
++    padding:var(--space-2) var(--space-1);min-height:70px;text-align:center;font-size:var(--text-body)}
++  .product-nav a[aria-current]:before{left:var(--space-3);right:var(--space-3);
++    top:0;bottom:auto;height:2px}
++  .product-nav svg{width:18px;height:18px}
++  .product-topbar{padding:var(--space-2) var(--space-3)}
+   .ib-palette-open{display:none}
+-  .surface,.surface.wide{padding:var(--space-4) var(--space-3) calc(var(--space-7) + 70px)}
++  .surface,.surface.wide{padding:var(--space-3) var(--space-3) calc(var(--space-7) + 112px)}
+   .desk-heading{align-items:baseline;flex-wrap:wrap;gap:var(--space-2)}
+   .desk-focus{align-items:flex-start;flex-direction:column;padding:var(--space-3)}
+   .course-card{grid-template-columns:28px minmax(0,1fr);column-gap:var(--space-2)}
+@@ -728,7 +766,7 @@
+     """Open the shared responsive learner frame for standalone activities."""
+     return ('<div class="product-shell">%s'
+             '<div class="product-workspace"><header class="product-topbar">'
+-            '<span>Your workspace / %s</span><span>Local</span></header>'
++            '<span>%s</span></header>'
+             % (_product_sidebar(), esc(title)))
+ 
+ 
+@@ -784,8 +822,9 @@
+     """The one shared semantic document shell: doctype, generated theme
+     block plus shared design-token CSS, an optional sticky context line,
+     an optional back link, a single `h1`, a `main` landmark holding `body`,
+-    and an optional `<noscript>` fallback note. `wide=True` uses the 800px
+-    quiz measure; the default is the 720px reading column.
++    and an optional `<noscript>` fallback note. Non-product pages retain the
++    720px column (800px when wide); product pages use a responsive activity
++    canvas with individually measured prose regions.
+ 
+     The four trailing arguments exist so a surface can join this shell
+     instead of assembling a second one, which is the whole point of plan
+@@ -851,7 +890,7 @@
+                 "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
+                 "<title>%s</title>%s</head><body><div class=\"product-shell\">%s"
+                 '<div class="product-workspace"><header class="product-topbar">'
+-                '<span>Your workspace / %s</span><span>Local</span></header>'
++                '<span>%s</span></header>'
+                 '<div class="%s"%s>%s%s<main>%s</main>%s%s'
+                 '</div></div></div></body></html>'
+                 % (esc(head_title), style, product_sidebar, esc(head_title), esc(cls),
+--- dirty-base/surfaces/theme.py
++++ surfaces/theme.py
+@@ -297,11 +297,13 @@
+ 
+ 
+ def _root_block(tokens):
+-    return ":root{\n  %s;\n}" % _tokens_css(tokens)
++    # Native inputs and scrollbars follow the selected ground, including OLED.
++    scheme = "dark" if relative_luminance(tokens["bg"]) < .2 else "light"
++    return ":root{\n  color-scheme:%s;\n  %s;\n}" % (scheme, _tokens_css(tokens))
+ 
+ 
+ def _dark_media_block(tokens):
+-    return ("@media (prefers-color-scheme:dark){\n  :root{\n    %s;\n  }\n}"
++    return ("@media (prefers-color-scheme:dark){\n  :root{\n    color-scheme:dark;\n    %s;\n  }\n}"
+             % _tokens_css(tokens))
+ 
+ 
+@@ -449,9 +451,9 @@
+ # token names -- never literals -- so no second palette owner exists.
+ SETTINGS_CSS = r"""
+ .field{margin:0 0 16px}
+-.field label{display:block;font-size:14px;color:var(--mut);margin:0 0 8px}
++.field label{display:block;font-size:var(--text-body);color:var(--mut);margin:0 0 8px}
+ .field-row{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+-.source-text{font-size:14px;color:var(--mut)}
++.source-text{font-size:var(--text-body);color:var(--mut)}
+ .actions{display:flex;flex-wrap:wrap;gap:12px;margin:0 0 24px}
+ .actions button{min-height:44px;font:inherit;font-size:16px;font-weight:600;
+   padding:10px 16px;border-radius:8px;border:1px solid var(--line);
+@@ -473,12 +475,12 @@
+ .preview-card[aria-pressed="true"]{outline:3px solid var(--accent);
+   outline-offset:2px}
+ .preview-card:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+-.preview-title{display:block;font-size:18px;font-weight:650;margin:0 0 12px}
++.preview-title{display:block;font-size:18px;font-weight:600;margin:0 0 12px}
+ .swatch{height:44px;border-radius:8px;border:1px solid var(--line);
+   margin:0 0 8px}
+-.rendered{font-size:14px;color:var(--mut);margin:0 0 12px}
++.rendered{font-size:var(--text-body);color:var(--mut);margin:0 0 12px}
+ .samples{display:flex;flex-wrap:wrap;gap:8px}
+-.sample{font-size:14px;padding:4px 10px;border-radius:6px;
++.sample{font-size:var(--text-body);padding:4px 10px;border-radius:6px;
+   border:1px solid var(--line)}
+ .sample.state-ok{color:var(--ok);background:var(--ok-bg);border-color:var(--ok)}
+ .sample.state-bad{color:var(--bad);background:var(--bad-bg);border-color:var(--bad)}
+@@ -488,17 +490,17 @@
+ .sample.state-focus{outline:2px solid var(--accent);outline-offset:2px}
+ details.accessibility{border:1px solid var(--line);border-radius:8px;
+   padding:8px 12px;margin:0 0 24px;background:var(--card)}
+-details.accessibility summary{cursor:pointer;font-size:14px;font-weight:600;
+-  padding:4px 0}
++details.accessibility summary{cursor:pointer;font-size:var(--text-body);font-weight:600;
++  min-height:44px;padding:var(--space-2) 0}
+ details.accessibility summary:focus-visible{outline:2px solid var(--accent);
+   outline-offset:2px}
+-details.accessibility p{font-size:14px;color:var(--mut)}
++details.accessibility p{font-size:var(--text-body);color:var(--mut)}
+ .ratios{margin:8px 0 0}
+ .ratio{display:flex;justify-content:space-between;gap:16px;
+-  font-size:14px;color:var(--mut);padding:4px 0;
++  font-size:var(--text-body);color:var(--mut);padding:4px 0;
+   border-bottom:1px solid var(--line)}
+ .ratio:last-child{border-bottom:0}
+-.status{min-height:24px;font-size:14px;color:var(--mut);margin:0}
++.status{min-height:24px;font-size:var(--text-body);color:var(--mut);margin:0}
+ .looks{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+   gap:12px;margin:0 0 16px}
+ .look-card{display:grid;gap:6px;text-align:left;min-height:44px;font:inherit;
+@@ -507,10 +509,10 @@
+ .look-card:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+ .look-card[data-current]{border-color:var(--accent);
+   background:var(--accent-soft)}
+-.look-name{font-size:16px;font-weight:650}
+-.look-blurb{font-size:14px;color:var(--mut)}
++.look-name{font-size:16px;font-weight:600}
++.look-blurb{font-size:var(--text-body);color:var(--mut)}
+ .look-detail{font-size:12px;color:var(--mut)}
+-.look-now{font-size:12px;font-weight:650;color:var(--accent)}
++.look-now{font-size:12px;font-weight:600;color:var(--accent)}
+ @media (max-width:767px){
+   .previews{grid-template-columns:1fr}
+   .actions button{width:100%}

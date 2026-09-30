@@ -490,7 +490,8 @@ def check_responsive_and_motion():
         # flexbox overflow-avoidance 0 or tiny touch/key tokens -- never a
         # value that forces horizontal scroll at a 288px 320px-viewport
         # content width.
-        for m in re.finditer(r"min-width:\s*([0-9.]+)px", css):
+        # A media-query threshold is not a minimum element width.
+        for m in re.finditer(r"(?:^|[;{])\s*min-width:\s*([0-9.]+)px", css):
             if float(m.group(1)) >= 240:
                 fail("the shared CSS carries a min-width (%spx) that can "
                      "overflow 320px" % m.group(1))

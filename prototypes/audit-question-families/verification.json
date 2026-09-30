@@ -1,0 +1,163 @@
+{
+  "date": "2026-09-29",
+  "lane": "A2",
+  "base_head": "8ccd45832b66b0b86bb406d6232ef0633ef71dc3",
+  "before_snapshot_directory": "itembank-a2-before-ysgt8he_",
+  "changed_paths": {
+    ".planning/research/absorption-2026-09-28/A2-QUESTION-FAMILIES-2026-09-29.md": {
+      "before": null,
+      "after": "c737c6d97fa18da04de493306252993e6580000ee7b68e4c41e45f7e6296eef9"
+    },
+    "prototypes/audit-question-families/README.md": {
+      "before": null,
+      "after": "e584eac5d4d7761ceac0d1d9fd4e2b226ab1af417ed813b022027f1c9d0adb3f"
+    },
+    "prototypes/audit-question-families/acceptance.json": {
+      "before": null,
+      "after": "902dc7fc7a7b28664a2c52a24f493bc407de09d59bf08aca77e91235b4c8e68d"
+    },
+    "prototypes/audit-question-families/blank-refusal.png": {
+      "before": null,
+      "after": "771176b57d391493843ef50843b6f6c3f8dd54767432cc4d8701f64fcf1912e1"
+    },
+    "prototypes/audit-question-families/families.py": {
+      "before": null,
+      "after": "ab0ab947395383d0a944d25d2df3d144013222a934f8344a196f04fa265621ff"
+    },
+    "prototypes/audit-question-families/fixtures/bank.md": {
+      "before": null,
+      "after": "aa6ab9c72be3a7ecdc37845412b32dcb3cada315e2dbace0d603539517c08584"
+    },
+    "prototypes/audit-question-families/polynomial.py": {
+      "before": null,
+      "after": "f92372bbe73a7ca48c3c0c6600e1f8937ee3cc75ce5be6ab36d1079d303bcb79"
+    },
+    "prototypes/audit-question-families/staged-complete.png": {
+      "before": null,
+      "after": "0adc5f12e17e63da0a7cabb7e3ba6ab0fabded1323bf11d6a5a34407ff0ceace"
+    },
+    "tests/a2_question_families_roundtrip.py": {
+      "before": null,
+      "after": "36a4ca631f2a0e32bd6f81052ccfb11b8261195fa4169b1c864e62f43f4e3ff9"
+    }
+  },
+  "sampled_dependencies": {
+    "model.py": {
+      "before": "b9b8ead1a3114dd0e57effa0acdc8cc9b5822b71e8c9c080a2391f4120151335",
+      "after": "b9b8ead1a3114dd0e57effa0acdc8cc9b5822b71e8c9c080a2391f4120151335",
+      "concurrent_drift": false
+    },
+    "runtime.py": {
+      "before": "cccb78a4df778a55ecbe63fc96ccd889d1b5dd74c9ab0183dfcc5bf49fe5aeb6",
+      "after": "cccb78a4df778a55ecbe63fc96ccd889d1b5dd74c9ab0183dfcc5bf49fe5aeb6",
+      "concurrent_drift": false
+    },
+    "surfaces/session.py": {
+      "before": "f58965936ac0a04daf205142591a3699f1c8e4f7d69d6f804bdfffcff8e1c2a4",
+      "after": "f58965936ac0a04daf205142591a3699f1c8e4f7d69d6f804bdfffcff8e1c2a4",
+      "concurrent_drift": false
+    },
+    "journal.py": {
+      "before": "2508799797a367edaed102beba967374e329eab7299eb36611c325e5d9719372",
+      "after": "2508799797a367edaed102beba967374e329eab7299eb36611c325e5d9719372",
+      "concurrent_drift": false
+    },
+    "schemas/item.schema.json": {
+      "before": "c2d421ec533136d3a10f4cbaa0b6ddc79ea90f9a5c4e2babf83a79920250db2a",
+      "after": "c2d421ec533136d3a10f4cbaa0b6ddc79ea90f9a5c4e2babf83a79920250db2a",
+      "concurrent_drift": false
+    },
+    "schemas/response.schema.json": {
+      "before": "bf0bc27e890850cdae8aeadab0f5ba82e7df6f2da1ff2e0a1f4c86b965840437",
+      "after": "bf0bc27e890850cdae8aeadab0f5ba82e7df6f2da1ff2e0a1f4c86b965840437",
+      "concurrent_drift": false
+    },
+    ".planning/research/question-types-2026-09-25/BACKLOG.md": {
+      "before": "e483856cac4bd646713291627671d6622df8b01768a5cdebc845bfd4c06a1704",
+      "after": "e483856cac4bd646713291627671d6622df8b01768a5cdebc845bfd4c06a1704",
+      "concurrent_drift": false
+    }
+  },
+  "browser_journeys": {
+    "staged": {
+      "bank_hash": "aa6ab9c72be3a7ecdc37845412b32dcb3cada315e2dbace0d603539517c08584",
+      "fixture_matches": true,
+      "status": "complete",
+      "cursor": 2,
+      "response_count": 2,
+      "responses": [
+        {
+          "item_id": "a200000000000001",
+          "objective": "synthetic:counter-result",
+          "answer": "B",
+          "score": false
+        },
+        {
+          "item_id": "a200000000000002",
+          "objective": "synthetic:counter-reason",
+          "answer": "B",
+          "score": true
+        }
+      ],
+      "checkpoint": {
+        "seconds": 60,
+        "complete": true
+      }
+    },
+    "blanks": {
+      "bank_hash": "aa6ab9c72be3a7ecdc37845412b32dcb3cada315e2dbace0d603539517c08584",
+      "fixture_matches": true,
+      "status": "complete",
+      "cursor": 1,
+      "response_count": 1,
+      "responses": [
+        {
+          "item_id": "a200000000000003",
+          "objective": "synthetic:flag",
+          "answer": {
+            "color": "blue",
+            "count": "5/2"
+          },
+          "score": true
+        }
+      ],
+      "checkpoint": {
+        "seconds": 0,
+        "complete": false
+      }
+    },
+    "evidence": {
+      "bank_hash": "aa6ab9c72be3a7ecdc37845412b32dcb3cada315e2dbace0d603539517c08584",
+      "fixture_matches": true,
+      "status": "complete",
+      "cursor": 1,
+      "response_count": 1,
+      "responses": [
+        {
+          "item_id": "a200000000000004",
+          "objective": "synthetic:evidence",
+          "answer": [
+            "A",
+            "C"
+          ],
+          "score": true
+        }
+      ],
+      "checkpoint": {
+        "seconds": 0,
+        "complete": false
+      }
+    }
+  },
+  "proof": "source only; no package, installed or human acceptance",
+  "a2_tests": 12,
+  "polynomial_authored_cases": 16,
+  "lint": {
+    "items": 4,
+    "errors": 0,
+    "warnings": 0
+  },
+  "scoped_guard_offenders": 0,
+  "combined_preflight": "owned by A5; not run",
+  "self_fingerprint": "verification.json excludes itself to avoid a recursive hash"
+}

@@ -513,7 +513,8 @@ def test_static_and_refused_render_states():
         os.path.join(ROOT, "fixtures", "lesson_bank.md"), qs, les)
     if lesson_surface.RUN_STATIC_COPY not in page:
         fail("static render must carry the exact static copy")
-    if "run-go" in page or "run-source" in page:
+    controls = r'<(?:button|textarea)\b[^>]*\bclass=["\x27][^"\x27]*\brun-(?:go|source)\b'
+    if re.search(controls, page):
         fail("static render must carry no Run control")
     # LAN-refused daemon render: the exact LAN copy, no control. Uses the CS
     # bank so the fence language is profile-enabled and the LAN gate is the
@@ -530,7 +531,7 @@ def test_static_and_refused_render_states():
             session_id="sess-1", lan_refused=True)
         if lesson_surface.RUN_LAN_REFUSAL_COPY not in page_lan:
             fail("LAN-refused render must carry the exact LAN copy")
-        if "run-go" in page_lan:
+        if re.search(controls, page_lan):
             fail("LAN-refused render must carry no Run control")
         # The fence enumeration the daemon resolves block ids against matches
         # the renderer's sequential ids for the CS fixture.

@@ -221,7 +221,7 @@ def check_offline_build_page():
 def check_draft_is_served_only_and_presentation_only():
     """13.9-05 sitting fallout, 2026-08-25. Draft autosave is a served-page
     enhancement over the script-free baseline: it lives in SERVED_JS only,
-    touches only text controls, restores the latest unanswered local edit over
+    touches text controls and scoped assignment selects, restores the latest unanswered local edit over
     authored defaults or an earlier server echo, clears after acknowledged
     submission, and never joins a submit payload."""
     js = served_js()
@@ -234,8 +234,13 @@ def check_draft_is_served_only_and_presentation_only():
         fail("OFFLINE_JS must stay storage-free; the offline build has no session")
     if "localStorage" in quiz_page.ASSIST_JS:
         fail("ASSIST_JS must stay storage-free; the assist layer has no session")
-    if 'querySelectorAll("textarea, input[type=text]")' not in js:
-        fail("the draft must touch only text controls")
+    draft = js[js.index("function installDraft("):js.index("/* ---- start:", js.index("function installDraft("))]
+    if 'baseline.dataset.responseType === "dnd" || baseline.dataset.responseType === "table"' not in draft or \
+            'querySelectorAll(assignment ? "select[data-row-id]" : build ? "select[name^=step_]" : "textarea, input[type=text]")' not in draft:
+        fail("draft selects must be scoped to stable-ID assignment controls, excluding visual commit controls")
+    if 'vals[el.dataset.rowId] = el.value' not in draft or \
+            'Array.from(el.options).some(function(option){ return option.value === saved[el.dataset.rowId]; })' not in draft:
+        fail("assignment drafts must preserve stable row IDs and reject values outside declared options")
     if not re.search(r'typeof saved\[idx\] === "string"\)\s*el.value = saved\[idx\]', js) or \
             'el.value = fillValues[ids[idx]]' not in js:
         fail("the latest local draft must replace authored defaults and stale server echoes")
@@ -250,7 +255,7 @@ def check_draft_is_served_only_and_presentation_only():
         fail("drafts must be keyed by bank and item, not session; a restart re-mints the session id")
     if '"itembank.draft." + sid' in js:
         fail("drafts must be keyed by bank and item, not session; a restart re-mints the session id")
-    ok("draft autosave: served-only, text-only controls, latest-edit restore, "
+    ok("draft autosave: served-only, text and scoped assignment controls, latest-edit restore, "
        "keyed by bank and item so a restart cannot orphan it")
 
 

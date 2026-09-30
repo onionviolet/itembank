@@ -2,7 +2,7 @@
 """Responsive product contract for the accepted learner workspace.
 
 Desktop and phone share routes and runtime state, but they do not share one
-shrunken composition. This test guards the wide persistent workspace, narrow
+shrunken composition. This test guards the compact persistent frame, narrow
 touch navigation, activity framing, and resize-safe response ownership.
 """
 import os
@@ -35,8 +35,9 @@ def check_desktop_workspace():
     if page.count('class="product-sidebar"') != 1:
         fail("desktop workspace rendered duplicate persistent navigation")
     css = presentation.PRODUCT_CSS
-    for rule in ("grid-template-columns:224px minmax(0,1fr)",
-                 ".product-topbar{min-height:56px",
+    for rule in (".product-shell{min-height:100vh;display:block}",
+                 ".product-topbar{min-height:44px",
+                 ".product-sidebar{position:sticky",
                  ".desk-focus{display:flex", ".desk-below{min-width:0}",
                  ".course-card{display:grid;grid-template-columns:36px minmax(0,1fr) auto"):
         if rule not in css:
@@ -45,15 +46,15 @@ def check_desktop_workspace():
                      ".course-card .actions .secondary{display:none}"):
         if obsolete in css:
             fail("desktop composition retains obsolete treatment %r" % obsolete)
-    print("ok: desktop has one persistent rail, concise resume context, and a full-width shelf")
+    print("ok: desktop has one compact persistent frame, concise context, and a full-width shelf")
 
 
 def check_phone_workflow():
     css = presentation.PRODUCT_CSS
     phone = css[css.index("@media(max-width:767px)"):]
     required = (
-        ".product-shell{display:block}", "position:fixed", "bottom:0",
-        "height:70px", ".desk-focus{align-items:flex-start;flex-direction:column",
+        "position:fixed", "bottom:0",
+        "min-height:70px", ".desk-focus{align-items:flex-start;flex-direction:column",
         ".course-card{grid-template-columns:28px minmax(0,1fr)",
         ".course-card-actions,.course-details{grid-column:2}",
         ".ib-palette-open{display:none}",
@@ -63,7 +64,7 @@ def check_phone_workflow():
             fail("phone composition omitted %r" % token)
     if "min-height:44px" not in css:
         fail("phone navigation lost its 44px minimum touch target")
-    print("ok: phone swaps the rail for fixed touch navigation and wraps shelf actions")
+    print("ok: phone swaps the horizontal frame for fixed touch navigation and wraps shelf actions")
 
 
 def check_reading_and_practice_share_the_frame():

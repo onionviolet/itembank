@@ -44,6 +44,7 @@ import zipfile
 import evidence
 import identity
 import journal
+import resources
 import schema_validate
 
 PACKAGE_SCHEMA_VERSION = 1
@@ -1069,9 +1070,13 @@ def _capture_reading_transport(base, course_root, manifest, payloads, evidence_r
                            'Private recovery history requires current private notes.')
     import course
     import graph
+    import notes
     cid = manifest['course_object_id']
     doc = course.read_course(course_root)['doc']
-    if not doc.get('reading_occurrences') and b'"reading_declared"' not in evidence_raw:
+    note_root = os.path.join(base, notes.NOTES_DIRNAME)
+    has_notes = any(os.path.isfile(os.path.join(note_root, name))
+                    for name in ('notes.md', 'notes.md.json'))
+    if not doc.get('reading_occurrences') and b'"reading_declared"' not in evidence_raw and not has_notes:
         return None, []
     losses = []
     personal = _capture_private_notes(base, cid, include_private_notes,
@@ -1093,6 +1098,10 @@ def _capture_reading_transport(base, course_root, manifest, payloads, evidence_r
         refs.update(event['source_ref']['source_object_id']
                     for event in _validated_evidence_events(evidence_raw)
                     if event.get('event_type') == 'reading_declared')
+        if personal is not None:
+            captured_notes = json.loads(base64.b64decode(personal['files']['notes.md.json']))
+            refs.update(target['stable_id'] for note in captured_notes['notes']
+                        for target in note['targets'] if target['target_kind'] == 'source')
         ids = {entry['object_id'] for entry in manifest['entries']
                if entry['object_id'] == cid or entry['object_id'] in refs}
         ordered = []
@@ -1478,7 +1487,8 @@ def verify_manifest(package_root):
     return package_snapshot(package_root)["verification"]
 
 
-def restore_package(package_root, dest, actor_kind, actor_name, _snapshot=None):
+def restore_package(package_root, dest, actor_kind, actor_name, _snapshot=None,
+                    _staging=False):
     """Restore a package into `dest` and report what was verified.
 
     `dest` needs no shared journal, no shared registry, and no shared
@@ -1520,11 +1530,60 @@ def restore_package(package_root, dest, actor_kind, actor_name, _snapshot=None):
     if snapshot.get('reading_transport_raw') is not None:
         return _restore_reading_transport(snapshot, dest, actor_kind, actor_name)
 
+    if _staging:
+        # The course operation owns this private stage and its one final
+        # publication. Do not publish a second root inside that transaction.
+        return _restore_ordinary_package(snapshot, dest, actor_kind, actor_name)
+
+    dest = os.path.abspath(dest)
+    parent = os.path.realpath(os.path.dirname(dest))
+    if not os.path.isdir(parent):
+        raise PackageError('package.destination_unavailable',
+                           'Restore parent is unavailable. Choose an existing parent directory.')
+    dest = os.path.join(parent, os.path.basename(dest))
+    existed = os.path.lexists(dest)
+    if existed and (os.path.islink(dest) or not os.path.isdir(dest)):
+        raise PackageError('package.destination_exists',
+                           'Restore destination is not a plain directory.')
+    if not existed or not os.listdir(dest):
+        # Journal transactions remain the authority, but run out of sight.
+        # A clean root becomes visible only after all objects and evidence
+        # have succeeded. A raced destination is never replaced.
+        with private_stage(parent) as stage:
+            result = _restore_ordinary_package(snapshot, stage, actor_kind, actor_name)
+            for directory, _dirs, names in os.walk(stage, topdown=False):
+                for name in names:
+                    with open(os.path.join(directory, name), 'rb') as stream:
+                        os.fsync(stream.fileno())
+                evidence._sync_evidence_directory(os.path.join(directory, 'sentinel'))
+            if existed:
+                os.rmdir(dest)  # Refuses a concurrent write into the empty root.
+            try:
+                publish_directory(parent, stage, dest)
+                evidence._sync_evidence_directory(dest)
+            except BaseException:
+                if existed and not os.path.lexists(dest):
+                    try:
+                        os.mkdir(dest)
+                    except FileExistsError:
+                        pass
+                raise
+            return result
+    return _restore_ordinary_package(snapshot, dest, actor_kind, actor_name)
+
+
+def _restore_ordinary_package(snapshot, dest, actor_kind, actor_name):
+    """Replay through the existing journal, privately or into a populated root.
+
+    Populated-root merges keep per-object atomicity and conflict checks;
+    they do not promise atomic publication of the whole root.
+    """
+    manifest = snapshot['manifest']
+    entries = manifest['entries']
     # Exercise the same evidence writer against a private disposable copy
     # before any destination object is accepted. Invalid correction epochs or
     # divergent immutable event IDs must not leave a partially restored course.
-    if any(event.get("event_type") == "reading_declared"
-           for event in snapshot["evidence"]):
+    if snapshot["evidence"]:
         with tempfile.TemporaryDirectory(prefix="itembank-restore-evidence-") as stage:
             log = evidence.log_path(dest)
             if os.path.exists(log):
@@ -1536,6 +1595,24 @@ def restore_package(package_root, dest, actor_kind, actor_name, _snapshot=None):
                               manifest["course_object_id"])
 
     destination_registry = journal.read_registry(dest)
+    # Refuse every known destination conflict before restoring the first
+    # object. Registry equality alone cannot prove unchanged on-disk bytes.
+    for entry in entries:
+        if entry["kind"] not in PACKAGED_KINDS:
+            continue
+        target = safe_target(dest, entry["relpath"])
+        existing = destination_registry.get(entry["object_id"])
+        if existing is not None:
+            if (existing.get("fingerprint") != entry["fingerprint"] or
+                    existing.get("path") != entry["relpath"] or
+                    existing.get("kind") != entry["kind"] or
+                    journal.object_state(dest, entry["object_id"]) != "clean"):
+                raise PackageError("package.object_conflict",
+                                   "Destination object changed. Nothing was overwritten.")
+        elif os.path.lexists(target) or any(
+                row.get("path") == entry["relpath"] for row in destination_registry.values()):
+            raise PackageError("package.object_conflict",
+                               "Destination path belongs to another object. Nothing was overwritten.")
     verified, restore_losses = 0, []
     for entry in entries:
         if entry["kind"] not in PACKAGED_KINDS:
@@ -1767,9 +1844,7 @@ def _restore_evidence(events, dest, course_id=None):
 
 def _validated_evidence_events(raw):
     """Read every carried evidence row before restore mutation begins."""
-    with open(os.path.join(os.path.dirname(__file__), "schemas",
-                           "response.schema.json"), encoding="utf-8") as fh:
-        schema = json.load(fh)
+    schema = json.loads(resources.read_text("schemas/response.schema.json"))
     try:
         text = raw.decode("utf-8")
     except UnicodeError as err:

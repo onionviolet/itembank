@@ -76,6 +76,50 @@
     "response_schema": {
       "type": "object",
       "description": "Describes the shape a submitted answer must take. Its own inner shape varies by item type; see the mc/multi, table/dnd, build and short variants below."
+    },
+    "matching": {
+      "$ref": "#/$defs/matching"
+    },
+    "ordering": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "revision"
+      ],
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "revision": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{16}$"
+        }
+      }
+    },
+    "blocks": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 64,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "text"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          }
+        }
+      }
     }
   },
   "oneOf": [
@@ -129,8 +173,11 @@
           "type": "string"
         },
         "id": {
-          "type": "integer",
-          "description": "The row's position in the served (possibly shuffled) list, not a stable identity"
+          "type": [
+            "integer",
+            "string"
+          ],
+          "description": "Legacy positional integer or authored stable matching row ID."
         }
       }
     },
@@ -150,15 +197,44 @@
         },
         "options": {
           "type": "array",
-          "minItems": 3,
+          "minItems": 2,
           "items": {
             "$ref": "#/$defs/option"
           }
         },
         "response_schema": {
           "$ref": "#/$defs/mc_multi_response_schema"
+        },
+        "answer_format": {
+          "const": "true-false"
         }
-      }
+      },
+      "oneOf": [
+        {
+          "required": [
+            "answer_format"
+          ],
+          "properties": {
+            "type": {
+              "const": "mc"
+            },
+            "options": {
+              "maxItems": 2
+            }
+          }
+        },
+        {
+          "properties": {
+            "options": {
+              "minItems": 3
+            },
+            "answer_format": {
+              "const": null,
+              "description": "Ordinary choices omit answer_format; the common true-false const excludes a present null."
+            }
+          }
+        }
+      ]
     },
     "table_dnd_item": {
       "type": "object",
@@ -196,6 +272,37 @@
     },
     "build_item": {
       "type": "object",
+      "oneOf": [
+        {
+          "properties": {
+            "response_schema": {
+              "properties": {
+                "items": {
+                  "const": "step text"
+                }
+              }
+            }
+          }
+        },
+        {
+          "required": [
+            "ordering",
+            "blocks"
+          ],
+          "properties": {
+            "response_schema": {
+              "required": [
+                "allowed"
+              ],
+              "properties": {
+                "items": {
+                  "const": "block id"
+                }
+              }
+            }
+          }
+        }
+      ],
       "required": [
         "type",
         "steps",
@@ -267,6 +374,10 @@
         "lesson_slug": {
           "type": "string"
         },
+        "fill_layout": {
+          "const": "inline",
+          "description": "Optional presentation of existing fields at unique escaped {{field_id}} stem markers. No scoring or response change."
+        },
         "fields": {
           "type": "array",
           "minItems": 1,
@@ -278,6 +389,9 @@
               },
               {
                 "$ref": "#/$defs/fill_numeric_field"
+              },
+              {
+                "$ref": "#/$defs/fill_polynomial_field"
               }
             ]
           }
@@ -472,10 +586,17 @@
             "plane": {
               "type": "object",
               "additionalProperties": false,
-              "required": ["width", "height"],
+              "required": [
+                "width",
+                "height"
+              ],
               "properties": {
-                "width": {"type": "string"},
-                "height": {"type": "string"}
+                "width": {
+                  "type": "string"
+                },
+                "height": {
+                  "type": "string"
+                }
               }
             },
             "regions": {
@@ -484,13 +605,30 @@
               "items": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": ["id", "label", "shape", "coords"],
+                "required": [
+                  "id",
+                  "label",
+                  "shape",
+                  "coords"
+                ],
                 "properties": {
-                  "id": {"type": "string"},
-                  "label": {"type": "string"},
-                  "shape": {"type": "string",
-                             "enum": ["rect", "circle", "polygon"]},
-                  "coords": {"type": "array"}
+                  "id": {
+                    "type": "string"
+                  },
+                  "label": {
+                    "type": "string"
+                  },
+                  "shape": {
+                    "type": "string",
+                    "enum": [
+                      "rect",
+                      "circle",
+                      "polygon"
+                    ]
+                  },
+                  "coords": {
+                    "type": "array"
+                  }
                 }
               }
             },
@@ -500,10 +638,17 @@
               "items": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": ["id", "label"],
+                "required": [
+                  "id",
+                  "label"
+                ],
                 "properties": {
-                  "id": {"type": "string"},
-                  "label": {"type": "string"}
+                  "id": {
+                    "type": "string"
+                  },
+                  "label": {
+                    "type": "string"
+                  }
                 }
               }
             },
@@ -513,12 +658,25 @@
               "items": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": ["id", "label", "x", "y"],
+                "required": [
+                  "id",
+                  "label",
+                  "x",
+                  "y"
+                ],
                 "properties": {
-                  "id": {"type": "string"},
-                  "label": {"type": "string"},
-                  "x": {"type": "string"},
-                  "y": {"type": "string"}
+                  "id": {
+                    "type": "string"
+                  },
+                  "label": {
+                    "type": "string"
+                  },
+                  "x": {
+                    "type": "string"
+                  },
+                  "y": {
+                    "type": "string"
+                  }
                 }
               }
             },
@@ -681,8 +839,21 @@
           "const": "array"
         },
         "items": {
-          "const": "step text",
-          "description": "Literal descriptive text: a response is an array of step text"
+          "enum": [
+            "step text",
+            "block id"
+          ],
+          "description": "Legacy responses use step text; versioned ordering uses stable block IDs"
+        },
+        "allowed": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 64,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+          }
         },
         "ordered": {
           "const": true
@@ -870,6 +1041,143 @@
         },
         "input": {
           "type": "string"
+        }
+      }
+    },
+    "matching": {
+      "type": "object",
+      "required": [
+        "version",
+        "reuse",
+        "choices"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "reuse": {
+          "enum": [
+            "once",
+            "unlimited"
+          ]
+        },
+        "choices": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 64,
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "text"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+              },
+              "text": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1000
+              }
+            }
+          }
+        }
+      }
+    },
+    "fill_polynomial_field": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "label",
+        "kind",
+        "checker"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/fill_field_id"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^(?!\\s*$)(?![\\s\\S]*[\\u0000-\\u001f\\u007f-\\u009f\\u2028\\u2029])[\\s\\S]+$"
+        },
+        "kind": {
+          "const": "polynomial"
+        },
+        "checker": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "domain",
+            "checker_version",
+            "variable",
+            "required_form",
+            "grammar",
+            "limits"
+          ],
+          "properties": {
+            "domain": {
+              "const": "rational-polynomial"
+            },
+            "checker_version": {
+              "const": "a5-rational-polynomial-v2"
+            },
+            "variable": {
+              "const": "x"
+            },
+            "required_form": {
+              "const": "expanded"
+            },
+            "grammar": {
+              "type": "string"
+            },
+            "limits": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "characters",
+                "tokens",
+                "nodes",
+                "depth",
+                "literal_digits",
+                "degree",
+                "coefficient",
+                "arithmetic_steps"
+              ],
+              "properties": {
+                "characters": {
+                  "const": 160
+                },
+                "tokens": {
+                  "const": 96
+                },
+                "nodes": {
+                  "const": 64
+                },
+                "depth": {
+                  "const": 16
+                },
+                "literal_digits": {
+                  "const": 12
+                },
+                "degree": {
+                  "const": 4
+                },
+                "coefficient": {
+                  "const": 1000000
+                },
+                "arithmetic_steps": {
+                  "const": 64
+                }
+              }
+            }
+          }
         }
       }
     }

@@ -20,11 +20,7 @@ When the course includes any consequential assessment, also read
 `../ASSESSMENT-INTAKE.md`. The resulting assessment profile is part of the
 course checkpoint and governs downstream curriculum and item work.
 
-The shipped product has no course manifest command. Do not invent one. A
-course today is a set of reviewable planning artifacts (target statement,
-objective map, treatment table, gap list) plus the real banks and lessons,
-validated with existing commands. The manifest command surface is pending
-(subphase 14B).
+The current product exposes course graph, source, binding, operation, proposal and package commands. Inspect their current help and the shared operation contract before use. Planning tables explain intent and gaps; accepted course records and artifacts hold durable state. Source CLI capability, packaged availability and human acceptance remain separate claims.
 
 ## 1. Declare the operation manifest
 
@@ -80,9 +76,7 @@ python itembank.py audit coverage --source source-file --bank bank.md
 python itembank.py evidence --base .
 ```
 
-There is no discovery or binding command yet (pending 14A/14B); the
-inventory is a documented table in the plan, and it must state what was not
-scanned.
+Multi-root discovery remains a declared read-only inventory. Use `course show`, `course structure` and `bind list` to reconcile current course records; use the source and binding commands only for separately authorized mutations. State what was not scanned.
 
 ## 4. Design the curriculum
 
@@ -136,10 +130,7 @@ python itembank.py audit author --source src --bank bank.md \
 python itembank.py audit undo WRITE_ID --bank bank.md --state-dir .audit
 ```
 
-`id-assign` is the only other direct bank writer; run it after acceptance to
-mint ids and fingerprints. There is no general expected-fingerprint write
-surface outside `audit author` yet (pending 14A); ordinary file edits are
-shown as diffs and accepted explicitly.
+Use `id-assign` for bank IDs and fingerprints after acceptance. Course mutations and configured agent proposals have their own expected-base, journal and review surfaces; use the route that owns the object. Ordinary file edits still need a bounded reviewed diff and must not bypass configured acceptance.
 
 ## 7. Use evidence honestly
 
@@ -157,8 +148,7 @@ Report, in files rather than chat: the course map, assessment and grading
 profile, direct readings,
 generated and still-needed artifacts, the practice and test plan, cited gaps
 and conflicts, the evidence-based next action, every write performed with its
-undo step, what is now stale because of the change (staleness marking has no
-command yet; state it in the handoff), and remaining uncertainty. Keep
+undo step, affected dependencies and the `course staleness` result, with any unsupported tracking named explicitly, and remaining uncertainty. Keep
 drafts distinguishable from accepted material. Run `python itembank.py
 guard .` before any commit in this repository; never commit real course
 content here.

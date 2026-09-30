@@ -25,7 +25,7 @@ from surfaces.settings import load_settings, write_settings
 
 # The learner-facing persisted source accent, and the document the existing
 # `THEME_CSS` constant is computed from (the additive schema default).
-DEFAULT_ACCENT = "#0e6e62"
+DEFAULT_ACCENT = "#315fa6"
 THEME_MODES = ("system", "light", "dark", "oled")
 DEFAULT_THEME_CONFIG = {"theme": "system", "accent": {"source": DEFAULT_ACCENT},
                         "look": looks.DEFAULT_LOOK}
@@ -34,14 +34,25 @@ DEFAULT_THEME_CONFIG = {"theme": "system", "accent": {"source": DEFAULT_ACCENT},
 # `mut` is the muted-text token every existing surface already consumes.
 # Semantic verdict tokens stay fixed per mode, independent of the custom accent.
 BASE_TOKENS = {
-    "light": {"bg": "#f3f5f4", "ink": "#171d1c", "card": "#ffffff",
-              "chip": "#eef2f1", "line": "#dfe5e3", "mut": "#5f6d6a"},
-    "dark": {"bg": "#0e1413", "ink": "#e4ebe9", "card": "#1a2220",
-             "chip": "#222c29", "line": "#3c4944", "mut": "#9caba6"},
+    "light": {"bg": "#f5f4f0", "ink": "#20242c", "card": "#fffefb",
+              "chip": "#eeede8", "line": "#dcdedc", "mut": "#606673"},
+    "dark": {"bg": "#14161b", "ink": "#eeede8", "card": "#1c1f26",
+             "chip": "#242830", "line": "#373e49", "mut": "#adb2be"},
     # Preserve the true-black page while giving cards and inset controls
     # distinct grounds. The fixed edge token still clears 3:1 on each surface.
-    "oled": {"bg": "#000000", "ink": "#e4ebe9", "card": "#121816",
-             "chip": "#1d2623", "line": "#34403b", "mut": "#9caba6"},
+    "oled": {"bg": "#000000", "ink": "#eeede8", "card": "#12151a",
+             "chip": "#1b1e25", "line": "#343b46", "mut": "#adb2be"},
+}
+
+# Teaching roles are independent of action accents and assessment verdicts.
+# Existing authored labels and shapes carry meaning alongside these colors.
+CONTENT_TOKENS = {
+    "light": {"source_mark": "#346784", "source_bg": "#edf2f7",
+              "note_mark": "#725997", "note_bg": "#f0edf6"},
+    "dark": {"source_mark": "#98badb", "source_bg": "#19232e",
+             "note_mark": "#bcabdf", "note_bg": "#231f30"},
+    "oled": {"source_mark": "#98badb", "source_bg": "#111b26",
+             "note_mark": "#bcabdf", "note_bg": "#1b1728"},
 }
 
 # `unknown`/`pending` and the three `*_bg` backgrounds close 14-UI-SPEC §3.3:
@@ -277,7 +288,7 @@ def theme_preview(source):
 _TOKEN_ORDER = ("bg", "card", "ink", "mut", "line", "accent", "accent_soft",
                 "ok", "ok_bg", "bad", "bad_bg", "warn", "warn_bg",
                 "unknown", "unknown_bg", "pending", "pending_bg",
-                "edge", "chip")
+                "edge", "chip", "source_mark", "source_bg", "note_mark", "note_bg")
 
 
 def _tokens_css(tokens):
@@ -286,11 +297,13 @@ def _tokens_css(tokens):
 
 
 def _root_block(tokens):
-    return ":root{\n  %s;\n}" % _tokens_css(tokens)
+    # Native inputs and scrollbars follow the selected ground, including OLED.
+    scheme = "dark" if relative_luminance(tokens["bg"]) < .2 else "light"
+    return ":root{\n  color-scheme:%s;\n  %s;\n}" % (scheme, _tokens_css(tokens))
 
 
 def _dark_media_block(tokens):
-    return ("@media (prefers-color-scheme:dark){\n  :root{\n    %s;\n  }\n}"
+    return ("@media (prefers-color-scheme:dark){\n  :root{\n    color-scheme:dark;\n    %s;\n  }\n}"
             % _tokens_css(tokens))
 
 
@@ -303,11 +316,9 @@ def _grounded(tokens, look, mode):
     colour itself. Every one of these grounds is re-measured against every
     semantic token by `tests/stylesheet_roundtrip.py` on each run.
     """
-    override = looks.grounds_for(look, mode)
-    if not override:
-        return tokens
     merged = dict(tokens)
-    merged.update(override)
+    merged.update(CONTENT_TOKENS[mode])
+    merged.update(looks.grounds_for(look, mode))
     return merged
 
 
@@ -321,8 +332,8 @@ def theme_css(config):
     token set is emitted, and the accent is derived per mode with contrast
     enforced exactly as before. `theme=system` emits the light block plus the
     matching dark media override; forced modes emit only their selected token
-    set. The shipped look emits no shape block at all, so a default install
-    is byte-identical to what it was before looks existed.
+    set. The shipped look emits no shape block, so it uses the shared base
+    palette and geometry without additional look overrides.
     """
     mode = config.get("theme", "system") if isinstance(config, dict) else "system"
     accent = DEFAULT_ACCENT
@@ -440,9 +451,9 @@ def persist_presentation_profile(base, profile):
 # token names -- never literals -- so no second palette owner exists.
 SETTINGS_CSS = r"""
 .field{margin:0 0 16px}
-.field label{display:block;font-size:14px;color:var(--mut);margin:0 0 8px}
+.field label{display:block;font-size:var(--text-body);color:var(--mut);margin:0 0 8px}
 .field-row{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
-.source-text{font-size:14px;color:var(--mut)}
+.source-text{font-size:var(--text-body);color:var(--mut)}
 .actions{display:flex;flex-wrap:wrap;gap:12px;margin:0 0 24px}
 .actions button{min-height:44px;font:inherit;font-size:16px;font-weight:600;
   padding:10px 16px;border-radius:8px;border:1px solid var(--line);
@@ -464,12 +475,12 @@ SETTINGS_CSS = r"""
 .preview-card[aria-pressed="true"]{outline:3px solid var(--accent);
   outline-offset:2px}
 .preview-card:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
-.preview-title{display:block;font-size:18px;font-weight:650;margin:0 0 12px}
+.preview-title{display:block;font-size:18px;font-weight:600;margin:0 0 12px}
 .swatch{height:44px;border-radius:8px;border:1px solid var(--line);
   margin:0 0 8px}
-.rendered{font-size:14px;color:var(--mut);margin:0 0 12px}
+.rendered{font-size:var(--text-body);color:var(--mut);margin:0 0 12px}
 .samples{display:flex;flex-wrap:wrap;gap:8px}
-.sample{font-size:14px;padding:4px 10px;border-radius:6px;
+.sample{font-size:var(--text-body);padding:4px 10px;border-radius:6px;
   border:1px solid var(--line)}
 .sample.state-ok{color:var(--ok);background:var(--ok-bg);border-color:var(--ok)}
 .sample.state-bad{color:var(--bad);background:var(--bad-bg);border-color:var(--bad)}
@@ -479,17 +490,17 @@ SETTINGS_CSS = r"""
 .sample.state-focus{outline:2px solid var(--accent);outline-offset:2px}
 details.accessibility{border:1px solid var(--line);border-radius:8px;
   padding:8px 12px;margin:0 0 24px;background:var(--card)}
-details.accessibility summary{cursor:pointer;font-size:14px;font-weight:600;
-  padding:4px 0}
+details.accessibility summary{cursor:pointer;font-size:var(--text-body);font-weight:600;
+  min-height:44px;padding:var(--space-2) 0}
 details.accessibility summary:focus-visible{outline:2px solid var(--accent);
   outline-offset:2px}
-details.accessibility p{font-size:14px;color:var(--mut)}
+details.accessibility p{font-size:var(--text-body);color:var(--mut)}
 .ratios{margin:8px 0 0}
 .ratio{display:flex;justify-content:space-between;gap:16px;
-  font-size:14px;color:var(--mut);padding:4px 0;
+  font-size:var(--text-body);color:var(--mut);padding:4px 0;
   border-bottom:1px solid var(--line)}
 .ratio:last-child{border-bottom:0}
-.status{min-height:24px;font-size:14px;color:var(--mut);margin:0}
+.status{min-height:24px;font-size:var(--text-body);color:var(--mut);margin:0}
 .looks{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
   gap:12px;margin:0 0 16px}
 .look-card{display:grid;gap:6px;text-align:left;min-height:44px;font:inherit;
@@ -498,10 +509,10 @@ details.accessibility p{font-size:14px;color:var(--mut)}
 .look-card:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .look-card[data-current]{border-color:var(--accent);
   background:var(--accent-soft)}
-.look-name{font-size:16px;font-weight:650}
-.look-blurb{font-size:14px;color:var(--mut)}
+.look-name{font-size:16px;font-weight:600}
+.look-blurb{font-size:var(--text-body);color:var(--mut)}
 .look-detail{font-size:12px;color:var(--mut)}
-.look-now{font-size:12px;font-weight:650;color:var(--accent)}
+.look-now{font-size:12px;font-weight:600;color:var(--accent)}
 @media (max-width:767px){
   .previews{grid-template-columns:1fr}
   .actions button{width:100%}

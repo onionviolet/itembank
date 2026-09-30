@@ -1,20 +1,13 @@
 ---
 name: ocr
-description: OCR images (screenshots, scans, photos) into text via a local Ollama vision model — the vision bridge for text-only models like DeepSeek.
+description: "OCR images (screenshots, scans, photos) into text via a local Ollama vision model : the vision bridge for text-only models like DeepSeek."
 ---
 
-# OCR — read text out of images
+# OCR : read text out of images
 
-DeepSeek (and any other text-only model) **cannot see images**. When the user
-provides an image — a file path, a screenshot, a scan, a pasted picture — do
-not pretend to read it. Run the local OCR bridge and use the text it returns.
+Use the OCR bridge when the active model cannot inspect the image or a durable text extraction is needed. If image input is available, inspect it directly for layout and diagram relationships. OCR complements visual inspection; it does not prove those relationships.
 
-## When to use
-
-- The user gives you an image path (`*.png`, `*.jpg`, `*.jpeg`, `*.webp`, `*.bmp`).
-- The user pastes an image (save it to a file first, e.g. `tmp/pasted.png`, then OCR it).
-- A task needs text from a screenshot, scan, or photo (e.g. a textbook page to
-  turn into an itembank question bank).
+Check the course policy and source rights before opening or transcribing an image. Use an attached local file or an authorized saved image; do not invent a path for pasted content. For transcription, preserve the original language and distinguish uncertain glyphs from verified text.
 
 ## Binding a page as a cited source
 
@@ -33,7 +26,7 @@ same bridge, writes derived Markdown plus a locator sidecar, records one
 operation journal entry, and produces a source an objective can cite. Do not
 build a second way to do it.
 
-The sidecar honestly records `bbox` and `confidence` as null, because this
+Inspect the returned locator sidecar rather than inventing region precision. The current bridge records `bbox` and `confidence` as null, because this
 bridge transcribes text and does not measure where on the page it sat. A
 citation into an OCR source names the page, not a region. If you need
 region-level citation, that is a change to this skill's output contract and a
@@ -60,12 +53,11 @@ python scripts/ocr.py --json img.png           # machine-readable output
 ```
 
 If the `ocr` MCP plugin is registered (see `reasonix.toml` `[[plugins]]`), the
-`ocr_image` tool is the equivalent first-class tool call — same result.
+`ocr_image` tool is the equivalent first-class tool call : same result.
 
 ## Rules
 
-1. **Never claim you saw the image.** You only ever see the text OCR returns.
-   Say "the OCR reads: …" when relaying it, or just use it as source material.
+1. **Name the evidence used.** If only OCR was inspected, say "the OCR reads" and do not claim visual inspection. Direct visual inspection supports only what was actually visible.
 2. **Don't invent content.** If the OCR output is garbled or has gaps, say so
    instead of guessing the missing text.
 3. **Keep the original language.** OCR preserves it; do not translate the source
@@ -81,5 +73,5 @@ If the `ocr` MCP plugin is registered (see `reasonix.toml` `[[plugins]]`), the
 
 ## Environment
 
-- `OLLAMA_HOST` — endpoint override (default: auto-probe `localhost:11434`, then WSL2 gateway).
-- `OCR_MODEL` — default vision model (default: `qwen2.5vl:7b`).
+- `OLLAMA_HOST` : endpoint override (default: auto-probe `localhost:11434`, then WSL2 gateway).
+- `OCR_MODEL` : default vision model (default: `qwen2.5vl:7b`).

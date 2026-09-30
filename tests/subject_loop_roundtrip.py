@@ -677,8 +677,8 @@ def test_legacy_session_fills_snapshot_once(tmp):
     legacy_path = os.path.join(tmp, "legacy.json")
     runtime.write_session(legacy_path, legacy)
     up = runtime.read_session(legacy_path)
-    if up["schema_version"] != 3:
-        fail("v2 sessions must upgrade to v3, got %r" % up["schema_version"])
+    if up["schema_version"] != runtime.SESSION_VERSION:
+        fail("v2 sessions must upgrade to current version, got %r" % up["schema_version"])
     if up.get("subject_profile") is not None:
         fail("the v2 upgrade must leave the profile slot null, got %r" %
              up.get("subject_profile"))

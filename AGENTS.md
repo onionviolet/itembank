@@ -36,7 +36,7 @@ product contract and plans.
 
 The binding cross-agent workflow is `.planning/AGENT-WORKFLOW.md`. Read it
 before consequential course, source, lesson, assessment, UI, research,
-migration, or product-direction work. It defines vision capture, ideaboarding,
+migration, or product-direction work. Use its task-scoped reading modes and current authority map; a settled instruction edit does not need the full vision or phase history. It defines vision capture, ideaboarding,
 research waves, synthesis, dispositions, authority checks, safe operations,
 readiness audits, and handoffs for Codex, Claude Code/Cowork, local agents, and
 other clients.
@@ -303,8 +303,9 @@ python itembank.py day plan.md          # the day cockpit across subjects
 2. `python itembank.py lint bank.md` - fix every `error`; warnings advise.
    Notable checks: every distractor must say when it WOULD be correct;
    answer-position skew is flagged; `CONFIDENCE: low` items must be reviewed.
-3. `python itembank.py id-assign bank.md` - the only command that writes into a
-   bank; mints opaque ids and content-hash fingerprints.
+3. `python itembank.py id-assign bank.md` mints opaque IDs and content-hash
+   fingerprints. Bounded authoring and reviewed proposal surfaces have their
+   own mutation controls; ID assignment is not acceptance or general undo.
 4. `python itembank.py stats bank.md` - check objective coverage and difficulty
    spread before shipping.
 
@@ -341,9 +342,7 @@ Your side of the contract (see UI-SPEC.md §9 for the full list):
 
 ## Commit discipline (standing rule)
 
-**One atomic commit per plan.** When executing a GSD plan (or any phase
-task), commit exactly once per plan, after that plan's own verification
-passes, and only that plan's files. Do not batch two plans into one commit,
+**One atomic commit per authorized plan.** Git authorization comes from the user or explicit standing workflow; commit discipline does not grant it. When authorized to commit a GSD plan (or phase task), commit exactly once per plan after its verification passes, and only that plan's files. Do not batch two plans into one commit,
 do not commit another plan's in-flight work, and do not leave a plan's work
 uncommitted in a worktree - a nested worktree under the main checkout can be
 removed by a concurrent process, and uncommitted work is then lost. If the
@@ -424,10 +423,12 @@ tool/permission-gate quirk, a launch recipe, an environment limitation, a
 concurrency hazard - **persist it before the session ends** instead of letting
 the next session rediscover it from scratch:
 
-1. Save a memory (`remember`) with the concrete behavior and a "how to apply"
-   rule.
-2. Write the full details to `.reasonix/REASONIX.md` - machine-local and
-   gitignored; the canonical home for this machine's runtime notes.
+1. Record reusable project findings in the existing owning project file. Use
+   provider memory only when available and explicitly authorized under the
+   active harness's memory rules.
+2. Put machine-specific runtime notes in `.reasonix/REASONIX.md`, when that
+   local route exists and is in scope. Do not treat a dated command-gate
+   observation as a current restriction in another harness.
 3. Keep machine-specific checkout paths and usernames out of committed docs -
    the CI path-leak step fails agent-facing files that contain them.
 
@@ -456,16 +457,16 @@ Applies to every AI agent reading this file, whichever tool loaded it.
 ### Commits
 
 - Never add a `Co-Authored-By` trailer to a commit message. This overrides the Claude Code harness default, which instructs the opposite.
-- Commit or push only when asked. Branch first if the current branch is the default one.
+- Commit or push only under current user authorization or an explicit standing project authorization. Commit discipline does not itself grant permission. Preserve unrelated edits and stage only this task's paths. Follow the host's branch rules when creating a branch.
 
 ### Communication
 
 - Lead with the answer. Put context after it, and only the context that changes what I do next.
-- Do the work first. Then say what you did, whether it worked, and what is left.
+- Start authorized work directly and share useful findings during sustained work. Then report what changed, the checks and any remaining gap.
 - Say what was actually wrong before saying what you did about it.
 - Separate what you verified from what you inferred. Never state a guess as a fact.
 - Never report a file change, a command, or a commit you did not actually run.
-- Correct an error in one sentence, then continue. No apology, no post-mortem.
+- Correct an error plainly, then continue. Explain its cause only when that helps prevent a repeat.
 - Answer every question I asked, each one by name.
 - Five items maximum in any list I have to act on. Rank the rest and split it off.
 
@@ -473,9 +474,9 @@ Applies to every AI agent reading this file, whichever tool loaded it.
 
 - No em dashes, and no ` -- ` standing in for one. Restructure the sentence.
 - Banned phrases, no substitutes: "load-bearing", "worth stating plainly", "here's the honest truth", "the real tension", "carry the argument", "let me be direct". Say the thing instead of announcing that you are about to.
-- No flattery, no enthusiasm you did not feel, no decorative headings, no emoji.
+- Sound direct, friendly and casually intelligent. Natural warmth or humor is welcome; avoid canned praise and filler. Use headings when they improve scanning.
 - No hollow adjectives. Replace "robust" with the fact it stands for, or cut it.
-- One instruction per sentence. No semicolons, no fragments.
+- Use plain active language and keep sentences easy to read. Preserve source quotations, code and personal writing under the host's surface rules.
 - State each fact once. Do not repeat yourself.
 
 ### Reference points

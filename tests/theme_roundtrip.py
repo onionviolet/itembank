@@ -415,10 +415,10 @@ def test_settings_previews_use_their_named_mode_tokens():
 def test_palette_matches_binding_values():
     from surfaces.theme import derive_theme
     d = derive_theme("#0e6e62")
-    light_base = {"bg": "#f3f5f4", "ink": "#171d1c", "card": "#ffffff",
-                  "chip": "#eef2f1", "line": "#dfe5e3"}
-    dark_base = {"bg": "#0e1413", "ink": "#e4ebe9", "card": "#1a2220",
-                 "chip": "#222c29", "line": "#3c4944"}
+    light_base = {"bg": "#f5f4f0", "ink": "#20242c", "card": "#fffefb",
+                  "chip": "#eeede8", "line": "#dcdedc"}
+    dark_base = {"bg": "#14161b", "ink": "#eeede8", "card": "#1c1f26",
+                 "chip": "#242830", "line": "#373e49"}
     light_sem = {"ok": "#1b7a3d", "ok_bg": "#e8f4ec", "bad": "#b4272b",
                  "bad_bg": "#fbebeb", "warn": "#8a5900"}
     dark_sem = {"ok": "#4fbf74", "ok_bg": "#11291b", "bad": "#f0666a",

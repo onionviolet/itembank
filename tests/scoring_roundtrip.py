@@ -126,7 +126,14 @@ def main():
     # Its accepted variants, exact arithmetic, units, and refusal boundaries
     # are exercised by fill_roundtrip.py. Legacy and pending behavior above
     # remains pinned independently of this intentional additive source change.
-    pinned = "1f7a27712445ce7cdbc836dbd90d43aa3e329ad5bcabcce5bad32299bffb604e"
+    # A3 adds structural ordering inside this same scorer. The ordering
+    # contract suite checks alternatives, dependencies and distractors;
+    # legacy verdicts remain covered above.
+    # The September 30 polynomial extension adds exact equivalence and
+    # required-form checking inside this scorer. Production checker and
+    # disclosure suites verify typed refusal, private tests and mode barriers;
+    # the legacy verdict and pending-prose checks above remain unchanged.
+    pinned = "39d0e61fd2da19c8b7896db2bf96ed4db83200172bdbe004139afbfe24329f64"
     src = inspect.getsource(itembank.score_response)
     if hashlib.sha256(src.encode("utf-8")).hexdigest() != pinned:
         fail("T-R4-01: runtime.score_response drifted from its pinned source "

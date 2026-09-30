@@ -10,13 +10,15 @@ print(SCRIPT.replace('__CONTEXT__', '{"course_id":"course","expected_fingerprint
 `], { cwd: new URL("../..", import.meta.url), encoding: "utf8" });
 
 const html = `
+<button id="resume-reading" hidden>Resume previous reading position</button>
 <p id="reading-state"></p><p id="source-state"></p><div id="source-content"></div>
 <button id="mark-read" disabled>I have read this range</button>
-<p id="note-state"></p><textarea id="note"></textarea>
+<p id="note-state"></p><div id="previous-drafts"></div><textarea id="note"></textarea>
 <button id="save-note" disabled>Save to my notes</button><p id="save-state"></p>
 <div id="saved-notes"></div>`;
 
 const view = () => ({
+  occurrence: { source_ref: { source_fingerprint: "source-revision" } },
   reading_state: { state: "not-reported" },
   availability: { state: "available", message: "Available" },
   content: "Source text", note_error: null, notes: [], notes_fingerprint: null,
@@ -29,11 +31,28 @@ const deferred = () => {
 };
 const settle = () => new Promise(done => setImmediate(done));
 
-async function setup() {
+test("stale-source refresh explains recovery without exposing an internal code", async () => {
+  const currentView = view();
+  currentView.content = null;
+  currentView.availability = { state: "course.reading_source_stale" };
+  const app = await setup({ currentView });
+  try {
+    assert.match(app.get("source-state").textContent, /The source changed/);
+    assert.match(app.get("source-state").textContent, /source binding/);
+    assert.doesNotMatch(app.get("source-state").textContent, /course\.reading/);
+    assert.equal(app.get("save-note").disabled, true);
+  } finally { app.dom.window.close(); }
+});
+
+async function setup({ stored = null, currentView = view() } = {}) {
   const dom = new JSDOM(html, { url: "http://localhost/", runScripts: "outside-only" });
   const { window } = dom;
   const requests = [];
   const saves = [];
+  const continuityKey = 'itembank-reading:["course","occurrence","revision"]';
+  if (stored) window.sessionStorage.setItem(continuityKey, stored);
+  const scrolls = [];
+  window.scrollTo = options => scrolls.push(options);
   let ids = 0;
   Object.defineProperty(window.crypto, "randomUUID", {
     value: () => `note-${++ids}`, configurable: true,
@@ -48,7 +67,7 @@ async function setup() {
     }
     if (url.endsWith("/confirm-reading")) return Promise.resolve(response({ intent_id: "intent" }));
     if (url.endsWith("/declare-reading")) return Promise.resolve(response({ status: "saved" }));
-    return Promise.resolve(response(view()));
+    return Promise.resolve(response(currentView));
   };
   window.eval(script);
   await settle();
@@ -57,8 +76,78 @@ async function setup() {
     get("note").value = wording;
     get("note").dispatchEvent(new window.Event("input", { bubbles: true }));
   };
-  return { dom, window, get, type, requests, saves };
+  return { dom, window, get, type, requests, saves, continuityKey, scrolls };
 }
+
+test("a long-source detour recovers local wording and resumes position only on request", async () => {
+  const first = await setup({ currentView: { ...view(), content: "Synthetic paragraph.\n".repeat(600) } });
+  first.type("Local wording awaiting review");
+  first.get("note").focus();
+  Object.defineProperty(first.window, "scrollY", { value: 2400 });
+  first.window.dispatchEvent(new first.window.Event("pagehide"));
+  const stored = first.window.sessionStorage.getItem(first.continuityKey);
+  first.dom.window.close();
+  const returned = await setup({ stored });
+  try {
+    assert.equal(returned.get("note").value, "Local wording awaiting review");
+    assert.match(returned.get("save-state").textContent, /local unsaved draft/);
+    assert.equal(returned.saves.length, 0, "returning cannot accept a note");
+    assert.equal(returned.scrolls.length, 0, "navigation cannot move focus or scroll silently");
+    returned.get("resume-reading").click();
+    assert.equal(returned.window.document.activeElement, returned.get("note"));
+    assert.equal(returned.scrolls[0].top, 2400);
+    returned.get("save-note").click();
+    returned.saves[0].resolve(response({ status: "saved" }));
+    await settle();
+    assert.equal(JSON.parse(returned.window.sessionStorage.getItem(returned.continuityKey)).draft, "");
+  } finally { returned.dom.window.close(); }
+});
+
+test("changed or unavailable source bytes cannot recover a prior draft or position", async () => {
+  const stored = JSON.stringify({ source: "source-revision", y: 900, draft: "Stale wording" });
+  for (const currentView of [
+    { ...view(), occurrence: { source_ref: { source_fingerprint: "different-source" } } },
+    { ...view(), content: null },
+  ]) {
+    const app = await setup({ stored, currentView });
+    try {
+      assert.equal(app.get("note").value, "");
+      assert.equal(app.get("resume-reading").disabled, true);
+      assert.match(app.get("resume-reading").textContent, /were not restored/);
+      assert.equal(app.scrolls.length, 0);
+      assert.equal(app.saves.length, 0);
+      const recovery = app.get("previous-drafts").querySelector("textarea");
+      assert.equal(recovery.value, "Stale wording");
+      assert.equal(recovery.readOnly, true);
+      app.window.dispatchEvent(new app.window.Event("pagehide"));
+      assert.equal(app.window.sessionStorage.getItem(app.continuityKey), stored,
+        "leaving a changed source cannot overwrite the prior draft");
+      app.type("New-source wording");
+      assert.match(app.get("save-state").textContent, /Copy this new wording/);
+      app.window.dispatchEvent(new app.window.Event("pagehide"));
+      assert.equal(app.window.sessionStorage.getItem(app.continuityKey), stored);
+    } finally { app.dom.window.close(); }
+  }
+});
+
+test("a reload after an uncertain save retries the same note identity", async () => {
+  const first = await setup();
+  first.type("Possibly accepted wording");
+  first.get("save-note").click();
+  const originalId = first.requests.at(-1).body.note_id;
+  first.saves[0].resolve({ ok: false });
+  await settle();
+  const stored = first.window.sessionStorage.getItem(first.continuityKey);
+  first.dom.window.close();
+  const returned = await setup({ stored });
+  try {
+    returned.get("save-note").click();
+    assert.equal(returned.requests.at(-1).body.note_id, originalId);
+    assert.equal(returned.requests.at(-1).body.wording, "Possibly accepted wording");
+    returned.saves[0].resolve(response({ status: "saved" }));
+    await settle();
+  } finally { returned.dom.window.close(); }
+});
 
 test("typing during a pending save keeps the newer draft and its unsaved state", async () => {
   const app = await setup();

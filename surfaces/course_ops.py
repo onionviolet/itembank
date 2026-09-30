@@ -1448,7 +1448,7 @@ def _restore_and_publish(root, body, actor_kind, actor_name, snapshot):
                                           "the package did not verify completely and was not published")
     with course_package.private_stage(root) as staging:
         restored = course_package.restore_package(package_root, staging,
-            actor_kind, actor_name, _snapshot=snapshot)
+            actor_kind, actor_name, _snapshot=snapshot, _staging=True)
         restored_course = course_module.read_course(staging)
         if restored_course["object_id"] != course_object_id or not restored["complete"]:
             raise course_package.PackageError(

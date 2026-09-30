@@ -474,7 +474,7 @@ def response_event(session_id, q, answer, score, mode, attempt_num, bank,
                     response_time_ms=None, confidence=None, source_ref=None,
                     hint_tier=None, selection_mode=None, context="quiz", *,
                     check_source=None, interaction_version=None,
-                    error_category=None):
+                    error_category=None, staged=None):
     """Build one full response event dict. Every key named in this plan's
     must_haves is present on every event — reserved fields carry an explicit
     `None`, never an absent key, so a consumer can tell "not captured" from
@@ -494,7 +494,7 @@ def response_event(session_id, q, answer, score, mode, attempt_num, bank,
     objective = q.get("objective", "")
     key = evidence_key(q)
     canon = idempotency_canon(q, answer)
-    return {
+    event = {
         "schema_version": EVENT_SCHEMA_VERSION,
         "event_id": new_event_id(),
         "event_type": RESPONSE_EVENT_TYPE,
@@ -523,6 +523,15 @@ def response_event(session_id, q, answer, score, mode, attempt_num, bank,
         "dedupe_key": dedupe_key(session_id, key, attempt_num, canon),
         "source_ref": source_ref,
     }
+    if staged is not None:
+        for name in ("activity_id", "case_revision", "child_id", "stage"):
+            event[name] = staged[name]
+    if "ordering" in q:
+        event["checker_version"] = q["ordering"]["version"]
+    if q["type"] == "fill" and any(f.get("kind") == "polynomial" for f in q.get("fields", [])):
+        from runtime import polynomial_outcomes
+        event["checker_outcomes"] = polynomial_outcomes(q, answer)
+    return event
 
 
 def gate_skip_event(session_id, bank, lesson_slug, check_item_id,

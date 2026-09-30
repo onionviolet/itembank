@@ -57,6 +57,25 @@ not exercised under an emulated OS preference. Static fallback wording is in
 noscript but the browser was not run with JavaScript disabled. These are source
 checks, not full accessibility acceptance.
 
+## Audit detail follow-up, 2026-09-28
+
+The U1 to U4 findings in `.reasonix/ui-detail-review-2026-09-19.md` now have
+prototype fixes. The time control survives in-tab lesson detours. Browser Back
+restores the lower-page link, focus, and scroll position. Phone navigation and
+the format chooser collapse until requested. Back to course stays available
+after sample feedback. The highlighted lesson word has a small static glow;
+high-contrast and print output omit it. The native comparison renderer has the
+same scoped emphasis. U5 remains a contextual-help and recovery-state design
+gate for production integration.
+
+A fresh in-app browser check covered the lesson detour, feedback and course
+return, Back from the lower reference link, and a 320 by 700 question-format
+view with no page overflow. `node --check` passed for both showcase scripts.
+The native lesson's 16 focused tests passed. Full preflight passed 147 Python
+test files and the JavaScript suite; its clean-tree gate reported these
+intentional uncommitted edits. Human visual and accessibility acceptance remain
+open.
+
 ## Boundaries and recovery
 
 This is a presentation prototype, not an installed-app update. The fixed sample

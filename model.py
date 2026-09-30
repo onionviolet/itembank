@@ -21,9 +21,9 @@ LETTERS = "ABCDEFGH"
 MARKERS = (
     "A)", "B)", "C)", "D)", "E)", "F)", "G)", "H)",
     "ROW)", "ITEM)", "STEP)", "CASE)",
-    "[TYPE:", "[OBJECTIVE:", "[SELECT:", "[CATEGORIES:", "[ID:", "[HASH:",
+    "[TYPE:", "[FORMAT:", "[OBJECTIVE:", "[SELECT:", "[CATEGORIES:", "[ID:", "[HASH:",
     "[LESSON-REF:", "[PAIR:", "[PREREQ:", "[LANG:", "[MATCH:", "[INPUT:",
-    "[HARNESS:", "[TOLERANCE:", "[FIELDS:",
+    "[HARNESS:", "[TOLERANCE:", "[FIELDS:", "[FILL-LAYOUT:", "[MATCHING:", "[ORDERING:",
     "MODEL:", "RUBRIC:", "WHY BEST:", "STARTER:",
 )
 
@@ -66,9 +66,75 @@ def _unique_field_members(pairs):
     return result
 
 
+class BankQuestions(list):
+    """Ordinary question list with optional authored bank declarations."""
+
+    def __init__(self):
+        super().__init__()
+        self.staged_cases = []
+        self.staged_case_errors = []
+
+
+def staged_case_spec_errors(questions):
+    """Validate fixed cases without interpreting PAIR or assigning scores."""
+    errors = list(getattr(questions, "staged_case_errors", []))
+    declarations = getattr(questions, "staged_cases", [])
+    if not isinstance(declarations, list) or len(declarations) > 64:
+        return errors + ["STAGED-CASES must be an array of at most 64 cases"]
+    by_id = collections.defaultdict(list)
+    for q in questions:
+        if q.get("item_id"):
+            by_id[q["item_id"]].append(q)
+    activities, used = set(), set()
+    for case in declarations:
+        if not isinstance(case, dict) or set(case) != {
+                "version", "activity_id", "stimulus", "children", "order"}:
+            errors.append("each staged case requires version, activity_id, stimulus, children and order")
+            continue
+        ident = case["activity_id"]
+        if (not isinstance(ident, str) or not re.fullmatch(r"[a-z][a-z0-9_:-]{0,63}", ident)
+                or ident in activities):
+            errors.append("staged activity IDs must be unique bounded lowercase ASCII names")
+        if isinstance(ident, str):
+            activities.add(ident)
+        if type(case["version"]) is not int or case["version"] != 1:
+            errors.append("staged case version must be 1")
+        stimulus = case["stimulus"]
+        if (not isinstance(stimulus, str) or not stimulus.strip() or len(stimulus) > 4000
+                or any(ord(c) < 32 and c not in "\n\t" for c in stimulus)):
+            errors.append("staged stimulus needs nonempty plain text of at most 4000 characters")
+        if case["order"] != ["answer", "reason"]:
+            errors.append("staged case order must be answer then reason")
+        children = case["children"]
+        if (not isinstance(children, list) or len(children) != 2
+                or any(not isinstance(c, str) or not c for c in children)
+                or len(set(children)) != 2):
+            errors.append("staged cases require two distinct stable child IDs")
+            continue
+        for child in children:
+            matches = by_id[child]
+            if len(matches) != 1 or matches[0]["type"] != "mc":
+                errors.append("staged child %s must resolve to one existing MC identity" % child)
+            if child in used:
+                errors.append("staged child %s overlaps another case" % child)
+            used.add(child)
+    return errors
+
+
 def parse_bank(text):
     """Split on `Qn.` markers and parse each block into a question dict."""
-    questions = []
+    questions = BankQuestions()
+    header = re.split(r"(?m)^(?=Q\d+\.)", text)[0]
+    declarations = re.findall(r"(?m)^STAGED-CASES:\s*(.*?)\s*$", header)
+    if len(re.findall(r"(?m)^STAGED-CASES:", text)) != len(declarations):
+        questions.staged_case_errors.append("STAGED-CASES must appear before the first question")
+    if len(declarations) > 1:
+        questions.staged_case_errors.append("STAGED-CASES may appear only once")
+    if declarations:
+        try:
+            questions.staged_cases = json.loads(declarations[0], object_pairs_hook=_unique_field_members)
+        except (ValueError, TypeError):
+            questions.staged_case_errors.append("STAGED-CASES must contain valid JSON without duplicate members")
     for ch in re.split(r"(?m)^(?=Q\d+\.)", text):
         if not re.match(r"Q\d+\.", ch.strip()):
             continue
@@ -76,6 +142,68 @@ def parse_bank(text):
         if q:
             questions.append(q)
     return questions
+
+
+def matching_spec_errors(q):
+    """Versioned additive dnd contract; legacy category assignments stay intact."""
+    if "matching" not in q:
+        return []
+    spec = q.get("matching")
+    if q.get("type") != "dnd" or not isinstance(spec, dict) or set(spec) != {"version", "reuse", "choices"}:
+        return ["MATCHING requires a dnd object with version, reuse and choices"]
+    if type(spec["version"]) is not int or spec["version"] != 1 or spec["reuse"] not in ("once", "unlimited"):
+        return ["MATCHING version must be 1 and reuse must be once or unlimited"]
+    choices = spec["choices"]
+    valid_id = lambda value: isinstance(value, str) and bool(re.fullmatch(r"[a-z][a-z0-9_-]{0,63}", value))
+    if not isinstance(choices, list) or not 2 <= len(choices) <= 64 or any(
+            not isinstance(c, dict) or set(c) != {"id", "text"}
+            or not valid_id(c["id"]) or not isinstance(c["text"], str)
+            or not c["text"].strip() or len(c["text"]) > 1000 for c in choices):
+        return ["MATCHING needs 2 to 64 choices with stable id and nonempty text"]
+    ids = [c["id"] for c in choices]
+    rows = q.get("rows") or []
+    row_ids = [r.get("id") for r in rows]
+    if len(set(ids)) != len(ids) or not 2 <= len(rows) <= 64 or any(
+            not valid_id(r.get("id")) or not r.get("text") or r["cat"] not in ids for r in rows) \
+            or len(set(row_ids)) != len(row_ids):
+        return ["MATCHING requires unique choice/row IDs and a known key for every row"]
+    if spec["reuse"] == "once" and len(set(r["cat"] for r in rows)) != len(rows):
+        return ["MATCHING once forbids reused keyed choices"]
+    return []
+
+
+def ordering_spec_errors(q):
+    """Validate structural ordering declarations without assigning a verdict."""
+    if "ordering" not in q:
+        return []
+    spec = q.get("ordering")
+    if q.get("type") != "build" or not isinstance(spec, dict) or set(spec) != {
+            "version", "blocks", "required", "dependencies"}:
+        return ["ORDERING requires version, blocks, required and dependencies"]
+    if type(spec["version"]) is not int or spec["version"] != 1:
+        return ["ORDERING version must be 1"]
+    valid_id = lambda value: isinstance(value, str) and bool(re.fullmatch(r"[a-z][a-z0-9_-]{0,63}", value))
+    ids, required, edges = spec["blocks"], spec["required"], spec["dependencies"]
+    if not isinstance(ids, list) or not 2 <= len(ids) <= 64 or any(not valid_id(i) for i in ids) or len(set(ids)) != len(ids):
+        return ["ORDERING needs 2 to 64 unique stable block IDs"]
+    blocks = q.get("blocks") or []
+    if len(blocks) != len(ids) or [b["id"] for b in blocks] != ids or any(
+            not b["text"].strip() or len(b["text"]) > 1000 for b in blocks):
+        return ["STEP definitions must match ORDERING blocks in order with nonempty text"]
+    if not isinstance(required, list) or not required or any(not valid_id(i) or i not in ids for i in required) or len(set(required)) != len(required):
+        return ["ORDERING required must contain unique known block IDs"]
+    if not isinstance(edges, list) or len(edges) > 256 or any(
+            not isinstance(e, list) or len(e) != 2 or any(not isinstance(i, str) or i not in required for i in e) or e[0] == e[1] for e in edges):
+        return ["ORDERING dependencies need at most 256 before/after edges between distinct required blocks"]
+    if len(set(tuple(e) for e in edges)) != len(edges):
+        return ["ORDERING dependencies cannot repeat an edge"]
+    pending = set(required)
+    while pending:
+        ready = {i for i in pending if not any(after == i and before in pending for before, after in edges)}
+        if not ready:
+            return ["ORDERING dependencies contain a cycle"]
+        pending -= ready
+    return []
 
 
 def parse_question(ch):
@@ -116,6 +244,7 @@ def parse_question(ch):
         common["input_format"] = input_format
 
     if qtype in ("mc", "multi"):
+        answer_format = grab(r"(?m)^\[FORMAT:\s*([\w-]+)\s*\]", ch).lower()
         opts = {}
         for L in LETTERS:
             v = grab(rf"(?m)^{L}\)\s*(.*?)\s*(?=^[A-H]\)|^CORRECT:|\n\n)", ch, re.S)
@@ -135,24 +264,53 @@ def parse_question(ch):
             "opts": opts, "correct": correct, "da": da,
             "select": int(sel) if sel else len(correct),
         })
+        if answer_format:
+            common["answer_format"] = answer_format
         return common
 
     if qtype in ("table", "dnd"):
+        matching_raw = grab(r"(?m)^\[MATCHING:\s*(.*?)\s*\]\s*$", ch)
+        matching_declared = bool(re.search(r"(?m)^\[MATCHING:", ch))
+        if matching_declared:
+            try:
+                matching = json.loads(matching_raw, object_pairs_hook=_unique_field_members)
+            except ValueError:
+                matching = None
+            common["matching"] = matching
         cats = [c.strip() for c in grab(r"(?m)^\[CATEGORIES:\s*(.*?)\s*\]", ch).split("|") if c.strip()]
+        if isinstance(common.get("matching"), dict):
+            choices = common["matching"].get("choices")
+            cats = [c.get("id") if isinstance(c.get("id"), str) else "" for c in choices if isinstance(c, dict)] if isinstance(choices, list) else []
         marker = "ROW" if qtype == "table" else "ITEM"
         rows = []
         for line in re.findall(rf"(?m)^{marker}\)\s*(.+?)\s*$", ch):
             if "::" not in line:
                 continue
             t, c = line.rsplit("::", 1)
-            rows.append({"text": t.strip(), "cat": c.strip()})
-        if not (stem and cats and rows):
+            row = {"text": t.strip(), "cat": c.strip()}
+            if matching_declared:
+                ident, separator, label = t.partition("|")
+                row.update(id=ident.strip(), text=label.strip() if separator else "")
+            rows.append(row)
+        if not (stem and rows and (cats or matching_declared)):
             return None
         common.update({"cats": cats, "rows": rows, "notes": notes(ch)})
         return common
 
     if qtype == "build":
         steps = [s.strip() for s in re.findall(r"(?m)^STEP\)\s*(.+?)\s*$", ch)]
+        if re.search(r"(?m)^\[ORDERING:", ch):
+            raw = grab(r"(?m)^\[ORDERING:\s*(.*?)\s*\]\s*$", ch)
+            try:
+                common["ordering"] = json.loads(raw, object_pairs_hook=_unique_field_members)
+            except (ValueError, TypeError, RecursionError):
+                common["ordering"] = None
+            common["blocks"] = []
+            for step in steps:
+                ident, separator, label = step.partition("|")
+                common["blocks"].append({"id": ident.strip(), "text": label.strip() if separator else ""})
+            common.update(steps=[b["text"] for b in common["blocks"]], notes=notes(ch))
+            return common if stem else None
         if not (stem and len(steps) > 1):
             return None
         common.update({"steps": steps, "notes": notes(ch)})
@@ -195,6 +353,9 @@ def parse_question(ch):
         except (ValueError, TypeError, RecursionError):
             fields = None
         common.update({"fields_raw": raw, "fields": fields, "notes": notes(ch)})
+        if re.search(r"(?m)^\[FILL-LAYOUT:", ch):
+            common["fill_layout"] = grab(r"(?m)^\[FILL-LAYOUT:\s*(.*?)\s*\]\s*$", ch)
+            common["fill_layout_count"] = len(re.findall(r"(?m)^\[FILL-LAYOUT:", ch))
         return common if stem else None
 
     if qtype == "short":
@@ -1945,11 +2106,19 @@ def content_fingerprint(q):
             parts.append("opt:%s=%s" % (L, collapse(q["opts"][L])))
         parts.append("correct=" + ",".join(sorted(q["correct"])))
         parts.append("select=%d" % q["select"])
+        if q.get("answer_format"):
+            parts.append("format=" + q["answer_format"])
     elif t in ("table", "dnd"):
+        if "matching" in q:
+            parts.append("matching=" + json.dumps(q["matching"], sort_keys=True, separators=(",", ":")))
+            parts.append("row_ids=" + json.dumps([r.get("id") for r in q["rows"]]))
         parts.append("cats=" + "|".join(q["cats"]))
         for i, r in enumerate(q["rows"]):
             parts.append("row:%d=%s::%s" % (i, collapse(r["text"]), r["cat"]))
     elif t == "build":
+        if "ordering" in q:
+            parts.append("ordering=" + json.dumps(q["ordering"], sort_keys=True, separators=(",", ":")))
+            parts.append("block_ids=" + json.dumps([b["id"] for b in q["blocks"]]))
         for i, s in enumerate(q["steps"]):
             parts.append("step:%d=%s" % (i, collapse(s)))
     elif t == "fill":
@@ -2229,8 +2398,9 @@ def _check_section():
 SPEC = (r"""itembank format contract
 =========================
 
-A bank is a markdown file. Everything that is not a question block is ignored,
-so a bank can live inside a larger document with prose around it.
+A bank is a markdown file with question blocks and optional declared metadata.
+Prose around the blocks remains readable; STAGED-CASES explicitly binds a
+fixed answer/reason activity and is validated rather than treated as prose.
 
 A question block starts at `Qn.` at the beginning of a line and runs to the next
 one. Options A through H are supported.
@@ -2279,6 +2449,9 @@ THE NINE ITEM TYPES
 1. Multiple choice.  Default. No TYPE line needed.
      A) ...  B) ...  C) ...  D) ...
      CORRECT: B
+   Explicit true/false uses [FORMAT: true-false] with exactly A) True and
+   B) False, in either order, and one correct answer. Ordinary MC still
+   requires at least three options. Subject structure rules still apply.
 
 2. Multiple response.  Pick a fixed number from five or six.
      [TYPE: multi]
@@ -2298,11 +2471,46 @@ THE NINE ITEM TYPES
      STEP) Complete an approved education program
      STEP) Pass the certification examination
 
+   Versioned structural ordering preserves stable IDs and permits every order
+   satisfying the authored dependencies. Legacy build items keep exact-text
+   scoring. Declare each block once, in the declaration's blocks order:
+     [ORDERING: {"version":1,"blocks":["a","b","c","spare"],"required":["a","b","c"],"dependencies":[["a","c"],["b","c"]]}]
+     STEP) a | First independent prerequisite
+     STEP) b | Second independent prerequisite
+     STEP) c | Use both prerequisites
+     STEP) spare | Unneeded task
+   IDs are unique lowercase identifiers with at most 64 characters. Declare
+   2 to 64 blocks and at most 256 unique dependency edges between required
+   blocks. Required IDs must be nonempty, unique and known. Cycles and
+   self-edges are lint errors. Block text may repeat; identity uses IDs.
+   Submit an array of selected IDs. Duplicate or foreign IDs refuse without
+   recording an attempt. Missing required blocks, selected distractors and
+   violated dependencies are incorrect; no partial credit is assigned.
+   Required IDs and dependencies are private key material. Practice permits
+   runtime diagnostic categories; exam and diagnostic submissions withhold
+   them. Static HTML is a preview requiring a served runtime for scoring.
+   Raw response evidence retains selected IDs and checker_version 1.
+   Indentation and execution of assembled code are not part of version 1.
+
 5. Drag-and-drop.  Sort items into buckets. Same shape as table, but display
    order is shuffled, because a table implies fixed rows and a sort does not.
      [TYPE: dnd]
      [CATEGORIES: Direct care | Readiness]
      ITEM) Assessing the airway :: Direct care
+
+   Explicit matching is additive and versioned; old dnd categories remain
+   reusable. Omit CATEGORIES when MATCHING declares choices:
+     [MATCHING: {"version":1,"reuse":"once","choices":[{"id":"a","text":"Token"},{"id":"b","text":"Token"},{"id":"unused","text":"Spare"}]}]
+     ITEM) left | Choose token a. :: a
+     ITEM) right | Choose token b. :: b
+   Row and choice IDs are unique lowercase identifiers, at most 64 characters.
+   Labels may repeat; identity never comes from display text. The UI displays
+   IDs beside labels to distinguish duplicates. All rows require a choice;
+   unused choices are distractors. reuse is once or unlimited. Version 1
+   bounds rows and choices to 2..64 and rejects forbidden key reuse. Invalid
+   response construction is refused without evidence or keyed feedback.
+   item.invalid_matching identifies declaration errors. Native dropdowns,
+   rich controls and drag enhancement submit the same ID mapping.
 
 6. Short answer.  Constructed response, typed in prose. NOT auto-graded, ever:
    the answer is recorded and a human or an AI marks it against RUBRIC later.
@@ -2425,9 +2633,43 @@ THE NINE ITEM TYPES
      [TYPE: fill]
      [FIELDS: [{"id":"term","label":"Term","kind":"text","accepted":["blue","azure"],"case_sensitive":false,"whitespace":"trim"},{"id":"length","label":"Length","kind":"numeric","answer":"1","unit":"m","units":{"m":"1","cm":"0.01"},"atol":"0","rtol":"0"}]]
    FIELDS is one JSON line with 1 to 16 objects and no duplicate members.
+   Polynomial fields use kind: polynomial, private checker and checker_tests.
+   Checker keys are domain: rational-polynomial, checker_version:
+   a5-rational-polynomial-v2, variable: x, required_form: expanded, target,
+   and diagnostics (at most two unique {id,answer} rules). All comparisons
+   use exact rational coefficients. Use explicit multiplication and powers
+   0 to 4; expanded form requires distribution, not collecting like terms.
+   Bounded grammar (ASCII numbers and x, spaces or tabs between tokens):
+     expression := term (("+" | "-") term)*
+     term := unary ("*" unary)*
+     unary := ("+" | "-") unary | power
+     power := primary ["^" exponent]
+     primary := number | "x" | "(" expression ")"
+     number := integer | integer "." integer | "." integer
+               | integer "/" integer
+     integer := one or more ASCII digits
+     exponent := exactly one ASCII digit from 0 through 4
+   Unary minus binds outside a power: -x^2 means -(x^2). Decimals and
+   rational literals remain exact. Implicit multiplication, functions,
+   Unicode algebra, scientific notation, **, chained powers and division
+   of expressions are unsupported. A zero literal denominator is invalid.
+   Each private test row has input, state, diagnostic_id (null when absent),
+   and checker_version. Cover the teacher, every diagnostic, wrong form,
+   invalid and unsupported entry. Tests must replay exactly before acceptance.
+   Fixed bounds: 160 characters, 96 tokens, 64 nodes, nesting 16, literal
+   digits 12, intermediate degree 4, coefficient numerator/denominator
+   1000000, and 64 coefficient operations. Refusals record no attempt.
+   Polynomial responses stay raw strings; checker targets, diagnostics and
+   private tests never enter a public item or an active formal report.
    Each id is a unique lowercase letter followed by up to 31 lowercase
    letters, digits, or underscores. Each label is 1 to 200 characters.
    Response: {"term":"Blue","length":"100 cm"}. All fields must be correct.
+   Optional [FILL-LAYOUT: inline] puts existing fields into {{field_id}}
+   positions in the stem. Each declared field must occur exactly once;
+   unknown, repeated, missing or malformed markers are invalid. With no
+   declaration, legacy stems and separate labelled fields stay unchanged.
+   [FILL-LAYOUT: fields] explicitly uses the legacy layout. Layout never
+   changes the response, scoring, feedback policy or evidence format.
    Text accepts 1 to 32 explicit strings. NFC normalization preserves accents
    and punctuation. case_sensitive defaults to true. whitespace defaults to
    trim and may be exact, trim, or collapse. No synonyms are guessed.
@@ -2453,6 +2695,26 @@ THE NINE ITEM TYPES
    The served runtime and CLI grade fill. Static build explains that a running
    session is needed and includes no fill key. Anki/GIFT conversion is refused
    until it can preserve these rules. Prose and proofs still use short.
+
+STAGED ANSWER/REASON CASES
+  Optional bank metadata, one JSON line before the first Qn. block:
+    STAGED-CASES: [{"version":1,"activity_id":"counter-case","stimulus":"A fictional counter starts at 3. Add 2 once.","children":["a200000000000001","a200000000000002"],"order":["answer","reason"]}]
+  Declare at most 64 cases. Activity IDs are unique lowercase ASCII names
+  beginning with a letter, then letters, digits, underscore, colon or hyphen,
+  at most 64 characters. Stimulus is nonempty plain text, at most 4000
+  characters. Children are two distinct stable IDs of existing MC items;
+  children cannot overlap cases. Version is 1; order is answer then reason.
+  PAIR never implies a case. Selection retains the complete ordered unit or
+  refuses a split. Each child commits once regardless of correctness, with
+  no retry or hint inside the unfinished case. The committed answer is
+  visible at reason; practice outcomes wait for both commitments. Exam and
+  diagnostic outcomes wait for the whole sitting to close. Children keep
+  distinct objectives and attempts, with activity/revision linkage and no
+  composite score. Session schema v4 binds exact bank/declaration revisions;
+  older ordinary sittings upgrade without inferred cases. Changed or missing
+  case binding freezes mutation. The JSON submit action carries the public
+  activity_id, child_id and submission_token. Author header proposals use
+  the existing local review, fingerprint check, journal acceptance and undo.
 
 DISTRACTOR ANALYSIS
   For mc and multi, one line per option, keyed by letter:
@@ -2912,11 +3174,13 @@ LOCKED_RULE_IDS = frozenset({
 # Built from a set-then-sorted so the tuple is provably sorted and duplicate-free
 # regardless of the order the codes are written below.
 LINT_CODES = tuple(sorted({
+    "bank.invalid_staged_cases",
+    "item.unknown_format", "item.invalid_true_false",
     "item.duplicate_number", "item.select_mismatch", "item.correct_unknown_option",
     "item.too_few_options", "item.missing_second_best", "item.distractor_missing",
     "item.distractor_no_would_be", "item.too_few_categories", "item.row_category_unknown",
-    "item.too_few_rows", "item.missing_distractor_notes", "item.too_few_steps",
-    "item.duplicate_steps", "item.missing_model", "item.too_few_rubric_points",
+    "item.invalid_matching", "item.too_few_rows", "item.missing_distractor_notes", "item.too_few_steps",
+    "item.duplicate_steps", "item.invalid_ordering", "item.missing_model", "item.too_few_rubric_points",
     "item.model_too_long", "item.rubric_point_too_long", "item.missing_why_best",
     "item.missing_trap", "item.low_confidence", "item.duplicate_stem",
     "item.missing_id", "item.duplicate_id", "item.missing_hash",
@@ -3724,6 +3988,8 @@ def lint(questions, lesson=LESSON_UNCHECKED, terms=TERMS_UNCHECKED,
     paraphrase_on = paraphrase is not PARAPHRASE_UNCHECKED
     media_on = media is not MEDIA_UNCHECKED
     activities_on = activities is not ACTIVITIES_UNCHECKED
+    for message in staged_case_spec_errors(questions):
+        errors.append(LintError("bank.invalid_staged_cases", "staged_cases", "BANK", message))
     if lesson_on:
         known_slugs = set()
         if lesson:
@@ -3861,7 +4127,18 @@ def lint(questions, lesson=LESSON_UNCHECKED, terms=TERMS_UNCHECKED,
                 if c not in q["opts"]:
                     errors.append(LintError("item.correct_unknown_option", "correct", tag,
                                   "CORRECT names option %s, which does not exist" % c))
-            if len(q["opts"]) < 3:
+            answer_format = q.get("answer_format", "")
+            if answer_format and answer_format != "true-false":
+                errors.append(LintError("item.unknown_format", "format", tag,
+                              "FORMAT must be true-false when present"))
+            if answer_format == "true-false" and (t != "mc"
+                    or sorted(q["opts"]) != ["A", "B"]
+                    or [q["opts"][letter].strip().casefold() for letter in ("A", "B")]
+                    not in (["true", "false"], ["false", "true"])
+                    or len(q["correct"]) != 1):
+                errors.append(LintError("item.invalid_true_false", "format", tag,
+                              "true-false needs one correct answer and exactly True and False options"))
+            if len(q["opts"]) < 3 and answer_format != "true-false":
                 errors.append(LintError("item.too_few_options", "opts", tag,
                               "only %d options" % len(q["opts"])))
             errors.extend(structure_findings(q, tag))
@@ -3883,6 +4160,8 @@ def lint(questions, lesson=LESSON_UNCHECKED, terms=TERMS_UNCHECKED,
                                     "distractor %s never says when it WOULD be correct" % L))
 
         elif t in ("table", "dnd"):
+            for message in matching_spec_errors(q):
+                errors.append(LintError("item.invalid_matching", "matching", tag, message))
             if len(q["cats"]) < 2:
                 errors.append(LintError("item.too_few_categories", "cats", tag,
                               "needs at least two CATEGORIES"))
@@ -3899,10 +4178,12 @@ def lint(questions, lesson=LESSON_UNCHECKED, terms=TERMS_UNCHECKED,
                                 "no DISTRACTOR ANALYSIS bullets"))
 
         elif t == "build":
+            for message in ordering_spec_errors(q):
+                errors.append(LintError("item.invalid_ordering", "ordering", tag, message))
             if len(q["steps"]) < 2:
                 errors.append(LintError("item.too_few_steps", "steps", tag,
                               "build list has fewer than two steps"))
-            if len(set(q["steps"])) != len(q["steps"]):
+            if "ordering" not in q and len(set(q["steps"])) != len(q["steps"]):
                 errors.append(LintError("item.duplicate_steps", "steps", tag,
                               "duplicate steps in build list"))
             if not q.get("notes"):
@@ -4667,7 +4948,8 @@ def lint(questions, lesson=LESSON_UNCHECKED, terms=TERMS_UNCHECKED,
 
 
 def load(path):
-    qs = parse_bank(open(path, encoding="utf-8").read())
+    with open(path, encoding="utf-8") as stream:
+        qs = parse_bank(stream.read())
     if not qs:
         sys.exit("No question blocks found in %s. Run `itembank spec` for the format." % path)
     return qs

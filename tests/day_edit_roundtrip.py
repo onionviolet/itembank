@@ -1156,7 +1156,8 @@ def check_day_palette_and_no_css_literals():
                                os.path.join(tmp2, "lanes.md"), "2026-01-07")
             page2 = day_render(state2).decode("utf-8")
             css2 = page_style_css(page2)
-            default_light = derive_theme("#0e6e62")["light"]["accent"]
+            default_source = settings_mod.load_settings(tmp2)["accent"]["source"]
+            default_light = derive_theme(default_source)["light"]["accent"]
             if re.search(r"--accent:%s;" % re.escape(default_light), css2) is None:
                 fail("day page without settings did not use schema defaults")
             if not re.search(r"prefers-color-scheme:dark", css2):

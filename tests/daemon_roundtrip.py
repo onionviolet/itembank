@@ -22,7 +22,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 import itembank                                            # noqa: E402
 import evidence                                             # noqa: E402
-from surfaces import cli, daemon, day, session, study        # noqa: E402
+from surfaces import cli, daemon, day, session, study, theme # noqa: E402
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import agent_roundtrip                                       # noqa: E402
@@ -3030,7 +3030,7 @@ def check_settings_page():
             fail("settings page uses no native details disclosure")
         if 'role="status"' not in body and 'aria-live="polite"' not in body:
             fail("settings page has no persistent polite status region")
-        if "#0e6e62" not in body:
+        if settings_source(workdir) not in body:
             fail("settings page does not show the current source accent")
         if '<input type="color"' not in body:
             fail("settings page lost its browser color fallback input")
@@ -3112,9 +3112,9 @@ def check_theme_route_contract():
         status, body = theme_request(endpoint, {"action": "reset", "confirm": "RESET"})
         if status != 200:
             fail("reset with RESET returned %d, expected 200" % status)
-        if body.get("source") != "#0e6e62":
+        if body.get("source") != theme.DEFAULT_ACCENT:
             fail("reset did not restore the default source: %r" % body)
-        if settings_source(workdir) != "#0e6e62":
+        if settings_source(workdir) != theme.DEFAULT_ACCENT:
             fail("reset did not persist the default source")
 
         status, _ = theme_request(endpoint, {"action": "explode"})
@@ -3167,6 +3167,7 @@ def check_theme_route_loopback_and_origin():
     """
     workdir = temp_dir_with(bank=True, settings_overrides={"theme": "system"})
     base = os.path.join(workdir, "itembank.json")
+    original_source = settings_source(workdir)
     proc, url, lines = start_daemon(workdir)
     try:
         endpoint = url + THEME_ROUTE
@@ -3174,7 +3175,7 @@ def check_theme_route_loopback_and_origin():
                                   headers={"Origin": "http://evil.example"})
         if status != 403:
             fail("a cross-origin save returned %d, expected 403" % status)
-        if settings_source(workdir) != "#0e6e62":
+        if settings_source(workdir) != original_source:
             fail("a cross-origin save mutated host settings")
         status, _ = theme_request(endpoint, {"action": "save", "source": "#123abc"},
                                   headers={"Origin": url.rstrip("/")})
@@ -3183,7 +3184,7 @@ def check_theme_route_loopback_and_origin():
         status, _ = theme_request(endpoint, {"action": "reset", "confirm": "RESET"})
         if status != 200:
             fail("a loopback reset returned %d, expected 200" % status)
-        if settings_source(workdir) != "#0e6e62":
+        if settings_source(workdir) != theme.DEFAULT_ACCENT:
             fail("loopback reset did not restore the default")
     finally:
         proc.terminate()
@@ -3195,6 +3196,7 @@ def check_theme_route_loopback_and_origin():
     else:
         port = free_port()
         workdir = temp_dir_with(bank=True, settings_overrides={"theme": "system"})
+        original_source = settings_source(workdir)
         proc, url, lines = start_daemon(workdir, "--lan", "--port", str(port))
         try:
             lan_url = "http://%s:%d/" % (addr, port)
@@ -3208,7 +3210,7 @@ def check_theme_route_loopback_and_origin():
                 status, _ = theme_request(lan_url + THEME_ROUTE, action)
                 if status != 403:
                     fail("a LAN %r action returned %d, expected 403" % (action, status))
-            if settings_source(workdir) != "#0e6e62":
+            if settings_source(workdir) != original_source:
                 fail("a LAN client mutated host settings")
             status, _ = get(lan_url + SETTINGS_ROUTE)
             if status != 200:

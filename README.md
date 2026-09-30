@@ -690,6 +690,11 @@ nobody opens.
 
 ## Item types
 
+For a single true/false decision, use `[TYPE: mc]` with
+`[FORMAT: true-false]`, exactly `A) True` and `B) False` in either order,
+and one `CORRECT:` letter. This uses the ordinary runtime MC scorer. Other
+multiple-choice items still require at least three options.
+
 Nine types ship. `short` holds prose for review. `fill` checks declared text,
 numeric, and measurement fields. `visual` supports declarative interactions,
 and `check` runs the learner's own code. The runtime owns every settled score.
@@ -705,6 +710,28 @@ and `check` runs the learner's own code. The runtime owns every settled score.
 | `visual` | interactive plot or number-line item; the scene and scoring envelope are declarative JSON parsed as data, never executed |
 | `check` | write and run your own code; scored against hidden cases, dichotomously, with no model anywhere in the path |
 | `fill` | complete one or several labeled fields using explicit accepted text, numeric tolerances, or authored unit conversions |
+
+For inline choice completion, put exactly one `___` in a `dnd` item's row
+text. The quiz places a category dropdown inside that sentence. Categories
+may be reused across rows. Rows without a single blank keep their ordinary
+classification controls. This changes presentation only and keeps the same
+row-to-category answer and runtime scoring.
+
+Ordinary `dnd` rows can be dragged into category buckets in the interactive
+quiz. Category buttons remain available for keyboard and touch use, and the
+script-free form uses dropdowns. Bucket lists show the current assignments.
+Dragging does not submit or grade an answer.
+
+Structural ordering extends `build` with stable block IDs and declared
+dependencies. Use `[ORDERING: {"version":1,"blocks":["a","b","c","spare"],"required":["a","b","c"],"dependencies":[["a","c"],["b","c"]]}]`
+and define each block as `STEP) a | Block text`. Submit an array of selected
+IDs. Both `a,b,c` and `b,a,c` satisfy that example; including `spare`, omitting
+a required block or violating a dependency is incorrect. Duplicate or foreign
+IDs refuse submission and preserve the sitting. Native position selects and
+add, remove and reorder controls preserve unfinished work. The runtime keeps
+required blocks and dependencies private until feedback is released. Older
+build items retain their exact-text order. This structural checker does not
+execute assembled code or assign partial credit.
 
 **Automatic scoring is all or nothing.** Every field in a `fill` item must
 pass. Prose remains pending review. Partial credit requires a separate scoring
@@ -741,6 +768,55 @@ Numeric fill withholds automatic glossary definitions while keyed content is
 closed because a finite string filter cannot cover equivalent quantities.
 Static builds show a served-session requirement. GIFT and Anki export refuse
 this type until they can preserve its checking rules.
+
+For blanks inside the sentence, add `[FILL-LAYOUT: inline]` and write each
+existing field ID exactly once as `{{color}}` or `{{length}}` in the stem.
+Lint rejects missing, repeated, unknown or malformed markers. Native and
+enhanced controls submit the same original strings through the runtime.
+Omitting the declaration keeps the existing separate-field layout, including
+literal braces in older stems. `[FILL-LAYOUT: fields]` names that layout explicitly.
+
+Polynomial fields use `kind: polynomial` with a private, versioned `checker`
+and authored `checker_tests`. The bounded domain supports rational coefficients,
+one variable `x`, explicit multiplication, parentheses and powers from 0 to 4.
+For example, `2*x+2` and `2+2*x` are equivalent expanded answers;
+`2*(x+1)` is equivalent but does not meet the declared expanded-form rule.
+Expanded form does not require combining like terms. The runtime keeps the
+original strings and refuses malformed, unsupported, unavailable or failed
+checks without recording a wrong answer. Private targets, diagnostic rules and
+authored tests stay out of learner payloads. `itembank spec` prints the complete
+grammar, fixed resource limits and authoring requirements.
+
+### Staged answer and reason
+
+Declare a fixed two-question case above the first item:
+
+```text
+STAGED-CASES: [{"version":1,"activity_id":"counter-case","stimulus":"A fictional counter starts at 3. Add 2 once.","children":["a200000000000001","a200000000000002"],"order":["answer","reason"]}]
+```
+
+Both children must be existing multiple-choice items with distinct stable IDs.
+Selection keeps them together in answer/reason order. The learner commits each
+response once, sees the committed answer while choosing the reason, and receives
+practice feedback only after both commitments. Exam and diagnostic feedback
+retains its existing whole-sitting release rule. Each child records its own
+objective and attempt with a shared activity identity; there is no composite
+score. Changed or missing bindings refuse further mutation and preserve evidence.
+Session schema v4 carries this contract; ordinary older sittings upgrade without
+being inferred to contain a case. Older readers refuse v4 rather than bypassing
+the feedback barrier.
+
+Course Build now offers a local outline and treatment proposal with exact diff,
+stale-input refusal, Cancel, Accept and Undo. Existing direct readings remain
+recorded. Course Sources links to exact local context selection and private
+source-note controls. Link stores an anchor; Copy quote requires quote rights
+and creates a learner draft. Explicitly selected passages and notes can be
+previewed locally without a model request. Private note backups require consent;
+research inclusion state remains local and is named in the package loss report.
+
+When application builds are deferred, `python scripts/preflight.py --source-only`
+checks source suites and installed JavaScript dependencies, naming the omitted
+archive and sample-build checks. It does not certify a fresh packaged application.
 
 ## The `check` item type
 

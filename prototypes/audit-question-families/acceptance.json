@@ -1,0 +1,22 @@
+{
+  "checker_version": "a2-rational-polynomial-v1",
+  "target": "2*x+2",
+  "tests": [
+    {"input": "2*x+2", "state": "correct"},
+    {"input": "2+2*x", "state": "correct"},
+    {"input": "2.0*x+4/2", "state": "correct"},
+    {"input": "2*(x+1)", "state": "wrong_form"},
+    {"input": "2*x+1", "state": "mathematically_wrong", "diagnostic_id": "distribution-omission"},
+    {"input": "2*x-2", "state": "mathematically_wrong", "diagnostic_id": "sign-error"},
+    {"input": "3*x+2", "state": "mathematically_wrong"},
+    {"input": "2*(", "state": "invalid"},
+    {"input": "sin(x)", "state": "unsupported"},
+    {"input": "1/x", "state": "unsupported"},
+    {"input": "x^5", "state": "unsupported"},
+    {"input": "(x^4)*(x^4)", "state": "unsupported"},
+    {"input": "1000001*x", "state": "unsupported"},
+    {"input": "1/0", "state": "invalid"},
+    {"input": "x^-1", "state": "unsupported"},
+    {"input": "__import__('os')", "state": "unsupported"}
+  ]
+}

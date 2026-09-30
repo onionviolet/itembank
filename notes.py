@@ -325,7 +325,8 @@ def _read_pair(dir_path, course_id=None):
             "fingerprint": _pair_fingerprint(markdown, side_text)}
 
 
-def write_note_document(dir_path, course_id, markdown, sidecar, expected_fingerprint=_UNSET):
+def write_note_document(dir_path, course_id, markdown, sidecar, expected_fingerprint=_UNSET,
+                        _validate_inputs=None):
     """Accept the existing NOTE-01 pair through a private journal transaction.
 
     The document is a journal component, with Markdown as its companion.
@@ -361,6 +362,8 @@ def write_note_document(dir_path, course_id, markdown, sidecar, expected_fingerp
         found = _read_pair(dir_path, course_id)
         if (found["fingerprint"] if found else None) != current:
             raise journal.JournalError("notes.stale", "Notes changed before acceptance. Keep your draft.")
+        if _validate_inputs is not None:
+            _validate_inputs()
     revision = journal.commit_operation(
         dir_path, sidecar["note_document_id"], "component", "notes.md.json",
         "edit_in_place" if old else "mint", new_side,
@@ -379,6 +382,69 @@ def read_note_document(dir_path, course_id=None):
         return None
     with journal._journal_lock(dir_path):
         return _read_pair(dir_path, course_id)
+
+
+def resolve_source_note(base, note):
+    """Return exact cited occurrences without relocating repeated text."""
+    import source_adapters
+    results = []
+    for target in note.get("targets", []):
+        if target.get("target_kind") != "source":
+            continue
+        resolved = source_adapters.resolve_locator(
+            base, target["stable_id"], target["locator"], target["content_fingerprint"])
+        if resolved["status"] == "ok" and hash_quoted_context(resolved["text"]) != target["quoted_context_hash"]:
+            resolved = {"status": "stale", "reason": "quoted occurrence changed"}
+        results.append(resolved)
+    return results
+
+
+def transfer_source_note(base, dir_path, course_id, citation, mode,
+                         expected_fingerprint, confirm=False):
+    """Link an exact source occurrence or copy its quote into a draft note.
+
+    This is a native local transfer, not a companion API import. A link stores
+    an anchor without source wording. A copy stores a quotation with its own
+    learner-note identity. Neither operation changes or accepts the source.
+    """
+    import identity
+    import journal
+    import source_adapters
+    if not confirm:
+        return {"status": "canceled"}
+    if mode not in ("link", "copy"):
+        raise ValueError("choose link or copy explicitly")
+    def validate_source():
+        resolved = source_adapters.resolve_locator(
+            base, citation["source_id"], citation["locator_id"], citation["fingerprint"])
+        if resolved["status"] != "ok":
+            raise ValueError("source occurrence unavailable or changed; keep your draft")
+        row = journal.read_registry(base)[citation["source_id"]]
+        if mode == "copy" and not identity.rights_granted(row.get("rights"), "quote"):
+            raise ValueError("copy needs an explicit quote right")
+        return resolved
+    resolved = validate_source()
+    old = read_note_document(dir_path, course_id)
+    if (old["fingerprint"] if old else None) != expected_fingerprint:
+        raise ValueError("destination notes changed; reload before transfer")
+    target = target_record("source", citation["source_id"], citation["fingerprint"],
+                           citation["locator_id"], hash_quoted_context(resolved["text"]))
+    note = note_record(course_id, [], "quote" if mode == "copy" else "accepted_reference_link",
+                       resolved["text"] if mode == "copy" else "Linked source occurrence: " + citation["locator_id"],
+                       [target])
+    sidecar = dict(old["sidecar"]) if old else {
+        "schema_version": NOTE_SCHEMA_VERSION, "course_id": course_id,
+        "note_document_id": new_note_id(), "notes": []}
+    note["note_document_id"] = sidecar["note_document_id"]
+    sidecar["notes"] = list(sidecar["notes"]) + [note]
+    markdown = (old["markdown"] if old else "# Private source notes\n") + \
+        "\n## Note " + note["note_id"] + "\n\n" + note["learner_wording"] + "\n"
+    def recheck():
+        if validate_source() != resolved:
+            raise ValueError("source occurrence changed during transfer")
+    accepted = write_note_document(dir_path, course_id, markdown, sidecar,
+                                   expected_fingerprint, _validate_inputs=recheck)
+    return {"status": "draft", "mode": mode, "note": note, "document": accepted}
 
 
 # ---------------------------------------------------------------------------

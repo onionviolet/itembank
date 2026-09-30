@@ -1179,3 +1179,72 @@ No candidate is accepted for implementation by this research step.
 > save accordingly to be implemented
 
 **Disposition:** Promote to the [vision entry](USER-VISION.md#2026-09-28-save-question-and-competitor-capabilities-for-implementation). The [question implementation backlog](research/question-types-2026-09-25/BACKLOG.md) owns F1-F10, cross-cutting scoring policies and linked review/authoring workflows. Route to absorption lanes L4/L5 without starting implementation in this capture.
+
+### 2026-09-29: UI feel and a clearer audit goal
+
+> ui right now sucks in feel and spirit how to fix and why?
+
+> can this work concurrently with the other chat? also consider running 'Improve the goal to make more sense accordingly, refrain from jargon but explain things in depth on what feature parity means and more" on prior audits and stuff?
+
+**Disposition:** Route the goal revision and plain-language audit interpretation
+to [the bounded UI goal review](research/ui-goal-review-2026-09-29.md).
+This extends the existing September 25 deliberate-design direction rather than
+selecting a final theme. Keep useful capabilities, continuity and experiential
+quality distinct. This chat reviews and writes the proposal while the existing
+successor owns candidate checks and implementation. No binding scope change or
+concurrent source edit is accepted by this capture.
+
+### 2026-09-29: implement the color and visual-detail direction
+
+> what about better colorscheme and more?
+
+> implement d4-7 accordingly?
+
+**Disposition:** Route this implementation to
+[the current UI goal owner](research/ui-goal-review-2026-09-29.md#d4-d7-color-and-visual-detail-implementation).
+The accepted direction is softer surfaces, clear color roles, more character
+in learning material, and consistent visual details. Existing custom accents,
+OLED mode, semantic grading colors, authored labels, and runtime behavior remain
+independent. The source implementation does not certify human visual preference
+or replace the installed app.
+### 2026-09-30: reconsider the UI without attachment to prior work
+
+> feels like ui is still weak and more, Without feeling pity for prior work, to consider overhaul? More to consider?
+
+**Disposition:** Hold as unresolved product direction, linked to the
+[existing UI goal review](research/ui-goal-review-2026-09-29.md) and
+[changeable craft comparison](research/ui-craft-2026-09-25/SYNTHESIS.md).
+Interpretation, September 30: consider a substantial redesign of navigation,
+activity composition, visual character, and connected learning flows. Prior
+implementation effort is not a reason to retain a weak design. This invites
+reconsideration; it does not select a replacement or authorize a backend rewrite.
+
+Candidate considerations remain proposals: organize navigation around learner
+tasks; compose reading, answering, feedback, and reference together; establish
+a coherent and expressive visual language; make authoring and AI assistance
+produce reviewable course artifacts; compare complete synthetic journeys against
+the current baseline, including restart and failure recovery. Retain existing
+runtime authority and learner data. Reuse adequate behavior based on its value,
+not its age. The next design decision belongs in the existing UI goal owner.
+
+This pass sampled the current goal review, craft synthesis, related vision
+headings, and workflow. It did not inspect the current rendered or installed UI.
+Capture and interpretation are separate; no visual direction, rejected feature,
+binding scope, source implementation, or commit is accepted by this entry.
+
+### 2026-09-30: implement the overhaul through parallel chats
+
+> how should we implement that accordingly?  feel free to revamp old code accordingly, send out chats to work in parallel]
+
+**Disposition:** Route to the [parallel UI overhaul packet](research/ui-overhaul-2026-09-30.md).
+This authorizes source implementation, reconsidering old presentation code, and
+parallel project chats with disjoint writers and a final integrator. The visual
+treatment remains changeable and human preference remains unverified. Existing
+runtime authority, learner data, and the fresh-build hold stay in force. Commit,
+push, installation, and release are not authorized by this statement.
+
+Implementation routing, September 30: V/N/W released their source lanes to I.
+The expressive workshop is the reversible source working direction after an
+identical-content quiet/workshop comparison. Integration retains runtime and
+data authority, and checks served continuity rather than claiming installed or
+human acceptance. Final measured outcome and recovery belong to the same packet.

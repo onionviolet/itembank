@@ -1,4 +1,7 @@
 /* Isolated presentation experiment. No production styles are loaded. */
+#renewal .mobile-nav,#renewal .format-toggle{display:none}
+#renewal mark{text-shadow:0 0 .5em color-mix(in srgb,var(--accent) 30%,transparent)}
+@media print, (forced-colors:active){#renewal mark{text-shadow:none}}
 #renewal{--bg:#f5f5ef;--surface:#fffefa;--ink:#202b27;--muted:#626e65;--line:#dddfd5;--accent:#315b48;--soft:#e7eddf;--chart:#b9d786;--amber:#f3e1a5;--shadow:0 12px 36px #25392a08;font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--ink);background:var(--bg);min-height:100vh;font-size:15px;line-height:1.55}
 body{margin:0}#renewal *{box-sizing:border-box}#renewal.dark{--bg:#17201c;--surface:#202c25;--ink:#eef2e8;--muted:#b0beae;--line:#3c4a40;--accent:#bfd8a6;--soft:#324635;--chart:#96bd72;--amber:#645432;--shadow:none;color-scheme:dark}
 #renewal button,#renewal input{font:inherit}#renewal a{color:inherit}#renewal button,#renewal a{touch-action:manipulation}#renewal button{cursor:pointer}#renewal button:disabled{cursor:default;opacity:.5}#renewal :focus-visible{outline:3px solid #bf8932;outline-offset:4px}#renewal .skip{position:absolute;left:20px;top:-100px;z-index:10;background:var(--surface);padding:12px}#renewal .skip:focus{top:10px}
@@ -42,3 +45,13 @@ body{margin:0}#renewal *{box-sizing:border-box}#renewal.dark{--bg:#17201c;--surf
 @media(max-width:700px){#renewal .sidebar nav{flex-wrap:wrap}#renewal .format-picker{grid-template-columns:1fr 1fr}#renewal .format-picker button{min-height:85px}#renewal .format-workspace{padding:18px}#renewal .format-workspace>.section-head{align-items:flex-start;flex-direction:column}#renewal .code-order li{gap:8px;padding:9px;flex-wrap:wrap}#renewal .code-order pre{flex-basis:calc(100% - 25px);font-size:12px}#renewal .move-controls{margin-left:auto}#renewal .reference-directory{columns:1}#renewal th,#renewal td{padding:9px 5px}}
 
 #renewal .code-line{display:inline}
+@media(max-width:700px){
+  #renewal .sidebar>nav{display:none}
+  #renewal .mobile-nav{display:block;margin-top:8px}
+  #renewal .mobile-nav summary{min-height:44px;padding:10px 0;font-size:13px}
+  #renewal .mobile-nav nav{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px 0 8px}
+  #renewal .mobile-nav nav a{min-height:44px;align-items:center;padding:10px 8px}
+  #renewal .format-toggle{display:flex;align-items:center;justify-content:space-between;width:100%;min-height:44px;margin:18px 0 12px;padding:10px 14px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);text-align:left}
+  #renewal .format-picker{display:none;margin:0 0 16px}
+  #renewal .format-picker.is-open{display:grid}
+}

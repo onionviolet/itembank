@@ -1,30 +1,16 @@
 ---
 name: discovery-and-binding
-description: "Stub: discover sources and artifacts across approved roots and bind them to courses and objectives (root scopes, identity reconciliation, link and import semantics, conflicts, no mutation during inventory). Not usable yet; its command surface has not shipped."
+description: "Stub: the integrated guided discovery workflow has not shipped. For approved read-only inventory and source, rights, objective, or treatment binding, use the documented existing CLI fallback."
 ---
 
-# Discover and bind sources and artifacts (stub)
+# Discover and bind sources
 
-**Provenance:** stubbed 2026-08-14 (reframe slice 4b) per
-`.planning/research/phase-16/14-synthesis.md` section 10.
+The integrated guided skill remains unavailable. Discovery and binding primitives exist; use them explicitly instead of inventing an all-roots discovery command.
 
-**This skill is a stub; its command surface has not shipped.**
+Read [OPERATION-CONTRACT.md](../OPERATION-CONTRACT.md). Repository paths are relative to the checkout root; reference links are relative to this skill directory. Check `python itembank.py course --help` and `python itembank.py bind --help` for this build's arguments.
 
-Intent: teach an agent client to run Loop A of the synthesis (declare read
-roots and rights, scan read-only, identify by stable ID plus fingerprint,
-preview and classify, surface duplicates, moves, conflicts, and unsupported
-files, choose link, import, copy, move, or ignore, bind to objectives,
-validate, checkpoint, and index) without mutating anything during
-inventory and without ever merging artifacts by name similarity.
+Inventory only approved roots, read-only. Record path, stable ID, fingerprint, provenance, source rights, objective links and extraction limits. Same ID with divergent bytes is a conflict; matching names never prove identity. Report roots not scanned. Check the current course policy before inspecting source content.
 
-It will cover: root scope declaration, identity versus fingerprint versus
-path reasoning (same ID with divergent bytes is a conflict; same
-fingerprint with different IDs suggests a copy; a moved path with the same
-ID is a move candidate), the distinct link, import, copy, move, and
-supersede operations, conflict surfacing, and the derived disposable index.
+Use `course show` and `bind list` for existing records. `source import --preview` can inspect extraction without accepting an import. Creating or registering a source, importing, granting rights and binding are separate mutations; execute only the operations already authorized under the declared manifest. `course register-source`, `course add-source`, `bind rights`, `bind source` and `bind treatment` provide the bounded surfaces. Preserve unknown rights as unknown.
 
-Ships after: subphases 14A (identity, lifecycle, and operation prototype)
-and 14B (graph and course package prototype), which supply the stable IDs,
-fingerprints, operation journal, and binding records this skill would
-document. Until then, discovery is the manual read-only inventory described
-in `build-course` step 3 and `../OPERATION-CONTRACT.md`.
+Review the proposed identity and bindings before acceptance. Verify the resulting records, citations and source availability afterward. Use the operation's journal and tested reversal path; a reversible claim requires an actual restore check on representative synthetic data. Report conflicts without merging or overwriting accepted material.

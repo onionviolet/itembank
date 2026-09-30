@@ -179,8 +179,8 @@ def _recorded_baseline():
 # checkable instead of being retired the first time a later phase extends one
 # of the baselined files. A key is added here only when the phase that added
 # it is additive by construction; a key that CHANGED an existing property
-# would not come back to the baseline digest and would still fail, which is
-# the case the check exists for.
+# would not come back to the baseline digest and would still fail, except for
+# the explicitly authorized theme-default reconstruction checked below.
 POST_BASELINE_SCHEMA_KEYS = {
     # plan 15A-04: the agent autonomy policy.
     # 2026-09-05: the look axis (shape, type, density and control language).
@@ -227,6 +227,24 @@ def _strip_additive_fill_profile_defaults(document):
     return True
 
 
+def _restore_authorized_theme_default(document):
+    """Reconstruct only D4-D7's authorized blue-default revision in a copy.
+
+    The 2026-09-29 ui-goal-review D5 authorizes this change while preserving
+    saved accents. Keep the frozen digest, all other schema data and evidence
+    view hashes authoritative.
+    """
+    from surfaces.theme import DEFAULT_ACCENT
+    accent = document["properties"]["accent"]
+    source = accent["properties"]["source"]
+    if (DEFAULT_ACCENT != "#315fa6"
+            or accent.get("default") != {"source": "#315fa6"}
+            or source.get("default") != "#315fa6"):
+        fail("theme/schema defaults differ from the authorized D5 blue default")
+    accent["default"]["source"] = "#0e6e62"
+    source["default"] = "#0e6e62"
+
+
 def check_additivity():
     """The pre-16C world is byte-identical, and the degrade path still
     degrades."""
@@ -258,6 +276,8 @@ def check_additivity():
             if (path == "schemas/settings.schema.json"
                     and not _strip_additive_fill_profile_defaults(document)):
                 continue
+            if path == "schemas/settings.schema.json":
+                _restore_authorized_theme_default(document)
             stripped = json.dumps(document, indent=2,
                                   ensure_ascii=False) + "\n"
             actual = hashlib.sha256(stripped.encode("utf-8")).hexdigest()

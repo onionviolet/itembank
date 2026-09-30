@@ -4,11 +4,11 @@ milestone: reach
 milestone_name: reach
 current_phase_name: 20-extensible-ui-foundation-and-interaction-clarity-pass
 current_phase: 20
-status: "Audit research and first bounded capability slices are pushed on codex/opentutor-gap-inventory-20260927. Full local preflight passes 152 Python scripts, JavaScript, and clean tree. Packaged, installed, and human acceptance remain open."
-stopped_at: "Review the committed authoring slice in the installed desktop journey, then continue the ranked audit slices under their owners."
-last_updated: "2026-09-29"
-last_activity: 2026-09-29
-last_activity_desc: "Committed the audit source inventory, CAP synthesis, and bounded authoring, source locator, notebook, practice, teaching, formal, and unavailable-state slices. Full local preflight passed."
+status: "September 30 source consolidation into main authorized. Completed source slices and preserved worktree variants are being integrated; installed sitting and fresh-build hold remain protected."
+stopped_at: "Current root owns Git consolidation and cleanup. No new production writer starts before the main baseline is verified. The next chats own populated-root restore and separate P3/P5 readiness paths."
+last_updated: "2026-09-30"
+last_activity: 2026-09-30
+last_activity_desc: "Finished parallel staged/checker production integration, reviewed header acceptance/undo and served browser continuity; repaired broad-gate registry/pin/fixture failures and recorded exact verification limits."
 progress:
   total_phases: 41
   completed_phases: 41
@@ -17,6 +17,226 @@ progress:
   counting_rule: "phase directories under .planning/phases; a phase counts complete when frozen or when its execution gate is complete. Human, external, and waived legs remain named limits rather than active implementation phases. Reach phases 19A through 19E and Phase 20 have completed their recorded execution gates. A plan is complete only when its required gate passes; a summary file alone does not close it."
 ---
 # Project State
+
+**Main consolidation authorized, September 30:** The user requested new chats
+for the next parts, cleanup of old worktrees and integration into main. The
+[integration record](research/MAIN-INTEGRATION-2026-09-30.md) owns the bounded
+source and cleanup plans. This lifts the prior source commit/push restriction
+for these plans, while preserving the installed-session and fresh-app-build
+hold. The three historical dirty worktree patches and untracked tests are
+preserved in the recovery archive; newer matching remains canonical and unique
+true/false/prototype refinements are carried forward. Git branch/head/status
+remain the authority for whether the pending commits and main push completed.
+
+**Current staged/checker source closure, September 30:** The user instructed:
+"implement in parallel accordingly, coordinate chats until its done" after
+reviewing the staged, polynomial and UI options. The
+[coordination packet](research/question-types-2026-09-25/PRODUCTION-COORDINATION-2026-09-30.md)
+owns the accepted bounded contracts, exclusive writer handoffs, recovery and
+final fingerprints. Fixed two-MC cases now have genuine practice commitment,
+complete selection, separate linked child evidence, session v4 upgrade and
+crash/process recovery. Bounded polynomial fields use exact runtime checking,
+private authored tests, typed unresolved refusal and actual hint/mode release.
+Reviewed staged header proposals support cancel, stale refusal, journal
+acceptance and exact undo. Static staged HTML refuses before writing an output.
+
+Chrome synthetic journeys pass at 1280/390/320 pixels for keyboard, reload,
+reference/Back/resized return, changed-revision draft notice, held course
+detour and unavailable storage. The combined source-only run executed 181 of
+184 Python scripts. Nine failures were repaired or rerun with installed Chrome;
+all affected scripts pass. All 112 JavaScript cases pass in the final gate.
+Final quick source-only checks pass. The full Python suite was not repeated
+after the registry/test-only repairs, so its original full-run result remains
+failed. The runtime remains the only scoring authority.
+
+All lanes released ownership. Existing dirty work, the installed sitting and
+the fresh-build hold remain protected. No commit, push, app archive build,
+installation or release occurred. Human visual preference, physical touch,
+screen-reader and learning transfer remain unaccepted; app-build/packaged and
+CI-only legs remain deferred. The dirty-tree gate remains unsatisfied.
+
+**Ranked continuation:**
+
+1. Populated-root atomic merge, separately from the proved clean-root restore, preserving unrelated files and coordinating publication writers.
+2. P3 exact evidence anchors/first-error semantics and P5 immutable activity graphs, using their existing source/objective/recovery prerequisites. Polynomial proof does not imply broader symbolic or domain adapters.
+3. Decide U1 temporary exploration reset versus bounded lesson-detour continuity; validate contextual tutoring within its existing rights, egress and formal-withholding gates.
+4. Complete representative human accessibility/learning checks and pinned companion/provider trials when available. Automated browser checks do not sign those gates.
+5. Keep fresh package/install/release work deferred until the build hold is lifted; final source is distinct from the preserved installed learner app.
+
+Earlier entries below retain their original sequencing and acceptance limits.
+Their pending staged/checker decision was resolved by direct user instruction.
+
+**Prior source closure, September 30:** Coordinated S/C/R implementation
+lanes and U/Q prior-chat reviews have returned and released ownership. Root
+integrated ordinary absent/empty-root staged restore and native radio/checkbox
+reference-detour continuity, repaired nested private-stage publication, named
+unavailable restore parents, fixed packaging-test fixture closure without a
+new archive, and closed three source/schema/session read handles.
+
+The [closure packet](research/absorption-2026-09-28/PARALLEL-CLOSURE-2026-09-30.md)
+owns source fingerprints, logs, recovery and exact verification limits. The
+final combined run executed 175 of 178 Python scripts and passed the JavaScript
+gate. Five failures came from a recovery `.py` snapshot being counted as a
+second scorer; snapshots were renamed to `.py.txt` and all five affected
+scripts pass focused reruns. Production bytes remained frozen. The full run
+itself did not pass, and no third full run was made. Final quick source-only
+checks pass; all 17 frozen inputs match. Twelve ordinary restore failure/race
+checks pass. Chrome at 1280px/390px proves pending choice, scroll/focus and exact
+sitting/item survive reference return/reload without recording an attempt.
+
+S/C delivered tested [staged](research/question-types-2026-09-25/STAGED-READINESS-2026-09-30.md)
+and [checker](research/question-types-2026-09-25/CHECKER-READINESS-2026-09-30.md)
+contracts. Staged practice still uses explicitly labelled exam transport in
+its prototype; polynomial results are advisory with no settled learner score.
+The binding-format acceptance question is pending, not inferred from silence.
+The [remaining audit routes](research/AUDIT-REMAINING-2026-09-30.md) reconcile
+27 CAP groups, ten question families and prior-chat ownership; older unnumbered
+record coverage remains incomplete. Historical phase counts do not mean all
+audit features are implemented or accepted.
+
+**Ranked continuation:**
+
+1. Resolve the pending staged/checker contract choice, then implement accepted production syntax, session/runtime/evidence changes sequentially under one writer per shared file. Use the tested readiness reports, not another duplicate planning chat.
+2. Keep populated-root atomic merging separate from proved clean-root restore. Preserve unrelated files and coordinate canonical writers before publication.
+3. Review remaining anchors/activity graphs, contextual tutoring and wider family adapters under their named objective, rights, checker and recovery prerequisites in the existing backlog.
+4. Complete representative human visual/accessibility/learning checks and pinned companion/provider trials when available. Automated scripts do not sign these gates.
+5. Preserve the build hold and active installed sitting. Final-source package/install/release and CI-only legs remain deferred; changes remain uncommitted and the dirty-tree gate stays open.
+
+One R packaging test ran inadvertently and cleaned its temporary archive; no
+installed app changed. No commit, push, installation, release or real-course
+access occurred. No implementation lane remains active; future chats read this
+entry and the latest evidence before assigning a new writer.
+
+**Prior integration, 2026-09-30 UI overhaul:** V/N/W released their source
+lanes. The compact shared frame, compact Home course choices, full Courses
+controls, source/private-note desk, measured lesson canvas and response/feedback
+composition are integrated. Reading now emits and honors the existing saved
+theme. The [existing UI goal](research/ui-goal-review-2026-09-29.md) owns the
+experience direction; the [overhaul packet](research/ui-overhaul-2026-09-30.md)
+owns final fingerprints, comparisons, commands, logs and recovery.
+
+The served synthetic journey passes at 1280px and 390px, light/dark, including
+read-only entry, custom theme, exact reference return, keyboard answer control,
+runtime submission, reload and failed note-save draft recovery/retry. The single
+combined source-only preflight ran 170 Python scripts and 106 JavaScript cases;
+four stale Python checks and twelve reorder cases were repaired and passed
+focused reruns. Production inputs stayed frozen. The full run was not repeated,
+and the inherited dirty-tree gate remains unsatisfied. App-build checks and the
+two CI-only legs remain deferred. Human visual preference, touch, screen-reader,
+learning transfer and installed acceptance remain open.
+
+**Prior next action:** review the synthetic source preview for visual preference and
+representative accessibility. Keep the active installed learner session and
+fresh-build hold. P2 staged commitment/feedback/evidence, P4 checker grammar and
+limits, P3/P5 anchors/activity graph, whole-root restore crash/race publication,
+pinned live companion and Open Notebook service retain their existing owners
+and prerequisites. This visual pass does not implement or close those gates.
+No commit, push, archive/app build, install, release or real course access occurred.
+
+**Earlier integration, 2026-09-30:** A1-A4 have completed and released their
+files. A5 connects the existing outline proposal adapter to native Build
+review/accept/cancel/undo routes, adds an admitted exact-sitting lesson return,
+and exposes local exact source inclusion and private Link/Copy quote notes.
+Readiness and review history remain derived from their existing authorities.
+The opt-in inline fill layout preserves response/scoring and legacy stems.
+Archive-safe schema access and note-only personal-backup locator closure are
+repaired. Actual source ordering drops into later positions, reload, keyboard
+Remove/Add, runtime submission and a 2/2 report pass after the guarded
+dragenter repair. Focused source/HTTP checks pass. The final source-only run executed 166
+Python scripts and deferred three app-build scripts. Ten failing scripts were
+resolved and rerun; the diagnostic tail was checked because preflight prints
+only twenty diagnostic lines per failed gate. All 106 JavaScript tests pass.
+Both automated browser matrices pass with installed Chrome. The full run was
+not repeated after these scoped repairs; the dirty-tree gate remains unsatisfied.
+The final [A5 closure](research/absorption-2026-09-28/A5-INTEGRATION-2026-09-29.md#wrap-up-verification-and-record-release-september-30)
+owns commands, source fingerprints, logs and recovery. No fresh app build occurred.
+
+The user has deferred new builds. The existing ordering archive is preserved;
+it is missing the new research surface and differs from current source in nine
+existing members. Earlier A5 clean archive-only source/note restore proofs
+precede the final routing and inline/drag edits. Neither that archive nor the
+installed app certifies the final source. No commit, push, install or release
+is authorized by this integration. Human touch, screen-reader and learning
+transfer remain unaccepted. Open Notebook still lacks a pinned live service.
+P2-P5 are executable prototypes with explicit commitment, evidence, grammar,
+span or activity-graph production gates; they are not whole-family completion.
+
+Earlier September 30 resume points (historical sequencing, superseded by current source closure):
+
+1. Start with [P2 staged answer/reason](research/question-types-2026-09-25/NEXT-STAGED-PACKET-2026-09-29.md): settle commitment, practice feedback release and linked child evidence before production edits.
+2. Review [P4 bounded checking](research/question-types-2026-09-25/NEXT-CHECKER-PACKET-2026-09-29.md): grammar, limits, unresolved outcomes and authored diagnostic tests. P3/P5 retain their anchor and activity-graph prerequisites.
+3. Exercise remaining whole-root restore crash/race publication and pinned live-companion gates when their required environment is available; follow the A4/17C owners.
+4. Run representative human keyboard, touch, screen-reader and learning-transfer trials. Automated matrices do not settle these gates.
+5. Preserve the build hold and active installed learner session. Fresh package validation, installation and release remain deferred until the hold is lifted.
+
+The dated blocks below are historical evidence snapshots. Current sequencing
+and source/archive/installed states are owned by the current source closure above.
+
+**Structural ordering and A1 ownership release, 2026-09-29:** Versioned build
+blocks, required IDs, dependencies, distractors and alternative valid orders
+now use the existing parser and runtime scorer. Native controls preserve draft
+positions and focus; invalid construction records no attempt. Source, authored
+proposal/undo, lesson-gate and fresh portable-package journeys pass. Final
+package Chrome checks recorded two matching and two ordering responses exactly
+once, each sitting at 2/2. Actual matching drag passes; later structural-order
+drops canceled in Chrome and the in-app browser, so that drag gate remains open.
+Full preflight executed 166 Python scripts: 163 passed, and three stale checks
+were repaired and rerun successfully. All 100 JavaScript tests pass after a
+hint-test scope correction. Production bytes stayed frozen; full preflight was
+not repeated after test-only repairs. Dirty-tree and human/installed gates
+remain explicit. The [A3 evidence owner](research/question-types-2026-09-25/WORKFLOW-AUDIT-2026-09-29.md#a3-structural-ordering-evidence-2026-09-29)
+records fingerprints, package/browser proof, recovery and limits. A1's named
+source ownership is released to the existing A5 integration owner in the
+parallel absorption packet. [Staged answer/reason](research/question-types-2026-09-25/NEXT-STAGED-PACKET-2026-09-29.md)
+and [bounded checking](research/question-types-2026-09-25/NEXT-CHECKER-PACKET-2026-09-29.md)
+are successor contract proposals, not implemented whole families. No commit,
+push, install or release occurred.
+
+**Question matching and disclosure, 2026-09-29:** R1 now uses runtime-owned
+feedback release for recent activity, next-action derivation and report routes.
+A2 adds versioned dnd matching IDs, explicit capacity, authoring and native/rich
+response recovery. Source and fresh packaged journeys pass; 92 JavaScript cases
+pass. Final full preflight ran 157 Python files and retained the three known
+theme failures plus the dirty-tree gate; other executed gates passed.
+The [A2 evidence section](research/question-types-2026-09-25/WORKFLOW-AUDIT-2026-09-29.md#a2-implementation-evidence-2026-09-29)
+owns fingerprints, final preflight and limits. Live pointer drag is not accepted;
+native controls work, and human accessibility/installed acceptance remain open.
+At that snapshot the next unit was the [A3 ordering packet](research/question-types-2026-09-25/NEXT-ORDERING-PACKET-2026-09-29.md); current sequencing is recorded above.
+All shared edits and the installed learner app remain preserved. No commit,
+push, installation or release occurred.
+
+**Question workflow audit, 2026-09-29:** The
+[comparative audit](research/question-types-2026-09-25/WORKFLOW-AUDIT-2026-09-29.md)
+covers F1-F10 and pins H5P, PrairieLearn, Runestone and STACK source patterns.
+It reproduces missing word-bank dragging on the normal served baseline and lost
+unfinished build drafts. The backlog owns the recommended A1-A5 sequence,
+starting with delivery and continuity repairs. This is an audit, not another
+implementation or package acceptance. The latest word-bank source addition
+postdates the combined candidate above and remains outside its package proof.
+Its full-preflight failures and subsequent 85-test JavaScript pass remain named
+in the question backlog. Earlier frozen-candidate hashes keep their own scope.
+
+**Audit continuation, 2026-09-29:** The
+[continuation record](research/absorption-2026-09-28/IMPLEMENTATION-2026-09-29.md)
+owns uncommitted F1 inline dropdown and assignment-draft work, CAP-04/27
+tab-local reading and unsaved-note recovery, packaged authoring checks and
+final gate evidence. The active installed learner app was not replaced.
+Wider CAP and question backlog entries retain their existing gates.
+
+**Daisy-chain continuation, 2026-09-29:** The same record now owns
+`audit-f1-buckets-20260929` and completed `candidate-journey-20260929`.
+Chrome pointer dragging, category-button fallback, reload and refused-submission
+recovery passed. The separate native candidate preserved assignment and reading
+drafts. Final package and full-preflight evidence, expected dirty-tree failure,
+input hashes and human-only limits are recorded there. Home/Courses work from
+chat `01a0eec6-892a-78e2-9c9e-08df41fb0883` was excluded from that earlier build.
+The same chain now owns `combined-candidate-20260929`, which includes its
+fingerprinted [UI packet](research/ui-goal-review-2026-09-29.md). Native reorder
+and exact sitting checks, packaged authoring, and 390px Home/Courses checks pass.
+One full preflight on the combined inputs passed 154 Python scripts and
+JavaScript, failing only the expected dirty-tree gate. Frozen input and package
+hashes, proof images and the complete log are retained in its evidence record.
+The integration packet is complete; human and installed acceptance remain open.
 
 **Audit backlog implementation, 2026-09-29:** Ten scoped commits
 `29652b2` through `24478b8` preserve the September 27 source and fork audits,
@@ -232,9 +452,9 @@ bounded result to Weibao. A3/D3 remains proposed. Reading position resets and
 no notes/reported-read control was available on the exercised route. Human and
 real-course acceptance remain uncertified. No successor or Git mutation.
 
-## Current position (2026-09-08): Phase 20 deterministic repair complete
+## Historical position (2026-09-08, superseded by September 30 integration): Phase 20 deterministic repair complete
 
-**Next agent packet:** The populated-course walkthrough and exact recovery
+**Historical next agent packet, superseded for current sequencing:** The populated-course walkthrough and exact recovery
 probes are recorded in [SOURCE-TO-READING-NEXT-PACKET-2026-09-08.md](SOURCE-TO-READING-NEXT-PACKET-2026-09-08.md).
 Prototype the reading-occurrence contract over an existing local source before
 changing durable formats. Exact import undo remains blocked by R1 through R3.
@@ -302,7 +522,7 @@ budget, 2026-09-07."
 The 2026-09-05 position below is chronological history and is superseded for
 current routing.
 
-## Current position (2026-09-05): reach, and nothing waiting
+## Historical position (2026-09-05, superseded above): reach, and nothing waiting
 
 **The freeze ordering is waived.** Weibao, 2026-09-05: "skip the freeze and
 make everything beginnable." A phase may now be planned, executed and closed
@@ -417,7 +637,7 @@ exception rather than two undeclared ones. A stale assertion in
 `tests/daemon_roundtrip.py` that predated this plan (sixteen `/api/*` routes
 against a tree carrying eighteen) was repaired in the same pass.
 
-## Current position (2026-09-03, superseded above)
+## Historical position (2026-09-03, superseded above)
 
 **Milestone:** source-to-course. Exit is Phase 17B's gate record
 (`.planning/phases/17B-production-vertical-tracer/17B-GATES.md`), G1 to G11.

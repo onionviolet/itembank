@@ -11,6 +11,7 @@ question banks to the build itself.
     python scripts/preflight.py            # every portable gate
     python scripts/preflight.py --quick    # skip the two slow suites
     python scripts/preflight.py --list     # gate ids and their CI step names
+    python scripts/preflight.py --source-only  # defer app builds and installs
 
 Exit 0 = every gate that ran passed. Exit 1 = at least one failed.
 
@@ -24,6 +25,7 @@ Standard library only, same as everything else in scripts/.
 """
 import argparse
 import filecmp
+import json
 import os
 import re
 import shutil
@@ -97,21 +99,35 @@ def gate_build():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
-def gate_tests():
+APP_BUILD_TESTS = frozenset({
+    "a5_integrated_package_roundtrip.py", "math_offline_roundtrip.py",
+    "packaging_roundtrip.py",
+})
+
+
+def gate_tests(source_only=False):
     # Every file under tests/, matching CI. The suite takes minutes, so it
     # reports each file as it finishes rather than going dark; a gate you
     # cannot watch is a gate you interrupt.
     tests = sorted(f for f in os.listdir(os.path.join(ROOT, "tests"))
                    if f.endswith(".py"))
     failures = []
+    deferred = []
     for i, name in enumerate(tests, 1):
+        if source_only and name in APP_BUILD_TESTS:
+            deferred.append(name)
+            print("        deferred app build: %s" % name, flush=True)
+            continue
         print("        [%d/%d] %s" % (i, len(tests), name), flush=True)
         code, out = run([PY, os.path.join("tests", name)])
         if code != 0:
             failures.append("== tests/%s\n%s" % (name, out.rstrip()))
     if failures:
         return False, "\n".join(failures)
-    return True, "%d test file(s) passed" % len(tests)
+    message = "%d test file(s) passed" % (len(tests) - len(deferred))
+    if deferred:
+        message += "; app-build checks deferred: " + ", ".join(deferred)
+    return True, message
 
 
 def gate_clean_tree():
@@ -135,12 +151,23 @@ def gate_clean_tree():
                     "\n\n%s" % ("\n".join(dirty), diff.rstrip()))
 
 
-def gate_js_tests():
+def gate_js_tests(source_only=False):
     if shutil.which("npm") is None or shutil.which("node") is None:
         return None, "node or npm is not on PATH; CI still runs this gate"
-    code, out = run(["npm", "ci", "--prefix", "tests/js"], shell=os.name == "nt")
-    if code != 0:
-        return False, out
+    if source_only:
+        try:
+            with open(os.path.join(ROOT, "tests/js/package.json")) as stream:
+                expected = json.load(stream)["dependencies"]["jsdom"]
+            with open(os.path.join(ROOT, "tests/js/node_modules/jsdom/package.json")) as stream:
+                installed = json.load(stream)["version"]
+        except (OSError, ValueError, KeyError):
+            return None, "JS dependency installation deferred in source-only mode"
+        if installed != expected:
+            return None, "installed JS dependency differs from the pin; installation deferred"
+    else:
+        code, out = run(["npm", "ci", "--prefix", "tests/js"], shell=os.name == "nt")
+        if code != 0:
+            return False, out
     js = sorted(os.path.join("tests", "js", f)
                 for f in os.listdir(os.path.join(ROOT, "tests", "js"))
                 if f.endswith(".test.mjs"))
@@ -246,6 +273,8 @@ def main():
                     help="skip the Python and JS suites")
     ap.add_argument("--list", action="store_true",
                     help="print the gate table and exit")
+    ap.add_argument("--source-only", action="store_true",
+                    help="defer fresh app archives and sample builds; use already installed JS dependencies")
     args = ap.parse_args()
 
     if args.list:
@@ -256,14 +285,20 @@ def main():
         return 0
 
     failed, skipped = [], []
+    if args.source_only:
+        print("source-only: fresh app archives, sample builds and dependency installation are deferred", flush=True)
     for gate_id, step, fn, slow in GATES:
+        if args.source_only and gate_id == "build":
+            skipped.append(gate_id)
+            print("skip    build    sample build deferred (--source-only)", flush=True)
+            continue
         if args.quick and slow:
             skipped.append(gate_id)
             print("skip    %-8s (--quick)" % gate_id, flush=True)
             continue
         if slow:
             print("run     %-8s (slow)" % gate_id, flush=True)
-        ok, out = fn()
+        ok, out = (fn(source_only=True) if args.source_only and gate_id in ("tests", "js") else fn())
         if ok is None:
             skipped.append(gate_id)
             print("skip    %-8s %s" % (gate_id, out), flush=True)
@@ -274,7 +309,12 @@ def main():
             continue
         failed.append(gate_id)
         print("FAIL    %-8s (CI step: %s)" % (gate_id, step), flush=True)
-        for line in out.rstrip().splitlines()[:20]:
+        diagnostics = out.rstrip().splitlines()
+        # Each failing script is a separate repair obligation. Truncating the
+        # suite after twenty lines silently hid later failures and tracebacks.
+        if gate_id != "tests":
+            diagnostics = diagnostics[:20]
+        for line in diagnostics:
             print("        " + line)
 
     for step in CI_ONLY:

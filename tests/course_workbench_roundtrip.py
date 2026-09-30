@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
 """Course detail links and the Build and review flow over real loopback HTTP."""
 
+import argparse
 import html
 import json
 import os
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
+import threading
+import time
 import urllib.parse
 import urllib.error
 import urllib.request
@@ -20,6 +24,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import graph
 import journal
+import evidence
 from surfaces import agent_operation, course_workbench, daemon, ia, session
 from daemon_roundtrip import get, start_daemon
 from agent_operation_roundtrip import _Stub, local_profile
@@ -41,7 +46,46 @@ def post(url, fields):
                              (url, exc.code, exc.read().decode("utf-8")[:500])) from exc
 
 
-def main():
+def start_runtime(root, runtime):
+    """Exercise a packaged server while retaining disposable fixture setup."""
+    if runtime is None:
+        return start_daemon(root)
+    runtime = os.path.abspath(runtime)
+    check(os.path.isfile(runtime), "runtime does not exist: " + runtime)
+    command = ([sys.executable, "-u", runtime]
+               if runtime.endswith((".pyz", ".py")) else [runtime])
+    proc = subprocess.Popen(command + ["daemon", root, "--no-open", "--port", "0"],
+                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                            text=True, cwd=root)
+    lines = []
+    def consume_output():
+        for line in proc.stdout:
+            lines.append(line)
+    threading.Thread(target=consume_output, daemon=True).start()
+    try:
+        deadline = time.monotonic() + 20
+        while time.monotonic() < deadline:
+            match = re.search(r"http://127\.0\.0\.1:\d+/", "".join(lines))
+            if match:
+                base = match.group(0)
+                try:
+                    if get(base + "__itembank__", timeout=1)[0] == 200:
+                        return proc, base, lines
+                except (OSError, urllib.error.URLError):
+                    pass
+            if proc.poll() is not None:
+                break
+            time.sleep(0.1)
+        raise AssertionError("packaged daemon did not become ready:\n" + "".join(lines))
+    except BaseException:
+        if proc.poll() is None:
+            proc.terminate()
+        proc.wait(timeout=5)
+        proc.stdout.close()
+        raise
+
+
+def main(runtime=None, browser_hold=False):
     root = tempfile.mkdtemp(prefix="course-workbench-")
     stub = _Stub(candidate={"draft": "## LESSON\n\n### Safe summary\n\nA synthetic course draft.\n",
                             "citations": ["synthetic source section"]})
@@ -112,8 +156,13 @@ def main():
                         "human", "synthetic-test")
         with open(os.path.join(root, "itembank.json"), "w", encoding="utf-8") as stream:
             json.dump(settings, stream)
-        proc, base, _lines = start_daemon(root)
+        proc, base, _lines = start_runtime(root, runtime)
         prefix = base + "course/" + cid + "/"
+        if browser_hold:
+            print(json.dumps({"browser_build_url": prefix + "build", "root": root,
+                              "target": target}), flush=True)
+            input("Press Enter after the disposable browser journey to stop its server: ")
+            return
 
         status, page = get(prefix + "map")
         check(status == 200 and 'href="#objective-0"' in page, "objective row has no detail link")
@@ -194,6 +243,26 @@ def main():
               "ambiguous admitted path gained a resume link")
         check("CORRECT:" not in page, "evidence page exposed a key")
 
+        with tempfile.TemporaryDirectory(prefix="course-evidence-retraction-") as evidence_base:
+            log = evidence.log_path(evidence_base)
+            event = evidence.response_event(
+                "retracted-sitting", {"objective": "synthetic:review", "id": "R1",
+                                      "type": "mc", "item_id": ""},
+                "B", False, "practice", 1, "synthetic.md")
+            evidence.append_event(log, event)
+            with mock.patch.object(ia, "_course_resume_state", return_value={"sessions": ()}):
+                before_retract = course_workbench.details(
+                    fake_handler, fake_state, evidence_base, doc, [])
+                evidence.append_event(log, evidence.retraction_event(
+                    event["event_id"], "Synthetic response withdrawn"))
+                after_retract = course_workbench.details(
+                    fake_handler, fake_state, evidence_base, doc, [])
+            check("<h3>Responses</h3><p>1 recorded." in before_retract,
+                  "live response was not counted")
+            check("<h3>Responses</h3><p>0 recorded." in after_retract and
+                  "<h3>Sittings</h3><p>0 recorded." in after_retract,
+                  "retracted response still contributes to course evidence counts")
+
         status, page = get(prefix + "build")
         check(status == 200 and 'action="/course/%s/build"' % cid in page,
               "Build and review has no script-free form")
@@ -269,9 +338,15 @@ def main():
         if proc is not None:
             proc.terminate()
             proc.wait(timeout=5)
+            proc.stdout.close()
         stub.close()
         shutil.rmtree(root, ignore_errors=True)
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--runtime", help="Packaged .pyz or frozen executable to exercise")
+    parser.add_argument("--browser-hold", action="store_true",
+                        help="Hold the disposable authoring fixture for a real browser journey")
+    args = parser.parse_args()
+    main(args.runtime, args.browser_hold)

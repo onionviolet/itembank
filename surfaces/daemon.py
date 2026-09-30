@@ -27,7 +27,7 @@ import server
 import subjects
 from model import (lesson_slug, load, parse_activities, parse_bank,
                    parse_key_blocks, parse_lesson, parse_media, parse_terms)
-from runtime import (checkpoint_feedback, explain_payload, fill_response_error, glossable,
+from runtime import (PolynomialRefusal, assessment_feedback_released, checkpoint_feedback, explain_payload, fill_response_error, matching_response_error, ordering_response_error, glossable,
                      lesson_run_advance, lesson_run_record, read_lesson_run,
                      read_session, start_lesson_run, upgrade_session,
                      submission_feedback)
@@ -124,9 +124,12 @@ def _refusal_from_exit(exc_code, q):
 
 def _fill_entry_error_body(exc_code, q, answer):
     """Map the runtime's key-free fill validation refusal to a retryable body."""
-    if q is None or q.get("type") != "fill":
+    if q is None or (q.get("type") != "fill" and "matching" not in q and "ordering" not in q):
         return None
-    message = fill_response_error(q, answer)
+    if "ordering" in q:
+        message = ordering_response_error(q, answer)
+    else:
+        message = matching_response_error(q, answer) if "matching" in q else fill_response_error(q, answer)
     if message and str(exc_code) == message:
         return {"entry_error": message}
     return None
@@ -262,6 +265,8 @@ HELP_GET_RE = re.compile(r"^/help/(?P<code>[a-z0-9_.]{1,64})$")
 COURSE_READING_RE = re.compile(r"^/course/(?P<course_id>[A-Za-z0-9_.-]{1,64})/reading/(?P<occurrence_id>[a-f0-9]{16,64})/(?P<revision_id>[a-f0-9]{16,64})$")
 COURSE_GET_RE = re.compile(r"^/course/(?P<course_id>[A-Za-z0-9_.-]{1,64})$")
 COURSE_AREA_RE = re.compile(r"^/course/(?P<course_id>[A-Za-z0-9_.-]{1,64})/(?P<area>learn|practice|test|map|sources|build|agent|evidence)$")
+COURSE_OUTLINE_RE = re.compile(r"^/course/(?P<course_id>[A-Za-z0-9_.-]{1,64})/outline/(?P<action>propose|accept|reject|undo)$")
+COURSE_RESEARCH_RE = re.compile(r"^/course/(?P<course_id>[A-Za-z0-9_.-]{1,64})/research$")
 COURSE_LESSON_RE = re.compile(r"^/course/(?P<course_id>[A-Za-z0-9_.-]{1,64})/learn/(?P<lesson_id>[A-Za-z0-9_.-]{1,64})$")
 COURSE_READ_RE = re.compile(r"^/api/course/(?P<operation>outline|coverage|untreated|protocol|parity)/(?P<course_id>[A-Za-z0-9_.-]{1,64})$")
 
@@ -454,6 +459,9 @@ ROUTES = (
     ("GET", COURSE_GET_RE, "handle_course_get"),
     ("GET", COURSE_AREA_RE, "handle_course_area_get"),
     ("POST", COURSE_AREA_RE, "handle_course_area_post"),
+    ("POST", COURSE_OUTLINE_RE, "handle_course_outline_post"),
+    ("GET", COURSE_RESEARCH_RE, "handle_course_research_get"),
+    ("POST", COURSE_RESEARCH_RE, "handle_course_research_post"),
     ("GET", COURSE_LESSON_RE, "handle_course_lesson_get"),
     ("GET", COURSE_READ_RE, "handle_course_read_get"),
 )
@@ -567,6 +575,9 @@ ROUTE_CLI = {
     ("GET", COURSE_GET_RE): "daemon",
     ("GET", COURSE_AREA_RE): "daemon",
     ("POST", COURSE_AREA_RE): "course",
+    ("POST", COURSE_OUTLINE_RE): "course",
+    ("GET", COURSE_RESEARCH_RE): "daemon",
+    ("POST", COURSE_RESEARCH_RE): "daemon",
     ("GET", COURSE_LESSON_RE): "daemon",
     ("GET", COURSE_READ_RE): "course",
 }
@@ -1538,7 +1549,20 @@ def _agent_area_html(handler, state, course_dir):
 def _course_area_extra(handler, state, course_dir):
     """Context, review, and source binding markup beyond area rows."""
     if course_dir is not None and state.get("area") in ("agent", "build"):
-        return _agent_area_html(handler, state, course_dir)
+        body = _agent_area_html(handler, state, course_dir)
+        if state.get("area") == "build":
+            from surfaces import course_workbench
+            try:
+                import course
+                query = urllib.parse.parse_qs(urllib.parse.urlsplit(handler.path).query)
+                selected = query.get("outline", [None])
+                if len(selected) != 1:
+                    raise ValueError("agent.invalid_outline_selection")
+                body += course_workbench.outline_panel(
+                    course_dir, course.read_course(course_dir)["doc"], selected[0])
+            except Exception as exc:
+                body += '<p role="status">Outline is unavailable: %s. Reload the accepted course and proposal before editing.</p>' % presentation.esc(str(exc))
+        return body
     if course_dir is not None and state.get("area") in ("map", "sources", "evidence"):
         from surfaces import course_workbench
         try:
@@ -1556,6 +1580,7 @@ def _course_area_extra(handler, state, course_dir):
     if course_dir is None or state.get("area") != "sources":
         return ""
     from surfaces import open_notebook
+    detail += '<p><a href="/course/%s/research">Select exact source context and private quote notes</a></p>' % urllib.parse.quote(state["course_id"], safe="")
     detail += open_notebook.panel()
     try:
         reading = binding_cli.bindings(course_dir)
@@ -1622,15 +1647,23 @@ def _app_nav(current):
     """The small, stable application frame shared by shelf and course pages."""
     courses_current = ' aria-current="page"' if current == "courses" else ""
     return ('<nav class="app-nav" aria-label="Application">'
-            '<a class="app-name" href="/">itembank</a><ul>'
+            '<a class="app-name" href="/"%s>itembank</a><ul>'
             '<li><a href="/courses"%s>Courses</a></li>'
             '<li><a href="/activity">Activity</a></li>'
             '<li><a href="/settings">Settings</a></li></ul></nav>'
-            % courses_current)
+            % (' aria-current="page"' if current == "home" else "", courses_current))
 
 
 def _course_action_label(card):
     """Keep the canonical verb visible when the course name is beside it."""
+    resume = card.get("resume") or {}
+    if resume.get("state") == "active" and card["cta_href"].startswith("/quiz/"):
+        active = [row for row in resume.get("sessions", ())
+                  if row.get("status") == "active"]
+        if len(active) == 1 and active[0].get("mode") in ("practice", "exam"):
+            return "Resume practice" if active[0]["mode"] == "practice" else "Resume test"
+    if resume.get("state") == "ambiguous":
+        return "Choose a saved sitting"
     label = card["cta_label"]
     for verb in ("Start", "Resume", "Open", "Choose", "Reconcile"):
         if label == verb + " " + card["name"]:
@@ -1638,19 +1671,48 @@ def _course_action_label(card):
     return label
 
 
+def _desk_session_context(card):
+    """Describe a known runtime position without inferring scores or mastery."""
+    resume = card.get("resume") or {}
+    if resume.get("state") != "active":
+        return ""
+    active = [row for row in resume.get("sessions", ()) if row.get("status") == "active"]
+    if len(active) != 1:
+        return ""
+    row = active[0]
+    position, total = row.get("position"), row.get("total")
+    if (type(position) is not int or type(total) is not int
+            or not 0 <= position < total or row.get("mode") not in ("practice", "exam")):
+        return ""
+    return "%s · Question %d of %d" % (
+        "Practice" if row["mode"] == "practice" else "Test", position + 1, total)
+
+
+def _desk_focus_card(cards):
+    """Prefer a canonical resumable sitting, preserving course order as the tie-break."""
+    return next((card for card in cards
+                 if (card.get("resume") or {}).get("state") == "active"
+                 and card["cta_href"].startswith("/quiz/")), cards[0] if cards else None)
+
+
 def _desk_hero(card):
-    """Lead with the first visible course and only its canonical next action."""
+    """Lead with a saved sitting when available, otherwise the first course."""
     if card is None:
         return ""
     return (
         '<section class="desk-focus" aria-labelledby="desk-focus-title">'
         '<div class="desk-focus-copy">'
-        '<p class="desk-eyebrow">First in your course order</p>'
+        '<p class="desk-eyebrow">%s</p>'
         '<h2 id="desk-focus-title">%s</h2>'
+        '<p class="desk-session-context"%s>%s</p>'
         '<p class="resume-cue">%s</p></div>'
         '<div class="desk-focus-actions"><a class="go primary" href="%s" aria-label="%s">%s</a></div>'
         '</section>'
-        % (presentation.esc(card["name"]),
+        % ("Continue a saved session" if (card.get("resume") or {}).get("state") == "active"
+           and card["cta_href"].startswith("/quiz/") else "First in your course order",
+           presentation.esc(card["name"]),
+           "" if _desk_session_context(card) else " hidden",
+           presentation.esc(_desk_session_context(card)),
            presentation.esc(card["resume_cue"]),
            presentation.esc(card["cta_href"]),
            presentation.esc(card["cta_label"]),
@@ -1703,7 +1765,7 @@ def _course_frame(handler, state, back, course_dir=None):
                                         "%s complete" % sitting["mode"].capitalize()),
                                "note": "Saved on this device."})
         if saved_rows:
-            saved_html = '<section aria-labelledby="saved-sittings"><h3 id="saved-sittings">Saved sittings</h3>%s</section>' % _course_rows_html(saved_rows)
+            saved_html = '<section class="overhaul-saved-sittings" aria-labelledby="saved-sittings"><h3 id="saved-sittings">Saved sittings</h3>%s</section>' % _course_rows_html(saved_rows)
         elif resume["state"] == "unavailable":
             saved_html = '<p role="status">A saved sitting is unavailable. Review session files before starting again.</p>'
     if state["area"] in ("build", "agent"):
@@ -1745,12 +1807,12 @@ def _course_frame(handler, state, back, course_dir=None):
                   '<nav aria-label="Course areas"><ul>%s</ul></nav></details>'
                   % (presentation.esc(state["area_label"]), "".join(nav)))
     body = (_app_nav("course")
-            + ('<p class="current-area">Current area: %s</p>'
+            + ('<p class="current-area overhaul-course-heading">Current area: %s</p>'
                % presentation.esc(state["area_label"]))
             + desktop_nav + mobile_nav
             + ('<div class="state" data-anchor-missing hidden role="status">'
                "<p>%s</p></div>"
-               '<h2 id="%s">%s</h2>%s%s'
+               '<div class="overhaul-course-content"><h2 id="%s">%s</h2>%s%s</div>'
                % (presentation.esc(ia.ANCHOR_NOT_FOUND_NOTICE),
                   presentation.esc(heading_id),
                   presentation.esc(state["area_label"]), saved_html + content,
@@ -1954,6 +2016,76 @@ def handle_course_area_post(handler, course_id, area):
     if result.get("proposal_id"):
         destination += "?proposal=" + urllib.parse.quote(result["proposal_id"], safe="")
     handler.send_redirect(destination)
+
+
+def handle_course_outline_post(handler, course_id, action):
+    """Native reviewed outline form, under the existing loopback write gate."""
+    if _reject_cross_origin_write(handler):
+        return
+    course_dir = ia.course_dir_for(handler.root, course_id)
+    if course_dir is None:
+        _course_not_found(handler)
+        return
+    try:
+        from surfaces import course_workbench
+        raw = handler.read_form()
+        if any(len(values) != 1 for values in raw.values()):
+            raise ValueError("agent.duplicate_outline_field")
+        result = course_workbench.outline_action(
+            course_dir, action, {key: values[0] for key, values in raw.items()},
+            settings.load_settings(handler.root), reviewer="course-build-review")
+    except Exception as exc:
+        handler.send_error(400, str(exc))
+        return
+    destination = "/course/%s/build" % urllib.parse.quote(course_id, safe="")
+    if result.get("proposal_id"):
+        destination += "?outline=" + urllib.parse.quote(result["proposal_id"], safe="")
+    handler.send_redirect(destination + "#course-outline-proposal")
+
+
+def _send_course_research(handler, course_dir, result=None, retained=None, error=None):
+    import course
+    from surfaces import research_context
+    try:
+        body = research_context.panel(course_dir, result, retained)
+        if error:
+            body = '<p role="alert">%s. Your submitted selection remains below; no change was accepted.</p>' % presentation.esc(error) + body
+        cfg = settings.load_settings(handler.root)
+        profile, _notice = settings.resolve_presentation_profile(cfg)
+        cid = course.read_course(course_dir)["object_id"]
+        page = presentation.surface_shell("Selected research context", body,
+            theme_css=theme.theme_css(cfg), presentation_profile=profile,
+            back={"href": "/course/%s/sources" % cid, "label": "Back to sources"})
+        handler.send_html(page.encode("utf-8"), 400 if error else 200)
+    except Exception as exc:
+        handler.send_error(400, "Research context unavailable: " + str(exc))
+
+
+def handle_course_research_get(handler, course_id):
+    """Read native local selection controls without source or note mutation."""
+    course_dir = ia.course_dir_for(handler.root, course_id)
+    if course_dir is None:
+        _course_not_found(handler)
+        return
+    _send_course_research(handler, course_dir)
+
+
+def handle_course_research_post(handler, course_id):
+    """Explicit local context/quote-note forms, using existing CAS owners."""
+    if _reject_cross_origin_write(handler):
+        return
+    course_dir = ia.course_dir_for(handler.root, course_id)
+    if course_dir is None:
+        _course_not_found(handler)
+        return
+    fields = handler.read_form()
+    try:
+        from surfaces import research_context
+        result = research_context.apply(course_dir, fields)
+    except Exception as exc:
+        _send_course_research(handler, course_dir, retained=fields, error=str(exc))
+        return
+    _send_course_research(handler, course_dir, result)
 
 
 def handle_course_lesson_get(handler, course_id, lesson_id):
@@ -2680,6 +2812,9 @@ def handle_report_get(handler):
             log = evidence.log_path(handler.root)
             events = evidence.capture_events(log) \
                 if os.path.exists(log) else ()
+            from runtime import learner_evidence
+            from surfaces.home import feedback_sessions
+            events = learner_evidence(events, feedback_sessions(handler.root))
             payload = retention.retention_report(
                 events, weeks=weeks, filters=filters,
                 cfg=settings.load_settings(handler.root))
@@ -2749,8 +2884,8 @@ def handle_report_get(handler):
     data = read_session(path)
     bank_path = data.get("bank")
     gate_html = ""
-    if bank_path and os.path.exists(bank_path) and not (
-            status == 'active' and data.get('mode') in ('exam', 'diagnostic')):
+    if bank_path and os.path.exists(bank_path) and assessment_feedback_released(
+            data.get('mode'), data):
         les = parse_lesson(bank_path)
         gate_modes = {}
         if les:
@@ -2934,12 +3069,17 @@ SHELF_SCRIPT = """<script>
       if (down) { down.disabled = saving || index === rows.length - 1; }
     });
     var focus = document.querySelector('.desk-focus');
-    var first = rows[0];
+    var first = rows.find(function (row) { return row.dataset.resumable === 'true'; }) || rows[0];
     if (focus && first) {
       var action = first.querySelector('.course-card-actions a');
       var focusAction = focus.querySelector('.desk-focus-actions a');
       focus.querySelector('h2').textContent = first.querySelector('h2').textContent;
       focus.querySelector('.resume-cue').textContent = first.querySelector('.resume-cue').textContent;
+      focus.querySelector('.desk-eyebrow').textContent = first.dataset.resumable === 'true'
+        ? 'Continue a saved session' : 'First in your course order';
+      var context = focus.querySelector('.desk-session-context');
+      context.textContent = first.dataset.sessionContext || '';
+      context.hidden = !context.textContent;
       focusAction.textContent = action.textContent;
       focusAction.setAttribute('aria-label', action.getAttribute('aria-label'));
       focusAction.href = action.href;
@@ -3119,6 +3259,33 @@ def _sample_course_controls(sample):
                presentation.esc(sample["confirm_copy"])))
 
 
+def _desk_course_choices(cards):
+    """A compact Home entry list; full collection controls live on Courses."""
+    choices = []
+    for card in cards:
+        choices.append(
+            '<article class="course-card overhaul-course-choice" role="listitem" '
+            'data-course-id="%s" data-attention="%s">'
+            '<div class="course-card-main"><h2><a href="/course/%s">%s</a></h2>'
+            '<span class="chip">%s</span><p class="resume-cue">%s</p></div>'
+            '<div class="course-card-actions"><a class="go" href="%s" '
+            'aria-label="%s">%s</a></div></article>' % (
+                presentation.esc(card["course_id"]),
+                presentation.esc(card["attention"]),
+                urllib.parse.quote(card["course_id"], safe=""),
+                presentation.esc(card["name"]), presentation.esc(card["chip"]),
+                presentation.esc(card["resume_cue"]),
+                presentation.esc(card["cta_href"]), presentation.esc(card["cta_label"]),
+                presentation.esc(_course_action_label(card))))
+    return ('<style>.overhaul-course-choices .course-card{'
+            'grid-template-columns:minmax(0,1fr) auto}'
+            '.overhaul-course-choice h2 a{overflow-wrap:anywhere}'
+            '@media(max-width:640px){.overhaul-course-choices .course-card{'
+            'grid-template-columns:minmax(0,1fr)}'
+            '.overhaul-course-choices .course-card-actions{grid-column:1}}</style>'
+            '<div class="overhaul-course-choices" role="list">%s</div>' % "".join(choices))
+
+
 def _course_shelf_body(shelf, walkthrough=None, sample=None, list_only=False):
     """Render the ordered course list with canonical actions and shelf hooks."""
     cards = []
@@ -3155,7 +3322,8 @@ def _course_shelf_body(shelf, walkthrough=None, sample=None, list_only=False):
                    if options else "")
         cards.append(
             '<article class="course-card" data-course-id="%s" '
-            'data-attention="%s" data-ia-token="%s" role="listitem">'
+            'data-attention="%s" data-ia-token="%s" data-resumable="%s" '
+            'data-session-context="%s" role="listitem">'
             '<span class="course-mark" aria-hidden="true">%02d</span>'
             '<div class="course-card-main"><h2>%s</h2>'
             '<span class="chip">%s</span>'
@@ -3165,6 +3333,9 @@ def _course_shelf_body(shelf, walkthrough=None, sample=None, list_only=False):
             % (presentation.esc(card["course_id"]),
                presentation.esc(card["attention"]),
                presentation.esc(card["token"]),
+               "true" if (card.get("resume") or {}).get("state") == "active"
+               and card["cta_href"].startswith("/quiz/") else "false",
+               presentation.esc(_desk_session_context(card)),
                index + 1,
                presentation.esc(card["name"]),
                presentation.esc(card["chip"]),
@@ -3184,8 +3355,8 @@ def _course_shelf_body(shelf, walkthrough=None, sample=None, list_only=False):
             ["course_corrupted"], course_id=degraded[0]["course_id"]))
     offer = _walkthrough_offer(walkthrough) if walkthrough else ""
     if cards:
-        help_copy = ("<p class=\"shelf-order-help\">Drag courses into your order, "
-                     "or use Move up and Move down.</p>"
+        help_copy = ("<p class=\"shelf-order-help\">Reorder with Drag, "
+                     "or Move up and Move down in Course options.</p>"
                      if shelf.get("reorderable") else "")
         fingerprint = shelf.get("workspace_fingerprint") or ""
         content = ('%s<div class="course-shelf" role="list" data-course-shelf '
@@ -3203,20 +3374,23 @@ def _course_shelf_body(shelf, walkthrough=None, sample=None, list_only=False):
     if list_only:
         return (content + '<p class="status" data-shelf-status role="status" '
                 'aria-live="polite"></p>')
-    first = shelf["cards"][0] if shelf["cards"] else None
-    guidance = ("Open a course or choose one of its options."
+    first = _desk_focus_card(shelf["cards"])
+    guidance = ("Continue a saved session, or open a course to read and practise."
                 if cards else "Add the sample course to explore this workspace.")
     heading = ('<section class="desk-heading"><div><h2>Your desk</h2>'
                '<p>%s</p></div><span class="desk-count">%d %s</span></section>'
                % (guidance, len(cards), "course" if len(cards) == 1 else "courses"))
     course_section = ('<section class="desk-course-section" aria-labelledby="course-shelf-title">'
                       '<div class="desk-section-title"><h2 id="course-shelf-title">'
-                      'Your courses</h2></div>%s</section>' % content)
-    desk = (heading + _desk_hero(first) + '<div class="desk-below">'
-            + course_section + '</div>')
+                      'Your courses</h2><a href="/courses">All courses and options</a>'
+                      '</div>%s</section>' % (_desk_course_choices(shelf["cards"]) if cards else content))
+    help_section = ('<details class="overhaul-home-tools"><summary>Workspace help</summary>'
+                    '%s</details>' % offer) if offer else ""
+    desk = ('<div class="overhaul-home">' + heading + _desk_hero(first)
+            + '<div class="desk-below">' + course_section + '</div>' + help_section + '</div>')
     return ('%s%s%s%s%s<p class="status" data-shelf-status role="status" '
             'aria-live="polite"></p>'
-            % (_app_nav("courses"), desk, banner, offer, ""))
+            % (_app_nav("home"), desk, banner, "", ""))
 
 
 def handle_index(handler):
@@ -3309,7 +3483,8 @@ def handle_courses_get(handler):
         })
     state = None if shelf.get("available") else {
         "kind": "unknown", "status": shelf.get("notice", "Courses unavailable")}
-    course_list = (_course_shelf_body(shelf, list_only=True)
+    course_list = (_course_shelf_body(shelf, sample=ia.sample_course_state(handler.root),
+                                    list_only=True)
                    if shelf.get("available") and shelf.get("cards")
                    else presentation.course_shelf(
                        cards, empty="No courses are available yet.", state=state))
@@ -3863,11 +4038,14 @@ def _send_quiz_page(handler, stem, path, qs, sess, view, teaching, lesson_slugs,
         if isinstance(before, dict) and before.get("item"):
             advanced = (before.get('position') != view.get('position') or
                         view.get('status') == 'complete')
-            if flash.get('action') != 'defer_feedback' or advanced:
+            opening_reason = (flash.get('action') == 'defer_feedback'
+                              and (before.get('activity') or {}).get('stage') == 'answer'
+                              and (view.get('activity') or {}).get('stage') == 'reason')
+            if (flash.get('action') != 'defer_feedback' or advanced) and not opening_reason:
                 rendered_view = before
             if flash.get('action') == 'defer_feedback':
                 flash = dict(flash, advanced=advanced)
-            if advanced and view.get('status') != 'complete':
+            if advanced and view.get('status') != 'complete' and not opening_reason:
                 continue_href = _quiz_path(stem, launch_mode,
                                             session_id=session_id, course_id=course_id)
                 try:
@@ -4173,8 +4351,10 @@ def _form_answer(item, fields):
     if t == "mc": return one("option")
     if t == "multi": return sorted(set(fields.get("option") or []))
     if t in ("table", "dnd"):
-        return dict((str(i), one("row_%d" % i)) for i, _ in enumerate(item.get("rows") or []) if one("row_%d" % i))
-    if t == "build": return [one("step_%d" % i) for i, _ in enumerate(item.get("steps") or []) if one("step_%d" % i)]
+        return dict((str(row.get("id", i)), one("row_%d" % i)) for i, row in enumerate(item.get("rows") or []) if one("row_%d" % i))
+    if t == "build":
+        blocks = item.get("blocks") if "ordering" in item else item.get("steps")
+        return [one("step_%d" % i) for i, _ in enumerate(blocks or []) if one("step_%d" % i)]
     if t == "fill":
         return dict((str(field.get("id", "")), one("fill_" + str(field.get("id", ""))))
                     for field in item.get("fields") or [])
@@ -4282,10 +4462,19 @@ def handle_quiz_answer(handler, stem):
                 if refusal is not None:
                     result = refusal
                 elif action == "submit":
-                    result = session.do_action(session_file, {"kind": "submit", "answer": _form_answer(before["item"], fields)},
+                    submit_action = {"kind": "submit", "answer": _form_answer(before["item"], fields)}
+                    if before.get("activity"):
+                        for name in ("activity_id", "child_id", "submission_token"):
+                            submit_action[name] = (fields.get(name) or [None])[0]
+                    result = session.do_action(session_file, submit_action,
                                                confidence=None, renderer_meta=None, elapsed_ms=None)
                 else:
                     result = session.do_teach(session_file, action)
+            except PolynomialRefusal as exc:
+                _echo_quiz_failure(handler, stem, path, qs, session_file,
+                                   fields, str(exc), status=400,
+                                   sess=sess, launch_mode=launch_mode)
+                return
             except SystemExit as exc:
                 result = _refusal_from_exit(exc.code, q)
                 if result is None:
@@ -4356,8 +4545,12 @@ def handle_quiz_answer(handler, stem):
             sess["api_session_id"] = api_id
             session_file = out
         answer = data.get("response")
+        submit_action = {"kind": "submit", "answer": answer}
+        for name in ("activity_id", "child_id", "submission_token"):
+            if name in data:
+                submit_action[name] = data[name]
         result = session.do_action(
-            session_file, {"kind": "submit", "answer": answer},
+            session_file, submit_action,
             confidence=None, renderer_meta=None, elapsed_ms=elapsed_ms)
         try:
             pre3 = read_session(session_file)
@@ -4381,6 +4574,9 @@ def handle_quiz_answer(handler, stem):
             handler.send_json(body)
         else:
             handler.send_error(400, str(exc.code))
+        return
+    except PolynomialRefusal as exc:
+        handler.send_json({"entry_error": str(exc), "entry_state": exc.state})
         return
     except Exception as exc:                    # never let a bad POST kill the daemon
         handler.send_server_error(exc)
@@ -4519,11 +4715,12 @@ def _gate_answer_from_form(q, fields):
         for i in range(len(q.get("rows") or [])):
             v = one("row_%d" % i)
             if v:
-                out[str(i)] = v
+                out[str(q["rows"][i].get("id", i))] = v
         return out
     if t == "build":
         out = []
-        for i in range(len(q.get("steps") or [])):
+        blocks = q.get("blocks") if "ordering" in q else q.get("steps")
+        for i in range(len(blocks or [])):
             v = one("step_%d" % i)
             if v:
                 out.append(v)
@@ -4706,6 +4903,38 @@ def _paced_context(handler, stem, path, les, params):
             "announce": announce}
 
 
+def _lesson_sitting_return(handler, lesson_path):
+    """Admit an exact local sitting return without starting or advancing it."""
+    try:
+        outer = urllib.parse.parse_qs(urllib.parse.urlsplit(getattr(handler, "path", "")).query)
+        values = outer.get("return", [])
+        if len(values) != 1:
+            return None
+        target = urllib.parse.urlsplit(values[0])
+        if target.scheme or target.netloc or not target.path.startswith("/quiz/") or "\\" in target.path:
+            return None
+        query = urllib.parse.parse_qs(target.query, keep_blank_values=True)
+        if set(query) != {"mode", "session", "course"} or any(len(v) != 1 for v in query.values()):
+            return None
+        stem = target.path[len("/quiz/"):]
+        path = handler.banks.get(stem)
+        cid, sid, mode = (query[k][0] for k in ("course", "session", "mode"))
+        base = ia.course_dir_for(handler.root, cid)
+        if base is None or path is None or mode not in ("practice", "exam", "diagnostic"):
+            return None
+        admitted = {os.path.realpath(p) for _stem, p in _course_banks(handler, base)}
+        if os.path.realpath(path) not in admitted or os.path.realpath(lesson_path) not in admitted:
+            return None
+        saved = _saved_quiz_session(handler, stem, path, load(path), cfg={
+            "mode": mode, "mode_specific": True, "requested_session_id": sid})
+        if saved is None or saved[1]["session_id"] != sid:
+            return None
+        return {"href": _quiz_path(stem, mode, session_id=sid, course_id=cid),
+                "label": "Return to saved sitting"}
+    except (OSError, ValueError, KeyError, TypeError, SystemExit):
+        return None
+
+
 def _lesson_context_nav(handler, bank_path):
     """Build daemon-only lesson navigation from a uniquely owning course.
 
@@ -4744,6 +4973,10 @@ def _lesson_context_nav(handler, bank_path):
                           os.path.splitext(os.path.basename(bank_path))[0],
                           "practice", course_id=matches[0]),
                       "label": "Continue to practice"})
+    exact = _lesson_sitting_return(handler, bank_path)
+    if exact:
+        links = [link for link in links if link["label"] != "Continue to practice"]
+        links.insert(0, exact)
     return links
 
 
@@ -4865,6 +5098,11 @@ def handle_lesson_check(handler, stem):
             handler.send_error(404, "no item %r in this bank" % check_id)
             return
         answer = _gate_answer_from_form(q, fields)
+        if "ordering" in q:
+            problem = ordering_response_error(q, answer)
+            if problem:
+                handler.send_error(400, problem)
+                return
         sess = handler.sessions[stem]
         bank_dir = os.path.dirname(os.path.abspath(path)) or "."
         log = evidence.log_path(bank_dir)
@@ -5912,8 +6150,16 @@ def handle_api_submit(handler):
         handler.send_json(refusal)
         return
     try:
+        submit_action = {"kind": "submit", "answer": answer}
+        binding_source = action if action is not None else data
+        for name in ("activity_id", "child_id", "submission_token"):
+            if action is not None and name in data and name in action:
+                handler.send_error(400, "%s given both top-level and inside action" % name)
+                return
+            if name in binding_source:
+                submit_action[name] = binding_source[name]
         result = session.do_action(
-            path, {"kind": "submit", "answer": answer},
+            path, submit_action,
             confidence=confidence, renderer_meta=renderer_meta)
     except SystemExit as exc:
         body = _refusal_from_exit(exc.code, q)
@@ -5923,6 +6169,9 @@ def handle_api_submit(handler):
             handler.send_json(body)
         else:
             handler.send_error(400, str(exc.code))
+        return
+    except PolynomialRefusal as exc:
+        handler.send_json({"entry_error": str(exc), "entry_state": exc.state})
         return
     except Exception as exc:
         handler.send_server_error(exc)
@@ -7546,6 +7795,7 @@ def handle_course_reading_get(handler, course_id, occurrence_id, revision_id):
         origin = urllib.parse.parse_qs(urllib.parse.urlsplit(handler.path).query).get('from', ['learn'])[0]
         handler.send_html(desk_surface.render(
             course_id, read, occurrence_id, revision_id, view,
+            theme_css=theme.theme_css(settings.load_settings(handler.root)),
             origin='overview' if origin == 'overview' else 'learn').encode('utf-8'))
     except Exception:
         handler.send_error(400, 'Reading unavailable. Refresh the course or inspect recovery.')

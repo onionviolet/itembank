@@ -37,6 +37,9 @@ included (`tests/presentation_roundtrip.py` Test 2).
 """
 
 import html
+import hashlib
+import re
+import json
 
 
 RESPONSE_FORMAT_LABELS = {
@@ -174,6 +177,8 @@ h1.stem{font-size:32px;font-weight:600;line-height:1.2;margin:0 0 14px;
 .response-body{min-width:0;max-width:100%;overflow-wrap:anywhere}
 .fill-fields{display:grid;gap:12px;margin:4px 0}
 .fill-field{display:grid;gap:5px;font-family:var(--font-paper)}
+.fill-fields.fill-inline{display:block;line-height:2}
+.fill-inline .fill-field{display:inline-grid;vertical-align:middle;max-width:100%;margin:.3em .5em}
 .fill-help{color:var(--mut);font:16px/1.4 var(--font-chrome)}
 .fill-field input{width:100%;min-width:0;min-height:44px;box-sizing:border-box;
   font:inherit;font-size:16px;padding:8px 12px;border:1px solid var(--edge);
@@ -183,6 +188,26 @@ h1.stem{font-size:32px;font-weight:600;line-height:1.2;margin:0 0 14px;
 .fill-field input:disabled{opacity:.75}
 .response-table,.response-dnd,.response-visual,.response-check{
   max-width:100%;overflow-x:auto;overscroll-behavior-inline:contain}
+.inline-completion{display:block;font-family:var(--font-paper);line-height:2.5;margin:8px 0}
+.inline-completion select{font:inherit;min-height:44px;max-width:100%;margin:0 6px;
+  border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink)}
+.inline-completion select:focus{outline:2px solid var(--accent);outline-offset:2px}
+.inline-completion select.right{border-color:var(--ok);background:var(--ok-bg);color:var(--ok)}
+.inline-completion select.wrong{border-color:var(--bad);background:var(--bad-bg);color:var(--bad)}
+.inline-word-bank{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+.inline-word-bank span{padding:8px 12px;border:1px solid var(--line);border-radius:6px;cursor:grab;overflow-wrap:anywhere}
+.ordering-source{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+.ordering-source .ordering-block{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:6px;padding:8px}
+.ordering-source [data-ordering-block-id]{padding:8px;cursor:grab;overflow-wrap:anywhere;user-select:none}
+.ordering-source [aria-disabled=true]{cursor:default;opacity:.6}
+.rowline.ordering-drop-active{outline:2px dashed var(--accent);outline-offset:3px}
+.assignment-buckets{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(180px,100%),1fr));gap:12px;margin:16px 0}
+.assignment-bucket{border:1px dashed var(--line);border-radius:6px;padding:12px;min-height:88px;overflow-wrap:anywhere}
+.assignment-bucket.is-over{border-color:var(--accent);background:var(--card)}
+.assignment-bucket h2{font-size:16px;margin:0 0 8px}
+.assignment-bucket ul{margin:0;padding-left:20px}
+.drag-card{cursor:grab;border:1px solid var(--line);border-radius:6px;padding:8px}
+.drag-card:active{cursor:grabbing}
 .seg{display:flex;gap:5px;flex-wrap:wrap}
 .seg button{font:inherit;font-size:16px;padding:8px 12px;min-height:44px;
   font-family:var(--font-chrome);border-radius:7px;border:1px solid var(--edge);background:var(--card);
@@ -419,7 +444,7 @@ __GLOSS_CSS__
 __PRODUCT_CSS__
 </style>
 __MATH_ASSETS__
-</head><body><div class="wrap" data-presentation-profile="__PRESENTATION_PROFILE__">__PRODUCT_NAV__
+</head><body><div class="wrap overhaul-quiz" data-presentation-profile="__PRESENTATION_PROFILE__">__PRODUCT_NAV__
 <nav class="context-line" data-surface-context aria-label="Session context">
   <span class="cx" id="cx-bank">__CTX_BANK__</span>
   <span class="cx objective" id="cx-objective"></span>
@@ -436,7 +461,7 @@ __MATH_ASSETS__
   <p class="hint" id="activity-instructions">Follow the response instructions below.</p>
 </details>
 __LTI_FRAMING__
-<div id="host"></div>
+<main class="overhaul-question-workspace" aria-label="Active question"><div id="host"></div></main>
 <div id="assist-slot">__ASSIST__</div>
 </div>
 __CM6_TAG__
@@ -1034,7 +1059,7 @@ def _prefilled(prefill, name):
     return values[-1] if values else ""
 
 
-def _form_controls(item, prefill=None):
+def _form_controls(item, prefill=None, entry_error=False):
     """Render only the response vocabulary declared by a public item, with any
     previously submitted values echoed back in (see `_prefilled`)."""
     t = item.get("type")
@@ -1055,18 +1080,48 @@ def _form_controls(item, prefill=None):
         return '<fieldset class="choices"><legend>%s</legend>%s</fieldset>' % (legend, "".join(rows))
     if t in ("table", "dnd"):
         cats = item.get("categories") or []
+        matching = item.get("matching")
+        labels = {c["id"]: c["text"] + " (" + c["id"] + ")" for c in (matching or {}).get("choices", [])}
         rows = []
         for n, row in enumerate(item.get("rows") or []):
             was = _prefilled(prefill, "row_%d" % n)
             opts = ''.join('<option value="%s"%s>%s</option>' %
                            (html.escape(str(c), quote=True),
                             " selected" if str(c) == was else "",
-                            html.escape(str(c))) for c in cats)
-            rows.append('<label class="rowline"><span class="rowtext">%s</span><select name="row_%d">'
+                            html.escape(labels.get(c, str(c)))) for c in cats)
+            text = str(row.get("text", ""))
+            if matching:
+                rows.append('<label class="inline-completion"><span>%s (%s)</span><select name="row_%d" data-row-id="%s"><option value=""></option>%s</select></label>' %
+                            (html.escape(text), html.escape(str(row["id"])), n, html.escape(str(row["id"]), quote=True), opts))
+                continue
+            if t == "dnd" and text.count("___") == 1:
+                before, after = text.split("___")
+                rows.append('<label class="inline-completion">%s<select name="row_%d" '
+                            'data-row-id="%s" aria-label="Blank %d: %s"><option value=""></option>%s</select>%s</label>' %
+                            (html.escape(before), n, html.escape(str(row.get("id", n)), quote=True), n + 1, html.escape(text, quote=True),
+                             opts, html.escape(after)))
+                continue
+            rows.append('<label class="rowline"><span class="rowtext">%s</span><select name="row_%d" data-row-id="%s">'
                         '<option value=""></option>%s</select></label>' %
-                        (html.escape(str(row.get("text", ""))), n, opts))
+                        (html.escape(str(row.get("text", ""))), n, html.escape(str(row.get("id", n)), quote=True), opts))
+        if matching:
+            return '<fieldset data-matching-reuse="%s" data-matching-signature="%s"><legend>Match every row. %s Unused choices are allowed.</legend>%s</fieldset>' % (
+                matching["reuse"], html.escape(json.dumps([matching, item["rows"]], ensure_ascii=False, separators=(",", ":")), quote=True), "Use each choice once." if matching["reuse"] == "once" else "Choices can be reused.", "".join(rows))
         return "".join(rows)
     if t == "build":
+        if item.get("ordering"):
+            blocks = item.get("blocks") or []
+            signature = json.dumps([item["ordering"], sorted(blocks, key=lambda block: block["id"])], ensure_ascii=False, separators=(",", ":"))
+            rows = []
+            for n in range(len(blocks)):
+                options = ''.join('<option value="%s"%s>%s (%s)</option>' % (
+                    html.escape(block["id"], quote=True),
+                    " selected" if block["id"] == _prefilled(prefill, "step_%d" % n) else "",
+                    html.escape(block["text"]), html.escape(block["id"])) for block in blocks)
+                rows.append('<label class="rowline"><span class="rowtext">Position %d</span>'
+                            '<select name="step_%d" aria-label="Position %d"><option value=""></option>%s</select></label>'
+                            % (n + 1, n, n + 1, options))
+            return '<fieldset data-ordering-signature="%s"><legend>Arrange the selected blocks. Leave unused blocks in the source area.</legend>%s</fieldset>' % (html.escape(signature, quote=True), "".join(rows))
         return "".join('<label class="rowline"><span class="rowtext">Step %d</span>'
                        '<select name="step_%d"><option value=""></option>%s</select></label>' %
                        (n + 1, n, ''.join('<option value="%s"%s>%s</option>' %
@@ -1081,12 +1136,17 @@ def _form_controls(item, prefill=None):
                 'No response has been recorded.</div>')
     if t == "fill":
         rows = []
+        inline = {}
         for field in item.get("fields") or []:
             field_id = str(field.get("id", ""))
             label = str(field.get("label", field_id))
             name = "fill_" + field_id
             value = _prefilled(prefill, name)
-            if field.get("kind") == "text":
+            if field.get("kind") == "polynomial":
+                checker = field.get("checker") or {}
+                help_text = str(checker.get("grammar", "Use x, numbers, explicit * and powers 0 to 4."))
+                help_text += " Expand products. Example: 3*x^2 + 4*x + 1. Maximum 160 characters."
+            elif field.get("kind") == "text":
                 case = ("Case matters." if field.get("case_sensitive", True)
                         else "Uppercase and lowercase are treated the same.")
                 whitespace = {
@@ -1103,11 +1163,18 @@ def _form_controls(item, prefill=None):
                         str(unit) for unit in units)
             rows.append(
                 '<label class="fill-field"><span>%s</span>'
-                '<span class="fill-help">%s</span>'
+                '<span class="fill-help" id="fill-help-%s">%s</span>'
                 '<input type="text" name="%s" value="%s" autocomplete="off" '
-                'inputmode="text" maxlength="4096"></label>' %
-                (html.escape(label), html.escape(help_text), html.escape(name, quote=True),
-                 html.escape(value, quote=True)))
+                'inputmode="text" maxlength="4096" aria-describedby="fill-help-%s%s"%s></label>' %
+                (html.escape(label), html.escape(field_id, quote=True), html.escape(help_text), html.escape(name, quote=True),
+                 html.escape(value, quote=True), html.escape(field_id, quote=True),
+                 " fill-entry-error" if entry_error else "", ' aria-invalid="true"' if entry_error else ""))
+            inline[field_id] = rows[-1]
+        if item.get("fill_layout") == "inline":
+            sentence = re.sub(r"\{\{([a-z][a-z0-9_]{0,31})\}\}",
+                              lambda match: inline[match.group(1)],
+                              html.escape(item["stem"]))
+            return '<div class="fill-fields fill-inline">%s</div>' % sentence
         return '<div class="fill-fields">%s</div>' % "".join(rows)
     label = "Code response" if t == "check" else "Your response"
     value = _prefilled(prefill, "answer")
@@ -1139,6 +1206,18 @@ def _selection_card(picks):
                            html.escape(str(option.get("text", "")))))
     return '<div class="picks" data-selection-feedback><p>%s</p><ul>%s</ul></div>' % (
         html.escape(str(picks["display"])), "".join(rows))
+
+
+def _ordering_card(diagnostic):
+    """Present only a runtime-released construction category."""
+    if not isinstance(diagnostic, dict) or diagnostic.get("version") != 1:
+        return ""
+    message = {
+        "missing_required": "A required block is missing. Review the selected blocks.",
+        "selected_distractor": "An unneeded block is selected. Review which blocks belong in the answer.",
+        "dependency_violation": "A block appears before a prerequisite. Review the order.",
+    }.get(diagnostic.get("category"))
+    return '<p data-ordering-diagnostic>%s</p>' % html.escape(message) if message else ""
 
 
 def _hint_card(row, locked=False):
@@ -1208,6 +1287,36 @@ def _question_symbols_html(item, rows):
             '</section>' % "".join(entries))
 
 
+def _activity_card(activity, completed=False):
+    """Render only the runtime's public case context and own commitment."""
+    if not activity:
+        return ""
+    stage = activity.get("stage")
+    own = ('<p data-committed-answer>Your committed answer: <b>%s</b>.</p>' %
+           html.escape(str(activity["committed_answer"]))) if "committed_answer" in activity else ""
+    instruction = "Both responses committed. Review each response below." if completed else "Commit each response once. Feedback follows both commitments."
+    return ('<section class="staged-context" data-activity-stage="%s" '
+            'aria-label="Answer and reason"><p>%s</p><p><b>%s</b> %s</p>%s</section>' %
+            (html.escape(str(stage), quote=True), html.escape(str(activity.get("stimulus", ""))),
+             "Answer and reason complete." if completed else "Step 1 of 2: answer." if stage == "answer" else "Step 2 of 2: reason.", instruction, own))
+
+
+def _activity_feedback(rows):
+    """Each released child keeps its own verdict, never a combined score."""
+    if not isinstance(rows, list):
+        return ""
+    out = []
+    for index, row in enumerate(rows):
+        if not isinstance(row, dict):
+            continue
+        ex = row.get("explain") or {}
+        verdict = "Correct." if row.get("score") is True else "Not correct." if row.get("score") is False else "Recorded."
+        out.append('<section data-child-feedback><h2>%s feedback</h2><p>%s</p><p>%s</p><p>%s</p></section>' %
+                   ("Answer" if index == 0 else "Reason", verdict,
+                    html.escape(str(ex.get("answer_text", ""))), html.escape(str(ex.get("why", "")))))
+    return "".join(out)
+
+
 def baseline_for(view, teaching_result, post_path, tokens, flash=None, prefill=None,
                  continue_href=None, continue_label=None, symbol_help=None):
     """Pure, key-free HTML adapter over public runtime projections.
@@ -1227,15 +1336,28 @@ def baseline_for(view, teaching_result, post_path, tokens, flash=None, prefill=N
     format_label = RESPONSE_FORMAT_LABELS.get(response_type, "Response")
     instructions = RESPONSE_FORMAT_INSTRUCTIONS.get(
         response_type, "Follow the response instructions below.")
-    feedback = ""
+    if item.get("ordering"):
+        format_label = "Ordering response"
+        instructions = "Arrange the selected blocks in order. Leave unused blocks in the source area."
+    feedback = _activity_feedback((view or {}).get("activity_feedback"))
+    activity = (view or {}).get("activity")
+    activity_html = _activity_card(activity, bool((flash or {}).get("activity_feedback")))
+    activity_fields = ""
+    if activity:
+        activity_fields = "".join('<input type="hidden" name="%s" value="%s">' %
+                                  (name, html.escape(str(activity.get(name, "")), quote=True))
+                                  for name in ("activity_id", "child_id", "submission_token"))
     if isinstance(flash, dict):
         if flash.get("refused"):
-            feedback = '<div class="refused pend">%s</div>' % html.escape(str(flash["refused"]))
+            feedback = '<div id="fill-entry-error" class="refused pend" role="alert">%s</div>' % html.escape(str(flash["refused"]))
         elif flash.get("action") == "hold":
             feedback = '<div class="verdict n">Not correct. Try a different answer, or open the next hint.</div>'
             feedback += _selection_card(flash.get("selection_feedback"))
+            feedback += _ordering_card(flash.get("ordering_diagnostic"))
         elif flash.get("action") == "defer_feedback":
-            if response_type == "short" and continue_href:
+            if activity:
+                feedback = '<div class="pend">Answer committed. Commit your reason to release feedback.</div>'
+            elif response_type == "short" and continue_href:
                 feedback = (
                     '<div class="pend"><b>Response recorded, pending human review.</b>'
                     ' You can finish this sitting. The response is not scored yet.</div>')
@@ -1255,6 +1377,8 @@ def baseline_for(view, teaching_result, post_path, tokens, flash=None, prefill=N
                 "Recorded. Not marked here." if score is None else
                 ("Correct. Your answer was recorded." if score else
                  "Not correct. Your answer was recorded."))
+        if flash.get("activity_feedback"):
+            feedback = _activity_feedback(flash["activity_feedback"])
     # The served form uses PRG. The runtime may already hold the next cursor
     # after accepting this answer, but the learner must first see the verdict
     # for the item they just answered. This pause is presentation only: the
@@ -1264,7 +1388,7 @@ def baseline_for(view, teaching_result, post_path, tokens, flash=None, prefill=N
                   'href="%s">%s</a></div>' %
                   (html.escape(continue_href, quote=True),
                    html.escape(continue_label or "Continue")))
-        return ('<div class="card" data-server-baseline data-feedback-pause '
+        return ('<div class="card overhaul-question" data-server-baseline data-feedback-pause '
                 'data-session-id="%s" data-item-id="%s" data-response-type="%s" '
                 'data-objective="%s" data-lesson-slug="%s">'
                 '<h1 class="stem" tabindex="-1">%s</h1>%s<p class="hint"><b>%s.</b> %s</p>'
@@ -1274,9 +1398,9 @@ def baseline_for(view, teaching_result, post_path, tokens, flash=None, prefill=N
                  html.escape(str(response_type), quote=True),
                  html.escape(str(item.get("objective", "")), quote=True),
                  html.escape(str(item.get("lesson_slug", "")), quote=True),
-                 html.escape(str(item.get("stem", ""))), symbols,
+                 html.escape(re.sub(r"\{\{[a-z][a-z0-9_]{0,31}\}\}", "____", str(item.get("stem", ""))) if item.get("fill_layout") == "inline" else str(item.get("stem", ""))), symbols,
                  html.escape(format_label),
-                 html.escape(instructions), feedback, action))
+                html.escape(instructions), activity_html + feedback, action))
     ladder = ""
     if teaching.get("available"):
         cards = ""
@@ -1302,10 +1426,10 @@ def baseline_for(view, teaching_result, post_path, tokens, flash=None, prefill=N
                  html.escape(str(teaching["unavailable_reason"]))
     submit = ('' if response_type == "visual" else
               '<div class="act"><button class="go" type="submit">Submit answer</button></div>')
-    return ('<div class="card" data-server-baseline data-session-id="%s" data-item-id="%s" '
-            'data-response-type="%s" data-objective="%s" data-lesson-slug="%s">'
+    return ('<div class="card overhaul-question" data-server-baseline data-session-id="%s" data-item-id="%s" '
+            'data-response-type="%s" data-objective="%s" data-lesson-slug="%s" data-presentation-signature="%s">'
             '<h1 class="stem" tabindex="-1">%s</h1>%s%s<p class="hint"><b>%s.</b> %s</p>'
-            '<form method="post" action="%s" data-answer-form>%s'
+            '<form method="post" action="%s" class="overhaul-response" data-answer-form>%s'
             '<input type="hidden" name="form_token" value="%s"><input type="hidden" name="action" value="submit">'
             '<div class="feedback" role="status" aria-live="polite">%s</div>'
             '%s</form>%s</div>' %
@@ -1314,9 +1438,11 @@ def baseline_for(view, teaching_result, post_path, tokens, flash=None, prefill=N
              html.escape(str(response_type), quote=True),
              html.escape(str(item.get("objective", "")), quote=True),
              html.escape(str(item.get("lesson_slug", "")), quote=True),
-             html.escape(str(item.get("stem", ""))), symbols, assisted,
+             hashlib.sha256(json.dumps(item, sort_keys=True, ensure_ascii=False,
+                                      separators=(",", ":")).encode("utf-8")).hexdigest(),
+             html.escape(re.sub(r"\{\{[a-z][a-z0-9_]{0,31}\}\}", "____", str(item.get("stem", ""))) if item.get("fill_layout") == "inline" else str(item.get("stem", ""))), symbols, assisted,
              html.escape(format_label), html.escape(instructions),
-             html.escape(post_path, quote=True), _form_controls(item, prefill),
+             html.escape(post_path, quote=True), activity_html + activity_fields + _form_controls(item, prefill, bool((flash or {}).get("refused"))),
              html.escape(tokens["submit"], quote=True), feedback, submit, ladder))
 ASSIST_JS = (ASSIST_JS
     .replace("__ASSIST_PREPARING__", ASSIST_COPY["preparing"])
@@ -1424,8 +1550,10 @@ function setContext(q){
   if(cxObjective) cxObjective.textContent = q.objective || "";
   if(activityPurpose) activityPurpose.textContent = document.getElementById("cx-mode").textContent === "exam"
     ? "Formal assessment" : "Practice";
-  if(activityResponse) activityResponse.textContent = FORMAT_LABEL[q.type] || q.type || "Response";
-  if(activityInstructions) activityInstructions.textContent = FORMAT_INSTRUCTION[q.type] || "Follow the response instructions below.";
+  if(activityResponse) activityResponse.textContent = q.ordering ? "Ordering response" : FORMAT_LABEL[q.type] || q.type || "Response";
+  if(activityInstructions) activityInstructions.textContent = q.ordering
+    ? "Arrange the selected blocks in order. Leave unused blocks in the source area."
+    : FORMAT_INSTRUCTION[q.type] || "Follow the response instructions below.";
   if(activityDisclosure) activityDisclosure.textContent = q.type === "short"
     ? "Pending human review" : (document.getElementById("cx-mode").textContent === "exam"
       ? "Feedback after completion" : "Feedback available now");
@@ -1474,11 +1602,11 @@ function render(){
   const q = Q[i];
   setContext(q);
   const card = document.createElement("div");
-  card.className = "card";
-  card.innerHTML = `<h1 class="stem" tabindex="-1">${esc(q.stem)}</h1>`;
+  card.className = "card overhaul-question";
+  card.innerHTML = `<h1 class="stem" tabindex="-1">${esc(q.fill_layout === "inline" ? String(q.stem).replace(/\{\{[a-z][a-z0-9_]{0,31}\}\}/g, "____") : q.stem)}</h1>`;
   if(window.renderQuestionSymbols) window.renderQuestionSymbols(q, card);
   const body = document.createElement("div");
-  body.className = `response-body response-${q.type}`;
+  body.className = `response-body overhaul-response response-${q.type}`;
   card.appendChild(body);
   const fb = document.createElement("div");
   fb.className = "feedback";
@@ -1521,7 +1649,11 @@ function fillFields(q, body){
     text.textContent = field.label || field.id;
     const help = document.createElement("span");
     help.className = "fill-help";
-    if(field.kind === "text"){
+    help.id = "fill-help-" + field.id;
+    if(field.kind === "polynomial"){
+      help.textContent = String((field.checker || {}).grammar || "Use x, numbers, explicit * and powers 0 to 4.")
+        + " Expand products. Example: 3*x^2 + 4*x + 1. Maximum 160 characters.";
+    } else if(field.kind === "text"){
       const caseRule = field.case_sensitive === false
         ? "Uppercase and lowercase are treated the same."
         : "Case matters.";
@@ -1543,10 +1675,21 @@ function fillFields(q, body){
     input.autocomplete = "off";
     input.maxLength = 4096;
     input.name = "fill_" + field.id;
+    input.setAttribute("aria-describedby", help.id);
     label.append(text, help, input);
     wrap.appendChild(label);
     controls[String(field.id)] = input;
   });
+  if(q.fill_layout === "inline"){
+    const labels = {};
+    (q.fields || []).forEach(field=>{ labels[field.id] = controls[field.id].parentNode; });
+    wrap.replaceChildren();
+    wrap.className += " fill-inline";
+    String(q.stem || "").split(/(\{\{[a-z][a-z0-9_]{0,31}\}\})/).forEach(part=>{
+      if(part.startsWith("{{")) wrap.appendChild(labels[part.slice(2, -2)]);
+      else wrap.appendChild(document.createTextNode(part));
+    });
+  }
   body.appendChild(wrap);
   return controls;
 }
@@ -1649,10 +1792,114 @@ function asChoice(q, body, act, card){
 }
 
 /* ---- options table + drag-and-drop ---------------------------------------- */
+function asMatching(q, body, act, card){
+  const values = Object.create(null), controls = new Map();
+  const once = q.matching.reuse === "once";
+  const notice = document.createElement("p"); notice.setAttribute("role", "status");
+  notice.textContent = once ? "Use each choice once. Unused choices are allowed." : "Choices can be reused. Match every row.";
+  body.appendChild(notice);
+  let locked = false;
+  q.rows.forEach(row=>{
+    const label = document.createElement("label"); label.className = "inline-completion";
+    label.appendChild(document.createTextNode(row.text + " (" + row.id + ") "));
+    const select = document.createElement("select"); select.dataset.rowId = row.id;
+    select.appendChild(document.createElement("option"));
+    q.matching.choices.forEach(choice=>{
+      const option = document.createElement("option"); option.value = choice.id;
+      option.textContent = choice.text + " (" + choice.id + ")"; select.appendChild(option);
+    });
+    select.onchange = ()=>{
+      values[row.id] = select.value; refresh();
+    };
+    label.appendChild(select); body.appendChild(label); controls.set(row.id, select);
+  });
+  const submit = mkSubmit(act, "match every row");
+  function refresh(){
+    const chosen = Array.from(controls.values(), select=>select.value).filter(Boolean);
+    controls.forEach(select=>Array.from(select.options).forEach(option=>{
+      option.disabled = once && !!option.value && option.value !== select.value && chosen.includes(option.value);
+    }));
+    submit.disabled = locked || chosen.length !== q.rows.length || (once && new Set(chosen).size !== chosen.length);
+  }
+  function revert(){ locked = false; controls.forEach(select=>select.disabled = false); act.appendChild(submit); refresh(); }
+  submit.onclick = ()=>{
+    locked = true; controls.forEach(select=>select.disabled = true); submit.remove();
+    settle(q, Object.assign({}, values), card, act, v=>{
+      const keys = (v.explain || {}).row_cats || {};
+      controls.forEach((select, id)=>{ if(Object.prototype.hasOwnProperty.call(keys, id)) select.classList.add(select.value === keys[id] ? "right" : "wrong"); });
+    }, revert);
+  };
+  refresh();
+}
+
 function asAssign(q, body, act, card){
+  if(q.matching) return asMatching(q, body, act, card);
   const rows = shuffled(q.rows);
   const chosen = {};                 // row id -> category
   const segs = {};
+  let locked = false, dragged = null;
+  let draggedWord = null;
+  if(q.type === "dnd" && rows.some(r=>String(r.text).split("___").length === 2)){
+    const hint = document.createElement("p");
+    hint.textContent = "Drag a word into a blank, or choose it from the dropdown. Words can be reused.";
+    const bank = document.createElement("div"); bank.className = "inline-word-bank";
+    q.categories.forEach(category=>{
+      const word = document.createElement("span"); word.textContent = category;
+      word.draggable = true; word.dataset.word = category;
+      word.ondragstart = event=>{
+        if(locked){ event.preventDefault(); return; }
+        draggedWord = category;
+        if(event.dataTransfer){ event.dataTransfer.effectAllowed = "copy"; event.dataTransfer.setData("text/plain", category); }
+      };
+      word.ondragend = ()=>{ draggedWord = null; };
+      bank.appendChild(word);
+    });
+    body.append(hint, bank);
+  }
+  const draggableRows = q.type === "dnd" ? rows.filter(r=>String(r.text).split("___").length !== 2) : [];
+  const bucketLists = new Map();
+  function redrawBuckets(){
+    bucketLists.forEach((list, category)=>{
+      list.replaceChildren();
+      rows.filter(r=>chosen[String(r.id)] === category).forEach(r=>{
+        const entry = document.createElement("li");
+        entry.textContent = r.text; entry.dataset.rowId = String(r.id); list.appendChild(entry);
+      });
+    });
+  }
+  function prepareDrag(text, id){
+    if(!draggableRows.some(r=>String(r.id) === id)) return;
+    text.draggable = true; text.classList.add("drag-card"); text.dataset.dragRow = id;
+    text.ondragstart = event=>{
+      if(locked){ event.preventDefault(); return; }
+      dragged = id;
+      if(event.dataTransfer){ event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("application/x-itembank-row", id); }
+    };
+    text.ondragend = ()=>{ dragged = null; body.querySelectorAll(".is-over").forEach(el=>el.classList.remove("is-over")); };
+  }
+  function mountBuckets(){
+    if(!draggableRows.length) return;
+    const hint = document.createElement("p");
+    hint.textContent = "Drag a card to a bucket, or choose its category with the buttons below.";
+    const grid = document.createElement("div"); grid.className = "assignment-buckets";
+    q.categories.forEach(category=>{
+      const bucket = document.createElement("section"), heading = document.createElement("h2"), list = document.createElement("ul");
+      bucket.className = "assignment-bucket"; bucket.dataset.category = category;
+      bucket.setAttribute("aria-label", category + " bucket"); heading.textContent = category;
+      bucket.append(heading, list); bucketLists.set(category, list);
+      bucket.ondragover = event=>{ if(!locked && dragged !== null){ event.preventDefault(); bucket.classList.add("is-over"); } };
+      bucket.ondragleave = ()=>bucket.classList.remove("is-over");
+      bucket.ondrop = event=>{
+        event.preventDefault(); bucket.classList.remove("is-over");
+        if(locked || dragged === null) return;
+        const button = (segs[dragged] || []).find(el=>el.tagName === "BUTTON" && el.textContent === category);
+        if(button && !button.disabled) button.click();
+        dragged = null;
+      };
+      grid.appendChild(bucket);
+    });
+    body.prepend(hint, grid); redrawBuckets();
+  }
   rows.forEach(r=>{
     const id = String(r.id);
     const line = document.createElement("div");
@@ -1665,17 +1912,51 @@ function asAssign(q, body, act, card){
       const b = document.createElement("button");
       b.type="button"; b.textContent=c; b.setAttribute("aria-pressed","false");
       b.onclick = ()=>{
+        if(locked) return;
         chosen[id]=c;
         bs.forEach(x=>x.setAttribute("aria-pressed", x.textContent===c?"true":"false"));
         submit.disabled = Object.keys(chosen).length !== q.rows.length;
+        redrawBuckets();
       };
       seg.appendChild(b); return b;
     });
-    segs[id] = bs;
-    line.appendChild(t); line.appendChild(seg); body.appendChild(line);
+    if(q.type === "dnd" && String(r.text).split("___").length === 2){
+      const parts = String(r.text).split("___");
+      const label = document.createElement("label");
+      label.className = "inline-completion";
+      label.appendChild(document.createTextNode(parts[0]));
+      const select = document.createElement("select");
+      select.setAttribute("aria-label", "Blank " + id + ": " + r.text);
+      select.appendChild(document.createElement("option"));
+      q.categories.forEach(c=>{
+        const option = document.createElement("option");
+        option.value = c; option.textContent = c; select.appendChild(option);
+      });
+      select.onchange = ()=>{
+        if(select.value) chosen[id] = select.value;
+        else delete chosen[id];
+        submit.disabled = Object.keys(chosen).length !== q.rows.length;
+      };
+      label.ondragover = event=>{ if(!locked && draggedWord !== null) event.preventDefault(); };
+      label.ondrop = event=>{
+        if(locked || draggedWord === null || !q.categories.includes(draggedWord)) return;
+        event.preventDefault();
+        select.value = draggedWord; draggedWord = null;
+        select.dispatchEvent(new Event("change", {bubbles:true}));
+      };
+      label.appendChild(select);
+      label.appendChild(document.createTextNode(parts[1]));
+      segs[id] = [select]; body.appendChild(label);
+    }else{
+      segs[id] = bs;
+      prepareDrag(t, id);
+      line.appendChild(t); line.appendChild(seg); body.appendChild(line);
+    }
   });
   const submit = mkSubmit(act, "assign every row");
+  mountBuckets();
   submit.onclick = ()=>{
+    locked = true;
     rows.forEach(r=>segs[String(r.id)].forEach(b=>{ b.disabled = true; }));
     submit.remove();
     settle(q, Object.assign({}, chosen), card, act, v=>{
@@ -1684,8 +1965,8 @@ function asAssign(q, body, act, card){
         const id = String(r.id);
         if(!Object.prototype.hasOwnProperty.call(cats, id)) return;
         segs[id].forEach(b=>{
-          if(b.textContent===cats[id]) b.classList.add("right");
-          else if(b.textContent===chosen[id]) b.classList.add("wrong");
+          if((b.tagName === "SELECT" ? b.value : b.textContent)===cats[id]) b.classList.add("right");
+          else if((b.tagName === "SELECT" ? b.value : b.textContent)===chosen[id]) b.classList.add("wrong");
         });
       });
     });
@@ -1693,7 +1974,155 @@ function asAssign(q, body, act, card){
 }
 
 /* ---- build list (click into order) ---------------------------------------- */
+function installOrderingControls(fieldset){
+  if(fieldset.orderingRefresh){ fieldset.orderingRefresh(); return; }
+  const selects = Array.from(fieldset.querySelectorAll("select[name^=step_]"));
+  const source = document.createElement("div");
+  source.className = "ordering-source";
+  source.setAttribute("aria-label", "Source blocks");
+  const title = document.createElement("h3"); title.textContent = "Source blocks";
+  const status = document.createElement("p"); status.setAttribute("role", "status");
+  status.textContent = "Use Add, Remove, Up and Down, or choose positions with the dropdowns.";
+  const buttons = [], handles = [];
+  let dragged = null, dragPlaced = false;
+  function changed(index){
+    selects[index].dispatchEvent(new Event("change", {bubbles:true}));
+    selects[index].focus();
+  }
+  Array.from(selects[0] ? selects[0].options : []).filter(option=>option.value).forEach(option=>{
+    const button = document.createElement("button"); button.type = "button";
+    button.textContent = "Add"; button.dataset.blockId = option.value;
+    button.setAttribute("aria-label", "Add " + option.textContent);
+    const handle = document.createElement("span");
+    handle.textContent = option.textContent; handle.dataset.orderingBlockId = option.value;
+    handle.draggable = true; handle.title = "Drag to an answer position, or use Add.";
+    button.onclick = ()=>{
+      const index = selects.findIndex(select=>!select.value);
+      if(index < 0) return;
+      selects[index].value = option.value; changed(index);
+    };
+    handle.ondragstart = event=>{
+      if(button.disabled){ event.preventDefault(); return; }
+      dragged = option.value;
+      dragPlaced = false;
+      status.textContent = "Moving " + option.textContent + ". Drop it on an answer position.";
+      if(event.dataTransfer){ event.dataTransfer.effectAllowed = "copy"; event.dataTransfer.setData("text/plain", dragged); }
+    };
+    handle.ondragend = ()=>{
+      if(!dragPlaced && dragged) status.textContent = "Move cancelled. Use Add or drag to an answer position.";
+      dragged = null;
+      selects.forEach(select=>select.closest("label").classList.remove("ordering-drop-active"));
+      selects.forEach(select=>select.closest("label").classList.remove("ordering-drop-active"));
+    };
+    const block = document.createElement("div"); block.className = "ordering-block";
+    block.append(handle, button); source.appendChild(block); buttons.push(button); handles.push(handle);
+  });
+  fieldset.prepend(title, status, source);
+  const answerTitle = document.createElement("h3"); answerTitle.textContent = "Answer positions";
+  source.after(answerTitle);
+  const actions = [];
+  selects.forEach((select,index)=>{
+    const label = select.closest("label");
+    ["Remove", "Up", "Down"].forEach(action=>{
+      const button = document.createElement("button"); button.type = "button";
+      button.textContent = action; button.setAttribute("aria-label", action + " block at position " + (index+1));
+      button.onclick = ()=>{
+        if(action === "Remove"){ select.value = ""; changed(index); return; }
+        const target = index + (action === "Up" ? -1 : 1);
+        if(target < 0 || target >= selects.length) return;
+        const value = selects[target].value; selects[target].value = select.value; select.value = value;
+        changed(target);
+      };
+      label.after(button); actions.push({button,index,action});
+    });
+    label.ondragover = event=>{
+      if(!select.disabled && dragged){
+        event.preventDefault();
+        if(event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+        label.classList.add("ordering-drop-active");
+      }
+    };
+    label.ondragenter = label.ondragover;
+    label.ondragleave = ()=>{ label.classList.remove("ordering-drop-active"); };
+    label.ondrop = event=>{
+      label.classList.remove("ordering-drop-active");
+      if(select.disabled || !dragged) return;
+      event.preventDefault();
+      const previous = selects.findIndex(other=>other.value === dragged);
+      if(previous >= 0) selects[previous].value = select.value;
+      select.value = dragged;
+      const block = Array.from(select.options).find(option=>option.value === dragged);
+      status.textContent = "Placed " + (block ? block.textContent : dragged) + " at position " + (index+1) + ".";
+      dragPlaced = true; dragged = null; changed(index);
+    };
+  });
+  function refresh(){
+    const used = selects.map(select=>select.value).filter(Boolean);
+    selects.forEach(select=>Array.from(select.options).forEach(option=>{
+      option.disabled = !!option.value && option.value !== select.value && used.includes(option.value);
+    }));
+    buttons.forEach((button,index)=>{
+      button.disabled = selects.some(select=>select.disabled) || used.includes(button.dataset.blockId);
+      handles[index].draggable = !button.disabled;
+      handles[index].setAttribute("aria-disabled", button.disabled ? "true" : "false");
+    });
+    actions.forEach(({button,index,action})=>{
+      button.disabled = selects[index].disabled || !selects[index].value
+        || (action === "Up" && index === 0) || (action === "Down" && index === selects.length-1);
+    });
+  }
+  fieldset.orderingRefresh = refresh;
+  fieldset.addEventListener("change", refresh);
+  refresh();
+}
+function asOrdering(q, body, act, card){
+  const fieldset = document.createElement("fieldset");
+  const signature = JSON.stringify([q.ordering, q.blocks.slice().sort((a,b)=>a.id < b.id ? -1 : a.id > b.id ? 1 : 0)]);
+  fieldset.dataset.orderingSignature = signature;
+  const legend = document.createElement("legend");
+  legend.textContent = "Arrange the selected blocks. Leave unused blocks in the source area.";
+  fieldset.appendChild(legend);
+  (q.blocks || []).forEach((block,index)=>{
+    const label = document.createElement("label"); label.className = "rowline";
+    const text = document.createElement("span"); text.textContent = "Position " + (index+1);
+    const select = document.createElement("select"); select.name = "step_" + index;
+    select.setAttribute("aria-label", text.textContent); select.appendChild(document.createElement("option"));
+    q.blocks.forEach(block=>{
+      const option = document.createElement("option"); option.value = block.id;
+      option.textContent = block.text + " (" + block.id + ")"; select.appendChild(option);
+    });
+    label.append(text, select); fieldset.appendChild(label);
+  });
+  body.appendChild(fieldset);
+  const selects = Array.from(fieldset.querySelectorAll("select"));
+  installOrderingControls(fieldset);
+  const submit = mkSubmit(act, "submit selected blocks");
+  submit.disabled = false;
+  function lock(value){ selects.forEach(select=>{ select.disabled = value; }); fieldset.orderingRefresh(); }
+  submit.onclick = ()=>{
+    const response = selects.map(select=>select.value).filter(Boolean);
+    lock(true); submit.remove();
+    settle(q, response, card, act, ()=>{}, ()=>{ lock(false); act.appendChild(submit); submit.disabled = false; submit.focus(); });
+  };
+}
+function readOrderingDraft(saved, ids){
+  if(!Array.isArray(saved) || saved.length > ids.length) return [];
+  const selected = saved.filter(Boolean);
+  if(!saved.every(value=>typeof value === "string" && (!value || ids.includes(value)))
+      || new Set(selected).size !== selected.length) return [];
+  return saved.slice();
+}
+
 function asBuild(q, body, act, card){
+  if(q.ordering){
+    asOrdering(q, body, act, card);
+    const note = document.createElement("p"); note.setAttribute("role", "note");
+    note.textContent = "This ordering item needs a served itembank session. Open it with itembank serve or the daemon to submit a response.";
+    body.appendChild(note);
+    const submit = act.querySelector("button");
+    if(submit){ submit.disabled = true; submit.onclick = null; }
+    return;
+  }
   const shown = shuffled(q.steps);
   const order = [];
   const wrap = document.createElement("div");
@@ -2022,6 +2451,7 @@ const FORMAT_INSTRUCTION = {mc:"Choose one option.",
 const FS = "\u001f", PS = "\u001e";   /* must match FIELD_SEP and PAIR_SEP */
 const REDUCED = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
 let sessionId = null, i = 0, total = 0, score = 0, autoTotal = 0;
+let currentActivity = null;
 let shownAt = performance.now();
 /* Phase 999.4 (LTI): the server includes the assignment-completion line in
    the final submit response; finish() renders it when present. Never a
@@ -2069,14 +2499,19 @@ async function api(url, payload){
    the verdict, the explanation and the next item. No key, canonicalization or
    scoring code exists anywhere in this script. */
 async function verify(q, response){
-  const v = await api("/api/submit", {session_id: sessionId, answer: response});
+  const payload = {session_id: sessionId, answer: response};
+  if(currentActivity) for(const name of ["activity_id", "child_id", "submission_token"])
+    payload[name] = currentActivity[name];
+  const v = await api("/api/submit", payload);
   if(v.lti_completion) LTI_COMPLETION = v.lti_completion;
   return {action: v.action, score: v.score, explain: v.explain || {},
           next: v.next,
           selection_feedback: v.selection_feedback,
+          ordering_diagnostic: v.ordering_diagnostic,
           refused: v.refused, refused_reason: v.refused_reason,
           entry_error: v.entry_error,
-          interaction_result: v.interaction_result};
+          interaction_result: v.interaction_result,
+          activity_feedback: v.activity_feedback};
 }
 
 function lessonChip(q){
@@ -2102,8 +2537,10 @@ function setContext(q){
   if(cxObjective) cxObjective.textContent = q.objective || "";
   if(activityPurpose) activityPurpose.textContent = document.getElementById("cx-mode").textContent === "exam"
     ? "Formal assessment" : "Practice";
-  if(activityResponse) activityResponse.textContent = FORMAT_LABEL[q.type] || q.type || "Response";
-  if(activityInstructions) activityInstructions.textContent = FORMAT_INSTRUCTION[q.type] || "Follow the response instructions below.";
+  if(activityResponse) activityResponse.textContent = q.ordering ? "Ordering response" : FORMAT_LABEL[q.type] || q.type || "Response";
+  if(activityInstructions) activityInstructions.textContent = q.ordering
+    ? "Arrange the selected blocks in order. Leave unused blocks in the source area."
+    : FORMAT_INSTRUCTION[q.type] || "Follow the response instructions below.";
   if(activityDisclosure) activityDisclosure.textContent = q.type === "short"
     ? "Pending human review" : (document.getElementById("cx-mode").textContent === "exam"
       ? "Feedback after completion" : "Feedback available now");
@@ -2169,7 +2606,9 @@ async function settle(q, response, card, act, paint, revert){
   }
   /* A rendering failure must never turn an acknowledged answer into a
      network retry. Paint only released verdicts, never a withheld answer. */
-  if(paint && !v.refused && (v.action === "advance" || v.action === "complete")) paint(v);
+  const orderingAck = q.ordering && v.action === "defer_feedback" && v.next
+    && (v.next.status === "complete" || (v.next.item && v.next.item.id !== q.id));
+  if(paint && !v.refused && (v.action === "advance" || v.action === "complete" || orderingAck)) paint(v);
   close(q, card, act, v, revert);
 }
 
@@ -2188,13 +2627,26 @@ function renderItem(view){
   document.getElementById("tot").textContent = total;
   shownAt = performance.now();
   const q = view.item;
+  currentActivity = view.activity || null;
   setContext(q);
   const card = document.createElement("div");
-  card.className = "card";
-  card.innerHTML = `<h1 class="stem" tabindex="-1">${esc(q.stem)}</h1>`;
+  card.className = "card overhaul-question";
+  card.innerHTML = `<h1 class="stem" tabindex="-1">${esc(q.fill_layout === "inline" ? String(q.stem).replace(/\{\{[a-z][a-z0-9_]{0,31}\}\}/g, "____") : q.stem)}</h1>`;
+  if(currentActivity){
+    const context = document.createElement("section");
+    context.className = "staged-context";
+    context.dataset.activityStage = currentActivity.stage;
+    context.setAttribute("aria-label", "Answer and reason");
+    context.innerHTML = `<p>${esc(currentActivity.stimulus)}</p><p><b>${currentActivity.stage === "answer" ? "Step 1 of 2: answer." : "Step 2 of 2: reason."}</b> Commit each response once. Feedback follows both commitments.</p>`;
+    if(Object.prototype.hasOwnProperty.call(currentActivity, "committed_answer"))
+      context.innerHTML += `<p data-committed-answer>Your committed answer: <b>${esc(currentActivity.committed_answer)}</b>.</p>`;
+    card.appendChild(context);
+    if(activityDisclosure) activityDisclosure.textContent = document.getElementById("cx-mode").textContent === "exam"
+      ? "Feedback after completion" : "Feedback after answer and reason";
+  }
   if(window.renderQuestionSymbols) window.renderQuestionSymbols(q, card);
   const body = document.createElement("div");
-  body.className = `response-body response-${q.type}`;
+  body.className = `response-body overhaul-response response-${q.type}`;
   card.appendChild(body);
   const fb = document.createElement("div");
   fb.className = "feedback";
@@ -2314,10 +2766,138 @@ function asChoice(q, body, act, card){
   }
 }
 
+function asMatching(q, body, act, card){
+  const values = Object.create(null), controls = new Map();
+  const once = q.matching.reuse === "once";
+  const notice = document.createElement("p"); notice.setAttribute("role", "status");
+  notice.textContent = once ? "Use each choice once. Unused choices are allowed." : "Choices can be reused. Match every row.";
+  body.appendChild(notice);
+  const storageKey = typeof BOOT !== "undefined" ? draftKey(BOOT.bank, q.id) : null;
+  let saved = null;
+  const signature = JSON.stringify([q.matching, q.rows]);
+  if(storageKey) try{ const draft = JSON.parse(localStorage.getItem(storageKey)); saved = draft && draft.signature === signature ? draft.values : null; if(draft && !saved) notice.textContent = "The saved draft belongs to an older matching declaration. Choose again."; }catch(e){}
+  let locked = false;
+  q.rows.forEach(row=>{
+    const label = document.createElement("label"); label.className = "inline-completion";
+    label.appendChild(document.createTextNode(row.text + " (" + row.id + ") "));
+    const select = document.createElement("select"); select.dataset.rowId = row.id;
+    select.appendChild(document.createElement("option"));
+    q.matching.choices.forEach(choice=>{
+      const option = document.createElement("option"); option.value = choice.id;
+      option.textContent = choice.text + " (" + choice.id + ")"; select.appendChild(option);
+    });
+    if(saved && typeof saved[row.id] === "string" && q.categories.includes(saved[row.id])){
+      select.value = saved[row.id]; values[row.id] = saved[row.id];
+    }
+    select.onchange = ()=>{
+      values[row.id] = select.value; refresh();
+      if(storageKey) try{ localStorage.setItem(storageKey, JSON.stringify({signature, values})); }catch(e){}
+    };
+    label.appendChild(select); body.appendChild(label); controls.set(row.id, select);
+  });
+  const submit = mkSubmit(act, "match every row");
+  function refresh(){
+    const chosen = Array.from(controls.values(), select=>select.value).filter(Boolean);
+    controls.forEach(select=>Array.from(select.options).forEach(option=>{
+      option.disabled = once && !!option.value && option.value !== select.value && chosen.includes(option.value);
+    }));
+    submit.disabled = locked || chosen.length !== q.rows.length || (once && new Set(chosen).size !== chosen.length);
+  }
+  function revert(){ locked = false; controls.forEach(select=>select.disabled = false); act.appendChild(submit); refresh(); }
+  submit.onclick = ()=>{
+    locked = true; controls.forEach(select=>select.disabled = true); submit.remove();
+    settle(q, Object.assign({}, values), card, act, v=>{
+      if(storageKey) try{ localStorage.removeItem(storageKey); }catch(e){}
+      const keys = (v.explain || {}).row_cats || {};
+      controls.forEach((select, id)=>{ if(Object.prototype.hasOwnProperty.call(keys, id)) select.classList.add(select.value === keys[id] ? "right" : "wrong"); });
+    }, revert);
+  };
+  refresh();
+}
+
 function asAssign(q, body, act, card){
+  if(q.matching) return asMatching(q, body, act, card);
   const rows = shuffled(q.rows);
   const chosen = {};                 // row id -> category
   const segs = {};
+  let locked = false, dragged = null;
+  let draggedWord = null;
+  if(q.type === "dnd" && rows.some(r=>String(r.text).split("___").length === 2)){
+    const hint = document.createElement("p");
+    hint.textContent = "Drag a word into a blank, or choose it from the dropdown. Words can be reused.";
+    const bank = document.createElement("div"); bank.className = "inline-word-bank";
+    q.categories.forEach(category=>{
+      const word = document.createElement("span"); word.textContent = category;
+      word.draggable = true; word.dataset.word = category;
+      word.ondragstart = event=>{
+        if(locked){ event.preventDefault(); return; }
+        draggedWord = category;
+        if(event.dataTransfer){ event.dataTransfer.effectAllowed = "copy"; event.dataTransfer.setData("text/plain", category); }
+      };
+      word.ondragend = ()=>{ draggedWord = null; };
+      bank.appendChild(word);
+    });
+    body.append(hint, bank);
+  }
+  const draggableRows = q.type === "dnd" ? rows.filter(r=>String(r.text).split("___").length !== 2) : [];
+  const bucketLists = new Map();
+  function redrawBuckets(){
+    bucketLists.forEach((list, category)=>{
+      list.replaceChildren();
+      rows.filter(r=>chosen[String(r.id)] === category).forEach(r=>{
+        const entry = document.createElement("li");
+        entry.textContent = r.text; entry.dataset.rowId = String(r.id); list.appendChild(entry);
+      });
+    });
+  }
+  function prepareDrag(text, id){
+    if(!draggableRows.some(r=>String(r.id) === id)) return;
+    text.draggable = true; text.classList.add("drag-card"); text.dataset.dragRow = id;
+    text.ondragstart = event=>{
+      if(locked){ event.preventDefault(); return; }
+      dragged = id;
+      if(event.dataTransfer){ event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("application/x-itembank-row", id); }
+    };
+    text.ondragend = ()=>{ dragged = null; body.querySelectorAll(".is-over").forEach(el=>el.classList.remove("is-over")); };
+  }
+  function mountBuckets(){
+    if(!draggableRows.length) return;
+    const hint = document.createElement("p");
+    hint.textContent = "Drag a card to a bucket, or choose its category with the buttons below.";
+    const grid = document.createElement("div"); grid.className = "assignment-buckets";
+    q.categories.forEach(category=>{
+      const bucket = document.createElement("section"), heading = document.createElement("h2"), list = document.createElement("ul");
+      bucket.className = "assignment-bucket"; bucket.dataset.category = category;
+      bucket.setAttribute("aria-label", category + " bucket"); heading.textContent = category;
+      bucket.append(heading, list); bucketLists.set(category, list);
+      bucket.ondragover = event=>{ if(!locked && dragged !== null){ event.preventDefault(); bucket.classList.add("is-over"); } };
+      bucket.ondragleave = ()=>bucket.classList.remove("is-over");
+      bucket.ondrop = event=>{
+        event.preventDefault(); bucket.classList.remove("is-over");
+        if(locked || dragged === null) return;
+        const button = (segs[dragged] || []).find(el=>el.tagName === "BUTTON" && el.textContent === category);
+        if(button && !button.disabled) button.click();
+        dragged = null;
+      };
+      grid.appendChild(bucket);
+    });
+    body.prepend(hint, grid); redrawBuckets();
+  }
+  let storageKey = null;
+  try{
+    if(BOOT && BOOT.bank && q.id){
+      storageKey = draftKey(BOOT.bank, q.id);
+      const saved = JSON.parse(localStorage.getItem(storageKey) || "null");
+      rows.forEach(r=>{
+        const id = String(r.id);
+        if(saved && typeof saved === "object" && !Array.isArray(saved)
+            && q.categories.includes(saved[id])) chosen[id] = saved[id];
+      });
+    }
+  }catch(e){ storageKey = null; }
+  function saveDraft(){
+    if(storageKey) try{ localStorage.setItem(storageKey, JSON.stringify(chosen)); }catch(e){}
+  }
   rows.forEach(r=>{
     const id = String(r.id);
     const line = document.createElement("div");
@@ -2330,41 +2910,250 @@ function asAssign(q, body, act, card){
       const b = document.createElement("button");
       b.type="button"; b.textContent=c; b.setAttribute("aria-pressed","false");
       b.onclick = ()=>{
-        chosen[id]=c;
+        if(locked) return;
+        chosen[id]=c; saveDraft();
         bs.forEach(x=>x.setAttribute("aria-pressed", x.textContent===c?"true":"false"));
         submit.disabled = Object.keys(chosen).length !== q.rows.length;
+        redrawBuckets();
       };
+      b.setAttribute("aria-pressed", chosen[id] === c ? "true" : "false");
       seg.appendChild(b); return b;
     });
-    segs[id] = bs;
-    line.appendChild(t); line.appendChild(seg); body.appendChild(line);
+    if(q.type === "dnd" && String(r.text).split("___").length === 2){
+      const parts = String(r.text).split("___");
+      const label = document.createElement("label");
+      label.className = "inline-completion";
+      label.appendChild(document.createTextNode(parts[0]));
+      const select = document.createElement("select");
+      select.setAttribute("aria-label", "Blank " + id + ": " + r.text);
+      select.appendChild(document.createElement("option"));
+      q.categories.forEach(c=>{
+        const option = document.createElement("option");
+        option.value = c; option.textContent = c; select.appendChild(option);
+      });
+      select.value = chosen[id] || "";
+      select.onchange = ()=>{
+        if(select.value) chosen[id] = select.value;
+        else delete chosen[id];
+        saveDraft();
+        submit.disabled = Object.keys(chosen).length !== q.rows.length;
+      };
+      label.ondragover = event=>{ if(!locked && draggedWord !== null) event.preventDefault(); };
+      label.ondrop = event=>{
+        if(locked || draggedWord === null || !q.categories.includes(draggedWord)) return;
+        event.preventDefault();
+        select.value = draggedWord; draggedWord = null;
+        select.dispatchEvent(new Event("change", {bubbles:true}));
+      };
+      label.appendChild(select);
+      label.appendChild(document.createTextNode(parts[1]));
+      segs[id] = [select]; body.appendChild(label);
+    }else{
+      segs[id] = bs;
+      prepareDrag(t, id);
+      line.appendChild(t); line.appendChild(seg); body.appendChild(line);
+    }
   });
   const submit = mkSubmit(act, "assign every row");
+  submit.disabled = Object.keys(chosen).length !== q.rows.length;
+  mountBuckets();
   function revert(){
+    locked = false;
     rows.forEach(r=>segs[String(r.id)].forEach(b=>{ b.disabled = false; }));
     act.appendChild(submit);
     submit.disabled = Object.keys(chosen).length !== q.rows.length;
   }
   submit.onclick = ()=>{
+    locked = true;
     rows.forEach(r=>segs[String(r.id)].forEach(b=>{ b.disabled = true; }));
     submit.remove();
     settle(q, Object.assign({}, chosen), card, act, v=>{
+      if(storageKey) try{ localStorage.removeItem(storageKey); }catch(e){}
       const cats = (v.explain||{}).row_cats || {};
       rows.forEach(r=>{
         const id = String(r.id);
         if(!Object.prototype.hasOwnProperty.call(cats, id)) return;
         segs[id].forEach(b=>{
-          if(b.textContent===cats[id]) b.classList.add("right");
-          else if(b.textContent===chosen[id]) b.classList.add("wrong");
+          if((b.tagName === "SELECT" ? b.value : b.textContent)===cats[id]) b.classList.add("right");
+          else if((b.tagName === "SELECT" ? b.value : b.textContent)===chosen[id]) b.classList.add("wrong");
         });
       });
     }, revert);
   };
 }
 
+function installOrderingControls(fieldset){
+  if(fieldset.orderingRefresh){ fieldset.orderingRefresh(); return; }
+  const selects = Array.from(fieldset.querySelectorAll("select[name^=step_]"));
+  const source = document.createElement("div");
+  source.className = "ordering-source";
+  source.setAttribute("aria-label", "Source blocks");
+  const title = document.createElement("h3"); title.textContent = "Source blocks";
+  const status = document.createElement("p"); status.setAttribute("role", "status");
+  status.textContent = "Use Add, Remove, Up and Down, or choose positions with the dropdowns.";
+  const buttons = [], handles = [];
+  let dragged = null, dragPlaced = false;
+  function changed(index){
+    selects[index].dispatchEvent(new Event("change", {bubbles:true}));
+    selects[index].focus();
+  }
+  Array.from(selects[0] ? selects[0].options : []).filter(option=>option.value).forEach(option=>{
+    const button = document.createElement("button"); button.type = "button";
+    button.textContent = "Add"; button.dataset.blockId = option.value;
+    button.setAttribute("aria-label", "Add " + option.textContent);
+    const handle = document.createElement("span");
+    handle.textContent = option.textContent; handle.dataset.orderingBlockId = option.value;
+    handle.draggable = true; handle.title = "Drag to an answer position, or use Add.";
+    button.onclick = ()=>{
+      const index = selects.findIndex(select=>!select.value);
+      if(index < 0) return;
+      selects[index].value = option.value; changed(index);
+    };
+    handle.ondragstart = event=>{
+      if(button.disabled){ event.preventDefault(); return; }
+      dragged = option.value;
+      dragPlaced = false;
+      status.textContent = "Moving " + option.textContent + ". Drop it on an answer position.";
+      if(event.dataTransfer){ event.dataTransfer.effectAllowed = "copy"; event.dataTransfer.setData("text/plain", dragged); }
+    };
+    handle.ondragend = ()=>{
+      if(!dragPlaced && dragged) status.textContent = "Move cancelled. Use Add or drag to an answer position.";
+      dragged = null;
+    };
+    const block = document.createElement("div"); block.className = "ordering-block";
+    block.append(handle, button); source.appendChild(block); buttons.push(button); handles.push(handle);
+  });
+  fieldset.prepend(title, status, source);
+  const answerTitle = document.createElement("h3"); answerTitle.textContent = "Answer positions";
+  source.after(answerTitle);
+  const actions = [];
+  selects.forEach((select,index)=>{
+    const label = select.closest("label");
+    ["Remove", "Up", "Down"].forEach(action=>{
+      const button = document.createElement("button"); button.type = "button";
+      button.textContent = action; button.setAttribute("aria-label", action + " block at position " + (index+1));
+      button.onclick = ()=>{
+        if(action === "Remove"){ select.value = ""; changed(index); return; }
+        const target = index + (action === "Up" ? -1 : 1);
+        if(target < 0 || target >= selects.length) return;
+        const value = selects[target].value; selects[target].value = select.value; select.value = value;
+        changed(target);
+      };
+      label.after(button); actions.push({button,index,action});
+    });
+    label.ondragover = event=>{
+      if(!select.disabled && dragged){
+        event.preventDefault();
+        if(event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+        label.classList.add("ordering-drop-active");
+      }
+    };
+    label.ondragenter = label.ondragover;
+    label.ondragleave = ()=>{ label.classList.remove("ordering-drop-active"); };
+    label.ondrop = event=>{
+      label.classList.remove("ordering-drop-active");
+      if(select.disabled || !dragged) return;
+      event.preventDefault();
+      const previous = selects.findIndex(other=>other.value === dragged);
+      if(previous >= 0) selects[previous].value = select.value;
+      select.value = dragged;
+      const block = Array.from(select.options).find(option=>option.value === dragged);
+      status.textContent = "Placed " + (block ? block.textContent : dragged) + " at position " + (index+1) + ".";
+      dragPlaced = true; dragged = null; changed(index);
+    };
+  });
+  function refresh(){
+    const used = selects.map(select=>select.value).filter(Boolean);
+    selects.forEach(select=>Array.from(select.options).forEach(option=>{
+      option.disabled = !!option.value && option.value !== select.value && used.includes(option.value);
+    }));
+    buttons.forEach((button,index)=>{
+      button.disabled = selects.some(select=>select.disabled) || used.includes(button.dataset.blockId);
+      handles[index].draggable = !button.disabled;
+      handles[index].setAttribute("aria-disabled", button.disabled ? "true" : "false");
+    });
+    actions.forEach(({button,index,action})=>{
+      button.disabled = selects[index].disabled || !selects[index].value
+        || (action === "Up" && index === 0) || (action === "Down" && index === selects.length-1);
+    });
+  }
+  fieldset.orderingRefresh = refresh;
+  fieldset.addEventListener("change", refresh);
+  refresh();
+}
+function asOrdering(q, body, act, card){
+  const fieldset = document.createElement("fieldset");
+  const signature = JSON.stringify([q.ordering, q.blocks.slice().sort((a,b)=>a.id < b.id ? -1 : a.id > b.id ? 1 : 0)]);
+  fieldset.dataset.orderingSignature = signature;
+  const legend = document.createElement("legend");
+  legend.textContent = "Arrange the selected blocks. Leave unused blocks in the source area.";
+  fieldset.appendChild(legend);
+  (q.blocks || []).forEach((block,index)=>{
+    const label = document.createElement("label"); label.className = "rowline";
+    const text = document.createElement("span"); text.textContent = "Position " + (index+1);
+    const select = document.createElement("select"); select.name = "step_" + index;
+    select.setAttribute("aria-label", text.textContent); select.appendChild(document.createElement("option"));
+    q.blocks.forEach(block=>{
+      const option = document.createElement("option"); option.value = block.id;
+      option.textContent = block.text + " (" + block.id + ")"; select.appendChild(option);
+    });
+    label.append(text, select); fieldset.appendChild(label);
+  });
+  body.appendChild(fieldset);
+  const selects = Array.from(fieldset.querySelectorAll("select"));
+  let storageKey = null, focusIndex = null;
+  if(typeof BOOT !== "undefined" && BOOT.bank) try{
+    storageKey = draftKey(BOOT.bank, q.id);
+    const saved = JSON.parse(localStorage.getItem(storageKey));
+    if(saved && saved.signature === signature){
+      const values = readOrderingDraft(saved.values, q.blocks.map(block=>block.id));
+      selects.forEach((select,index)=>{ select.value = values[index] || ""; });
+      focusIndex = saved.focus;
+    }else if(saved){
+      const notice = document.createElement("p"); notice.setAttribute("role", "status");
+      notice.textContent = "The saved draft belongs to an older ordering declaration. Arrange the blocks again.";
+      fieldset.prepend(notice);
+    }
+  }catch(e){}
+  installOrderingControls(fieldset);
+  const submit = mkSubmit(act, "submit selected blocks");
+  submit.disabled = false;
+  function save(){
+    if(storageKey) try{ localStorage.setItem(storageKey, JSON.stringify({
+      signature, values:selects.map(select=>select.value), focus:selects.indexOf(document.activeElement)
+    })); }catch(e){}
+  }
+  fieldset.addEventListener("change", save); fieldset.addEventListener("focusin", save);
+  if(Number.isInteger(focusIndex) && selects[focusIndex]) selects[focusIndex].focus();
+  function lock(value){ selects.forEach(select=>{ select.disabled = value; }); fieldset.orderingRefresh(); }
+  submit.onclick = ()=>{
+    const response = selects.map(select=>select.value).filter(Boolean);
+    lock(true); submit.remove();
+    settle(q, response, card, act, ()=>{
+      if(storageKey) try{ localStorage.removeItem(storageKey); }catch(e){}
+    }, ()=>{ lock(false); act.appendChild(submit); submit.disabled = false; submit.focus(); });
+  };
+}
+function readOrderingDraft(saved, ids){
+  if(!Array.isArray(saved) || saved.length > ids.length) return [];
+  const selected = saved.filter(Boolean);
+  if(!saved.every(value=>typeof value === "string" && (!value || ids.includes(value)))
+      || new Set(selected).size !== selected.length) return [];
+  return saved.slice();
+}
+
 function asBuild(q, body, act, card){
+  if(q.ordering) return asOrdering(q, body, act, card);
   const shown = shuffled(q.steps);
-  const order = [];
+  let storageKey = null, order = [];
+  try{
+    storageKey = draftKey((BOOT && BOOT.bank) || "", q.id);
+    order = readBuildDraft(JSON.parse(localStorage.getItem(storageKey) || "null"), q.steps);
+  }catch(e){}
+  function saveDraft(){
+    if(storageKey) try{ localStorage.setItem(storageKey, JSON.stringify(order)); }catch(e){}
+  }
+  function complete(){ return order.length === q.steps.length && order.every(value=>value !== ""); }
   const wrap = document.createElement("div");
   wrap.className = "opts";
   const btns = shown.map(s=>{
@@ -2373,8 +3162,12 @@ function asBuild(q, body, act, card){
     b.innerHTML = `<span class="ord">-</span><span>${esc(s)}</span>`;
     b.onclick = ()=>{
       const at = order.indexOf(s);
-      if(at>=0) order.splice(at,1); else order.push(s);
-      redraw(); submit.disabled = order.length !== q.steps.length;
+      if(at>=0) order.splice(at,1);
+      else{
+        const gap = order.indexOf("");
+        if(gap>=0) order[gap] = s; else order.push(s);
+      }
+      saveDraft(); redraw(); submit.disabled = !complete();
     };
     wrap.appendChild(b); return b;
   });
@@ -2389,16 +3182,18 @@ function asBuild(q, body, act, card){
   }
   body.appendChild(wrap);
   const submit = mkSubmit(act, "tap the steps in order");
+  redraw(); submit.disabled = !complete();
   function revert(){
     shown.forEach((s,n)=>{ btns[n].disabled = false; });
     act.appendChild(submit);
     redraw();
-    submit.disabled = order.length !== q.steps.length;
+    submit.disabled = !complete();
   }
   submit.onclick = ()=>{
     shown.forEach((s,n)=>{ btns[n].disabled = true; });
     submit.remove();
     settle(q, order.slice(), card, act, v=>{
+      if(storageKey) try{ localStorage.removeItem(storageKey); }catch(e){}
       const right = Array.isArray((v.explain||{}).steps) && (v.explain||{}).steps.length
         ? (v.explain||{}).steps : null;
       if(!right) return;
@@ -2445,7 +3240,11 @@ function fillFields(q, body){
     text.textContent = field.label || field.id;
     const help = document.createElement("span");
     help.className = "fill-help";
-    if(field.kind === "text"){
+    help.id = "fill-help-" + field.id;
+    if(field.kind === "polynomial"){
+      help.textContent = String((field.checker || {}).grammar || "Use x, numbers, explicit * and powers 0 to 4.")
+        + " Expand products. Example: 3*x^2 + 4*x + 1. Maximum 160 characters.";
+    } else if(field.kind === "text"){
       const caseRule = field.case_sensitive === false
         ? "Uppercase and lowercase are treated the same."
         : "Case matters.";
@@ -2467,10 +3266,21 @@ function fillFields(q, body){
     input.autocomplete = "off";
     input.maxLength = 4096;
     input.name = "fill_" + field.id;
+    input.setAttribute("aria-describedby", help.id);
     label.append(text, help, input);
     wrap.appendChild(label);
     controls[String(field.id)] = input;
   });
+  if(q.fill_layout === "inline"){
+    const labels = {};
+    (q.fields || []).forEach(field=>{ labels[field.id] = controls[field.id].parentNode; });
+    wrap.replaceChildren();
+    wrap.className += " fill-inline";
+    String(q.stem || "").split(/(\{\{[a-z][a-z0-9_]{0,31}\}\})/).forEach(part=>{
+      if(part.startsWith("{{")) wrap.appendChild(labels[part.slice(2, -2)]);
+      else wrap.appendChild(document.createTextNode(part));
+    });
+  }
   body.appendChild(wrap);
   return controls;
 }
@@ -4035,6 +4845,16 @@ function loadTeaching(card){
     });
 }
 
+function orderingCard(diagnostic){
+  if(!diagnostic || diagnostic.version !== 1) return "";
+  const messages = {
+    missing_required: "A required block is missing. Review the selected blocks.",
+    selected_distractor: "An unneeded block is selected. Review which blocks belong in the answer.",
+    dependency_violation: "A block appears before a prerequisite. Review the order."
+  };
+  const message = messages[diagnostic.category];
+  return message ? '<p data-ordering-diagnostic>' + message + '</p>' : "";
+}
 function selectionCard(picks){
   if(!picks || !picks.display) return "";
   let rows = "";
@@ -4051,7 +4871,11 @@ function close(q, card, act, v, revert){
   if(v && v.entry_error){
     if(revert) revert();
     const fb = feedbackFor(card);
-    fb.innerHTML = `<div class="refused pend">${esc(v.entry_error)}</div>`;
+    fb.innerHTML = `<div id="fill-entry-error" class="refused pend" role="alert">${esc(v.entry_error)}</div>`;
+    card.querySelectorAll('input[name^="fill_"]').forEach(input=>{
+      input.setAttribute("aria-invalid", "true");
+      input.setAttribute("aria-describedby", "fill-help-" + input.name.slice(5) + " fill-entry-error");
+    });
     return;
   }
   /* Server-side refusal (plan 05-06): the daemon returned a normal
@@ -4092,11 +4916,16 @@ function close(q, card, act, v, revert){
       ? `<div class="verdict n">Not correct. Try a different answer, or open the next hint.</div>`
       : `<div class="status">Review your response before submitting again.</div>`;
     fb.innerHTML += selectionCard(v.selection_feedback);
+    fb.innerHTML += orderingCard(v.ordering_diagnostic);
     loadTeaching(card);
     return;
   }
   if(v.action === "defer_feedback"){
     const nextView = v.next || {};
+    if(currentActivity && currentActivity.stage === "answer" && nextView.activity && nextView.activity.stage === "reason"){
+      renderItem(nextView);
+      return;
+    }
     const advanced = nextView.status === "complete" ||
       !!(nextView.item && nextView.item.id !== q.id);
     /* The sitting is parked at the marker's desk and the runtime will not
@@ -4229,6 +5058,11 @@ function close(q, card, act, v, revert){
       + ex.notes.map(esc).join("</li><li>") + `</li></ul></div>`;
   }
   if(ex.trap) h += `<div class="blk trap"><h4>Trap</h4><div>${esc(ex.trap)}</div></div>`;
+  if(Array.isArray(v.activity_feedback)) h = v.activity_feedback.map((row,index)=>{
+    const explanation = row.explain || {};
+    const verdict = row.score === true ? "Correct." : row.score === false ? "Not correct." : "Recorded.";
+    return `<section data-child-feedback><h2>${index === 0 ? "Answer" : "Reason"} feedback</h2><p>${verdict}</p><p>${esc(explanation.answer_text)}</p><p>${esc(explanation.why)}</p></section>`;
+  }).join("");
   exp.innerHTML = h;
   fb.innerHTML = "";
   fb.appendChild(exp);
@@ -4300,6 +5134,59 @@ function emptyState(){
 function draftKey(bank, itemId){
   return "itembank.draft." + bank + "." + itemId;
 }
+function readBuildDraft(saved, steps){
+  if(!Array.isArray(saved) || saved.length > steps.length) return [];
+  const selected = saved.filter(value=>value !== "");
+  if(!saved.every(value=>typeof value === "string" && (value === "" || steps.includes(value)))
+      || new Set(selected).size !== selected.length) return [];
+  return saved.slice();
+}
+function installMatchingCapacity(form){
+  const fieldset = form.querySelector('[data-matching-reuse="once"]');
+  if(!fieldset) return;
+  if(form.matchingRefresh){ form.matchingRefresh(); return; }
+  const selects = Array.from(fieldset.querySelectorAll("select[data-row-id]"));
+  function refresh(){
+    const used = selects.map(select=>select.value).filter(Boolean);
+    selects.forEach(select=>Array.from(select.options).forEach(option=>{
+      option.disabled = !!option.value && option.value !== select.value && used.includes(option.value);
+    }));
+  }
+  form.matchingRefresh = refresh;
+  form.addEventListener("change", refresh);
+  refresh();
+}
+function installInlineWordBank(form){
+  const blanks = Array.from(form.querySelectorAll(".inline-completion select"));
+  if(!blanks.length || form.querySelector(".inline-word-bank")) return;
+  let draggedWord = null, locked = false;
+  const hint = document.createElement("p");
+  hint.textContent = form.querySelector('[data-matching-reuse="once"]') ? "Drag a choice or use the dropdown. Each choice can be used once." : "Drag a word into a blank, or choose it from the dropdown. Words can be reused.";
+  const bank = document.createElement("div"); bank.className = "inline-word-bank";
+  Array.from(blanks[0].options).filter(option=>option.value !== "").forEach(option=>{
+    const word = document.createElement("span");
+    word.textContent = option.textContent; word.dataset.word = option.value; word.draggable = true;
+    word.ondragstart = event=>{
+      if(locked){ event.preventDefault(); return; }
+      draggedWord = option.value;
+      if(event.dataTransfer){ event.dataTransfer.effectAllowed = "copy"; event.dataTransfer.setData("text/plain", option.value); }
+    };
+    word.ondragend = ()=>{ draggedWord = null; };
+    bank.appendChild(word);
+  });
+  form.prepend(hint, bank);
+  blanks.forEach(select=>{
+    const label = select.closest(".inline-completion");
+    label.ondragover = event=>{ if(!locked && !select.disabled && draggedWord !== null) event.preventDefault(); };
+    label.ondrop = event=>{
+      if(locked || select.disabled || draggedWord === null
+          || !Array.from(select.options).some(option=>option.value === draggedWord && !option.disabled)) return;
+      event.preventDefault(); select.value = draggedWord; draggedWord = null;
+      select.dispatchEvent(new Event("change", {bubbles:true}));
+    };
+  });
+  form.addEventListener("submit", ()=>{ locked = true; draggedWord = null; });
+}
 function readFillDraft(saved, ids){
   const values = Object.create(null);
   if(!saved || typeof saved !== "object") return values;
@@ -4310,6 +5197,13 @@ function readFillDraft(saved, ids){
   return values;
 }
 function installDraft(baseline){
+  const orderingForm = baseline.querySelector("[data-answer-form]");
+  const orderingFieldset = orderingForm && orderingForm.querySelector("[data-ordering-signature]");
+  if(orderingFieldset && !baseline.hasAttribute("data-feedback-pause")) installOrderingControls(orderingFieldset);
+  if(baseline.dataset.responseType === "dnd" && !baseline.hasAttribute("data-feedback-pause")){
+    const form = baseline.querySelector("[data-answer-form]");
+    if(form){ installMatchingCapacity(form); installInlineWordBank(form); }
+  }
   // Draft autosave is presentation state only (080bffc): it refills the
   // visible controls and is never read back as an answer, never sent
   // anywhere, and never recorded until the form POST itself succeeds.
@@ -4339,27 +5233,136 @@ function installDraft(baseline){
     }
     var form = baseline.querySelector("[data-answer-form]");
     if(!form) return;
-    var fields = form.querySelectorAll("textarea, input[type=text]");
+    var choice = baseline.dataset.responseType === "mc" || baseline.dataset.responseType === "multi";
+    if(choice){
+      var options = Array.from(form.querySelectorAll('input[name="option"]'));
+      var choiceSignature = baseline.dataset.presentationSignature || JSON.stringify([
+        baseline.dataset.responseType, baseline.querySelector("h1.stem").textContent,
+        options.map(function(el){ return [el.value, el.closest("label").textContent]; })]);
+      var choiceSaved = null;
+      try{ choiceSaved = JSON.parse(store.getItem(key)); }catch(e){}
+      if(choiceSaved && choiceSaved.signature !== choiceSignature){
+        store.removeItem(key);
+        const notice = document.createElement("p"); notice.setAttribute("role", "status");
+        notice.textContent = "The saved choice belongs to an older question revision. Choose again.";
+        form.prepend(notice);
+      }
+      if(choiceSaved && choiceSaved.signature === choiceSignature && Array.isArray(choiceSaved.values)
+          && choiceSaved.values.every(function(v){ return typeof v === "string" && options.some(function(el){ return el.value === v; }); })
+          && new Set(choiceSaved.values).size === choiceSaved.values.length
+          && (baseline.dataset.responseType !== "mc" || choiceSaved.values.length <= 1)){
+        // A server-echoed refused submission is newer than the local draft.
+        if(!options.some(function(el){ return el.checked; })) options.forEach(function(el){ el.checked = choiceSaved.values.includes(el.value); });
+      }
+      form.addEventListener("change", function(){
+        try{ store.setItem(key, JSON.stringify({signature:choiceSignature,
+          values:options.filter(function(el){ return el.checked; }).map(function(el){ return el.value; })})); }catch(e){}
+      });
+      return;
+    }
+    var assignment = baseline.dataset.responseType === "dnd" || baseline.dataset.responseType === "table";
+    var build = baseline.dataset.responseType === "build";
+    var fields = form.querySelectorAll(assignment ? "select[data-row-id]" : build ? "select[name^=step_]" : "textarea, input[type=text]");
     var saved = null, raw = store.getItem(key);
     try{ saved = raw === null ? null : JSON.parse(raw); }catch(e){ saved = null; }
+    var matching = form.querySelector("[data-matching-signature]");
+    var ordering = form.querySelector("[data-ordering-signature]");
+    var signature = matching ? matching.dataset.matchingSignature : ordering ? ordering.dataset.orderingSignature : null;
+    if(matching){
+      if(saved && saved.signature !== signature){
+        const notice = document.createElement("p"); notice.setAttribute("role", "status");
+        notice.textContent = "The saved draft belongs to an older matching declaration. Choose again.";
+        matching.prepend(notice);
+      }
+      saved = saved && saved.signature === signature ? saved.values : null;
+    }
+    var orderingFocus = saved && saved.focus;
+    if(ordering){
+      if(saved && saved.signature !== signature){
+        const notice = document.createElement("p"); notice.setAttribute("role", "status");
+        notice.textContent = "The saved draft belongs to an older ordering declaration. Arrange the blocks again.";
+        ordering.prepend(notice);
+        orderingFocus = null;
+        fields.forEach(function(el){ el.value = ""; });
+      }
+      saved = saved && saved.signature === signature ? saved.values : null;
+    }
     var fill = baseline.dataset.responseType === "fill";
     var ids = fill ? Array.from(fields, function(el){ return el.name.slice(5); }) : [];
     var fillValues = fill ? readFillDraft(saved, ids) : null;
+    if(build) saved = readBuildDraft(saved, Array.from(fields[0] ? fields[0].options : [], option=>option.value).filter(Boolean));
     fields.forEach(function(el, idx){
-      if(fill && Object.prototype.hasOwnProperty.call(fillValues, ids[idx]))
+      if(assignment && saved && !Array.isArray(saved) && typeof saved[el.dataset.rowId] === "string"
+          && Array.from(el.options).some(function(option){ return option.value === saved[el.dataset.rowId]; }))
+        el.value = saved[el.dataset.rowId];
+      else if(fill && Object.prototype.hasOwnProperty.call(fillValues, ids[idx]))
         el.value = fillValues[ids[idx]];
       else if(!fill && Array.isArray(saved) && typeof saved[idx] === "string")
         el.value = saved[idx];
     });
-    form.addEventListener("input", function(){
-      var vals = fill ? Object.create(null) : [];
+    if(assignment) installMatchingCapacity(form);
+    if(ordering){
+      installOrderingControls(ordering);
+      if(Number.isInteger(orderingFocus) && fields[orderingFocus]) fields[orderingFocus].focus();
+    }
+    function save(){
+      var vals = fill || assignment ? Object.create(null) : [];
       fields.forEach(function(el, idx){
-        if(fill) vals[ids[idx]] = el.value;
+        if(assignment) vals[el.dataset.rowId] = el.value;
+        else if(fill) vals[ids[idx]] = el.value;
         else vals.push(el.value);
       });
-      try{ store.setItem(key, JSON.stringify(vals)); }catch(e){}
-    });
+      try{ store.setItem(key, JSON.stringify(matching || ordering ? {signature:signature, values:vals, focus:Array.from(fields).indexOf(document.activeElement)} : vals)); }catch(e){}
+    }
+    form.addEventListener("input", save);
+    if(assignment || build) form.addEventListener("change", save);
+    if(ordering) form.addEventListener("focusin", save);
   }catch(e){}
+}
+
+function restoreQuizPosition(baseline){
+  // This is disposable, tab-local presentation state. The runtime still owns
+  // answers, cursor and feedback. A changed public item invalidates the view.
+  try{
+    const store = window.sessionStorage;
+    const sid = baseline.dataset.sessionId, iid = baseline.dataset.itemId;
+    if(!sid || !iid || !baseline.dataset.presentationSignature) return false;
+    const prefix = "itembank.return." + ((BOOT && BOOT.bank) || "") + ".";
+    const key = prefix + sid + "." + iid;
+    for(let i=store.length-1;i>=0;i--){
+      const old = store.key(i);
+      if(old && old.startsWith(prefix) && old !== key) store.removeItem(old);
+    }
+    if(baseline.hasAttribute("data-feedback-pause")){ store.removeItem(key); return false; }
+    const signature = baseline.dataset.presentationSignature;
+    const controls = ()=>Array.from(baseline.querySelectorAll("a[href], input:not([type=hidden]), select, textarea, button"));
+    function identity(el){
+      return {tag:el.tagName, name:el.getAttribute("name"),
+        value:el.tagName === "INPUT" ? el.value : null,
+        href:el.getAttribute("href"), id:el.id || null};
+    }
+    if(!baseline.quizPositionInstalled){
+      baseline.quizPositionInstalled = true;
+      window.addEventListener("pagehide", ()=>{
+        try{ store.setItem(key, JSON.stringify({signature, y:window.scrollY, width:window.innerWidth,
+          focus:controls().includes(document.activeElement) ? identity(document.activeElement) : null})); }catch(e){}
+      });
+    }
+    const saved = JSON.parse(store.getItem(key) || "null");
+    if(!saved || saved.signature !== signature || !Number.isFinite(saved.y) || saved.y < 0){
+      if(saved) store.removeItem(key);
+      return false;
+    }
+    const focus = saved.focus && controls().find(el=>JSON.stringify(identity(el)) === JSON.stringify(saved.focus));
+    if(focus) focus.focus({preventScroll:true});
+    else { const heading = baseline.querySelector("h1.stem"); if(heading) heading.focus({preventScroll:true}); }
+    window.requestAnimationFrame(()=>{
+      if(Number.isFinite(saved.width) && saved.width !== window.innerWidth){
+        (focus || baseline.querySelector("h1.stem") || baseline).scrollIntoView({block:"center"});
+      } else window.scrollTo(0, saved.y);
+    });
+    return true;
+  }catch(e){ return false; }
 }
 
 /* ---- start: one /api/start call bootstraps the whole sitting -------------- */
@@ -4370,13 +5373,17 @@ async function start(){
     if(window.Assist) window.Assist.setSession(sessionId);
     if(baseline.dataset.responseType) setContext({
       type: baseline.dataset.responseType,
+      ordering: !!baseline.querySelector("[data-ordering-signature]"),
       objective: baseline.dataset.objective || "",
       lesson_slug: baseline.dataset.lessonSlug || ""
     });
+    if(baseline.querySelector("[data-activity-stage]") && activityDisclosure)
+      activityDisclosure.textContent = document.getElementById("cx-mode").textContent === "exam"
+        ? "Feedback after completion" : "Feedback after answer and reason";
     installDraft(baseline);
-    if(!baseline.hasAttribute("data-feedback-pause")){
+    if(!restoreQuizPosition(baseline) && !baseline.hasAttribute("data-feedback-pause")){
       const heading = baseline.querySelector("h1.stem");
-      if(heading) heading.focus({preventScroll:true});
+      if(heading && !baseline.querySelector("[data-ordering-signature] select:focus")) heading.focus({preventScroll:true});
     }
     return;
   }

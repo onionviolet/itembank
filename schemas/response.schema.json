@@ -6,8 +6,9 @@
   "x-itembank-version": 2,
   "type": "object",
   "oneOf": [
-    {"$ref": "#/$defs/reading_declared_event"},
-
+    {
+      "$ref": "#/$defs/reading_declared_event"
+    },
     {
       "$ref": "#/$defs/response_event"
     },
@@ -34,161 +35,161 @@
     "schema_version"
   ],
   "$defs": {
-  "reading_range": {
-    "type": "object",
-    "additionalProperties": false,
-    "required": [
-      "span_id",
-      "locator_id",
-      "locator_sidecar_fingerprint"
-    ],
-    "properties": {
-      "span_id": {
-        "type": "string",
-        "minLength": 1
-      },
-      "locator_id": {
-        "type": [
-          "string",
-          "null"
-        ]
-      },
-      "locator_sidecar_fingerprint": {
-        "type": [
-          "string",
-          "null"
-        ],
-        "pattern": "^sha256:[0-9a-f]{64}$"
-      }
-    }
-  },
-  "reading_declared_event": {
-    "type": "object",
-    "additionalProperties": false,
-    "required": [
-      "event_id",
-      "ts",
-      "session_id",
-      "intent_id",
-      "course_id",
-      "occurrence_id",
-      "occurrence_revision_id",
-      "dedupe_key",
-      "schema_version",
-      "event_type",
-      "actor",
-      "declaration",
-      "base_retraction_id",
-      "objective_ids",
-      "binding_ref",
-      "source_ref"
-    ],
-    "properties": {
-      "event_id": {
-        "type": "string",
-        "minLength": 1
-      },
-      "ts": {
-        "type": "string",
-        "minLength": 1
-      },
-      "session_id": {
-        "type": "string",
-        "minLength": 1
-      },
-      "intent_id": {
-        "type": "string",
-        "minLength": 1
-      },
-      "course_id": {
-        "type": "string",
-        "minLength": 1
-      },
-      "occurrence_id": {
-        "type": "string",
-        "minLength": 1
-      },
-      "occurrence_revision_id": {
-        "type": "string",
-        "minLength": 1
-      },
-      "dedupe_key": {
-        "type": "string",
-        "minLength": 1
-      },
-      "schema_version": {
-        "const": 2
-      },
-      "event_type": {
-        "const": "reading_declared"
-      },
-      "actor": {
-        "const": "learner"
-      },
-      "declaration": {
-        "const": "read"
-      },
-      "base_retraction_id": {
-        "type": [
-          "string",
-          "null"
-        ]
-      },
-      "objective_ids": {
-        "type": "array",
-        "minItems": 1,
-        "uniqueItems": true,
-        "items": {
+    "reading_range": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "span_id",
+        "locator_id",
+        "locator_sidecar_fingerprint"
+      ],
+      "properties": {
+        "span_id": {
           "type": "string",
-          "pattern": "^[0-9a-f]{16}$"
+          "minLength": 1
+        },
+        "locator_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "locator_sidecar_fingerprint": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^sha256:[0-9a-f]{64}$"
         }
-      },
-      "binding_ref": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "binding_id",
-          "binding_revision_id"
-        ],
-        "properties": {
-          "binding_id": {
-            "type": "string",
-            "pattern": "^[0-9a-f]{16}$"
-          },
-          "binding_revision_id": {
+      }
+    },
+    "reading_declared_event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "event_id",
+        "ts",
+        "session_id",
+        "intent_id",
+        "course_id",
+        "occurrence_id",
+        "occurrence_revision_id",
+        "dedupe_key",
+        "schema_version",
+        "event_type",
+        "actor",
+        "declaration",
+        "base_retraction_id",
+        "objective_ids",
+        "binding_ref",
+        "source_ref"
+      ],
+      "properties": {
+        "event_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ts": {
+          "type": "string",
+          "minLength": 1
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "intent_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "course_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "occurrence_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "occurrence_revision_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "dedupe_key": {
+          "type": "string",
+          "minLength": 1
+        },
+        "schema_version": {
+          "const": 2
+        },
+        "event_type": {
+          "const": "reading_declared"
+        },
+        "actor": {
+          "const": "learner"
+        },
+        "declaration": {
+          "const": "read"
+        },
+        "base_retraction_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "objective_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
             "type": "string",
             "pattern": "^[0-9a-f]{16}$"
           }
-        }
-      },
-      "source_ref": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "source_object_id",
-          "source_fingerprint",
-          "locator",
-          "range"
-        ],
-        "properties": {
-          "source_object_id": {
-            "type": "string",
-            "pattern": "^[0-9a-f]{16}$"
-          },
-          "source_fingerprint": {
-            "type": "string",
-            "pattern": "^sha256:[0-9a-f]{64}$"
-          },
-          "locator": {
-            "type": "string"
-          },
-          "range": {
-            "$ref": "#/$defs/reading_range"
+        },
+        "binding_ref": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "binding_id",
+            "binding_revision_id"
+          ],
+          "properties": {
+            "binding_id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{16}$"
+            },
+            "binding_revision_id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{16}$"
+            }
+          }
+        },
+        "source_ref": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "source_object_id",
+            "source_fingerprint",
+            "locator",
+            "range"
+          ],
+          "properties": {
+            "source_object_id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{16}$"
+            },
+            "source_fingerprint": {
+              "type": "string",
+              "pattern": "^sha256:[0-9a-f]{64}$"
+            },
+            "locator": {
+              "type": "string"
+            },
+            "range": {
+              "$ref": "#/$defs/reading_range"
+            }
           }
         }
       }
-    }
-  },
+    },
     "response_event": {
       "type": "object",
       "additionalProperties": false,
@@ -251,7 +252,17 @@
         },
         "item_type": {
           "type": "string",
-          "enum": ["mc", "multi", "table", "dnd", "build", "short", "check", "visual", "fill"]
+          "enum": [
+            "mc",
+            "multi",
+            "table",
+            "dnd",
+            "build",
+            "short",
+            "check",
+            "visual",
+            "fill"
+          ]
         },
         "bank": {
           "type": "string",
@@ -338,7 +349,11 @@
         },
         "context": {
           "type": "string",
-          "enum": ["quiz", "lesson_gate", "lesson_run"],
+          "enum": [
+            "quiz",
+            "lesson_gate",
+            "lesson_run"
+          ],
           "description": "Which surface embedded this attempt (plan 06.2, D-08): \"quiz\" (the default, every pre-6.2 call site) or \"lesson_gate\" (the one call site that serves an inline check inside a lesson). Phase 10's scheduler treats both identically -- the context field is how it tells where an idea was cleared without branching on it. \"lesson_run\" marks a checkpoint attempt inside a paced lesson run (plan 16D-02, D-PACED-2); blueprint denominators exclude it by default."
         },
         "review_state": {
@@ -387,6 +402,11 @@
             }
           }
         },
+        "checker_version": {
+          "type": "integer",
+          "const": 1,
+          "description": "Structural ordering checker version. Absent on legacy responses; raw answer preserves stable block IDs."
+        },
         "check_source": {
           "type": [
             "string",
@@ -400,6 +420,45 @@
             "null"
           ],
           "description": "The public interaction-contract version that served a check item (runtime.INTERACTION_VERSION), null for every other type (plan 05-01). The public item, the normalized interaction_result and the evidence event all carry the same value."
+        },
+        "activity_id": {
+          "type": "string"
+        },
+        "case_revision": {
+          "type": "string"
+        },
+        "child_id": {
+          "type": "string"
+        },
+        "stage": {
+          "type": "string"
+        },
+        "checker_outcomes": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "checker_version",
+              "state"
+            ],
+            "properties": {
+              "checker_version": {
+                "const": "a5-rational-polynomial-v2"
+              },
+              "state": {
+                "enum": [
+                  "correct",
+                  "mathematically_wrong",
+                  "wrong_form"
+                ]
+              },
+              "diagnostic_id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{0,47}$"
+              }
+            }
+          }
         }
       }
     },
@@ -542,7 +601,10 @@
         },
         "gate_mode": {
           "type": "string",
-          "enum": ["required", "recommended"]
+          "enum": [
+            "required",
+            "recommended"
+          ]
         },
         "dedupe_key": {
           "type": "string"
@@ -565,10 +627,18 @@
         },
         "event_type": {
           "type": "string",
-          "enum": ["mark", "retraction", "day_tick", "term_lookup",
-                   "key_review", "model_interaction", "mark_proposal",
-                   "visual_action", "activity_completed",
-                   "activity_skipped"],
+          "enum": [
+            "mark",
+            "retraction",
+            "day_tick",
+            "term_lookup",
+            "key_review",
+            "model_interaction",
+            "mark_proposal",
+            "visual_action",
+            "activity_completed",
+            "activity_skipped"
+          ],
           "description": "lesson_complete, cap_override and selection are deliberately absent: each has its own closed branch, so a malformed event of those types must FAIL validation rather than be accepted by this permissive branch. model_interaction and mark_proposal (plan 08-03) and visual_action (plan 06.1-02) are accepted here. activity_completed and activity_skipped (plan 16C-06) are the strategy lifecycle facts, registered here in the same commit as their builder per D-23. They are accepted by this permissive branch rather than given a closed one because their nine-key set is enforced in notes.strategy_lifecycle_event and asserted by tests/note_promotion_roundtrip.py; a closed branch would be a second place to keep that key set in step."
         }
       }
@@ -578,8 +648,16 @@
       "additionalProperties": false,
       "description": "The selection event's real shape (plan 07-04; Phase 10 retention fields added by plan 10-03, D-01/D-10/T-10-13): the one record per sitting of what was asked for. `selection_spec` carries only the allowlisted selection fields; `retention`, when present, is the sitting's server-derived binding -- one snapshot id, the bounded normalized objective-weight map with each entry's named components and matching snapshot id, and the optional component trace. A forged map, client path, answer key, hidden tier, or model payload never validates here (additionalProperties is false at every level).",
       "required": [
-        "schema_version", "event_id", "event_type", "ts", "session_id",
-        "bank", "selection_mode", "selection_spec", "items", "dedupe_key"
+        "schema_version",
+        "event_id",
+        "event_type",
+        "ts",
+        "session_id",
+        "bank",
+        "selection_mode",
+        "selection_spec",
+        "items",
+        "dedupe_key"
       ],
       "properties": {
         "schema_version": {
@@ -603,23 +681,52 @@
         },
         "selection_mode": {
           "type": "string",
-          "enum": ["diagnostic", "practice", "remediation", "exam", "missed"]
+          "enum": [
+            "diagnostic",
+            "practice",
+            "remediation",
+            "exam",
+            "missed"
+          ]
         },
         "selection_spec": {
           "type": "object",
           "additionalProperties": false,
           "description": "The resolved selection spec, allowlisted to selection.SPEC_FIELDS by the builder",
           "properties": {
-            "objective": {"type": "string"},
-            "count": {"type": "integer"},
-            "seed": {"type": "integer"},
-            "exclude_item_ids": {"type": "array", "items": {"type": "string"}},
-            "pair": {"type": "string"},
-            "prerequisite": {"type": "string"},
-            "selection_mode": {"type": "string"},
-            "prereq_satisfied": {"type": "boolean"},
-            "type": {"type": "string"},
-            "difficulty": {"type": "string"}
+            "objective": {
+              "type": "string"
+            },
+            "count": {
+              "type": "integer"
+            },
+            "seed": {
+              "type": "integer"
+            },
+            "exclude_item_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "pair": {
+              "type": "string"
+            },
+            "prerequisite": {
+              "type": "string"
+            },
+            "selection_mode": {
+              "type": "string"
+            },
+            "prereq_satisfied": {
+              "type": "boolean"
+            },
+            "type": {
+              "type": "string"
+            },
+            "difficulty": {
+              "type": "string"
+            }
           }
         },
         "items": {
@@ -634,7 +741,10 @@
         "retention": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["snapshot_id", "objective_weights"],
+          "required": [
+            "snapshot_id",
+            "objective_weights"
+          ],
           "properties": {
             "snapshot_id": {
               "type": "string",
@@ -645,7 +755,11 @@
               "additionalProperties": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": ["weight", "components", "snapshot_id"],
+                "required": [
+                  "weight",
+                  "components",
+                  "snapshot_id"
+                ],
                 "properties": {
                   "weight": {
                     "type": "number",
@@ -665,7 +779,10 @@
               }
             },
             "trace": {
-              "type": ["object", "null"],
+              "type": [
+                "object",
+                "null"
+              ],
               "description": "The returned selection trace's retention block (present when the composition consumed weights), or null"
             }
           }
@@ -677,9 +794,18 @@
       "additionalProperties": false,
       "description": "The lesson_complete event's real shape (plan 10-02, SCHED-04/D-24): a learner explicitly completed a named Phase 3 lesson heading. It names the bank basename only -- never a client-derived path (T-10-07) -- plus the Phase 3 lesson slug, the single namespaced subject the referenced objectives share, and the sorted unique referenced objectives (every objective must be namespaced; duplicates are rejected). The event proves an explicit completion action, not reading time or page visibility: no view, scroll, or model event can match this shape.",
       "required": [
-        "schema_version", "event_id", "event_type", "ts", "session_id",
-        "bank", "lesson_slug", "subject", "objectives", "zone",
-        "actor", "dedupe_key"
+        "schema_version",
+        "event_id",
+        "event_type",
+        "ts",
+        "session_id",
+        "bank",
+        "lesson_slug",
+        "subject",
+        "objectives",
+        "zone",
+        "actor",
+        "dedupe_key"
       ],
       "properties": {
         "schema_version": {
@@ -746,9 +872,20 @@
       "additionalProperties": false,
       "description": "The cap_override event's real shape (plan 10-04, D-08): the one audited exception that lets a subject's sitting start after its daily cap was reached. It names only server-derived facts -- the generated session_id it authorizes, the bank basename, the non-empty namespaced subject, the local calendar date and zone the count was decided in, the one snapshot id, the exact cap/count shown to the learner, and the constant sitting scope. It is not a response: structurally it carries no score key at all. The exception applies only within the named session's active lifetime; a later sitting or a later day sees the ordinary count again (there is no persistent cap-disable setting).",
       "required": [
-        "schema_version", "event_id", "event_type", "ts", "session_id",
-        "bank", "subject", "local_date", "zone", "snapshot_id",
-        "cap", "count", "scope", "dedupe_key"
+        "schema_version",
+        "event_id",
+        "event_type",
+        "ts",
+        "session_id",
+        "bank",
+        "subject",
+        "local_date",
+        "zone",
+        "snapshot_id",
+        "cap",
+        "count",
+        "scope",
+        "dedupe_key"
       ],
       "properties": {
         "schema_version": {
@@ -859,7 +996,10 @@
           "const": "human"
         },
         "proposal_ref": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "description": "The event_id of the mark_proposal event this human mark accepts (plan 08-03, D-14). Always present on the event dict; null when the mark accepts no proposal. Folding it into the dedupe key means accepting two different proposals for the same response records two distinct human marks. The marker != 'human' guard is untouched: this remains the human-only accept path."
         },
         "dedupe_key": {
@@ -969,11 +1109,27 @@
       "description": "The model_interaction event's real shape (plan 08-03, D-12/D-15/D-16): one attempted model generation -- a hint or a rubric review -- logged with backend/profile, operation, timing, request/output fingerprints, outcome, gate result, and permitted tier. A drop/unavailable outcome stores descriptors only and never the dropped candidate's text (pass_payload is null unless outcome is pass). Structurally no score key: an interaction is a fact about the model, never accepted evidence about the learner.",
       "additionalProperties": false,
       "required": [
-        "schema_version", "event_id", "event_type", "ts", "session_id",
-        "bank", "item_ref", "operation", "interaction_id", "outcome",
-        "gate_reason", "permitted_tier", "backend_class", "profile",
-        "request_fingerprint", "response_fingerprint", "elapsed_ms",
-        "output_bytes", "pass_payload", "parent_interaction_id", "dedupe_key"
+        "schema_version",
+        "event_id",
+        "event_type",
+        "ts",
+        "session_id",
+        "bank",
+        "item_ref",
+        "operation",
+        "interaction_id",
+        "outcome",
+        "gate_reason",
+        "permitted_tier",
+        "backend_class",
+        "profile",
+        "request_fingerprint",
+        "response_fingerprint",
+        "elapsed_ms",
+        "output_bytes",
+        "pass_payload",
+        "parent_interaction_id",
+        "dedupe_key"
       ],
       "properties": {
         "schema_version": {
@@ -999,48 +1155,85 @@
         },
         "operation": {
           "type": "string",
-          "enum": ["hint", "rubric_review"]
+          "enum": [
+            "hint",
+            "rubric_review"
+          ]
         },
         "interaction_id": {
           "type": "string"
         },
         "outcome": {
           "type": "string",
-          "enum": ["pass", "drop", "unavailable"]
+          "enum": [
+            "pass",
+            "drop",
+            "unavailable"
+          ]
         },
         "gate_reason": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "description": "Plan 08-01's machine-readable reason code for a drop/unavailable (e.g. gate.ambiguous), or null when the interaction passed."
         },
         "permitted_tier": {
-          "type": ["integer", "null"]
+          "type": [
+            "integer",
+            "null"
+          ]
         },
         "backend_class": {
           "type": "string",
-          "enum": ["hosted", "local"],
+          "enum": [
+            "hosted",
+            "local"
+          ],
           "description": "Whether the provider was hosted or local (D-17), so later audits can distinguish exposure."
         },
         "profile": {
-          "type": ["string", "null"]
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "request_fingerprint": {
-          "type": ["string", "null"]
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "response_fingerprint": {
-          "type": ["string", "null"]
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "elapsed_ms": {
-          "type": ["integer", "null"]
+          "type": [
+            "integer",
+            "null"
+          ]
         },
         "output_bytes": {
-          "type": ["integer", "null"]
+          "type": [
+            "integer",
+            "null"
+          ]
         },
         "pass_payload": {
-          "type": ["object", "null"],
+          "type": [
+            "object",
+            "null"
+          ],
           "description": "The gated, learner-facing content, present only when outcome is pass; null for a drop or unavailable (D-16)."
         },
         "parent_interaction_id": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "description": "The interaction id this retry re-runs, or null for a first attempt (D-12)."
         },
         "dedupe_key": {
@@ -1053,9 +1246,18 @@
       "description": "The mark_proposal event's real shape (plan 08-03, D-13/D-14/D-23): a pending per-point pass|fail|uncertain suggestion for the short-answer response event named by response_event_id, produced by the interaction named by interaction_id. It structurally carries no score key and no verdict field, so it can never be mistaken for the settled mark that only a human's mark_event(marker='human', proposal_ref=...) creates. An empty points array is valid and reads as pending/unknown.",
       "additionalProperties": false,
       "required": [
-        "schema_version", "event_id", "event_type", "ts", "session_id",
-        "bank", "item_id", "item_ref", "response_event_id", "interaction_id",
-        "points", "dedupe_key"
+        "schema_version",
+        "event_id",
+        "event_type",
+        "ts",
+        "session_id",
+        "bank",
+        "item_id",
+        "item_ref",
+        "response_event_id",
+        "interaction_id",
+        "points",
+        "dedupe_key"
       ],
       "properties": {
         "schema_version": {
@@ -1096,7 +1298,11 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["point_index", "status", "rationale"],
+            "required": [
+              "point_index",
+              "status",
+              "rationale"
+            ],
             "properties": {
               "point_index": {
                 "type": "integer",
@@ -1104,7 +1310,11 @@
               },
               "status": {
                 "type": "string",
-                "enum": ["pass", "fail", "uncertain"]
+                "enum": [
+                  "pass",
+                  "fail",
+                  "uncertain"
+                ]
               },
               "rationale": {
                 "type": "string",

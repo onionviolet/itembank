@@ -132,7 +132,7 @@ Rules that matter (all enforced; write to them, do not fight them):
 - `table` categories are declared; `build` steps are unique; stems do not
   duplicate.
 - Missing `WHY BEST:` is an error; `CONFIDENCE: low` draws a warning on
-  every lint. Raise the confidence or accept the warning.
+  every lint. Investigate the source or preserve the low-confidence warning and name the required review. Never raise confidence merely to silence lint.
 - The stem tests the stated objective at its stated cognitive demand;
   important objectives include changed-context transfer, not only
   paraphrased recall.
@@ -176,13 +176,12 @@ accessibility. Present the reviewer a bounded diff of the bank. After
 acceptance:
 
 ```bash
-python itembank.py id-assign bank.md   # mint ids and content-hash fingerprints (the only direct writer)
+python itembank.py id-assign bank.md   # mint ids and content-hash fingerprints
 python itembank.py guard .             # ship gate: no real bank committed (CI enforces it)
 ```
 
 Close with the undo step for each write, what became stale (dependent
-lessons, exports, or attempt renders; there is no staleness command yet, so
-state it in the handoff), and remaining uncertainty, including any
+lessons, exports, or attempt renders; inspect `course staleness` for registered dependencies and name anything it cannot track), and remaining uncertainty, including any
 `CONFIDENCE: low` items left standing and why.
 
 ## Boundaries

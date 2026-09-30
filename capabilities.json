@@ -888,6 +888,21 @@
       "token_gated": true
     },
     {
+      "method": "POST",
+      "path": "^/course/(?P<course_id>[A-Za-z0-9_.-]{1,64})/outline/(?P<action>propose|accept|reject|undo)$",
+      "token_gated": true
+    },
+    {
+      "method": "GET",
+      "path": "^/course/(?P<course_id>[A-Za-z0-9_.-]{1,64})/research$",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "^/course/(?P<course_id>[A-Za-z0-9_.-]{1,64})/research$",
+      "token_gated": true
+    },
+    {
       "method": "GET",
       "path": "^/course/(?P<course_id>[A-Za-z0-9_.-]{1,64})/learn/(?P<lesson_id>[A-Za-z0-9_.-]{1,64})$",
       "token_gated": true

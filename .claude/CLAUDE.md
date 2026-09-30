@@ -15,7 +15,7 @@
 
 **itembank** is a source-to-course learning workspace built on a local-first
 assessment protocol and runtime. It ships today: a markdown format contract
-with an actionable linter, seven item types, deterministic scoring behind one
+with an actionable linter, additive item families, deterministic scoring behind one
 scorer, resumable JSON sessions, an offline HTML quiz, a graded loopback
 sitting, Anki TSV export, and a cross-subject `day` cockpit.
 
@@ -37,10 +37,7 @@ next actions are aligned to cited objectives and improved by honest evidence.**
 **Runtime invariant:** **One runtime, one scorer, one evidence store, and the
 runtime, not the model, settles scoring, assessment disclosure, and evidence.**
 
-The tutoring model reads the item, the key, the rationale, and the learner's
-specific wrong answer, so it can teach about *this* error. What it may not do
-is choose how much to say: the runtime gates disclosure by session mode and
-hint tier, so a model argued into wanting to reveal still cannot.
+The tutoring client receives the public item and only explanation content released by the runtime for the current mode and tier. It can address the learner's specific error after that gate, but never read private bank content to bypass disclosure or invent a verdict.
 
 This is a small safety boundary, not a capability ceiling. AI may search
 approved roots, design curricula, select readings, draft and revise artifacts,
@@ -85,8 +82,8 @@ These files are large. Read the section you need, not the file.
 
 | Need | Read |
 |---|---|
-| Binding next-milestone scope | `.planning/SOURCE-TO-COURSE.md` (17KB, read whole) |
-| Shared agent operating contract | `.planning/AGENT-WORKFLOW.md` (10KB, read whole) |
+| Binding next-milestone scope | Relevant sections of `.planning/SOURCE-TO-COURSE.md`; read fully for contract changes |
+| Shared agent operating contract | `.planning/AGENT-WORKFLOW.md` authority map and task-scoped reading mode |
 | Object, authority, rights, acceptance, recovery detail | `AGENTS.md` §"Object and authority model" |
 | Weibao's verbatim goal | `.planning/USER-VISION.md` (85KB). Grep it. Never replace the record with an interpreted summary. |
 | Full authority synthesis | `.planning/research/phase-16/14-synthesis.md` §2, §3, §6, §10 (84KB total) |
@@ -186,8 +183,9 @@ artifact contracts.
 - **Hosted models see item text** (Weibao, 2026-08-05). AAOS-12e-derivative
   EMT items and CSCI 1100 items transit to a hosted provider. Hosted or local,
   this is AI assistance on graded coursework and the CSCI 1100 AI-use ban
-  applies to both. The local-only path stays fully built, so any subject moves
-  back behind it by changing one setting.
+  applies to both. This records provider-transit acceptance, not permission
+  to process prohibited coursework. Local-only configuration changes data
+  egress; the current course policy still controls allowed content and use.
 - **The `update_policy` divergence is deliberate** (D-13, 2026-08-08). The
   schema default is `opt_in` so a fresh install never phones home unasked;
   this repository's own `itembank.json` sets `check_on_launch` so the updater
@@ -212,8 +210,7 @@ This describes the stack **as built**, not a forward constraint. See the five
 non-negotiables above. Optional integrations: Anki Desktop via AnkiConnect
 (`ANKI_CONNECT_URL`), git for `day`'s status line.
 
-Entry points: `python itembank.py [COMMAND]`, or `import itembank` for the
-public API in `__all__`. Single-threaded, stateless, no daemon, no database.
+Entry points: `python itembank.py [COMMAND]`, or `import itembank` for the public API in `__all__`. The CLI includes a loopback daemon, course graph, source, binding, reviewed operation and package commands. Use current help and contracts for exact capability; durable Markdown and JSON remain canonical.
 
 Detail: `.planning/codebase/STACK.md`, `INTEGRATIONS.md`, `TESTING.md`.
 <!-- GSD:stack-end -->
@@ -239,7 +236,7 @@ is manual, 4 spaces, `%`-style string formatting throughout.
   the function protects. Comments are complete sentences.
 - Canonical form separators are `FIELD_SEP = "\x1f"` and `PAIR_SEP = "\x1e"`,
   chosen because item content contains `|`, `>`, and `,`.
-- Item types: `mc`, `multi`, `table`, `dnd`, `build`, `short`.
+- Read `python itembank.py spec` for current item families and grammar; do not use a cached type list as the contract.
 
 Detail: `.planning/codebase/CONVENTIONS.md`.
 <!-- GSD:conventions-end -->
@@ -287,8 +284,7 @@ Detail: `.planning/codebase/ARCHITECTURE.md`, `STRUCTURE.md`, `CONCERNS.md`.
 `.claude/skills/` and `.agents/skills/` are byte-identical mirrors, enforced
 by CI (`diff -rq`), and share `OPERATION-CONTRACT.md`. Shipped: `absorb-book`,
 `author-bank`, `build-course`, `curriculum-design`, `guiding-questions`,
-`legacy-upgrade`, `ocr`. Stubs whose command surface has not shipped:
-`discovery-and-binding`, `lesson-authoring`, `media-intake`.
+`legacy-upgrade`, `ocr`, `problem-intake`, `user-vision`. The guided integrations for `discovery-and-binding`, `lesson-authoring` and `media-intake` remain unavailable; those skills document bounded manual use of existing primitives. CLI support does not automatically make a guided skill runnable.
 <!-- GSD:skills-end -->
 
 <!-- GSD:workflow-start source:GSD defaults -->
