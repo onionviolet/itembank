@@ -1,6 +1,7 @@
 # Main integration and continuation, 2026-09-30
 
-Status: source consolidation in progress. The user authorized cleanup,
+Status: source consolidation and worktree cleanup complete; continuation chats
+created with a temporary read-only startup gate. The user authorized cleanup,
 integration into main and new chats for the next independent parts. This
 authorizes one bounded source integration commit and a normal main push. It
 does not lift the installed-session or fresh-app-build hold.
@@ -49,10 +50,54 @@ single sequence owner.
 
 ## Verification, cleanup and recovery
 
-Integration verification and final Git identities are recorded below after
-the source gate and commit. No worktree is removed before its snapshot bytes
+Integration verification and Git identities are recorded below. No worktree was
+removed before its snapshot bytes were
 are preserved and rechecked. Obsolete checkouts move to Trash so ignored caches
 and dependencies remain recoverable; Git worktree metadata is pruned afterward.
 Historical branch references are retained. Never use a reset or force push to
 discard divergent work. Newly dispatched work begins after the clean main
 baseline and may create its own intentional task changes.
+
+## Completed integration evidence
+
+Source integration commit: `b37fac31189eeb70e8535265dc190564d251d4a0`.
+Recovery/cleanup commit: `0a1194abbb519bb74ae3a0e5cd996e84e21f8cbd`.
+Both are on local and remote main. The previous twelve audit commits and the
+general-quality fix are also included by fast-forward ancestry, with no force
+push or destructive reset.
+
+The coordinated `ITEMBANK_VISUAL_QA_CHANNEL=chrome python3
+scripts/preflight.py --source-only` run passes all 182 executed Python scripts
+and the JS suite. Its only failure before the commits was the intentional
+dirty-tree gate. The committed checkout then passes `gate_clean_tree` and
+quick source-only preflight; launcher LF attributes are preserved. The three
+app-build scripts, sample-build and CI-only legs remain deferred locally. No
+installed app or active sitting changed. Source logs are retained under
+`.reasonix/main-integration-20260930/`.
+
+The old worktree patches and untracked bytes were rechecked against the
+preserved hashes before cleanup. All three checkouts moved to Trash, including
+their ignored dependency/cache contents. Git metadata was pruned afterward;
+`git worktree list` now contains only the primary checkout on main. Historical
+branch references are retained. Source recovery lives in the committed archive.
+
+The first normal HTTPS push returned HTTP 408 and left remote main unchanged.
+The task-only retry with `git -c http.version=HTTP/1.1 -c
+http.postBuffer=524288000 push origin main` succeeded. `git ls-remote` and
+local origin/main both confirmed `0a1194a`, with ahead/behind counts 0/0.
+This is one observed transport workaround, not a standing harness restriction.
+
+## Created continuation chats
+
+| Lane | Chat identity | Writer boundary |
+| --- | --- | --- |
+| R | `01a0f2e8-c4ec-7b41-bd14-53dfc8b914f3` | `course_package.py`, new populated-root test and its report |
+| P3 | `01a0f2e8-da34-7ff0-ac9e-21495eb0c8c4` | New evidence-anchor prototype, tracer and readiness report only |
+| P5 | `01a0f2e8-df93-71c2-a610-bd1c5addf7bf` | New activity-graph prototype, tracer and readiness report only |
+
+All three use the local project checkout. They initially analyze read-only.
+The parent sends the write release after this handoff commit is pushed and
+the clean baseline is reverified. Each may then commit exactly its own plan's
+paths after scoped verification, with no push or branch switch. Root owns
+shared state and integration projections; P3/P5 do not mutate production
+formats before exact direct-user decisions. No new worktrees were created.

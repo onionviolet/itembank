@@ -4,8 +4,8 @@ milestone: reach
 milestone_name: reach
 current_phase_name: 20-extensible-ui-foundation-and-interaction-clarity-pass
 current_phase: 20
-status: "September 30 source consolidation into main authorized. Completed source slices and preserved worktree variants are being integrated; installed sitting and fresh-build hold remain protected."
-stopped_at: "Current root owns Git consolidation and cleanup. No new production writer starts before the main baseline is verified. The next chats own populated-root restore and separate P3/P5 readiness paths."
+status: "September 30 source integrated and pushed to main, old worktrees preserved and cleaned. 182 source Python scripts and the JS suite pass; clean-tree verified. Three continuation chats created; installed and fresh-build holds remain protected."
+stopped_at: "Main source/recovery baseline 0a1194a is pushed and clean. R/P3/P5 continuation chats have disjoint write scopes and await the parent's handoff release before writes. Shared state remains parent-owned."
 last_updated: "2026-09-30"
 last_activity: 2026-09-30
 last_activity_desc: "Finished parallel staged/checker production integration, reviewed header acceptance/undo and served browser continuity; repaired broad-gate registry/pin/fixture failures and recorded exact verification limits."
@@ -18,15 +18,24 @@ progress:
 ---
 # Project State
 
-**Main consolidation authorized, September 30:** The user requested new chats
+**Current main consolidation, September 30:** The user requested new chats
 for the next parts, cleanup of old worktrees and integration into main. The
 [integration record](research/MAIN-INTEGRATION-2026-09-30.md) owns the bounded
-source and cleanup plans. This lifts the prior source commit/push restriction
-for these plans, while preserving the installed-session and fresh-app-build
-hold. The three historical dirty worktree patches and untracked tests are
-preserved in the recovery archive; newer matching remains canonical and unique
-true/false/prototype refinements are carried forward. Git branch/head/status
-remain the authority for whether the pending commits and main push completed.
+source, cleanup and continuation plans. Source commit `b37fac3` and recovery
+commit `0a1194a` are on local and remote main. The full source-only run passes
+182 Python scripts and JS; after committing, the clean-tree gate and quick
+source gates pass. The three old checkouts moved to Trash only after exact
+patch/test preservation, and Git now registers only the primary main checkout.
+Newer matching remains canonical; true/false and isolated prototype refinements
+are carried forward. Historical source snapshot blocks below retain their
+original uncommitted/build/human limits rather than describing current Git state.
+
+New chats: R `01a0f2e8-c4ec-7b41-bd14-53dfc8b914f3` owns populated-root restore;
+P3 `01a0f2e8-da34-7ff0-ac9e-21495eb0c8c4` owns fixed-anchor readiness;
+P5 `01a0f2e8-df93-71c2-a610-bd1c5addf7bf` owns graph readiness. They start with
+read-only analysis and receive a write release after the handoff commit. Their
+scopes, output paths and exact format gates live in the integration record.
+No new worktree, app build, install or release is authorized by this dispatch.
 
 **Current staged/checker source closure, September 30:** The user instructed:
 "implement in parallel accordingly, coordinate chats until its done" after
