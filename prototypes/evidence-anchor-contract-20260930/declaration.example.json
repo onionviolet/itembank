@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "binding_ref": {
+    "binding_id": "1111111111111111",
+    "binding_revision_id": "2222222222222222"
+  },
+  "source_ref": {
+    "source_object_id": "3333333333333333",
+    "source_fingerprint": "sha256:a8c201b13c6db31392175380126f024eff9e8e36480a212ea2df0d1776aca842",
+    "locator": "line 1",
+    "range": {
+      "span_id": "sp-0",
+      "locator_id": null,
+      "locator_sidecar_fingerprint": null
+    }
+  },
+  "offset_unit": "unicode-code-point",
+  "source_bytes_fingerprint": "sha256:a8c201b13c6db31392175380126f024eff9e8e36480a212ea2df0d1776aca842",
+  "passage_fingerprint": "sha256:4a6eec0e53ab44a41f1d83a64b2b8c1662fe7a2537aa574f8e964a9c459d1a7f",
+  "anchors": [
+    {
+      "id": "rule-first",
+      "option": "A",
+      "label": "Rule sentence",
+      "start": 8,
+      "end": 16,
+      "quote": "Add two."
+    },
+    {
+      "id": "start",
+      "option": "B",
+      "label": "Initial state",
+      "start": 17,
+      "end": 32,
+      "quote": "Start at three."
+    },
+    {
+      "id": "rule-second",
+      "option": "C",
+      "label": "Rule sentence",
+      "start": 33,
+      "end": 41,
+      "quote": "Add two."
+    }
+  ]
+}
