@@ -1,0 +1,372 @@
+[
+  {
+    "path": ".planning/AUDIT-REMEDIATION-PLAN-2026-09-06.md",
+    "sha256": "1c9ee7cf6525752bfc43276881a96186a8f527801000bff7e0d22ef944ce5b5a",
+    "bytes": 29105
+  },
+  {
+    "path": ".planning/LEARNING-PHASE-AXES-AUDIT-2026-09-08.md",
+    "sha256": "605aebbaaa1d0157653b9d1c3d9e3480ed4894cc55017a17d4e31d2e2de009e2",
+    "bytes": 9747
+  },
+  {
+    "path": ".planning/PACE-COURSE-ARCHITECTURE-AUDIT-2026-09-08.md",
+    "sha256": "17dcbf7add3acdefd86d051091e5e52fa7a64c78a7f85343bb7f1b114d1c87c4",
+    "bytes": 13657
+  },
+  {
+    "path": ".planning/PROMPT-PHASE-20-UI-IMPLEMENTATION-AUDIT-2026-09-08.md",
+    "sha256": "b5155881f23c1ca69b786e03f6b625d9bc0fe79f3f1950d697090f3c94321b1b",
+    "bytes": 7103
+  },
+  {
+    "path": ".planning/SOURCE-ACQUISITION-EXTENSION-AUDIT-2026-09-08.md",
+    "sha256": "a409f6206dce0dfe4034c1f8704b3752202737b44aa907fd3ba915c8caa1eb69",
+    "bytes": 8664
+  },
+  {
+    "path": ".planning/SOURCE-TO-READING-COMBINED-AUDIT-2026-09-08.md",
+    "sha256": "1b1e235cd59c07976dd171be7b5da893d7c7192c75961cb8ebd3661ee2cc6e68",
+    "bytes": 40740
+  },
+  {
+    "path": ".planning/UI-CHARACTER-AUDIT-2026-09-06.md",
+    "sha256": "a0ea07409ca9c8d1789b1f926408fea97edb591e25ea5c095445fa9cf6bf3e8c",
+    "bytes": 35603
+  },
+  {
+    "path": ".planning/VISION-PLAN-AUDIT-2026-09-06.md",
+    "sha256": "fb2384a2d21e5dce5a446d187cbcc61df272aaaf890e8ee0b84f0b472a1200bc",
+    "bytes": 10293
+  },
+  {
+    "path": ".planning/research/2026-09-05-open-source-absorption.md",
+    "sha256": "928eaddb7781bdae88038d15e5cd6c3e7474c67fe41dc1020624d528fc34e78c",
+    "bytes": 12657
+  },
+  {
+    "path": ".planning/research/2026-09-05-surface-grid.md",
+    "sha256": "4fabc5356a7a009b74b6b8d1e3df1ae412a4c71a1d5b544498dce350bb9ef435",
+    "bytes": 8626
+  },
+  {
+    "path": ".planning/research/2026-09-05-what-the-vision-still-needs.md",
+    "sha256": "d63da834efd92eb66e0213303d96e3da008abbfc0467c42071d3064cfabd4474",
+    "bytes": 15022
+  },
+  {
+    "path": ".planning/research/2026-09-06-feature-opportunity-audit.md",
+    "sha256": "d91d4860dd2ace2a7b363d302540e81e2e109e72af43cefc9d655601583f312d",
+    "bytes": 38803
+  },
+  {
+    "path": ".planning/research/MANWARE-TOOLKIT-COMPARISON-2026-09-08.md",
+    "sha256": "8beaaef8b9b5c5799e134f1afa3d8a1d3d014e6c8b56a62fa289e29f35f71b50",
+    "bytes": 4504
+  },
+  {
+    "path": ".planning/research/OPENMAIC-ECOSYSTEM-COMPARISON-2026-09-08.md",
+    "sha256": "1e16df8b92a945e2450f169baad3d7d2c1b1a726408452f52b687d20a40659b6",
+    "bytes": 14046
+  },
+  {
+    "path": ".planning/research/code-question-depth-audit-2026-09-16.md",
+    "sha256": "ff40dbbf19c00d6175da17be64162a3f74101a50d1dba15c80ab29c7dc7801d5",
+    "bytes": 21030
+  },
+  {
+    "path": ".planning/research/competition-2026-09-08/ABSORPTION.md",
+    "sha256": "9c87c8ba2e9e402f73c134edc81948d0a0a6f514eb2ff704c39de0ca281ef26e",
+    "bytes": 50438
+  },
+  {
+    "path": ".planning/research/competition-2026-09-08/HANDS-ON.md",
+    "sha256": "29ad9f14c938d776ca239d58b444b009819ea35303e4e7e91dda0b956316d919",
+    "bytes": 3580
+  },
+  {
+    "path": ".planning/research/competition-2026-09-08/LANDSCAPE.md",
+    "sha256": "a86bb45081aa81e39ee7b3833d8d3315ec978d75fc53c4f29a1a56fb27d038e8",
+    "bytes": 13970
+  },
+  {
+    "path": ".planning/research/competition-2026-09-08/PROTOTYPE-REVIEW.md",
+    "sha256": "957571984912b9a414aedbfab8b04e0eef03e86f4f064dab7b3c1b7535ded80f",
+    "bytes": 7110
+  },
+  {
+    "path": ".planning/research/competition-2026-09-08/REUSE-AUDIT.md",
+    "sha256": "ad874fc23d68517748d4667cc6f30ea0adab93cf721b74bdb9901fa1289790a5",
+    "bytes": 9990
+  },
+  {
+    "path": ".planning/research/course-resume-repair-2026-09-12.md",
+    "sha256": "b681107d12019ab4974d4b298563e9b1ba8d6b158dd21610a8ec8444a6252796",
+    "bytes": 6392
+  },
+  {
+    "path": ".planning/research/improvement-priorities-2026-09-12.md",
+    "sha256": "5d7aabacd073e593b793b9af4b56f9decdd80c57dbe7934e16412f38a4adca17",
+    "bytes": 27123
+  },
+  {
+    "path": ".planning/research/learnhouse-forks-2026-09-27/UI-AUDIT.md",
+    "sha256": "58ab35bf78e946b48f14781537510b8c495d1db0e94e16ac1f998069f6a15489",
+    "bytes": 13943
+  },
+  {
+    "path": ".planning/research/open-notebook-2026-09-27/INTEGRATION.md",
+    "sha256": "05de54de72382b412e43b8ade5914bafae5a20402d978afa9f1370a1e94f4c5f",
+    "bytes": 6735
+  },
+  {
+    "path": ".planning/research/opentutor-2026-09-27/FORKS.md",
+    "sha256": "e0e01f75e7343c977bfcdd3fa360c8a8f14ff028fa56060d809aea5be4c783e5",
+    "bytes": 18612
+  },
+  {
+    "path": ".planning/research/opentutor-2026-09-27/UI-FORK-AUDIT.md",
+    "sha256": "6fd14de7c127a541c95d3e537c17488aaa6c7dd69bc5f453eaaab5afa82b0e3b",
+    "bytes": 13659
+  },
+  {
+    "path": ".planning/research/overhaul-2026-09-18/ASSESSMENT-AUDIT.md",
+    "sha256": "f804d491de4b92b5fd5c9262ae1068849d7fe39413f7a8a38cd258bbb9a8700b",
+    "bytes": 12335
+  },
+  {
+    "path": ".planning/research/overhaul-2026-09-18/BRIEF.md",
+    "sha256": "1689e18a9b394f27da620cc2e051f1fd4378e7f5253667a72072250409799870",
+    "bytes": 4862
+  },
+  {
+    "path": ".planning/research/overhaul-2026-09-18/COMPETITORS.md",
+    "sha256": "1ecf2d89f0d54617be841accbe909c04f44015f6aa89a3748f48fa636b012856",
+    "bytes": 20995
+  },
+  {
+    "path": ".planning/research/overhaul-2026-09-18/INTEGRATION-PLAN.md",
+    "sha256": "d61e5f09c948dc7f681284dd56ef5ba8fd0e12b8c7c6dd9863b7ef03f4946e37",
+    "bytes": 23752
+  },
+  {
+    "path": ".planning/research/overhaul-2026-09-18/INTERACTIVE-TEACHING.md",
+    "sha256": "1f326ffd413ef1688f9eca7f702889c34456ab902b1a8cf906b8aa3f1a29ddda",
+    "bytes": 21194
+  },
+  {
+    "path": ".planning/research/overhaul-2026-09-18/ITEMBANK-BASELINE.md",
+    "sha256": "3fbb710c01f7937f5f19b8a63ba435909f7ded48f1255e7e4211509e03e8a4f6",
+    "bytes": 6320
+  },
+  {
+    "path": ".planning/research/overhaul-2026-09-18/LMS-FLOWS.md",
+    "sha256": "9208684256b9c86fb6a40efd1b06d30a6dbe9ebf18f6ddb8bd6652bacf844144",
+    "bytes": 27677
+  },
+  {
+    "path": ".planning/research/overhaul-2026-09-18/QUESTION-DISPLAY-REVIEW.md",
+    "sha256": "9aa11a7978e8096acfa355e0e9157895f341cb49cc6487df0b7090d4a8544233",
+    "bytes": 11736
+  },
+  {
+    "path": ".planning/research/overhaul-2026-09-18/QUESTION-PATTERNS.md",
+    "sha256": "9e57106897ffd8d7c3851e284b5ae55a7fc65fa1c5849cd1a3aaaa5c839d57d7",
+    "bytes": 18159
+  },
+  {
+    "path": ".planning/research/phase-16/00-coverage-audit.md",
+    "sha256": "d54e105c47eebfc762aba2169c1c69914f46f1488ff692e874971121c2ab6ca9",
+    "bytes": 4530
+  },
+  {
+    "path": ".planning/research/phase-16/01-source-grounded-products.md",
+    "sha256": "7641e6957e1b09b8859071f895d6ff8261e13703da8f884640dd8e26894390a4",
+    "bytes": 42837
+  },
+  {
+    "path": ".planning/research/phase-16/02-lesson-flow-capabilities.md",
+    "sha256": "b6711fc8fcca6c8cddcd68a271d69f42d76f6a8fba0862b71fed5ed515bc70bf",
+    "bytes": 41735
+  },
+  {
+    "path": ".planning/research/phase-16/03-question-activity-matrix.md",
+    "sha256": "56c38489b770af9fe68905aae6ffcd78e1998070cddc76b237ff4ba9ab2fc54f",
+    "bytes": 59437
+  },
+  {
+    "path": ".planning/research/phase-16/04-portable-contract-agents.md",
+    "sha256": "4d28052b9746b76038ee2a185ab1cf39b9ce3efdfa950e84b817c86a2ed2ed70",
+    "bytes": 41574
+  },
+  {
+    "path": ".planning/research/phase-16/05-learning-program-landscape.md",
+    "sha256": "d8478fd640c0ec3cc9410871f67fc07b7ae1c0b629214aa8e878131ced4a110b",
+    "bytes": 49611
+  },
+  {
+    "path": ".planning/research/phase-16/06-feature-style-atlas.md",
+    "sha256": "4d6f4c93af3c9d2eb1b01bdb2d18e7407e2e4f12231f14e648d013a71e41f27a",
+    "bytes": 63946
+  },
+  {
+    "path": ".planning/research/phase-16/07-file-lifecycle-edge-cases.md",
+    "sha256": "45006fd162500074fbeb7efb6dfa9fa82334c8f4ab7773ced39b7e1a77eda137",
+    "bytes": 53332
+  },
+  {
+    "path": ".planning/research/phase-16/08-curriculum-hierarchy-progress.md",
+    "sha256": "a8da255de046c6cbfad8355fc807e46de22c01751fd79ef483df76327b545375",
+    "bytes": 58161
+  },
+  {
+    "path": ".planning/research/phase-16/09-app-flow-information-architecture.md",
+    "sha256": "b5a9bdaa69a42a1fc4bc45aeb4b78e1d15c79145ca118051346ae6a05aad1a89",
+    "bytes": 60992
+  },
+  {
+    "path": ".planning/research/phase-16/10-visual-experience-system.md",
+    "sha256": "9159d63b33c82fb91f75df4977d4f0aac625d7ca984204005387cf83f0517e8d",
+    "bytes": 64244
+  },
+  {
+    "path": ".planning/research/phase-16/11-cross-cutting-risks-validation.md",
+    "sha256": "d80907d4b52233657a87be70c3174390313430af60aed77761967f5146747cdc",
+    "bytes": 51303
+  },
+  {
+    "path": ".planning/research/phase-16/12-active-annotation-notes.md",
+    "sha256": "b87a17bfb65beda621efbf617075020f2db191d484bd2535f6440b572b09e863",
+    "bytes": 56301
+  },
+  {
+    "path": ".planning/research/phase-16/13-expected-capabilities-omissions.md",
+    "sha256": "295c86dc1bd163fa4200a9f166dd2640eda10f009970644fb8bb56f8b46281c4",
+    "bytes": 61409
+  },
+  {
+    "path": ".planning/research/phase-16/14-synthesis.md",
+    "sha256": "b9726bf15a8d4d24916933ae78ec4a0fd6f235846d35b20ac3038920d46e8eec",
+    "bytes": 83869
+  },
+  {
+    "path": ".planning/research/phase-16/16-editor-reader-landscape.md",
+    "sha256": "86ae1284448ab88aa88be14497bb7a373dfe49432067566888a849742ce353af",
+    "bytes": 25142
+  },
+  {
+    "path": ".planning/research/phase-16/README.md",
+    "sha256": "40bfc6fd8e09e1875823f7d0a88d83233bfe1063c69325255ce35e5b7673ff10",
+    "bytes": 19051
+  },
+  {
+    "path": ".planning/research/question-types-2026-09-25/01-current-types.md",
+    "sha256": "c707643e89303698293e25be715ee31713e931f914875fedce0cfb6772728ab3",
+    "bytes": 12885
+  },
+  {
+    "path": ".planning/research/question-types-2026-09-25/02-execution-math.md",
+    "sha256": "1cde59ceb036e98222eadf3502eac1e9a972045f7918f60d92f3fe8ca30a100b",
+    "bytes": 15045
+  },
+  {
+    "path": ".planning/research/question-types-2026-09-25/03-reference-patterns.md",
+    "sha256": "215a52ba4c34da27009a2bae7c2f1fb7d94172052e289c3558871a3ade1ac8e9",
+    "bytes": 14267
+  },
+  {
+    "path": ".planning/research/question-types-2026-09-25/BACKLOG.md",
+    "sha256": "951c835d5930bd58d787641b6c442d81d8bf34669afb71635a645dd9598728c9",
+    "bytes": 18884
+  },
+  {
+    "path": ".planning/research/question-types-2026-09-25/README.md",
+    "sha256": "74fa8e33a52c8bbe841621a26cf7efb2840897459b6305f04462ebfc5f866df0",
+    "bytes": 16036
+  },
+  {
+    "path": ".planning/research/source-to-reading/durable-reading-contract-2026-09-12.md",
+    "sha256": "d545f5e7c9a0066005fa356e352c39a851c28ca6417007a29b95736c84035db1",
+    "bytes": 107875
+  },
+  {
+    "path": ".planning/research/source-to-reading/integrated-study-journey-2026-09-12.md",
+    "sha256": "0d1d9842258e312e698aa794be58d126dd4c60721b4291831506f522c599a1e4",
+    "bytes": 16270
+  },
+  {
+    "path": ".planning/research/source-to-reading/recovery-repair-2026-09-12.md",
+    "sha256": "1bd882e52f5a29dccb13c3f073d224ebbfdbfb0043af4b405a18f523d1892e31",
+    "bytes": 15321
+  },
+  {
+    "path": ".planning/research/structured-question-presentation-audit-2026-09-15.md",
+    "sha256": "571338443d0525e4f90106bd3ceb2898dff0b778f661e51627ea8e7e004600e4",
+    "bytes": 7685
+  },
+  {
+    "path": ".planning/research/synapse-seer-primary-source-review-2026-09-09.md",
+    "sha256": "a70b2e16f49b13217e639c97a8c5c5f240e1150806cfe917f9cb7fd0c8d419f2",
+    "bytes": 7535
+  },
+  {
+    "path": ".planning/research/ui-and-project-memory-proposal-2026-09-09.md",
+    "sha256": "ca49729af832489fda1709dd435a235c9bc5fdf7e54bfcb86a47e3e80d3be3f5",
+    "bytes": 27529
+  },
+  {
+    "path": ".planning/research/ui-renewal-2026-09-18.md",
+    "sha256": "06076900377b88a7f7a77ef0b3c09570f812c0e98546a3419bd2bf2e5059e3de",
+    "bytes": 9322
+  },
+  {
+    "path": ".planning/research/ui-review-evidence-inventory-2026-09-09.md",
+    "sha256": "c726d29d9ff9067faca3e6c12788b894af36d463e8c13b332cdcda1f0cdbb043",
+    "bytes": 5980
+  },
+  {
+    "path": ".reasonix/parity-audit-2026-09-19.md",
+    "sha256": "9c7a6109bcd8ba2107e4f17c40e494f42a52ef7623c3e0a570bbd21765d8f78a",
+    "bytes": 9908
+  },
+  {
+    "path": ".reasonix/parity-handoff-ui-supplement-20260919/README.md",
+    "sha256": "47358a591f2658c8352431e05f7546a888b6fd0057785b449b77c31617d4886a",
+    "bytes": 710
+  },
+  {
+    "path": ".reasonix/parity-handoff-ui-supplement-20260919/ui-detail-review-2026-09-19.md",
+    "sha256": "6e0a55d277895f1145bc7a3ae05c281cc67a7ef185bcb34b6fc7239c418299b7",
+    "bytes": 9530
+  },
+  {
+    "path": ".reasonix/parity-implementation-handoff-2026-09-19.md",
+    "sha256": "1bc7125db773d83bd7f5091d0088a52e3fe778fa75d8aa726eb338b2142960ea",
+    "bytes": 12584
+  },
+  {
+    "path": ".reasonix/quiz-audit-2026-09-19/browser-evidence.md",
+    "sha256": "98dcaa69d8ad8077964b077d9355a46d5fce4a0352ed4cc39740a552f9d10ece",
+    "bytes": 1737
+  },
+  {
+    "path": ".reasonix/ui-detail-review-2026-09-19.md",
+    "sha256": "6e0a55d277895f1145bc7a3ae05c281cc67a7ef185bcb34b6fc7239c418299b7",
+    "bytes": 9530
+  },
+  {
+    "path": "prototypes/ui-renewal-20260918/research/flows.md",
+    "sha256": "0583639ab9139fb937820f450db3de35375a30e57d4bea9e715e4953d12a817f",
+    "bytes": 13456
+  },
+  {
+    "path": "prototypes/ui-renewal-20260918/research/integration.md",
+    "sha256": "11739f592f52279077ba3835cbdb876c4961bd3565133d95368473a3be0abf3d",
+    "bytes": 13457
+  },
+  {
+    "path": "prototypes/ui-renewal-20260918/research/references.md",
+    "sha256": "80203d5105bdb95893c6a772a919b47b8e8ed3438c5c2820f95f50cf7090f299",
+    "bytes": 9123
+  }
+]

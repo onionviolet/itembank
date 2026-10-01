@@ -1,0 +1,17 @@
+{
+  "total": 604,
+  "mapped": 604,
+  "unresolved": [],
+  "mirror_records": 51,
+  "inventory_sha256": "e7158089fde1cb5df8b3af0a8eba17fb1b158d8645ea484c433380f179c357a5",
+  "by_source": {
+    "OpenMAIC upstream": 221,
+    "OpenTutor upstream": 83,
+    "LearnHouse upstream": 114,
+    "LiaScript upstream": 113,
+    "OpenMAIC fork features": 51,
+    "LearnHouse fork features": 12,
+    "Open Notebook fork features": 5,
+    "Open Notebook UI fork audit": 5
+  }
+}

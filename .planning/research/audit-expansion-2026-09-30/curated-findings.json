@@ -1,0 +1,707 @@
+[
+  {
+    "label": "Sep06-F1",
+    "record": "OA-d00f08c5b7066b",
+    "path": ".planning/research/2026-09-06-feature-opportunity-audit.md",
+    "line": 115,
+    "caps": [
+      "CAP-04",
+      "CAP-13",
+      "CAP-15",
+      "CAP-27"
+    ],
+    "remainder": "exact task return delivered at bounded source scope; explainer-state policy remains",
+    "evidence": "CURRENT-EVIDENCE.md; READ-ME limits apply",
+    "duplicate": "named overlap, not an independently new product gap"
+  },
+  {
+    "label": "Sep06-F2",
+    "record": "OA-51e28e954fd692",
+    "path": ".planning/research/2026-09-06-feature-opportunity-audit.md",
+    "line": 135,
+    "caps": [
+      "CAP-07",
+      "CAP-14",
+      "CAP-15"
+    ],
+    "remainder": "private notes exist; reviewed contrast-practice chain remains",
+    "evidence": "CURRENT-EVIDENCE.md; READ-ME limits apply",
+    "duplicate": "named overlap, not an independently new product gap"
+  },
+  {
+    "label": "Sep06-F3",
+    "record": "OA-db5fe724bc9836",
+    "path": ".planning/research/2026-09-06-feature-opportunity-audit.md",
+    "line": 155,
+    "caps": [
+      "CAP-07",
+      "CAP-08",
+      "CAP-25"
+    ],
+    "remainder": "note doors/transport exist; distinct authored note-mode projection remains",
+    "evidence": "CURRENT-EVIDENCE.md; READ-ME limits apply",
+    "duplicate": "named overlap, not an independently new product gap"
+  },
+  {
+    "label": "Sep06-F4",
+    "record": "OA-66af13545d8ac8",
+    "path": ".planning/research/2026-09-06-feature-opportunity-audit.md",
+    "line": 176,
+    "caps": [
+      "CAP-13",
+      "CAP-26"
+    ],
+    "remainder": "transfer purpose exists; changed-demand subject review remains",
+    "evidence": "CURRENT-EVIDENCE.md; READ-ME limits apply",
+    "duplicate": "named overlap, not an independently new product gap"
+  },
+  {
+    "label": "Sep06-F5",
+    "record": "OA-5aa0bb439a39a9",
+    "path": ".planning/research/2026-09-06-feature-opportunity-audit.md",
+    "line": 195,
+    "caps": [
+      "CAP-16",
+      "CAP-26"
+    ],
+    "remainder": "resume separate; bounded time-budget stop policy remains",
+    "evidence": "CURRENT-EVIDENCE.md; READ-ME limits apply",
+    "duplicate": "named overlap, not an independently new product gap"
+  },
+  {
+    "label": "Sep06-O6",
+    "record": "OA-1b6cc29d49a2fe",
+    "path": ".planning/research/2026-09-06-feature-opportunity-audit.md",
+    "line": 217,
+    "caps": [
+      "CAP-06",
+      "CAP-10",
+      "CAP-15",
+      "CAP-27"
+    ],
+    "remainder": "exact passages exist; comparison/scoped glossary task remains",
+    "evidence": "CURRENT-EVIDENCE.md; READ-ME limits apply",
+    "duplicate": "named overlap, not an independently new product gap"
+  },
+  {
+    "label": "Sep06-O7",
+    "record": "OA-cc509080711ca8",
+    "path": ".planning/research/2026-09-06-feature-opportunity-audit.md",
+    "line": 232,
+    "caps": [
+      "CAP-14",
+      "CAP-16",
+      "CAP-26"
+    ],
+    "remainder": "confidence event field exists; capture/calibration equivalence remains",
+    "evidence": "CURRENT-EVIDENCE.md; READ-ME limits apply",
+    "duplicate": "named overlap, not an independently new product gap"
+  },
+  {
+    "label": "Sep06-O8",
+    "record": "OA-a8658a2ca10269",
+    "path": ".planning/research/2026-09-06-feature-opportunity-audit.md",
+    "line": 247,
+    "caps": [
+      "CAP-06",
+      "CAP-07",
+      "CAP-15"
+    ],
+    "remainder": "A1 search tracer, privacy/admission and exact task return remain",
+    "evidence": "CURRENT-EVIDENCE.md; READ-ME limits apply",
+    "duplicate": "named overlap, not an independently new product gap"
+  },
+  {
+    "label": "Sep06-O9",
+    "record": "OA-13f5ae4a6bcfaa",
+    "path": ".planning/research/2026-09-06-feature-opportunity-audit.md",
+    "line": 264,
+    "caps": [
+      "CAP-17",
+      "CAP-24"
+    ],
+    "remainder": "clean restore and newer C merged-copy slices; named package losses remain",
+    "evidence": "CURRENT-EVIDENCE.md; READ-ME limits apply",
+    "duplicate": "named overlap, not an independently new product gap"
+  },
+  {
+    "label": "Sep06-O10",
+    "record": "OA-2250ec293e4ab9",
+    "path": ".planning/research/2026-09-06-feature-opportunity-audit.md",
+    "line": 281,
+    "caps": [
+      "CAP-01",
+      "CAP-02",
+      "CAP-03",
+      "CAP-05",
+      "CAP-23"
+    ],
+    "remainder": "native proposal lifecycle passes; instructional sequence fidelity remains",
+    "evidence": "CURRENT-EVIDENCE.md; READ-ME limits apply",
+    "duplicate": "named overlap, not an independently new product gap"
+  },
+  {
+    "label": "Sep06-O11",
+    "record": "OA-7bb5276d508c30",
+    "path": ".planning/research/2026-09-06-feature-opportunity-audit.md",
+    "line": 301,
+    "caps": [
+      "CAP-04",
+      "CAP-14",
+      "CAP-16",
+      "CAP-26"
+    ],
+    "remainder": "new composition remains prototype; revision recap is distinct from due work",
+    "evidence": "CURRENT-EVIDENCE.md; READ-ME limits apply",
+    "duplicate": "named overlap, not an independently new product gap"
+  },
+  {
+    "label": "Atlas-MF-01",
+    "record": "OA-ae131e23d27787",
+    "path": ".planning/research/phase-16/06-feature-style-atlas.md",
+    "line": 410,
+    "caps": [
+      "CAP-10",
+      "CAP-15",
+      "CAP-27"
+    ],
+    "remainder": "native authored glossary/disclosure owners exist; exact safe term across input modes needs representative review",
+    "evidence": "CURRENT-EVIDENCE.md; READ-ME limits apply",
+    "duplicate": "named overlap, not an independently new product gap"
+  },
+  {
+    "label": "Atlas-MF-02",
+    "record": "OA-4cd9f4b1a6691a",
+    "path": ".planning/research/phase-16/06-feature-style-atlas.md",
+    "line": 411,
+    "caps": [
+      "CAP-10",
+      "CAP-13",
+      "CAP-22"
+    ],
+    "remainder": "bounded two-MC stages are source-delivered; evolving case/P5 stage semantics and static disclosure remain",
+    "evidence": "CURRENT-EVIDENCE.md; READ-ME limits apply",
+    "duplicate": "named overlap, not an independently new product gap"
+  },
+  {
+    "label": "Atlas-MF-03",
+    "record": "OA-36c0c43fd9d8fd",
+    "path": ".planning/research/phase-16/06-feature-style-atlas.md",
+    "line": 412,
+    "caps": [
+      "CAP-06",
+      "CAP-10",
+      "CAP-23"
+    ],
+    "remainder": "source/rights/readiness owners exist; jurisdiction/date/conflicting protocol fixture and bounded revision review remain",
+    "evidence": "CURRENT-EVIDENCE.md; READ-ME limits apply",
+    "duplicate": "named overlap, not an independently new product gap"
+  },
+  {
+    "label": "Atlas-MF-04",
+    "record": "OA-d88faff58d37d6",
+    "path": ".planning/research/phase-16/06-feature-style-atlas.md",
+    "line": 413,
+    "caps": [
+      "CAP-10",
+      "CAP-13",
+      "CAP-26"
+    ],
+    "remainder": "semantic example and transfer purpose exist; faded-step authorship plus independently changed demand needs subject review",
+    "evidence": "CURRENT-EVIDENCE.md; READ-ME limits apply",
+    "duplicate": "named overlap, not an independently new product gap"
+  },
+  {
+    "label": "Atlas-MF-05",
+    "record": "OA-554715553d8047",
+    "path": ".planning/research/phase-16/06-feature-style-atlas.md",
+    "line": 414,
+    "caps": [
+      "CAP-11",
+      "CAP-27"
+    ],
+    "remainder": "typed simulator/static cases stay prototype; numeric controls and scientifically valid equivalent task required",
+    "evidence": "CURRENT-EVIDENCE.md; READ-ME limits apply",
+    "duplicate": "named overlap, not an independently new product gap"
+  },
+  {
+    "label": "Atlas-MF-06",
+    "record": "OA-b59d73538fa66b",
+    "path": ".planning/research/phase-16/06-feature-style-atlas.md",
+    "line": 415,
+    "caps": [
+      "CAP-06",
+      "CAP-25",
+      "CAP-27"
+    ],
+    "remainder": "source/glossary scope exists; actual mass/slope collision and linear formula-sheet export task remains",
+    "evidence": "CURRENT-EVIDENCE.md; READ-ME limits apply",
+    "duplicate": "named overlap, not an independently new product gap"
+  },
+  {
+    "label": "Atlas-MF-07",
+    "record": "OA-b0dd1c6cc62067",
+    "path": ".planning/research/phase-16/06-feature-style-atlas.md",
+    "line": 416,
+    "caps": [
+      "CAP-10",
+      "CAP-12",
+      "CAP-13"
+    ],
+    "remainder": "execution checker exists with isolation limits; predict-before-execute and derived-output/static-trace task remains",
+    "evidence": "CURRENT-EVIDENCE.md; READ-ME limits apply",
+    "duplicate": "named overlap, not an independently new product gap"
+  },
+  {
+    "label": "Atlas-MF-08",
+    "record": "OA-cf3d912fe2fd98",
+    "path": ".planning/research/phase-16/06-feature-style-atlas.md",
+    "line": 417,
+    "caps": [
+      "CAP-10",
+      "CAP-13",
+      "CAP-15",
+      "CAP-26"
+    ],
+    "remainder": "runtime hint release exists; bounded misconception branch and unavailable tutor fallback needs authored fixture",
+    "evidence": "CURRENT-EVIDENCE.md; READ-ME limits apply",
+    "duplicate": "named overlap, not an independently new product gap"
+  },
+  {
+    "label": "Atlas-MF-09",
+    "record": "OA-43cae4d65e8a1a",
+    "path": ".planning/research/phase-16/06-feature-style-atlas.md",
+    "line": 418,
+    "caps": [
+      "CAP-06",
+      "CAP-10",
+      "CAP-27"
+    ],
+    "remainder": "exact source occurrences exist; conflicting histories with stacked cited comparison needs task evidence",
+    "evidence": "CURRENT-EVIDENCE.md; READ-ME limits apply",
+    "duplicate": "named overlap, not an independently new product gap"
+  },
+  {
+    "label": "Atlas-MF-10",
+    "record": "OA-27546ca4a7b7f3",
+    "path": ".planning/research/phase-16/06-feature-style-atlas.md",
+    "line": 419,
+    "caps": [
+      "CAP-07",
+      "CAP-11",
+      "CAP-27"
+    ],
+    "remainder": "timeline visuals exist; disputed date precision and editable note/export semantics need fixture",
+    "evidence": "CURRENT-EVIDENCE.md; READ-ME limits apply",
+    "duplicate": "named overlap, not an independently new product gap"
+  },
+  {
+    "label": "Atlas-MF-11",
+    "record": "OA-f2f13db5f7abee",
+    "path": ".planning/research/phase-16/06-feature-style-atlas.md",
+    "line": 420,
+    "caps": [
+      "CAP-07",
+      "CAP-25"
+    ],
+    "remainder": "note persistence/projections exist; Cornell cue-note-summary authorship and outside-app recall remain",
+    "evidence": "CURRENT-EVIDENCE.md; READ-ME limits apply",
+    "duplicate": "named overlap, not an independently new product gap"
+  },
+  {
+    "label": "Atlas-MF-12",
+    "record": "OA-e74b232a0edc49",
+    "path": ".planning/research/phase-16/06-feature-style-atlas.md",
+    "line": 421,
+    "caps": [
+      "CAP-07",
+      "CAP-11"
+    ],
+    "remainder": "objective graph exists; learner concept-map edge labels/identity and static adjacency stay distinct",
+    "evidence": "CURRENT-EVIDENCE.md; READ-ME limits apply",
+    "duplicate": "named overlap, not an independently new product gap"
+  },
+  {
+    "label": "Atlas-MF-13",
+    "record": "OA-1510fb89fe65c1",
+    "path": ".planning/research/phase-16/06-feature-style-atlas.md",
+    "line": 422,
+    "caps": [
+      "CAP-07",
+      "CAP-24"
+    ],
+    "remainder": "source-note anchors exist; arbitrary annotation move/edit/delete orphan recovery not inferred from quote notes",
+    "evidence": "CURRENT-EVIDENCE.md; READ-ME limits apply",
+    "duplicate": "named overlap, not an independently new product gap"
+  },
+  {
+    "label": "Atlas-MF-14",
+    "record": "OA-7c1ee9cf7edc12",
+    "path": ".planning/research/phase-16/06-feature-style-atlas.md",
+    "line": 423,
+    "caps": [
+      "CAP-03",
+      "CAP-23",
+      "CAP-25"
+    ],
+    "remainder": "bounded preview/diff/undo exists; protected keyed/objective/claim transformations need semantic comparison",
+    "evidence": "CURRENT-EVIDENCE.md; READ-ME limits apply",
+    "duplicate": "named overlap, not an independently new product gap"
+  },
+  {
+    "label": "Atlas-MF-15",
+    "record": "OA-669de0fbea0c61",
+    "path": ".planning/research/phase-16/06-feature-style-atlas.md",
+    "line": 424,
+    "caps": [
+      "CAP-03",
+      "CAP-23"
+    ],
+    "remainder": "legacy audit skill and revision journal exist; one bounded warning insertion needs actual legacy audit/provenance gate",
+    "evidence": "CURRENT-EVIDENCE.md; READ-ME limits apply",
+    "duplicate": "named overlap, not an independently new product gap"
+  },
+  {
+    "label": "Atlas-MF-16",
+    "record": "OA-bb3ccba8ec030e",
+    "path": ".planning/research/phase-16/06-feature-style-atlas.md",
+    "line": 425,
+    "caps": [
+      "CAP-02",
+      "CAP-03",
+      "CAP-07"
+    ],
+    "remainder": "source lesson drafting exists; source-extracted notes and guided lesson must demonstrate different teaching jobs",
+    "evidence": "CURRENT-EVIDENCE.md; READ-ME limits apply",
+    "duplicate": "named overlap, not an independently new product gap"
+  },
+  {
+    "label": "Atlas-MF-17",
+    "record": "OA-a5525ef7a5a9cc",
+    "path": ".planning/research/phase-16/06-feature-style-atlas.md",
+    "line": 426,
+    "caps": [
+      "CAP-10",
+      "CAP-23",
+      "CAP-25"
+    ],
+    "remainder": "semantic lesson roles exist; domain-specific severity/uncertainty authorability not certified by a shared card style",
+    "evidence": "CURRENT-EVIDENCE.md; READ-ME limits apply",
+    "duplicate": "named overlap, not an independently new product gap"
+  },
+  {
+    "label": "Atlas-MF-18",
+    "record": "OA-9b5b1e60134346",
+    "path": ".planning/research/phase-16/06-feature-style-atlas.md",
+    "line": 427,
+    "caps": [
+      "CAP-09",
+      "CAP-15",
+      "CAP-27"
+    ],
+    "remainder": "native glossary/source return has bounded source proof; long quotation at 400 percent zoom and physical controls remain",
+    "evidence": "CURRENT-EVIDENCE.md; READ-ME limits apply",
+    "duplicate": "named overlap, not an independently new product gap"
+  },
+  {
+    "label": "Sep19-U1",
+    "record": "OA-e87afb063fad46",
+    "path": ".reasonix/parity-handoff-ui-supplement-20260919/ui-detail-review-2026-09-19.md",
+    "line": 35,
+    "caps": [
+      "CAP-04",
+      "CAP-10",
+      "CAP-27"
+    ],
+    "remainder": "temporary-reset vs detour preservation decision",
+    "evidence": "CURRENT-EVIDENCE.md; READ-ME limits apply",
+    "duplicate": "named overlap, not an independently new product gap"
+  },
+  {
+    "label": "Sep19-U2",
+    "record": "OA-3cd985848d1781",
+    "path": ".reasonix/parity-handoff-ui-supplement-20260919/ui-detail-review-2026-09-19.md",
+    "line": 57,
+    "caps": [
+      "CAP-04",
+      "CAP-27"
+    ],
+    "remainder": "later native quiz/source return proof supersedes sampled old defect",
+    "evidence": "CURRENT-EVIDENCE.md; READ-ME limits apply",
+    "duplicate": "named overlap, not an independently new product gap"
+  },
+  {
+    "label": "Sep19-U3",
+    "record": "OA-8972f2c3224502",
+    "path": ".reasonix/parity-handoff-ui-supplement-20260919/ui-detail-review-2026-09-19.md",
+    "line": 83,
+    "caps": [
+      "CAP-04",
+      "CAP-27"
+    ],
+    "remainder": "sampled phone placement passed; full human reflow gate remains",
+    "evidence": "CURRENT-EVIDENCE.md; READ-ME limits apply",
+    "duplicate": "named overlap, not an independently new product gap"
+  },
+  {
+    "label": "Sep19-U4",
+    "record": "OA-15ed348aad080f",
+    "path": ".reasonix/parity-handoff-ui-supplement-20260919/ui-detail-review-2026-09-19.md",
+    "line": 106,
+    "caps": [
+      "CAP-04",
+      "CAP-27"
+    ],
+    "remainder": "held-feedback course detour proof remains",
+    "evidence": "CURRENT-EVIDENCE.md; READ-ME limits apply",
+    "duplicate": "named overlap, not an independently new product gap"
+  },
+  {
+    "label": "Sep19-U5",
+    "record": "OA-812ab4e778d9c5",
+    "path": ".reasonix/parity-handoff-ui-supplement-20260919/ui-detail-review-2026-09-19.md",
+    "line": 124,
+    "caps": [
+      "CAP-04",
+      "CAP-27"
+    ],
+    "remainder": "source-change/storage and focus/human overlap gates remain",
+    "evidence": "CURRENT-EVIDENCE.md; READ-ME limits apply",
+    "duplicate": "named overlap, not an independently new product gap"
+  },
+  {
+    "label": "Question-F1",
+    "record": "OA-d036f735a7a02c",
+    "path": ".planning/research/question-types-2026-09-25/BACKLOG.md",
+    "line": 67,
+    "caps": [
+      "CAP-13"
+    ],
+    "remainder": "use live backlog bounded source/prototype/backburner distinction; domains/P3/P5 need their named gates",
+    "evidence": "CURRENT-EVIDENCE.md; READ-ME limits apply",
+    "duplicate": "named overlap, not an independently new product gap"
+  },
+  {
+    "label": "Question-F2",
+    "record": "OA-ffb9dcf10fd2d0",
+    "path": ".planning/research/question-types-2026-09-25/BACKLOG.md",
+    "line": 68,
+    "caps": [
+      "CAP-13",
+      "CAP-22"
+    ],
+    "remainder": "use live backlog bounded source/prototype/backburner distinction; domains/P3/P5 need their named gates",
+    "evidence": "CURRENT-EVIDENCE.md; READ-ME limits apply",
+    "duplicate": "named overlap, not an independently new product gap"
+  },
+  {
+    "label": "Question-F3",
+    "record": "OA-c78ae3213f855c",
+    "path": ".planning/research/question-types-2026-09-25/BACKLOG.md",
+    "line": 69,
+    "caps": [
+      "CAP-13",
+      "CAP-22"
+    ],
+    "remainder": "use live backlog bounded source/prototype/backburner distinction; domains/P3/P5 need their named gates",
+    "evidence": "CURRENT-EVIDENCE.md; READ-ME limits apply",
+    "duplicate": "named overlap, not an independently new product gap"
+  },
+  {
+    "label": "Question-F4",
+    "record": "OA-1675dcab8e50e2",
+    "path": ".planning/research/question-types-2026-09-25/BACKLOG.md",
+    "line": 70,
+    "caps": [
+      "CAP-12"
+    ],
+    "remainder": "use live backlog bounded source/prototype/backburner distinction; domains/P3/P5 need their named gates",
+    "evidence": "CURRENT-EVIDENCE.md; READ-ME limits apply",
+    "duplicate": "named overlap, not an independently new product gap"
+  },
+  {
+    "label": "Question-F5",
+    "record": "OA-19aa06dac8725c",
+    "path": ".planning/research/question-types-2026-09-25/BACKLOG.md",
+    "line": 71,
+    "caps": [
+      "CAP-19",
+      "CAP-22"
+    ],
+    "remainder": "use live backlog bounded source/prototype/backburner distinction; domains/P3/P5 need their named gates",
+    "evidence": "CURRENT-EVIDENCE.md; READ-ME limits apply",
+    "duplicate": "named overlap, not an independently new product gap"
+  },
+  {
+    "label": "Question-F6",
+    "record": "OA-5bbcd9da5db196",
+    "path": ".planning/research/question-types-2026-09-25/BACKLOG.md",
+    "line": 72,
+    "caps": [
+      "CAP-09",
+      "CAP-13"
+    ],
+    "remainder": "use live backlog bounded source/prototype/backburner distinction; domains/P3/P5 need their named gates",
+    "evidence": "CURRENT-EVIDENCE.md; READ-ME limits apply",
+    "duplicate": "named overlap, not an independently new product gap"
+  },
+  {
+    "label": "Question-F7",
+    "record": "OA-e84754ee9abcf5",
+    "path": ".planning/research/question-types-2026-09-25/BACKLOG.md",
+    "line": 73,
+    "caps": [
+      "CAP-12",
+      "CAP-13"
+    ],
+    "remainder": "use live backlog bounded source/prototype/backburner distinction; domains/P3/P5 need their named gates",
+    "evidence": "CURRENT-EVIDENCE.md; READ-ME limits apply",
+    "duplicate": "named overlap, not an independently new product gap"
+  },
+  {
+    "label": "Question-F8",
+    "record": "OA-bfde382b09ac0c",
+    "path": ".planning/research/question-types-2026-09-25/BACKLOG.md",
+    "line": 74,
+    "caps": [
+      "CAP-11",
+      "CAP-12"
+    ],
+    "remainder": "use live backlog bounded source/prototype/backburner distinction; domains/P3/P5 need their named gates",
+    "evidence": "CURRENT-EVIDENCE.md; READ-ME limits apply",
+    "duplicate": "named overlap, not an independently new product gap"
+  },
+  {
+    "label": "Question-F9",
+    "record": "OA-e504fdafc2a5ef",
+    "path": ".planning/research/question-types-2026-09-25/BACKLOG.md",
+    "line": 75,
+    "caps": [
+      "CAP-13",
+      "CAP-22"
+    ],
+    "remainder": "use live backlog bounded source/prototype/backburner distinction; domains/P3/P5 need their named gates",
+    "evidence": "CURRENT-EVIDENCE.md; READ-ME limits apply",
+    "duplicate": "named overlap, not an independently new product gap"
+  },
+  {
+    "label": "Question-F10",
+    "record": "OA-6701767974d680",
+    "path": ".planning/research/question-types-2026-09-25/BACKLOG.md",
+    "line": 76,
+    "caps": [
+      "CAP-11",
+      "CAP-26"
+    ],
+    "remainder": "use live backlog bounded source/prototype/backburner distinction; domains/P3/P5 need their named gates",
+    "evidence": "CURRENT-EVIDENCE.md; READ-ME limits apply",
+    "duplicate": "named overlap, not an independently new product gap"
+  },
+  {
+    "label": "Reuse-grounding",
+    "record": "OA-bf896682c851a6",
+    "path": ".planning/research/competition-2026-09-08/REUSE-AUDIT.md",
+    "line": 31,
+    "caps": [
+      "CAP-06",
+      "CAP-15"
+    ],
+    "remainder": "older exact source pin retained; A1/A2 native reuse first, direct-copy/license test still open",
+    "evidence": "CURRENT-EVIDENCE.md; READ-ME limits apply",
+    "duplicate": "named overlap, not an independently new product gap"
+  },
+  {
+    "label": "Reuse-selection authority",
+    "record": "OA-468968dbd35773",
+    "path": ".planning/research/competition-2026-09-08/REUSE-AUDIT.md",
+    "line": 32,
+    "caps": [
+      "CAP-06",
+      "CAP-15",
+      "CAP-24"
+    ],
+    "remainder": "older exact source pin retained; A1/A2 native reuse first, direct-copy/license test still open",
+    "evidence": "CURRENT-EVIDENCE.md; READ-ME limits apply",
+    "duplicate": "named overlap, not an independently new product gap"
+  },
+  {
+    "label": "Reuse-retry",
+    "record": "OA-34a97f982e4858",
+    "path": ".planning/research/competition-2026-09-08/REUSE-AUDIT.md",
+    "line": 33,
+    "caps": [
+      "CAP-05",
+      "CAP-18",
+      "CAP-24"
+    ],
+    "remainder": "older exact source pin retained; A1/A2 native reuse first, direct-copy/license test still open",
+    "evidence": "CURRENT-EVIDENCE.md; READ-ME limits apply",
+    "duplicate": "named overlap, not an independently new product gap"
+  },
+  {
+    "label": "Reuse-outline",
+    "record": "OA-2ff7fa2b36606e",
+    "path": ".planning/research/competition-2026-09-08/REUSE-AUDIT.md",
+    "line": 34,
+    "caps": [
+      "CAP-02",
+      "CAP-03"
+    ],
+    "remainder": "older exact source pin retained; A1/A2 native reuse first, direct-copy/license test still open",
+    "evidence": "CURRENT-EVIDENCE.md; READ-ME limits apply",
+    "duplicate": "named overlap, not an independently new product gap"
+  },
+  {
+    "label": "Sep05-2",
+    "record": "OA-cd185762046b38",
+    "path": ".planning/research/2026-09-05-open-source-absorption.md",
+    "line": 43,
+    "caps": [
+      "CAP-14",
+      "CAP-16",
+      "CAP-26"
+    ],
+    "remainder": "historical opportunity retained; confidence/generator/corpus promotion needs actual task and rights",
+    "evidence": "CURRENT-EVIDENCE.md; READ-ME limits apply",
+    "duplicate": "named overlap, not an independently new product gap"
+  },
+  {
+    "label": "Sep05-3",
+    "record": "OA-fbe4a3e3a0ce0f",
+    "path": ".planning/research/2026-09-05-open-source-absorption.md",
+    "line": 89,
+    "caps": [
+      "CAP-14",
+      "CAP-16"
+    ],
+    "remainder": "historical opportunity retained; confidence/generator/corpus promotion needs actual task and rights",
+    "evidence": "CURRENT-EVIDENCE.md; READ-ME limits apply",
+    "duplicate": "named overlap, not an independently new product gap"
+  },
+  {
+    "label": "Sep05-4",
+    "record": "OA-8bac5da71f2737",
+    "path": ".planning/research/2026-09-05-open-source-absorption.md",
+    "line": 127,
+    "caps": [
+      "CAP-13",
+      "CAP-26"
+    ],
+    "remainder": "historical opportunity retained; confidence/generator/corpus promotion needs actual task and rights",
+    "evidence": "CURRENT-EVIDENCE.md; READ-ME limits apply",
+    "duplicate": "named overlap, not an independently new product gap"
+  },
+  {
+    "label": "Sep05-5",
+    "record": "OA-c1204243ee03a3",
+    "path": ".planning/research/2026-09-05-open-source-absorption.md",
+    "line": 161,
+    "caps": [
+      "CAP-06",
+      "CAP-23"
+    ],
+    "remainder": "historical opportunity retained; confidence/generator/corpus promotion needs actual task and rights",
+    "evidence": "CURRENT-EVIDENCE.md; READ-ME limits apply",
+    "duplicate": "named overlap, not an independently new product gap"
+  }
+]

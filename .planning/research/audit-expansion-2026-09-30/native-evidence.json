@@ -1,0 +1,78 @@
+{
+  "head": "ac19880c72203f1af9048b9395ec787fcd718954",
+  "before": {
+    "surfaces/agent_operation.py": "e8d9c14d3be2a4d9c50c60fe4e62789d989032f2f9c7fc6d8e6e245e8b75f30f",
+    "surfaces/discovery_cache.py": "1d7288a911233a61157070ecfae0788564cb12ca8f27bee76c88e5711e898413",
+    "surfaces/research_context.py": "01e6739ad5dc4e16d666b8e1229e828136377bebd635b79460ec7fddafd31f1d",
+    "surfaces/course_ops.py": "75c9b76c713ad469b24ced1a0716b5ad309a9ba921feedba6d6a132f4ac15c02",
+    "source_adapters.py": "4d008b598a1619db50a2b8dd0bb5ecc8a936c900e3cfae60c647119bdd482b00",
+    "discovery.py": "48e31aae9afc2dd3e31ba8fa6cfc60ac895f5c3a9fd31ec06050acbea199c7aa",
+    "director.py": "75f6e107f6295f89e5050f04369c1a69bc28cd8b0753b8b70ed51ae305836872",
+    "model_adapter.py": "7e5e9916062c4f1930bbf94c19db2e247e6e8a653a8cef5f0d547b86d2324302",
+    "extension_registry.py": "7d3b5e3f18a21e713f8ff0229920185848635bc4e46e3a8b826fc47b79fada39",
+    "retention.py": "77a7cdb1bc74e84f1f06bea8a138e353cae1b4ba977ac4d06d724fdee9c131fd",
+    "journal.py": "2508799797a367edaed102beba967374e329eab7299eb36611c325e5d9719372",
+    "course.py": "c5c8bc7c78c514e6ca915bc12befe71a3d208d181a6535af4cebe84c22b83a7e",
+    "notes.py": "e43c6f9db337451bed8c80383c52edee81022f0282d595c26411f56fbd8249f1",
+    "note_outputs.py": "ae97db686c8ee822f95bc9a0a78bb2e39fb85f8fb97a3b79e5fdf28d3b35e5c7",
+    ".planning/FEATURE-INVENTORY.md": "8eb4b0df979d644ea2337f4b85ebe41aa6f0e0a497193a53cd7d479c90eb3952",
+    ".planning/research/AUDIT-REMAINING-2026-09-30.md": "f9281a24f1bdd1289db24de1dd9afe8874d8d39026fe4fe8c8100a70c5c2baea",
+    "tests/discovery_cache_roundtrip.py": "98c324465fb84913e5acae8c96f3af028be7e1fe12528b52854923ced94f0ff2",
+    "tests/agent_operation_roundtrip.py": "e6af202558bdbf02964fb1e4a706fc2cd77e57280109797d288efa1cdef8fdc4",
+    "tests/extension_registry_roundtrip.py": "04ad83644e2c3881dcc67f81739933b2cf9ce266a0dcea09b2d3caa1dbea482d",
+    "tests/a5_research_context_roundtrip.py": "1d3867d4409f29748e7240c4ae3ba93d50f51a8d8813ab7575c4915b7f93a998"
+  },
+  "after": {
+    "surfaces/agent_operation.py": "e8d9c14d3be2a4d9c50c60fe4e62789d989032f2f9c7fc6d8e6e245e8b75f30f",
+    "surfaces/discovery_cache.py": "1d7288a911233a61157070ecfae0788564cb12ca8f27bee76c88e5711e898413",
+    "surfaces/research_context.py": "01e6739ad5dc4e16d666b8e1229e828136377bebd635b79460ec7fddafd31f1d",
+    "surfaces/course_ops.py": "75c9b76c713ad469b24ced1a0716b5ad309a9ba921feedba6d6a132f4ac15c02",
+    "source_adapters.py": "4d008b598a1619db50a2b8dd0bb5ecc8a936c900e3cfae60c647119bdd482b00",
+    "discovery.py": "48e31aae9afc2dd3e31ba8fa6cfc60ac895f5c3a9fd31ec06050acbea199c7aa",
+    "director.py": "75f6e107f6295f89e5050f04369c1a69bc28cd8b0753b8b70ed51ae305836872",
+    "model_adapter.py": "7e5e9916062c4f1930bbf94c19db2e247e6e8a653a8cef5f0d547b86d2324302",
+    "extension_registry.py": "7d3b5e3f18a21e713f8ff0229920185848635bc4e46e3a8b826fc47b79fada39",
+    "retention.py": "77a7cdb1bc74e84f1f06bea8a138e353cae1b4ba977ac4d06d724fdee9c131fd",
+    "journal.py": "2508799797a367edaed102beba967374e329eab7299eb36611c325e5d9719372",
+    "course.py": "c5c8bc7c78c514e6ca915bc12befe71a3d208d181a6535af4cebe84c22b83a7e",
+    "notes.py": "e43c6f9db337451bed8c80383c52edee81022f0282d595c26411f56fbd8249f1",
+    "note_outputs.py": "ae97db686c8ee822f95bc9a0a78bb2e39fb85f8fb97a3b79e5fdf28d3b35e5c7",
+    ".planning/FEATURE-INVENTORY.md": "8eb4b0df979d644ea2337f4b85ebe41aa6f0e0a497193a53cd7d479c90eb3952",
+    ".planning/research/AUDIT-REMAINING-2026-09-30.md": "f9281a24f1bdd1289db24de1dd9afe8874d8d39026fe4fe8c8100a70c5c2baea",
+    "tests/discovery_cache_roundtrip.py": "98c324465fb84913e5acae8c96f3af028be7e1fe12528b52854923ced94f0ff2",
+    "tests/agent_operation_roundtrip.py": "e6af202558bdbf02964fb1e4a706fc2cd77e57280109797d288efa1cdef8fdc4",
+    "tests/extension_registry_roundtrip.py": "04ad83644e2c3881dcc67f81739933b2cf9ce266a0dcea09b2d3caa1dbea482d",
+    "tests/a5_research_context_roundtrip.py": "1d3867d4409f29748e7240c4ae3ba93d50f51a8d8813ab7575c4915b7f93a998"
+  },
+  "changed_during_checks": [],
+  "tests": [
+    {
+      "command": "python3 tests/discovery_cache_roundtrip.py",
+      "exit_code": 0,
+      "seconds": 0.206,
+      "stdout": "ok - 100 banks cold 0.065s, warm 0.003s, parser calls 100/0\n",
+      "stderr": ""
+    },
+    {
+      "command": "python3 tests/agent_operation_roundtrip.py",
+      "exit_code": 0,
+      "seconds": 5.746,
+      "stdout": "OK   the machine declares exactly idle, running, proposed, settled\nOK   every one of the 14 adapter codes has a named next action\nOK   an inactive backend settles first-class with its next action\nOK   an unreachable endpoint settles with its named next action\nOK   an ok result proposes draft, citations, target, bounded diff\nOK   lesson proposals use the bounded lesson contract, not the bank spec\nOK   a long diff shows 60 lines and names the 146 withheld\nOK   one accept lands one journalled change, entry 9dde2e14f90f49adb6e85074aeb80ba3\nOK   a second accept changes nothing and writes nothing\nOK   report_only refuses accepts by name and writes nothing\nOK   a stale target settles as a conflict that names the file\nOK   a candidate that is not a draft settles typed, not empty\nOK   a skill with no run target settles naming the skill and key\nOK   the Agent tab renders the real skills, stubs marked unavailable\nOK   all 14 adapter codes carry their next action on the page\nOK   the four states render with the machine's own copy\nOK   the Agent tab says the console is open-ended and the skills propose through itembank\nOK   the Agent tab renders without a course root\nOK   start, propose, accept, undo lands and reverses exactly one change\nOK   a second run undoes through the prior revision the journal recorded, byte for byte\nOK   opaque proposal reload, one acceptance, and durable byte-exact undo pass\nOK   rejection persists its review facts and changes no accepted bytes\n\nall agent-operation checks passed\n",
+      "stderr": ""
+    },
+    {
+      "command": "python3 tests/extension_registry_roundtrip.py",
+      "exit_code": 0,
+      "seconds": 0.071,
+      "stdout": "ok: extension registry roundtrip\n",
+      "stderr": ""
+    },
+    {
+      "command": "python3 tests/a5_research_context_roundtrip.py",
+      "exit_code": 0,
+      "seconds": 0.132,
+      "stdout": "A5 native context: exact occurrence, explicit inclusion, cancel, link/copy, no assessment disclosure, clean note restore, named scope loss and undo pass\n",
+      "stderr": ""
+    }
+  ]
+}

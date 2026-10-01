@@ -1,0 +1,58 @@
+# Reviewed named-finding crosswalk
+
+This is the deliberately reviewed subset of the mechanical census. It is not exhaustive semantic deduplication. The remaining blocks keep their explicit inferred routes or unresolved status in CROSSWALK.md. Source line numbers are tied to manifest.json.
+
+| Named finding | Stable census record | Existing route | Actual retained remainder |
+| --- | --- | --- | --- |
+| Sep06-F1 | OA-d00f08c5b7066b (.planning/research/2026-09-06-feature-opportunity-audit.md:115) | CAP-04, CAP-13, CAP-15, CAP-27 | exact task return delivered at bounded source scope; explainer-state policy remains |
+| Sep06-F2 | OA-51e28e954fd692 (.planning/research/2026-09-06-feature-opportunity-audit.md:135) | CAP-07, CAP-14, CAP-15 | private notes exist; reviewed contrast-practice chain remains |
+| Sep06-F3 | OA-db5fe724bc9836 (.planning/research/2026-09-06-feature-opportunity-audit.md:155) | CAP-07, CAP-08, CAP-25 | note doors/transport exist; distinct authored note-mode projection remains |
+| Sep06-F4 | OA-66af13545d8ac8 (.planning/research/2026-09-06-feature-opportunity-audit.md:176) | CAP-13, CAP-26 | transfer purpose exists; changed-demand subject review remains |
+| Sep06-F5 | OA-5aa0bb439a39a9 (.planning/research/2026-09-06-feature-opportunity-audit.md:195) | CAP-16, CAP-26 | resume separate; bounded time-budget stop policy remains |
+| Sep06-O6 | OA-1b6cc29d49a2fe (.planning/research/2026-09-06-feature-opportunity-audit.md:217) | CAP-06, CAP-10, CAP-15, CAP-27 | exact passages exist; comparison/scoped glossary task remains |
+| Sep06-O7 | OA-cc509080711ca8 (.planning/research/2026-09-06-feature-opportunity-audit.md:232) | CAP-14, CAP-16, CAP-26 | confidence event field exists; capture/calibration equivalence remains |
+| Sep06-O8 | OA-a8658a2ca10269 (.planning/research/2026-09-06-feature-opportunity-audit.md:247) | CAP-06, CAP-07, CAP-15 | A1 search tracer, privacy/admission and exact task return remain |
+| Sep06-O9 | OA-13f5ae4a6bcfaa (.planning/research/2026-09-06-feature-opportunity-audit.md:264) | CAP-17, CAP-24 | clean restore and newer C merged-copy slices; named package losses remain |
+| Sep06-O10 | OA-2250ec293e4ab9 (.planning/research/2026-09-06-feature-opportunity-audit.md:281) | CAP-01, CAP-02, CAP-03, CAP-05, CAP-23 | native proposal lifecycle passes; instructional sequence fidelity remains |
+| Sep06-O11 | OA-7bb5276d508c30 (.planning/research/2026-09-06-feature-opportunity-audit.md:301) | CAP-04, CAP-14, CAP-16, CAP-26 | new composition remains prototype; revision recap is distinct from due work |
+| Atlas-MF-01 | OA-ae131e23d27787 (.planning/research/phase-16/06-feature-style-atlas.md:410) | CAP-10, CAP-15, CAP-27 | native authored glossary/disclosure owners exist; exact safe term across input modes needs representative review |
+| Atlas-MF-02 | OA-4cd9f4b1a6691a (.planning/research/phase-16/06-feature-style-atlas.md:411) | CAP-10, CAP-13, CAP-22 | bounded two-MC stages are source-delivered; evolving case/P5 stage semantics and static disclosure remain |
+| Atlas-MF-03 | OA-36c0c43fd9d8fd (.planning/research/phase-16/06-feature-style-atlas.md:412) | CAP-06, CAP-10, CAP-23 | source/rights/readiness owners exist; jurisdiction/date/conflicting protocol fixture and bounded revision review remain |
+| Atlas-MF-04 | OA-d88faff58d37d6 (.planning/research/phase-16/06-feature-style-atlas.md:413) | CAP-10, CAP-13, CAP-26 | semantic example and transfer purpose exist; faded-step authorship plus independently changed demand needs subject review |
+| Atlas-MF-05 | OA-554715553d8047 (.planning/research/phase-16/06-feature-style-atlas.md:414) | CAP-11, CAP-27 | typed simulator/static cases stay prototype; numeric controls and scientifically valid equivalent task required |
+| Atlas-MF-06 | OA-b59d73538fa66b (.planning/research/phase-16/06-feature-style-atlas.md:415) | CAP-06, CAP-25, CAP-27 | source/glossary scope exists; actual mass/slope collision and linear formula-sheet export task remains |
+| Atlas-MF-07 | OA-b0dd1c6cc62067 (.planning/research/phase-16/06-feature-style-atlas.md:416) | CAP-10, CAP-12, CAP-13 | execution checker exists with isolation limits; predict-before-execute and derived-output/static-trace task remains |
+| Atlas-MF-08 | OA-cf3d912fe2fd98 (.planning/research/phase-16/06-feature-style-atlas.md:417) | CAP-10, CAP-13, CAP-15, CAP-26 | runtime hint release exists; bounded misconception branch and unavailable tutor fallback needs authored fixture |
+| Atlas-MF-09 | OA-43cae4d65e8a1a (.planning/research/phase-16/06-feature-style-atlas.md:418) | CAP-06, CAP-10, CAP-27 | exact source occurrences exist; conflicting histories with stacked cited comparison needs task evidence |
+| Atlas-MF-10 | OA-27546ca4a7b7f3 (.planning/research/phase-16/06-feature-style-atlas.md:419) | CAP-07, CAP-11, CAP-27 | timeline visuals exist; disputed date precision and editable note/export semantics need fixture |
+| Atlas-MF-11 | OA-f2f13db5f7abee (.planning/research/phase-16/06-feature-style-atlas.md:420) | CAP-07, CAP-25 | note persistence/projections exist; Cornell cue-note-summary authorship and outside-app recall remain |
+| Atlas-MF-12 | OA-e74b232a0edc49 (.planning/research/phase-16/06-feature-style-atlas.md:421) | CAP-07, CAP-11 | objective graph exists; learner concept-map edge labels/identity and static adjacency stay distinct |
+| Atlas-MF-13 | OA-1510fb89fe65c1 (.planning/research/phase-16/06-feature-style-atlas.md:422) | CAP-07, CAP-24 | source-note anchors exist; arbitrary annotation move/edit/delete orphan recovery not inferred from quote notes |
+| Atlas-MF-14 | OA-7c1ee9cf7edc12 (.planning/research/phase-16/06-feature-style-atlas.md:423) | CAP-03, CAP-23, CAP-25 | bounded preview/diff/undo exists; protected keyed/objective/claim transformations need semantic comparison |
+| Atlas-MF-15 | OA-669de0fbea0c61 (.planning/research/phase-16/06-feature-style-atlas.md:424) | CAP-03, CAP-23 | legacy audit skill and revision journal exist; one bounded warning insertion needs actual legacy audit/provenance gate |
+| Atlas-MF-16 | OA-bb3ccba8ec030e (.planning/research/phase-16/06-feature-style-atlas.md:425) | CAP-02, CAP-03, CAP-07 | source lesson drafting exists; source-extracted notes and guided lesson must demonstrate different teaching jobs |
+| Atlas-MF-17 | OA-a5525ef7a5a9cc (.planning/research/phase-16/06-feature-style-atlas.md:426) | CAP-10, CAP-23, CAP-25 | semantic lesson roles exist; domain-specific severity/uncertainty authorability not certified by a shared card style |
+| Atlas-MF-18 | OA-9b5b1e60134346 (.planning/research/phase-16/06-feature-style-atlas.md:427) | CAP-09, CAP-15, CAP-27 | native glossary/source return has bounded source proof; long quotation at 400 percent zoom and physical controls remain |
+| Sep19-U1 | OA-e87afb063fad46 (.reasonix/parity-handoff-ui-supplement-20260919/ui-detail-review-2026-09-19.md:35) | CAP-04, CAP-10, CAP-27 | temporary-reset vs detour preservation decision |
+| Sep19-U2 | OA-3cd985848d1781 (.reasonix/parity-handoff-ui-supplement-20260919/ui-detail-review-2026-09-19.md:57) | CAP-04, CAP-27 | later native quiz/source return proof supersedes sampled old defect |
+| Sep19-U3 | OA-8972f2c3224502 (.reasonix/parity-handoff-ui-supplement-20260919/ui-detail-review-2026-09-19.md:83) | CAP-04, CAP-27 | sampled phone placement passed; full human reflow gate remains |
+| Sep19-U4 | OA-15ed348aad080f (.reasonix/parity-handoff-ui-supplement-20260919/ui-detail-review-2026-09-19.md:106) | CAP-04, CAP-27 | held-feedback course detour proof remains |
+| Sep19-U5 | OA-812ab4e778d9c5 (.reasonix/parity-handoff-ui-supplement-20260919/ui-detail-review-2026-09-19.md:124) | CAP-04, CAP-27 | source-change/storage and focus/human overlap gates remain |
+| Question-F1 | OA-d036f735a7a02c (.planning/research/question-types-2026-09-25/BACKLOG.md:67) | CAP-13 | use live backlog bounded source/prototype/backburner distinction; domains/P3/P5 need their named gates |
+| Question-F2 | OA-ffb9dcf10fd2d0 (.planning/research/question-types-2026-09-25/BACKLOG.md:68) | CAP-13, CAP-22 | use live backlog bounded source/prototype/backburner distinction; domains/P3/P5 need their named gates |
+| Question-F3 | OA-c78ae3213f855c (.planning/research/question-types-2026-09-25/BACKLOG.md:69) | CAP-13, CAP-22 | use live backlog bounded source/prototype/backburner distinction; domains/P3/P5 need their named gates |
+| Question-F4 | OA-1675dcab8e50e2 (.planning/research/question-types-2026-09-25/BACKLOG.md:70) | CAP-12 | use live backlog bounded source/prototype/backburner distinction; domains/P3/P5 need their named gates |
+| Question-F5 | OA-19aa06dac8725c (.planning/research/question-types-2026-09-25/BACKLOG.md:71) | CAP-19, CAP-22 | use live backlog bounded source/prototype/backburner distinction; domains/P3/P5 need their named gates |
+| Question-F6 | OA-5bbcd9da5db196 (.planning/research/question-types-2026-09-25/BACKLOG.md:72) | CAP-09, CAP-13 | use live backlog bounded source/prototype/backburner distinction; domains/P3/P5 need their named gates |
+| Question-F7 | OA-e84754ee9abcf5 (.planning/research/question-types-2026-09-25/BACKLOG.md:73) | CAP-12, CAP-13 | use live backlog bounded source/prototype/backburner distinction; domains/P3/P5 need their named gates |
+| Question-F8 | OA-bfde382b09ac0c (.planning/research/question-types-2026-09-25/BACKLOG.md:74) | CAP-11, CAP-12 | use live backlog bounded source/prototype/backburner distinction; domains/P3/P5 need their named gates |
+| Question-F9 | OA-e504fdafc2a5ef (.planning/research/question-types-2026-09-25/BACKLOG.md:75) | CAP-13, CAP-22 | use live backlog bounded source/prototype/backburner distinction; domains/P3/P5 need their named gates |
+| Question-F10 | OA-6701767974d680 (.planning/research/question-types-2026-09-25/BACKLOG.md:76) | CAP-11, CAP-26 | use live backlog bounded source/prototype/backburner distinction; domains/P3/P5 need their named gates |
+| Reuse-grounding | OA-bf896682c851a6 (.planning/research/competition-2026-09-08/REUSE-AUDIT.md:31) | CAP-06, CAP-15 | older exact source pin retained; A1/A2 native reuse first, direct-copy/license test still open |
+| Reuse-selection authority | OA-468968dbd35773 (.planning/research/competition-2026-09-08/REUSE-AUDIT.md:32) | CAP-06, CAP-15, CAP-24 | older exact source pin retained; A1/A2 native reuse first, direct-copy/license test still open |
+| Reuse-retry | OA-34a97f982e4858 (.planning/research/competition-2026-09-08/REUSE-AUDIT.md:33) | CAP-05, CAP-18, CAP-24 | older exact source pin retained; A1/A2 native reuse first, direct-copy/license test still open |
+| Reuse-outline | OA-2ff7fa2b36606e (.planning/research/competition-2026-09-08/REUSE-AUDIT.md:34) | CAP-02, CAP-03 | older exact source pin retained; A1/A2 native reuse first, direct-copy/license test still open |
+| Sep05-2 | OA-cd185762046b38 (.planning/research/2026-09-05-open-source-absorption.md:43) | CAP-14, CAP-16, CAP-26 | historical opportunity retained; confidence/generator/corpus promotion needs actual task and rights |
+| Sep05-3 | OA-fbe4a3e3a0ce0f (.planning/research/2026-09-05-open-source-absorption.md:89) | CAP-14, CAP-16 | historical opportunity retained; confidence/generator/corpus promotion needs actual task and rights |
+| Sep05-4 | OA-8bac5da71f2737 (.planning/research/2026-09-05-open-source-absorption.md:127) | CAP-13, CAP-26 | historical opportunity retained; confidence/generator/corpus promotion needs actual task and rights |
+| Sep05-5 | OA-c1204243ee03a3 (.planning/research/2026-09-05-open-source-absorption.md:161) | CAP-06, CAP-23 | historical opportunity retained; confidence/generator/corpus promotion needs actual task and rights |

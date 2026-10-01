@@ -1,0 +1,416 @@
+{
+  "files": 74,
+  "records": 6901,
+  "exact_duplicate_records": 50,
+  "unique_normalized_records": 6851,
+  "routing": {
+    "route-proposed": 6301,
+    "unresolved": 600
+  },
+  "structural_or_code_exclusions": 6583,
+  "scope_patterns": [
+    ".planning/research/phase-16/*.md",
+    ".planning/research/*2026-09-05*.md",
+    ".planning/research/*2026-09-06*.md",
+    ".planning/research/*2026-09-08*.md",
+    ".planning/research/*2026-09-09*.md",
+    ".planning/research/*2026-09-12*.md",
+    ".planning/research/*2026-09-18*.md",
+    ".planning/research/competition-2026-09-08/*.md",
+    ".planning/research/overhaul-2026-09-18/*.md",
+    ".planning/research/source-to-reading/*2026-09-12*.md",
+    ".planning/*AUDIT*2026-09-06.md",
+    ".planning/*AUDIT*2026-09-08.md",
+    ".planning/*AUDIT*2026-09-09.md",
+    ".reasonix/*audit*2026-09-19.md",
+    ".reasonix/*review*2026-09-19.md",
+    ".reasonix/parity-implementation-handoff-2026-09-19.md",
+    ".reasonix/quiz-audit-2026-09-19/browser-evidence.md",
+    ".reasonix/parity-handoff-ui-supplement-20260919/*.md",
+    "prototypes/ui-renewal-20260918/research/*.md",
+    ".planning/research/opentutor-2026-09-27/FORKS.md",
+    ".planning/research/opentutor-2026-09-27/UI-FORK-AUDIT.md",
+    ".planning/research/learnhouse-forks-2026-09-27/UI-AUDIT.md",
+    ".planning/research/open-notebook-2026-09-27/INTEGRATION.md",
+    ".planning/research/question-types-2026-09-25/README.md",
+    ".planning/research/question-types-2026-09-25/01-current-types.md",
+    ".planning/research/question-types-2026-09-25/02-execution-math.md",
+    ".planning/research/question-types-2026-09-25/03-reference-patterns.md",
+    ".planning/research/question-types-2026-09-25/BACKLOG.md",
+    ".planning/research/structured-question-presentation-audit-2026-09-15.md",
+    ".planning/research/code-question-depth-audit-2026-09-16.md"
+  ],
+  "head": "see CURRENT-EVIDENCE.md",
+  "by_source": {
+    ".planning/AUDIT-REMEDIATION-PLAN-2026-09-06.md": {
+      "records": 87,
+      "exact_duplicates": 0,
+      "unresolved": 23
+    },
+    ".planning/LEARNING-PHASE-AXES-AUDIT-2026-09-08.md": {
+      "records": 40,
+      "exact_duplicates": 0,
+      "unresolved": 16
+    },
+    ".planning/PACE-COURSE-ARCHITECTURE-AUDIT-2026-09-08.md": {
+      "records": 53,
+      "exact_duplicates": 0,
+      "unresolved": 0
+    },
+    ".planning/PROMPT-PHASE-20-UI-IMPLEMENTATION-AUDIT-2026-09-08.md": {
+      "records": 33,
+      "exact_duplicates": 0,
+      "unresolved": 0
+    },
+    ".planning/SOURCE-ACQUISITION-EXTENSION-AUDIT-2026-09-08.md": {
+      "records": 35,
+      "exact_duplicates": 0,
+      "unresolved": 3
+    },
+    ".planning/SOURCE-TO-READING-COMBINED-AUDIT-2026-09-08.md": {
+      "records": 126,
+      "exact_duplicates": 0,
+      "unresolved": 5
+    },
+    ".planning/UI-CHARACTER-AUDIT-2026-09-06.md": {
+      "records": 107,
+      "exact_duplicates": 0,
+      "unresolved": 3
+    },
+    ".planning/VISION-PLAN-AUDIT-2026-09-06.md": {
+      "records": 36,
+      "exact_duplicates": 0,
+      "unresolved": 0
+    },
+    ".planning/research/2026-09-05-open-source-absorption.md": {
+      "records": 36,
+      "exact_duplicates": 0,
+      "unresolved": 6
+    },
+    ".planning/research/2026-09-05-surface-grid.md": {
+      "records": 73,
+      "exact_duplicates": 0,
+      "unresolved": 21
+    },
+    ".planning/research/2026-09-05-what-the-vision-still-needs.md": {
+      "records": 52,
+      "exact_duplicates": 0,
+      "unresolved": 11
+    },
+    ".planning/research/2026-09-06-feature-opportunity-audit.md": {
+      "records": 98,
+      "exact_duplicates": 0,
+      "unresolved": 10
+    },
+    ".planning/research/MANWARE-TOOLKIT-COMPARISON-2026-09-08.md": {
+      "records": 15,
+      "exact_duplicates": 0,
+      "unresolved": 0
+    },
+    ".planning/research/OPENMAIC-ECOSYSTEM-COMPARISON-2026-09-08.md": {
+      "records": 50,
+      "exact_duplicates": 0,
+      "unresolved": 12
+    },
+    ".planning/research/code-question-depth-audit-2026-09-16.md": {
+      "records": 61,
+      "exact_duplicates": 0,
+      "unresolved": 4
+    },
+    ".planning/research/competition-2026-09-08/ABSORPTION.md": {
+      "records": 127,
+      "exact_duplicates": 0,
+      "unresolved": 15
+    },
+    ".planning/research/competition-2026-09-08/HANDS-ON.md": {
+      "records": 9,
+      "exact_duplicates": 0,
+      "unresolved": 1
+    },
+    ".planning/research/competition-2026-09-08/LANDSCAPE.md": {
+      "records": 34,
+      "exact_duplicates": 0,
+      "unresolved": 5
+    },
+    ".planning/research/competition-2026-09-08/PROTOTYPE-REVIEW.md": {
+      "records": 19,
+      "exact_duplicates": 0,
+      "unresolved": 1
+    },
+    ".planning/research/competition-2026-09-08/REUSE-AUDIT.md": {
+      "records": 31,
+      "exact_duplicates": 0,
+      "unresolved": 4
+    },
+    ".planning/research/course-resume-repair-2026-09-12.md": {
+      "records": 30,
+      "exact_duplicates": 0,
+      "unresolved": 0
+    },
+    ".planning/research/improvement-priorities-2026-09-12.md": {
+      "records": 84,
+      "exact_duplicates": 0,
+      "unresolved": 8
+    },
+    ".planning/research/learnhouse-forks-2026-09-27/UI-AUDIT.md": {
+      "records": 15,
+      "exact_duplicates": 0,
+      "unresolved": 4
+    },
+    ".planning/research/open-notebook-2026-09-27/INTEGRATION.md": {
+      "records": 21,
+      "exact_duplicates": 0,
+      "unresolved": 2
+    },
+    ".planning/research/opentutor-2026-09-27/FORKS.md": {
+      "records": 19,
+      "exact_duplicates": 0,
+      "unresolved": 5
+    },
+    ".planning/research/opentutor-2026-09-27/UI-FORK-AUDIT.md": {
+      "records": 13,
+      "exact_duplicates": 0,
+      "unresolved": 5
+    },
+    ".planning/research/overhaul-2026-09-18/ASSESSMENT-AUDIT.md": {
+      "records": 32,
+      "exact_duplicates": 0,
+      "unresolved": 0
+    },
+    ".planning/research/overhaul-2026-09-18/BRIEF.md": {
+      "records": 19,
+      "exact_duplicates": 0,
+      "unresolved": 8
+    },
+    ".planning/research/overhaul-2026-09-18/COMPETITORS.md": {
+      "records": 52,
+      "exact_duplicates": 0,
+      "unresolved": 6
+    },
+    ".planning/research/overhaul-2026-09-18/INTEGRATION-PLAN.md": {
+      "records": 68,
+      "exact_duplicates": 0,
+      "unresolved": 9
+    },
+    ".planning/research/overhaul-2026-09-18/INTERACTIVE-TEACHING.md": {
+      "records": 47,
+      "exact_duplicates": 0,
+      "unresolved": 2
+    },
+    ".planning/research/overhaul-2026-09-18/ITEMBANK-BASELINE.md": {
+      "records": 17,
+      "exact_duplicates": 0,
+      "unresolved": 1
+    },
+    ".planning/research/overhaul-2026-09-18/LMS-FLOWS.md": {
+      "records": 89,
+      "exact_duplicates": 0,
+      "unresolved": 1
+    },
+    ".planning/research/overhaul-2026-09-18/QUESTION-DISPLAY-REVIEW.md": {
+      "records": 35,
+      "exact_duplicates": 0,
+      "unresolved": 4
+    },
+    ".planning/research/overhaul-2026-09-18/QUESTION-PATTERNS.md": {
+      "records": 49,
+      "exact_duplicates": 0,
+      "unresolved": 2
+    },
+    ".planning/research/phase-16/00-coverage-audit.md": {
+      "records": 50,
+      "exact_duplicates": 0,
+      "unresolved": 0
+    },
+    ".planning/research/phase-16/01-source-grounded-products.md": {
+      "records": 187,
+      "exact_duplicates": 0,
+      "unresolved": 11
+    },
+    ".planning/research/phase-16/02-lesson-flow-capabilities.md": {
+      "records": 140,
+      "exact_duplicates": 0,
+      "unresolved": 7
+    },
+    ".planning/research/phase-16/03-question-activity-matrix.md": {
+      "records": 325,
+      "exact_duplicates": 1,
+      "unresolved": 3
+    },
+    ".planning/research/phase-16/04-portable-contract-agents.md": {
+      "records": 209,
+      "exact_duplicates": 0,
+      "unresolved": 3
+    },
+    ".planning/research/phase-16/05-learning-program-landscape.md": {
+      "records": 184,
+      "exact_duplicates": 1,
+      "unresolved": 26
+    },
+    ".planning/research/phase-16/06-feature-style-atlas.md": {
+      "records": 271,
+      "exact_duplicates": 1,
+      "unresolved": 8
+    },
+    ".planning/research/phase-16/07-file-lifecycle-edge-cases.md": {
+      "records": 389,
+      "exact_duplicates": 2,
+      "unresolved": 56
+    },
+    ".planning/research/phase-16/08-curriculum-hierarchy-progress.md": {
+      "records": 341,
+      "exact_duplicates": 1,
+      "unresolved": 2
+    },
+    ".planning/research/phase-16/09-app-flow-information-architecture.md": {
+      "records": 325,
+      "exact_duplicates": 1,
+      "unresolved": 48
+    },
+    ".planning/research/phase-16/10-visual-experience-system.md": {
+      "records": 351,
+      "exact_duplicates": 1,
+      "unresolved": 32
+    },
+    ".planning/research/phase-16/11-cross-cutting-risks-validation.md": {
+      "records": 234,
+      "exact_duplicates": 1,
+      "unresolved": 1
+    },
+    ".planning/research/phase-16/12-active-annotation-notes.md": {
+      "records": 239,
+      "exact_duplicates": 2,
+      "unresolved": 6
+    },
+    ".planning/research/phase-16/13-expected-capabilities-omissions.md": {
+      "records": 287,
+      "exact_duplicates": 3,
+      "unresolved": 5
+    },
+    ".planning/research/phase-16/14-synthesis.md": {
+      "records": 419,
+      "exact_duplicates": 0,
+      "unresolved": 56
+    },
+    ".planning/research/phase-16/16-editor-reader-landscape.md": {
+      "records": 62,
+      "exact_duplicates": 0,
+      "unresolved": 0
+    },
+    ".planning/research/phase-16/README.md": {
+      "records": 121,
+      "exact_duplicates": 0,
+      "unresolved": 0
+    },
+    ".planning/research/question-types-2026-09-25/01-current-types.md": {
+      "records": 38,
+      "exact_duplicates": 0,
+      "unresolved": 1
+    },
+    ".planning/research/question-types-2026-09-25/02-execution-math.md": {
+      "records": 40,
+      "exact_duplicates": 0,
+      "unresolved": 1
+    },
+    ".planning/research/question-types-2026-09-25/03-reference-patterns.md": {
+      "records": 40,
+      "exact_duplicates": 0,
+      "unresolved": 6
+    },
+    ".planning/research/question-types-2026-09-25/BACKLOG.md": {
+      "records": 35,
+      "exact_duplicates": 0,
+      "unresolved": 4
+    },
+    ".planning/research/question-types-2026-09-25/README.md": {
+      "records": 63,
+      "exact_duplicates": 0,
+      "unresolved": 0
+    },
+    ".planning/research/source-to-reading/durable-reading-contract-2026-09-12.md": {
+      "records": 305,
+      "exact_duplicates": 0,
+      "unresolved": 86
+    },
+    ".planning/research/source-to-reading/integrated-study-journey-2026-09-12.md": {
+      "records": 43,
+      "exact_duplicates": 0,
+      "unresolved": 6
+    },
+    ".planning/research/source-to-reading/recovery-repair-2026-09-12.md": {
+      "records": 50,
+      "exact_duplicates": 0,
+      "unresolved": 0
+    },
+    ".planning/research/structured-question-presentation-audit-2026-09-15.md": {
+      "records": 32,
+      "exact_duplicates": 0,
+      "unresolved": 0
+    },
+    ".planning/research/synapse-seer-primary-source-review-2026-09-09.md": {
+      "records": 21,
+      "exact_duplicates": 0,
+      "unresolved": 3
+    },
+    ".planning/research/ui-and-project-memory-proposal-2026-09-09.md": {
+      "records": 88,
+      "exact_duplicates": 0,
+      "unresolved": 2
+    },
+    ".planning/research/ui-renewal-2026-09-18.md": {
+      "records": 26,
+      "exact_duplicates": 0,
+      "unresolved": 1
+    },
+    ".planning/research/ui-review-evidence-inventory-2026-09-09.md": {
+      "records": 20,
+      "exact_duplicates": 0,
+      "unresolved": 1
+    },
+    ".reasonix/parity-audit-2026-09-19.md": {
+      "records": 33,
+      "exact_duplicates": 0,
+      "unresolved": 5
+    },
+    ".reasonix/parity-handoff-ui-supplement-20260919/README.md": {
+      "records": 3,
+      "exact_duplicates": 0,
+      "unresolved": 0
+    },
+    ".reasonix/parity-handoff-ui-supplement-20260919/ui-detail-review-2026-09-19.md": {
+      "records": 36,
+      "exact_duplicates": 0,
+      "unresolved": 4
+    },
+    ".reasonix/parity-implementation-handoff-2026-09-19.md": {
+      "records": 39,
+      "exact_duplicates": 0,
+      "unresolved": 5
+    },
+    ".reasonix/quiz-audit-2026-09-19/browser-evidence.md": {
+      "records": 9,
+      "exact_duplicates": 0,
+      "unresolved": 6
+    },
+    ".reasonix/ui-detail-review-2026-09-19.md": {
+      "records": 36,
+      "exact_duplicates": 36,
+      "unresolved": 4
+    },
+    "prototypes/ui-renewal-20260918/research/flows.md": {
+      "records": 33,
+      "exact_duplicates": 0,
+      "unresolved": 0
+    },
+    "prototypes/ui-renewal-20260918/research/integration.md": {
+      "records": 47,
+      "exact_duplicates": 0,
+      "unresolved": 2
+    },
+    "prototypes/ui-renewal-20260918/research/references.md": {
+      "records": 18,
+      "exact_duplicates": 0,
+      "unresolved": 2
+    }
+  }
+}
