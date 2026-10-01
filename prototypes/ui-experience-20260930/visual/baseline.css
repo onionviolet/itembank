@@ -1,0 +1,6 @@
+/* Same-content projection of the current workshop structure. This is not a served runtime screen. */
+body.baseline{--bg:#f5f4f0;--card:#fffefb;--ink:#20242c;--mut:#606673;--line:#dcdedc;--accent:#315fa6;--soft:#d6deea;--canvas:#fffefb;--source:#edf2f7;--note:#f0edf6}
+html[data-theme=dark] body.baseline{--bg:#151b20;--card:#1b242b;--ink:#e9edf2;--mut:#b5bec9;--line:#414d58;--accent:#a3bce8;--soft:#2d4059;--canvas:#1b242b;--source:#202e3c;--note:#302a3e}
+.baseline .layout{max-width:1200px;grid-template-columns:minmax(0,1fr) 320px;gap:24px}
+.baseline .intro{grid-column:1/3;border:0;padding:0}.baseline .chapter{display:none}.baseline .title-row h1{font-family:var(--font-chrome)}.baseline h1 br{display:none}.baseline .trail{border-bottom:1px solid var(--line)}.baseline .reading{grid-column:1;grid-row:2;}.baseline .experiment{grid-column:1;grid-row:3;border:1px solid var(--line)}.baseline .prediction{grid-column:1;grid-row:4;padding:24px;background:var(--card);border:1px solid var(--line);border-radius:8px}.baseline .context{grid-column:2;grid-row:2/5}.baseline .source{border:1px solid var(--line);border-radius:8px}.baseline .next{grid-column:1/3;border-color:var(--line)}.baseline .formula{background:var(--soft);padding:16px;border:0;border-radius:6px}
+@media(max-width:700px){.baseline .layout{display:flex}.baseline .prediction{padding:16px}}

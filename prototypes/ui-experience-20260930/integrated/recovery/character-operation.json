@@ -1,0 +1,7 @@
+{
+  "path": "surfaces/reading_desk.py",
+  "before": "085244b14d3becb683fa86d5d1ba9eb51a2a6962f30fd5317dc64f1ec1ae1974",
+  "adopted_from": "0c2dd5eed12a04ff36994eb50f38fee513cb14377be384e838c9ac2ff789a98e",
+  "after": "66f36cf82e4c753d1634640a0a34a48e50dc264f66764355d3cdcb24e706851d",
+  "operation": "user-character-correction"
+}

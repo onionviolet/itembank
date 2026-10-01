@@ -1,0 +1,44 @@
+[
+  {
+    "scheme": "light",
+    "layout": "block",
+    "overflow": false,
+    "width": 390,
+    "draft": "Synthetic source note at verified 390 pixels",
+    "focus": "source-content",
+    "saved": "Same clock, different speeds. Synthetic source candidate draft.Anchored to shared source · Private · localA production draft survives reference return and reload.\n\nSource passage: For constant speed, distance equals speed multiplied by elapsed time. Walker A moves at 3 metres per second. Walker B mo\nMy thought: Anchored to shared source · Private · localSynthetic narrow source note 390Anchored to shared source · Private · localSynthetic narrow source note 320Anchored to shared source · Private · localSynthetic source note at verified 390 pixelsAnchored to shared source · Private · local",
+    "status": "No unsaved draft"
+  },
+  {
+    "scheme": "light",
+    "layout": "block",
+    "overflow": false,
+    "width": 320,
+    "draft": "Synthetic source note at verified 320 pixels",
+    "focus": "source-content",
+    "saved": "Same clock, different speeds. Synthetic source candidate draft.Anchored to shared source · Private · localA production draft survives reference return and reload.\n\nSource passage: For constant speed, distance equals speed multiplied by elapsed time. Walker A moves at 3 metres per second. Walker B mo\nMy thought: Anchored to shared source · Private · localSynthetic narrow source note 390Anchored to shared source · Private · localSynthetic narrow source note 320Anchored to shared source · Private · localSynthetic source note at verified 390 pixelsAnchored to shared source · Private · localSynthetic source note at verified 320 pixelsAnchored to shared source · Private · local",
+    "status": "No unsaved draft"
+  },
+  {
+    "scheme": "dark",
+    "background": "rgb(20, 22, 27)",
+    "layout": "grid",
+    "overflow": false,
+    "width": 1280
+  },
+  {
+    "scheme": "dark",
+    "background": "rgb(20, 22, 27)",
+    "layout": "block",
+    "overflow": false,
+    "width": 390
+  },
+  {
+    "scheme": "light",
+    "javascript": false,
+    "overflow": false,
+    "source": "For constant speed, distance equals speed multiplied by elapsed time. Walker A moves at 3 metres per second. Walker B moves at 5 metres per second. After six seconds, A has travelled 18 metres and B has travelled 30 metres. The 12 metre gap comes from their speed difference, 2 metres per second, multiplied by six seconds. Both walkers share the same clock. Equal intervals add equal distances for each walker, but different speeds produce different distances. This model assumes each speed stays constant.",
+    "toolsHidden": true,
+    "width": 390
+  }
+]

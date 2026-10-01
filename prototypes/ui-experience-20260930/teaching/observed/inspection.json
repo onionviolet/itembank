@@ -1,0 +1,364 @@
+{
+  "date": "2026-09-30",
+  "browser": "Chrome through Playwright",
+  "observations": [
+    {
+      "width": 1440,
+      "theme": "light",
+      "overflow": 0,
+      "buttons": [
+        {
+          "name": "Dark appearance",
+          "height": 44
+        },
+        {
+          "name": "Open the reference ↗",
+          "height": 44
+        },
+        {
+          "name": "−",
+          "height": 44
+        },
+        {
+          "name": "+",
+          "height": 44
+        },
+        {
+          "name": "Replay to 6 seconds",
+          "height": 44
+        },
+        {
+          "name": "Back to start",
+          "height": 44
+        },
+        {
+          "name": "Try a fresh prediction",
+          "height": 44
+        },
+        {
+          "name": "Hide the graph",
+          "height": 44
+        },
+        {
+          "name": "1 Find Mira’s distance −",
+          "height": 58
+        },
+        {
+          "name": "2 Find Noor’s distance +",
+          "height": 58
+        },
+        {
+          "name": "3 Compare the distances +",
+          "height": 58
+        },
+        {
+          "name": "Try the demo →",
+          "height": 44
+        }
+      ],
+      "focusStyle": "none",
+      "journey": "prediction > reveal > clock keyboard > worked step > note > reference > practice > return",
+      "errors": []
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "overflow": 0,
+      "buttons": [
+        {
+          "name": "Light appearance",
+          "height": 44
+        },
+        {
+          "name": "Open the reference ↗",
+          "height": 44
+        },
+        {
+          "name": "−",
+          "height": 44
+        },
+        {
+          "name": "+",
+          "height": 44
+        },
+        {
+          "name": "Replay to 6 seconds",
+          "height": 44
+        },
+        {
+          "name": "Back to start",
+          "height": 44
+        },
+        {
+          "name": "Try a fresh prediction",
+          "height": 44
+        },
+        {
+          "name": "Hide the graph",
+          "height": 44
+        },
+        {
+          "name": "1 Find Mira’s distance −",
+          "height": 58
+        },
+        {
+          "name": "2 Find Noor’s distance +",
+          "height": 58
+        },
+        {
+          "name": "3 Compare the distances +",
+          "height": 58
+        },
+        {
+          "name": "Try the demo →",
+          "height": 44
+        }
+      ],
+      "focusStyle": "none",
+      "journey": "prediction > reveal > clock keyboard > worked step > note > reference > practice > return",
+      "errors": []
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "overflow": 0,
+      "buttons": [
+        {
+          "name": "Dark appearance",
+          "height": 44
+        },
+        {
+          "name": "Open the reference ↗",
+          "height": 44
+        },
+        {
+          "name": "−",
+          "height": 44
+        },
+        {
+          "name": "+",
+          "height": 44
+        },
+        {
+          "name": "Replay to 6 seconds",
+          "height": 44
+        },
+        {
+          "name": "Back to start",
+          "height": 44
+        },
+        {
+          "name": "Try a fresh prediction",
+          "height": 44
+        },
+        {
+          "name": "Hide the graph",
+          "height": 44
+        },
+        {
+          "name": "1 Find Mira’s distance −",
+          "height": 58
+        },
+        {
+          "name": "2 Find Noor’s distance +",
+          "height": 58
+        },
+        {
+          "name": "3 Compare the distances +",
+          "height": 58
+        },
+        {
+          "name": "Try the demo →",
+          "height": 44
+        }
+      ],
+      "focusStyle": "none",
+      "journey": "prediction > reveal > clock keyboard > worked step > note > reference > practice > return",
+      "errors": []
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "overflow": 0,
+      "buttons": [
+        {
+          "name": "Light appearance",
+          "height": 44
+        },
+        {
+          "name": "Open the reference ↗",
+          "height": 44
+        },
+        {
+          "name": "−",
+          "height": 44
+        },
+        {
+          "name": "+",
+          "height": 44
+        },
+        {
+          "name": "Replay to 6 seconds",
+          "height": 44
+        },
+        {
+          "name": "Back to start",
+          "height": 44
+        },
+        {
+          "name": "Try a fresh prediction",
+          "height": 44
+        },
+        {
+          "name": "Hide the graph",
+          "height": 44
+        },
+        {
+          "name": "1 Find Mira’s distance −",
+          "height": 58
+        },
+        {
+          "name": "2 Find Noor’s distance +",
+          "height": 58
+        },
+        {
+          "name": "3 Compare the distances +",
+          "height": 58
+        },
+        {
+          "name": "Try the demo →",
+          "height": 44
+        }
+      ],
+      "focusStyle": "none",
+      "journey": "prediction > reveal > clock keyboard > worked step > note > reference > practice > return",
+      "errors": []
+    },
+    {
+      "width": 320,
+      "theme": "light",
+      "overflow": 0,
+      "buttons": [
+        {
+          "name": "Dark appearance",
+          "height": 50.09375
+        },
+        {
+          "name": "Open the reference ↗",
+          "height": 44
+        },
+        {
+          "name": "−",
+          "height": 44
+        },
+        {
+          "name": "+",
+          "height": 44
+        },
+        {
+          "name": "Replay to 6 seconds",
+          "height": 44
+        },
+        {
+          "name": "Back to start",
+          "height": 44
+        },
+        {
+          "name": "Try a fresh prediction",
+          "height": 44
+        },
+        {
+          "name": "Hide the graph",
+          "height": 44
+        },
+        {
+          "name": "1 Find Mira’s distance −",
+          "height": 58
+        },
+        {
+          "name": "2 Find Noor’s distance +",
+          "height": 58
+        },
+        {
+          "name": "3 Compare the distances +",
+          "height": 58
+        },
+        {
+          "name": "Try the demo →",
+          "height": 44
+        }
+      ],
+      "focusStyle": "none",
+      "journey": "prediction > reveal > clock keyboard > worked step > note > reference > practice > return",
+      "errors": []
+    },
+    {
+      "width": 320,
+      "theme": "dark",
+      "overflow": 0,
+      "buttons": [
+        {
+          "name": "Light appearance",
+          "height": 50.09375
+        },
+        {
+          "name": "Open the reference ↗",
+          "height": 44
+        },
+        {
+          "name": "−",
+          "height": 44
+        },
+        {
+          "name": "+",
+          "height": 44
+        },
+        {
+          "name": "Replay to 6 seconds",
+          "height": 44
+        },
+        {
+          "name": "Back to start",
+          "height": 44
+        },
+        {
+          "name": "Try a fresh prediction",
+          "height": 44
+        },
+        {
+          "name": "Hide the graph",
+          "height": 44
+        },
+        {
+          "name": "1 Find Mira’s distance −",
+          "height": 58
+        },
+        {
+          "name": "2 Find Noor’s distance +",
+          "height": 58
+        },
+        {
+          "name": "3 Compare the distances +",
+          "height": 58
+        },
+        {
+          "name": "Try the demo →",
+          "height": 44
+        }
+      ],
+      "focusStyle": "none",
+      "journey": "prediction > reveal > clock keyboard > worked step > note > reference > practice > return",
+      "errors": []
+    },
+    {
+      "staticMeaning": "visible without JavaScript",
+      "width": 390
+    },
+    {
+      "storageFailure": "honest unsaved notice observed"
+    },
+    {
+      "motion": "play/pause stops clock; reduced motion reaches final state immediately"
+    }
+  ]
+}

@@ -1,0 +1,50 @@
+[
+  {
+    "scheme": "light",
+    "focus": "practice-open",
+    "gap": "14 m",
+    "note": "Same second, two extra metres. 1280 light",
+    "overflow": false,
+    "practice": "Your prediction: 8 m. Model: 5 × 4 − 3 × 4 = 20 − 12 = 8 m. Your prediction matches the model. Demo feedback only.",
+    "prediction": "Your first prediction\n10 m\nModel at 6 seconds\n12 m\n\nCompare your 10 m prediction with the 12 m model gap. Use the worked steps to inspect why.",
+    "save": "Synthetic note saved in this browser.",
+    "time": "7",
+    "width": 1280
+  },
+  {
+    "scheme": "dark",
+    "focus": "practice-open",
+    "gap": "14 m",
+    "note": "Same second, two extra metres. 1280 dark",
+    "overflow": false,
+    "practice": "Your prediction: 8 m. Model: 5 × 4 − 3 × 4 = 20 − 12 = 8 m. Your prediction matches the model. Demo feedback only.",
+    "prediction": "Your first prediction\n10 m\nModel at 6 seconds\n12 m\n\nCompare your 10 m prediction with the 12 m model gap. Use the worked steps to inspect why.",
+    "save": "Synthetic note saved in this browser.",
+    "time": "7",
+    "width": 1280
+  },
+  {
+    "scheme": "light",
+    "focus": "practice-open",
+    "gap": "14 m",
+    "note": "Same second, two extra metres. 390 light",
+    "overflow": false,
+    "practice": "Your prediction: 8 m. Model: 5 × 4 − 3 × 4 = 20 − 12 = 8 m. Your prediction matches the model. Demo feedback only.",
+    "prediction": "Your first prediction\n10 m\nModel at 6 seconds\n12 m\n\nCompare your 10 m prediction with the 12 m model gap. Use the worked steps to inspect why.",
+    "save": "Synthetic note saved in this browser.",
+    "time": "7",
+    "width": 390
+  },
+  {
+    "scheme": "dark",
+    "focus": "practice-open",
+    "gap": "14 m",
+    "note": "Same second, two extra metres. 390 dark",
+    "overflow": false,
+    "practice": "Your prediction: 8 m. Model: 5 × 4 − 3 × 4 = 20 − 12 = 8 m. Your prediction matches the model. Demo feedback only.",
+    "prediction": "Your first prediction\n10 m\nModel at 6 seconds\n12 m\n\nCompare your 10 m prediction with the 12 m model gap. Use the worked steps to inspect why.",
+    "save": "Synthetic note saved in this browser.",
+    "time": "7",
+    "width": 390
+  }
+]

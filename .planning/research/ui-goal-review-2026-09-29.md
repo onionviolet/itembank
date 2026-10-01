@@ -285,3 +285,50 @@ overriding its older pale fallback in dark mode. Product source remains
 uncommitted; no installed-app replacement or release occurred. Full preflight
 and a new native-shell visual trial were not repeated for this appearance slice.
 The temporary preview servers and owned review tabs were closed.
+
+## Visual experience priority, September 30
+
+Origin: [the user's priority statement](../USER-VISION.md#2026-09-30-prioritize-visual-experience-and-richer-app-inspiration).
+This dated addition owns experience priorities, not another implementation lane.
+
+**Direction:** Lead UI iteration with rendered composition and interaction
+quality. Passing tests establish only their named behavior, not visual
+preference, learning value or coherence. Retain required gates; avoid new
+implementation-mirroring tests and repeated full runs for unchanged code during
+reversible design exploration.
+
+**Proposed sequence:** compare the current source preview with two materially
+different compositions using identical synthetic material; choose by reading,
+answering and reference-return experience; refine typography, proportions,
+color, density and interaction details together; integrate the selected slice;
+run focused behavior checks and required delivery gates. Existing package and
+installation holds still apply. Report rendered before/after evidence before
+test totals. No comparison or human acceptance occurred in this records pass.
+
+Primary-source references checked September 30, offered as inspiration:
+
+- **V1, hierarchy and craft:** [Linear's March 2026 refresh](https://linear.app/now/behind-the-latest-design-refresh)
+  reduces navigation emphasis, compacts tabs and softens separators. Its live
+  palette tool and old/new toggle support rapid in-context iteration. Proposed
+  transfer: emphasize learning material and make visual comparison cheap.
+- **V2, interactive teaching:** [Brilliant's algebra example](https://blog.brilliant.org/solving-equations/)
+  and [learning FAQ](https://brilliant.org/faq/) describe interactive
+  problem-solving. Proposed transfer: linked diagrams, prediction, manipulation
+  and staged explanation where the objective benefits.
+- **V3, spatial organization:** [Obsidian Canvas](https://obsidian.md/canvas)
+  combines notes and media in a visual workspace stored in a local open format.
+  Proposed transfer: optional concept/source maps with a readable list fallback.
+
+Other richer candidates remain proposals: resizable reading/reference/note
+panes, contextual passage actions, visible example steps and code execution
+traces. Each needs a specific task and useful keyboard/static representation.
+Reuse current capability contracts before adding a framework or schema.
+No candidate is rejected merely for being ambitious or optional.
+
+Disposition: IL-20260930-01 keeps the experience priority Core and richer
+interaction candidates Prototype. Recovery removes only this dated addition and
+its matching capture/vision/ledger entries, preserving prior and concurrent work.
+No product source, learner data, commit or installation changed. This pass
+sampled the current goal, overhaul packet, relevant contract and recent vision
+entries; it did not inspect the rendered app. The structural vision audit's
+historical link/relationship backlog remains open and does not measure UI quality.

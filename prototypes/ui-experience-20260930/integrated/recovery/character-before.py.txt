@@ -17,19 +17,19 @@ CSS = '''
 
 .product-workspace:has(.overhaul-reading)>.product-topbar{display:none}
 .product-workspace:has(.overhaul-reading)>.surface{padding-top:24px}
-.product-workspace:has(.overhaul-reading)>.surface>h1{font-family:var(--font-paper);font-size:clamp(30px,3vw,42px);margin-block:16px 24px;font-weight:600}
+.product-workspace:has(.overhaul-reading)>.surface>h1{font-family:var(--font-paper);font-size:clamp(28px,3vw,40px);margin-block:16px 24px;font-weight:400}
 .overhaul-reading{max-width:1200px;margin-inline:auto}
 .reading-layout{display:grid;grid-template-columns:minmax(0,1fr) var(--companion-width,320px);gap:40px;align-items:start}
 .reading-path{margin-bottom:16px;border-block:1px solid var(--line)}
 .reading-path summary{min-height:44px;display:flex;align-items:center;cursor:pointer;font-family:var(--font-chrome)}
 .reading-path a{display:block;padding:12px 0;border-top:1px solid var(--line);text-decoration:none}
 .reading-path a[aria-current]{font-weight:600;color:var(--accent)}
-.reading-column{min-width:0}.reading-column h2{font-family:var(--font-paper);font-size:24px;font-weight:600;line-height:1.35}
-.product-workspace .reading-column.overhaul-source{background:color-mix(in srgb,var(--source-bg) 45%,var(--paper));border:0;border-inline-start:3px solid var(--source-mark);padding:24px}
+.reading-column{min-width:0}.reading-column h2{font-family:var(--font-chrome);font-size:var(--text-xs);font-weight:600;letter-spacing:.08em;text-transform:uppercase}
+.product-workspace .reading-column.overhaul-source{background:transparent;border:0;padding:0}
 .reading-source{font:var(--text-lesson,18px)/1.9 var(--font-paper,Georgia,serif);white-space:pre-wrap;overflow-wrap:anywhere;padding-block:24px;margin:16px 0;max-width:var(--measure-prose,70ch);border-block:1px solid var(--line)}
 .reading-source:focus{outline:2px solid var(--accent);outline-offset:6px}
-.product-workspace .reading-notes.overhaul-notes{border:0;border-inline-start:3px solid var(--note-mark);background:var(--note-bg);padding:24px;position:sticky;top:88px;min-width:0;max-height:calc(100dvh - 112px);overflow-y:auto;overscroll-behavior:contain}
-.reading-notes h2{font-family:var(--font-paper);font-size:25px;font-weight:400;font-style:italic;line-height:1.3}
+.product-workspace .reading-notes.overhaul-notes{border:1px solid var(--line);border-block-start:3px solid var(--note-mark);background:var(--card);padding:24px;position:sticky;top:88px;min-width:0;max-height:calc(100dvh - 112px);overflow-y:auto;overscroll-behavior:contain}
+.reading-notes h2{font-family:var(--font-chrome);font-size:var(--text-body)}
 .reading-notes textarea{box-sizing:border-box;width:100%;min-height:200px;padding:12px;font:inherit;line-height:1.6;background:var(--note-bg,var(--card));color:inherit;border:1px solid var(--line);border-radius:var(--r-1,4px);resize:vertical}
 .reading-notes label{display:block;margin-block:12px 8px}
 .overhaul-reading button,.overhaul-reading a{min-height:44px}.overhaul-reading button{padding:10px 16px;cursor:pointer}
@@ -37,10 +37,8 @@ CSS = '''
 .reading-note{border-top:1px solid var(--line);margin-top:20px;padding-top:16px}.reading-note p{white-space:pre-wrap;overflow-wrap:anywhere}
 .reading-meta{font-family:var(--font-chrome);font-size:var(--text-xs,13px);line-height:1.6;color:var(--mut)}.reading-layout code{overflow-wrap:anywhere}
 .reading-toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:24px}
-.reading-toolbar button{background:transparent;color:var(--ink);border:0;border-bottom:1px solid transparent;border-radius:0}
-.reading-toolbar #reading-note-open{background:var(--note-bg);border-inline-start:2px solid var(--note-mark)}
-.reading-toolbar #reading-reference-open{background:var(--source-bg);border-inline-start:2px solid var(--source-mark)}
-.reading-toolbar button:hover{background:var(--card);border-bottom-color:var(--line)}
+.reading-toolbar button{background:transparent;color:var(--ink);border:1px solid var(--line);border-radius:var(--r-1)}
+.reading-toolbar button:hover{background:var(--card)}
 .reading-toolbar details{position:relative}.reading-toolbar summary{padding:10px;cursor:pointer;min-height:44px;box-sizing:border-box}
 .reading-width-control{position:absolute;z-index:2;background:var(--card);border:1px solid var(--line);padding:16px;width:240px;box-shadow:0 8px 24px #0002;right:0}
 .reading-width-control input{width:100%;min-height:44px}.reading-toolbar details{margin-left:auto}
@@ -128,7 +126,7 @@ def render(course_id, read, occurrence_id, revision_id, view, origin='learn', th
     body = '''<div class="overhaul-reading"><nav class="reading-path" aria-label="Reading assignments"><details><summary>Reading assignments</summary>%s</details></nav>
 <div class="reading-toolbar" hidden><button id="reading-focus" type="button" aria-pressed="false">Focus reading</button><button id="reading-reference-open" type="button">Source context</button><button id="reading-note-open" type="button">Write a note</button><button id="reading-quote" type="button">Add selection to draft</button><details><summary>Reading tools</summary><div class="reading-width-control"><label for="companion-width">Companion width</label><input id="companion-width" type="range" min="260" max="440" step="20" value="320"><output id="companion-width-value" for="companion-width">320 px</output></div></details></div><p id="reading-tools-state" class="reading-meta" role="status"></p>
 <div class="reading-layout">
-<article class="reading-column overhaul-source" aria-label="Assigned reading"><p class="reading-meta">Assigned source range · %s</p><h2>Source reading</h2><p>%s</p>
+<article class="reading-column overhaul-source" aria-label="Assigned reading"><p class="reading-meta">Assigned source range · %s</p><h2>Assigned passage</h2><p>%s</p>
 <p id="source-state">%s</p><div id="source-content" tabindex="-1" class="reading-source">%s</div>
 <div class="overhaul-reading-actions"><button id="mark-read" class="go primary" type="button" disabled>I have read this range</button><p id="reading-state" role="status" aria-live="polite">%s</p>
 <p class="reading-meta">Your declaration describes reading. It is not a score, grade, or mastery claim.</p></div>

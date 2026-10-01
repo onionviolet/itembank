@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Motion studies · Integrated candidate</title>
+  <link rel="stylesheet" href="teaching.css"><link rel="stylesheet" href="integrated.css">
+  <script defer src="teaching.js"></script><script defer src="integrated.js"></script>
+</head>
+<body>
+<a class="skip" href="#lesson">Skip to the lesson</a>
+<header class="shell"><a class="brand" href="#lesson"><span class="brand-mark">i</span> itembank</a><span class="course-label">Motion / 01</span><button id="theme" type="button" hidden>Dark appearance</button></header>
+<main class="integrated-workspace" id="workspace"><article id="lesson" class="integrated-reader">
+  <div class="lesson-intro"><p class="eyebrow">Motion studies <span>·</span> SYNTHETIC DEMO</p><h1>Two walkers, one clock.</h1><p class="deck">Compare the distances Mira and Noor cover in the same elapsed time.</p></div>
+  <div class="integrated-tools" hidden><button id="focus-reading" type="button" aria-pressed="false">Focus reading</button><button id="open-note" type="button">Write a demo note</button><details><summary>Arrange workspace</summary><label for="companion-width">Companion width</label><input id="companion-width" type="range" min="260" max="400" step="20" value="300"></details></div>
+  <div class="integrated-passage"><p class="step-eyebrow">Constant speed</p><p id="source-passage">For constant speed, distance equals speed multiplied by elapsed time. Mira moves at 3 metres per second; Noor moves at 5. Both share the same elapsed time. Noor adds 2 more metres each second, so the gap grows by 2 metres for each second that passes.</p><button id="append-passage" type="button" hidden>Append passage to demo note</button></div>
+  <div class="lab-heading"><h2>Compare their distances</h2><button class="text-button" id="reference-open" hidden>Open the reference <span aria-hidden="true">↗</span></button></div>
+  <p class="scenario">Mira walks at <strong class="mira-text">3 m/s</strong>. Noor walks at <strong class="noor-text">5 m/s</strong>. Both start at the same point and keep their speed.</p>
+  <section class="lab" aria-label="Interactive distance and time demonstration">
+    <div class="experiment">
+      <div class="scene-title"><p><span class="live-dot" aria-hidden="true"></span> <span id="scene-state">Worked state</span></p><span class="time-pill"><span id="time-big">6</span> <span>seconds</span></span></div>
+      <svg class="track" id="track" viewBox="0 0 760 278" role="img" aria-labelledby="track-title track-desc">
+        <title id="track-title">Two walkers on a shared distance scale</title><desc id="track-desc">At six seconds Mira is 18 metres from the start and Noor is 30 metres from the start. The gap is 12 metres.</desc>
+        <defs><pattern id="track-ticks" x="60" width="100" height="8" patternUnits="userSpaceOnUse"><path d="M 0 0 V 8" stroke="currentColor" stroke-opacity=".3"/></pattern></defs>
+        <rect class="lane-mira" x="38" y="38" width="684" height="75" rx="15"/>
+        <rect class="lane-noor" x="38" y="125" width="684" height="75" rx="15"/>
+        <path class="track-line" d="M60 92 H660 M60 179 H660"/>
+        <path class="start-line" d="M60 35 V204"/>
+        <rect x="60" y="207" width="601" height="8" fill="url(#track-ticks)"/>
+        <g class="axis-label"><text x="60" y="235">0</text><text x="160" y="235">10</text><text x="260" y="235">20</text><text x="360" y="235">30</text><text x="460" y="235">40</text><text x="560" y="235">50</text><text x="660" y="235">60 m</text></g>
+        <g class="walker mira" id="mira-walker" transform="translate(240 76)"><circle r="20"/><text y="6">M</text><path d="M-9 23 l-8 9 M9 23 l8 9"/></g>
+        <g class="walker noor" id="noor-walker" transform="translate(360 163)"><circle r="20"/><text y="6">N</text><path d="M-9 23 l-8 9 M9 23 l8 9"/></g>
+        <g id="gap-group"><path id="gap-bracket" class="gap-line" d="M240 256 V247 H360 V256"/><text id="gap-svg-label" class="gap-label" x="300" y="274">12 m gap</text></g>
+      </svg>
+      <div class="distance-readout" id="distance-readout"><p><span class="legend mira-legend">Mira</span><strong id="mira-distance">18 <small>m</small></strong></p><span class="comparison-symbol" aria-hidden="true">↔</span><p><span class="legend noor-legend">Noor</span><strong id="noor-distance">30 <small>m</small></strong></p><p class="gap-readout"><span>The gap</span><strong id="gap-distance">12 <small>m</small></strong></p></div>
+      <div class="controls" id="controls" hidden>
+        <div class="clock-label"><label for="time">Elapsed time</label><output id="clock" for="time">0 s</output></div>
+        <div class="time-control"><button id="less" type="button" aria-label="One second less">−</button><input id="time" type="range" min="0" max="12" step="1" value="0" aria-describedby="time-help"><button id="more" type="button" aria-label="One second more">+</button></div>
+        <p id="time-help" class="micro">0 to 12 seconds. Use the slider, arrow keys, or the − / + buttons.</p>
+        <div class="play-row"><button class="play-button" id="play" type="button"><span aria-hidden="true">▶</span> Play to 6 seconds</button><button class="text-button" id="reset-time" type="button">Back to start</button></div>
+      </div>
+      <p id="scene-summary" class="sr-only" role="status" aria-live="polite"></p>
+    </div>
+    <aside class="prediction" aria-labelledby="prediction-title">
+      <p class="step-eyebrow">01 / MAKE A PREDICTION</p><h3 id="prediction-title">After 6 seconds,<br>how far apart?</h3><p>Think about how much farther Noor walks in each second.</p>
+      <form id="prediction-form" hidden><label for="prediction">Your prediction, in metres</label><div class="prediction-input"><input id="prediction" type="number" min="0" max="1000" step="any" placeholder="e.g. 10" required><span aria-hidden="true">m</span></div><button class="primary" type="submit">Keep prediction &amp; reveal <span aria-hidden="true">→</span></button></form>
+      <div id="prediction-result" class="prediction-result" hidden role="status"></div><button id="retry" class="text-button" type="button" hidden>Try a fresh prediction</button>
+      <p class="demo-label">Demo exploration. No score or learner evidence is recorded.</p>
+    </aside>
+  </section>
+  <section class="below" aria-label="Explanation and learner note">
+    <div class="explanation">
+      <div class="section-heading"><div><p class="step-eyebrow">Worked explanation</p><h2>Distance is speed × time.</h2></div><button id="graph-toggle" class="small-button" hidden aria-expanded="false" aria-controls="graph-panel">See the graph</button></div>
+      <p class="explain-lead">Every second, Mira adds 3 metres and Noor adds 5. That extra <mark>2 metres per second</mark> makes the gap grow.</p>
+      <div id="graph-panel" class="graph-panel" hidden>
+        <p class="micro">Distance from the start · metres</p>
+        <svg viewBox="0 0 600 240" id="graph" role="img" aria-labelledby="graph-title graph-desc"><title id="graph-title">Distance against time</title><desc id="graph-desc">Mira's distance is three times elapsed seconds; Noor's is five times elapsed seconds.</desc><g class="graph-grid"><path d="M48 20 H552 M48 77 H552 M48 133 H552 M48 190 H552 M48 20 V190 M216 20 V190 M384 20 V190 M552 20 V190"/></g><g class="graph-axis"><path d="M48 20 V190 H552"/></g><g class="graph-labels"><text x="16" y="24">60</text><text x="16" y="81">40</text><text x="16" y="137">20</text><text x="24" y="194">0</text><text x="48" y="216">0</text><text x="216" y="216">4</text><text x="384" y="216">8</text><text x="552" y="216">12 s</text></g><path class="graph-mira" d="M48 190 L552 88"/><path class="graph-noor" d="M48 190 L552 20"/><path id="graph-cursor" class="graph-cursor" d="M300 20 V190"/><circle id="graph-mira-point" class="point-mira" cx="300" cy="139" r="7"/><circle id="graph-noor-point" class="point-noor" cx="300" cy="105" r="7"/></svg>
+        <p class="graph-caption" id="graph-caption">At 6 seconds: Mira 18 m; Noor 30 m; gap 12 m.</p>
+      </div>
+      <div class="worked" id="worked">
+        <div class="worked-heading"><h3>Work it through</h3><span id="worked-time">AT 6 SECONDS</span></div>
+        <div class="worked-step" data-step="1"><button class="step-button" type="button" aria-expanded="true" aria-controls="step-1" disabled><span>1</span> Find Mira’s distance <b aria-hidden="true">+</b></button><div class="step-content" id="step-1"><p class="equation mira-text" id="eq-mira">3 m/s × 6 s = 18 m</p><p>Speed tells us the distance added in each second. Multiply by the number of seconds.</p></div></div>
+        <div class="worked-step" data-step="2"><button class="step-button" type="button" aria-expanded="true" aria-controls="step-2" disabled><span>2</span> Find Noor’s distance <b aria-hidden="true">+</b></button><div class="step-content" id="step-2"><p class="equation noor-text" id="eq-noor">5 m/s × 6 s = 30 m</p><p>The time is the same for both walkers. Noor adds more distance every second.</p></div></div>
+        <div class="worked-step" data-step="3"><button class="step-button" type="button" aria-expanded="true" aria-controls="step-3" disabled><span>3</span> Compare the distances <b aria-hidden="true">+</b></button><div class="step-content" id="step-3"><p class="equation" id="eq-gap">30 m − 18 m = 12 m</p><p>Both started together, so subtract the distances to find the gap. Equivalently, (5 − 3) m/s × time.</p></div></div>
+      </div>
+      <div class="transfer"><div><p class="step-eyebrow">Another elapsed time</p><h3>What changes at 4 seconds?</h3><p>Use the same speeds with a different elapsed time.</p></div><button id="practice-open" class="small-button" type="button" hidden>Try the demo <span aria-hidden="true">→</span></button></div>
+    </div>
+
+  </section>
+  <details class="static-core" id="static-core" open><summary>Read the full explanation without the controls</summary><p>Distance = speed × elapsed time. At 6 seconds, Mira has travelled 3 × 6 = 18 metres. Noor has travelled 5 × 6 = 30 metres. Their gap is 30 − 18 = 12 metres.</p><p>Noor travels 2 more metres each second, so gap = (5 − 3) × time = 2 × time. This holds because both start together, move in the same direction, and keep constant speed.</p><table><caption>Useful static values</caption><thead><tr><th>Time</th><th>Mira, 3 m/s</th><th>Noor, 5 m/s</th><th>Gap</th></tr></thead><tbody><tr><td>0 s</td><td>0 m</td><td>0 m</td><td>0 m</td></tr><tr><td>4 s</td><td>12 m</td><td>20 m</td><td>8 m</td></tr><tr><td>6 s</td><td>18 m</td><td>30 m</td><td>12 m</td></tr><tr><td>12 s</td><td>36 m</td><td>60 m</td><td>24 m</td></tr></tbody></table><p>Reference: this original synthetic model assumes constant speed and a common start. <a href="lesson.md">Open the plain Markdown lesson</a>.</p></details>
+  <footer>Integrated candidate · Original synthetic material · No assessment session</footer>
+</article><aside id="companion" class="integrated-companion" tabindex="0" aria-label="Source and private demo note"><section class="integrated-reference"><p class="step-eyebrow">SOURCE CONTEXT / R1</p><h2>A model of constant speed</h2><blockquote>Distance is speed multiplied by elapsed time.</blockquote><p>Original synthetic model. Both start together, travel in the same direction, and keep constant speed.</p><p class="micro">This preview is a design candidate. No course score, accepted note, or learning evidence is recorded.</p><a href="lesson.md">Read the plain Markdown explanation</a></section>    <aside class="note"><span class="note-icon" aria-hidden="true">✎</span><p class="step-eyebrow">Private note</p><h2>My notes</h2><label for="note">Why does the gap grow by the same amount each second?</label><textarea id="note" placeholder="My explanation…" rows="6"></textarea><p id="note-status" role="status" class="micro">Synthetic scratch note. Saving requires JavaScript.</p><p class="note-prompt">A useful sentence starts with:<br>“In the same one second…”</p></aside><button id="return-passage" type="button" hidden>Return to the passage</button><p class="micro">Demo notes use this browser only. Production source notes keep their existing journal and revision controls.</p></aside></main>
+<dialog id="reference-dialog" aria-labelledby="reference-title"><div class="dialog-top"><span class="step-eyebrow">MODEL REFERENCE / R1</span><button type="button" data-close="reference-dialog" aria-label="Close reference">×</button></div><h2 id="reference-title">What does 3 m/s mean?</h2><p>Three metres per second means adding 3 metres of distance in every second.</p><div class="reference-example"><span>1 second</span><strong>3 metres</strong><span>2 seconds</span><strong>6 metres</strong><span>6 seconds</span><strong>18 metres</strong></div><h3>The rule</h3><p class="equation">distance = speed × time</p><p>The seconds cancel: (metres / second) × seconds = metres.</p><h3>The assumptions matter</h3><p>Both walkers start at the same place and time, travel in the same direction, and never change speed. Different starts or changing speeds would need a different model.</p><p class="micro">Original synthetic lesson reference, not an external course citation. No remote content is loaded.</p><button class="primary" type="button" data-close="reference-dialog">Return to the experiment</button></dialog>
+<dialog id="practice-dialog" aria-labelledby="practice-title"><div class="dialog-top"><span class="step-eyebrow">TRANSFER / DEMO ONLY</span><button type="button" data-close="practice-dialog" aria-label="Close practice demo">×</button></div><h2 id="practice-title">Now let only 4 seconds pass.</h2><p>Same walkers, same speeds. What is the gap?</p><form id="practice-form"><label for="practice">Your prediction, in metres</label><div class="prediction-input"><input id="practice" type="number" min="0" max="1000" step="any" required><span aria-hidden="true">m</span></div><button class="primary" type="submit">Compare with the model</button></form><p id="practice-feedback" role="status" hidden></p><p class="micro">Exploratory demo feedback. No score, attempt, or mastery claim.</p><button class="text-button" type="button" data-close="practice-dialog">Return to the lesson</button></dialog>
+</body></html>

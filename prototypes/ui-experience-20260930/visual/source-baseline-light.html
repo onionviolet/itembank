@@ -1,0 +1,608 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Same time. Different distances.</title><style>
+:root{
+  color-scheme:light;
+  --bg:#f5f4f0; --card:#fffefb; --ink:#20242c; --mut:#606673; --line:#dcdedc; --accent:#315fa6; --accent-soft:#d6deea; --ok:#1b7a3d; --ok-bg:#e8f4ec; --bad:#b4272b; --bad-bg:#fbebeb; --warn:#8a5900; --warn-bg:#f8f1e2; --unknown:#566067; --unknown-bg:#edf0f2; --pending:#5b4a9f; --pending-bg:#efecf7; --edge:#7f8b88; --chip:#eeede8; --source-mark:#346784; --source-bg:#edf2f7; --note-mark:#725997; --note-bg:#f0edf6;
+}
+
+:root{--paper:var(--bg);--product-ink:var(--ink);--product-muted:var(--mut);
+  --product-line:var(--line);--product-green:var(--accent);
+  --product-wash:var(--accent-soft);--product-active:var(--chip)}
+
+
+*{box-sizing:border-box}
+/* The document is the scroll container. If a shell introduces a nested
+   overflow canvas, this padding moves to that container in the same change. */
+html{scroll-behavior:smooth;scroll-padding-top:calc(var(--sticky-h,0px) + var(--space-2))}
+html:has([data-surface-context]){--sticky-h:56px}
+@media (max-width:767px){html:has([data-surface-context]){--sticky-h:88px}}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:16px/1.5 var(--font-chrome)}
+/* Voice & measure tokens (03.1-UI-SPEC §2, §7.1): fonts resolve by token
+   only. --font-paper/--font-ledger prefer the vendored faces (Source Serif
+   4 / iA Writer Quattro -- landed in plan 03.1-01) and fall back to the
+   no-vendor stack Georgia / ui-monospace when no font file is present; the
+   @font-face rules for the vendored faces live in this same token layer
+   (plan 03.1-06 Task 2). A @font-face whose src cannot load (file absent)
+   makes its family unavailable, so the token stack degrades to the
+   fallback with no surface knowing a family name. --measure-prose/
+   --measure-wide are character measures, not pixel spacing;
+   --leading-lesson is the sustained-prose line height. */
+/* Vendored faces (03.1-06 Task 1): the last path segments match
+   fonts/MANIFEST.json file rows; weights are the reading surface's 400/600
+   pair for the paper voice and 400/700 for the ledger voice (UI-SPEC §7
+   "two weights per face"). The urls are root-absolute because a relative
+   one resolves against the page route and 404s; a file-scheme page
+   therefore resolves nothing here and degrades to the fallback stack by
+   design. Full rationale and rejected alternative: the module comment
+   above this constant. */
+@font-face{font-family:"Source Serif 4";font-style:normal;font-weight:400;
+  src:url("/assets/fonts/source-serif/SourceSerif4-Regular.ttf.woff2") format("woff2");
+  font-display:swap}
+@font-face{font-family:"Source Serif 4";font-style:normal;font-weight:600;
+  src:url("/assets/fonts/source-serif/SourceSerif4-Semibold.ttf.woff2") format("woff2");
+  font-display:swap}
+@font-face{font-family:"iA Writer Quattro";font-style:normal;font-weight:400;
+  src:url("/assets/fonts/ia-writer-quattro/iAWriterQuattroS-Regular.woff2") format("woff2");
+  font-display:swap}
+@font-face{font-family:"iA Writer Quattro";font-style:normal;font-weight:700;
+  src:url("/assets/fonts/ia-writer-quattro/iAWriterQuattroS-Bold.woff2") format("woff2");
+  font-display:swap}
+/* The spacing scale (14-UI-SPEC §3.1, fixing DEFECT D-A): exactly
+   .planning/UI-SPEC.md §7's 8-point scale with 03.1-UI-SPEC.md §3's
+   assignments. These seven names were referenced 64 times by LESSON_CSS and
+   defined nowhere, so every margin/padding/gap in the reader resolved to its
+   initial value -- no paragraph rhythm, no callout padding, no side gutter,
+   no section spacing, and no browser error to say so. There is no eighth step
+   and no second scale.
+   --font-chrome and --font-code complete the voice set that --font-paper and
+   --font-ledger began: the stacks are copied verbatim from the `body` and
+   `.mono`/`code,pre` declarations that spelled them out inline, so the
+   emitted stacks are unchanged. This is centralisation, not a new choice. */
+:root{
+  --font-paper:"Source Serif 4",Georgia,serif;
+  --font-ledger:"iA Writer Quattro",ui-monospace,monospace;
+  --font-chrome:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --font-code:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --space-1:4px;
+  --space-2:8px;
+  --space-3:16px;
+  --space-4:24px;
+  --space-5:32px;
+  --space-6:48px;
+  --space-7:64px;
+  --measure-prose:59ch;
+  --measure-wide:80ch;
+  --leading-lesson:1.65;
+  --r-1:6px;
+  --r-2:8px;
+  --r-3:12px;
+  /* The five frozen type tokens (17A-UI-SPEC Typography, plan 17A-02 Task 2).
+     These are a transcription of the sizes already rendering across
+     quiz_page.py, lesson.py, study.py and this file, not a new scale: there
+     is no sixth size, and a component that wants one routes the need through
+     these five rows first. Each token carries only the SIZE; the paired
+     weight and line height stay in the rule that uses it, because a weight
+     belongs to a heading rather than to a size. */
+  --text-xs:12px;
+  --text-body:16px;
+  --text-lesson:18px;
+  --text-heading:20px;
+  --text-display:32px;
+  /* Density aliases (17A-UI-SPEC Density tokens). Comfortable is the default
+     and is what every existing rule already spaces by, so adopting a token
+     changes nothing until a surface opts into compact. Every value on both
+     sides is an alias of the existing --space-* scale, never a new raw pixel,
+     which is what keeps compact bounded: --space-1 is the floor of the scale,
+     so density cannot express anything tighter than 4px. The 44px touch
+     target is fixed regardless of density and is not aliased here. */
+  --density-row-gap:var(--space-3);
+  --density-card-pad:var(--space-3);
+  --density-list-gap:var(--space-2)
+}
+/* Compact is one opt-in attribute on any ancestor, so a dense panel can sit
+   inside a comfortable page. The bound is the alias, not a clamp: there is no
+   third step below this one. */
+[data-density="compact"]{
+  --density-row-gap:var(--space-2);
+  --density-card-pad:var(--space-2);
+  --density-list-gap:var(--space-1)
+}
+.surface{max-width:720px;margin:0 auto;padding:24px 16px 64px;min-width:0}
+.surface.wide{max-width:800px}
+h1{font-size:32px;font-weight:600;line-height:1.2;margin:0 0 8px}
+h2{font-size:20px;font-weight:600;line-height:1.2;margin:32px 0 16px}
+h3{font-size:16px;font-weight:600;line-height:1.4;margin:24px 0 8px}
+p{font-size:16px;line-height:1.5;margin:0 0 16px;overflow-wrap:anywhere}
+a{color:var(--accent);text-decoration:none;font-weight:600}
+a:hover{text-decoration:underline;text-underline-offset:3px}
+a:focus-visible,button:focus-visible,summary:focus-visible,
+input:focus-visible,textarea:focus-visible,select:focus-visible{
+  outline:2px solid var(--accent);outline-offset:2px}
+.mono{font-family:var(--font-code);
+  font-variant-numeric:tabular-nums}
+.back{margin:0 0 24px;color:var(--mut);font-size:16px}
+.app-nav{display:flex;align-items:center;justify-content:space-between;
+  gap:var(--space-3);margin:0 0 var(--space-4);padding:0 0 var(--space-3);
+  border-bottom:1px solid var(--line)}
+.app-nav .app-name{color:var(--ink);font-weight:600}
+.app-nav ul{display:flex;align-items:center;gap:var(--space-3);
+  list-style:none;margin:0;padding:0}
+.app-nav a[aria-current]{color:var(--ink);text-decoration:underline;
+  text-underline-offset:5px;text-decoration-thickness:2px}
+.current-area{color:var(--mut);font-size:var(--text-xs);margin:0 0 var(--space-2)}
+.course-nav-mobile{display:none}
+.course-nav-mobile summary{cursor:pointer;min-height:44px;padding:10px 0;
+  font-size:var(--text-body);font-weight:600}
+.shelf-empty .actions{margin-top:var(--space-3)}
+.context-line{position:sticky;top:0;z-index:5;display:flex;flex-wrap:wrap;
+  gap:4px 18px;align-items:center;background:var(--bg);padding:8px 0 10px;
+  border-bottom:1px solid var(--line);margin-bottom:14px;font-size:12px;
+  color:var(--mut)}
+.context-line .cx{overflow-wrap:anywhere}
+.card,.step,.state,.empty{background:var(--card);border:1px solid var(--line);
+  border-radius:12px;padding:16px;margin:0 0 16px}
+.step .step-label{font-size:20px;font-weight:600;margin:0 0 8px}
+.step .step-prompt{font-size:16px;font-weight:600;margin:0 0 12px}
+.step-body{font-size:16px;line-height:1.5;overflow-wrap:anywhere}
+.step-status{min-height:24px;font-size:12px;color:var(--mut);
+  margin:12px 0 0}
+.step details{margin:12px 0 0;border-top:1px solid var(--line);
+  padding-top:8px}
+.step details summary{cursor:pointer;font-size:16px;font-weight:600;
+  min-height:44px;box-sizing:border-box;padding:10px 0}
+details.details-section{border:1px solid var(--line);border-radius:8px;
+  padding:8px 12px;margin:12px 0 16px;background:var(--card)}
+details.details-section summary{cursor:pointer;font-size:16px;
+  font-weight:600;min-height:44px;box-sizing:border-box;padding:10px 0}
+.actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:12px}
+button.go,a.go{display:inline-flex;align-items:center;justify-content:center;
+  min-height:44px;min-width:0;max-width:100%;font:inherit;
+  font-family:var(--font-chrome);font-size:16px;font-weight:600;line-height:1.4;
+  padding:10px 16px;border-radius:8px;border:1px solid var(--edge);
+  background:var(--card);color:inherit;cursor:pointer;text-decoration:none;
+  overflow-wrap:anywhere;transition:background-color .12s,border-color .12s,box-shadow .12s}
+button.go.primary,a.go.primary{background:var(--accent-soft);
+  border-color:var(--accent);color:var(--accent)}
+button.go:disabled{opacity:.55;cursor:default}
+.state{padding:12px 16px;font-size:16px;color:var(--mut)}
+.state .state-text{margin:0}
+.state.state-ok{color:var(--ok);background:var(--ok-bg);border-color:var(--ok)}
+.state.state-bad{color:var(--bad);background:var(--bad-bg);border-color:var(--bad)}
+.state.state-warn{color:var(--warn);border-color:var(--warn)}
+/* Course-area rows (`17B-03 D-06 item 3`): the areas now carry the course's
+   own artifacts, so they need a list shape. One rule set, composed from the
+   existing tokens: no new color, no new spacing value, no new size. */
+.area-lead{color:var(--mut);margin:0 0 var(--space-3)}
+.overview-path h3{font-size:var(--text-body);margin:0 0 var(--space-3)}
+.overview-path .course-rows{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:var(--space-3)}
+.overview-path .course-rows .row{min-width:0;padding:var(--space-3);
+  border:1px solid var(--line);border-radius:var(--r-2);background:var(--card)}
+.overview-path .row-head{display:block}
+.overview-path .row-meta{display:block;margin-top:var(--space-2)}
+.overview-path .row-note{margin:var(--space-3) 0 0;overflow-wrap:anywhere}
+@media(max-width:900px){.overview-path .course-rows{grid-template-columns:1fr}}
+/* The bind panel (`source binding / create`): a two-column label/field grid
+   that stacks under 768, composed from the existing tokens. */
+.bind-panel{margin:var(--space-5) 0 0;padding:var(--space-4) 0 0;
+  border-top:1px solid var(--line)}
+.bind-grid{display:grid;grid-template-columns:minmax(9rem,auto) 1fr;
+  gap:var(--space-2) var(--space-3);align-items:center;
+  margin:0 0 var(--space-3)}
+.bind-grid label{color:var(--mut);font-size:var(--text-xs)}
+.bind-grid select,.bind-grid input{font:inherit;font-size:var(--text-body);
+  padding:10px 12px;min-height:44px;border-radius:var(--r-2);
+  border:1px solid var(--edge);background:var(--card);color:var(--ink);
+  max-width:100%}
+@media (max-width:767px){.bind-grid{grid-template-columns:1fr}}
+.course-rows{list-style:none;margin:0;padding:0;display:grid;
+  gap:var(--density-list-gap)}
+.course-rows .row{display:grid;gap:var(--space-1)}
+.row-head{display:flex;flex-wrap:wrap;gap:var(--space-2);
+  align-items:baseline;justify-content:space-between}
+.row-meta{color:var(--mut);font-size:var(--text-xs)}
+.row-note{margin:0;color:var(--mut);font-size:var(--text-xs)}
+.row{background:var(--card);border:1px solid var(--line);border-radius:12px;
+  padding:16px;margin:0 0 16px}
+.row .name{font-size:16px;font-weight:600;overflow-wrap:anywhere}
+.row .links{display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;font-size:16px}
+.row a{color:var(--accent)}
+.empty h2{font-size:20px;font-weight:600;margin:0 0 16px}
+.empty p{color:var(--mut);font-size:16px}
+.headline{font-size:32px;font-weight:600;color:var(--accent);line-height:1.1}
+.headline-label{font-size:12px;color:var(--mut);margin:4px 0 0}
+.figures{display:flex;gap:32px;flex-wrap:wrap;margin-top:24px}
+.figure-value{font-size:20px;font-weight:600;font-variant-numeric:tabular-nums}
+.figure-label{font-size:12px;color:var(--mut);margin-top:4px}
+/* Recovery copy, not a chip: LESSON_CSS defines no `.status` rule, so this
+   one declaration styles the reader's degraded-lesson and style-warning
+   notice. A learner who cannot read the failure sentence cannot recover from
+   it, so it takes the 16px floor alongside `.state` (14-UI-SPEC §4.2). A
+   genuinely compact status chip uses `.step-status`, which is 12px. */
+.status{font-size:16px;color:var(--mut);margin:16px 0 0}
+table{width:100%;border-collapse:collapse;margin:8px 0 16px}
+th,td{text-align:left;padding:8px;border-bottom:1px solid var(--line);
+  font-size:16px;overflow-wrap:anywhere;vertical-align:top}
+th{font-size:12px;color:var(--mut);font-weight:600}
+.table-wrap{overflow-x:auto;min-width:0}
+code,pre{font-family:var(--font-code);
+  overflow-wrap:anywhere}
+pre{background:var(--chip);border:1px solid var(--line);border-radius:8px;
+  padding:12px;overflow-x:auto;max-width:100%}
+@media (max-width:767px){
+  .surface{padding:16px 16px 56px}
+  h1{font-size:20px}
+  .actions button{width:100%}
+  .course-nav-desktop{display:none}
+  .course-nav-mobile{display:block;margin:0 0 var(--space-4)}
+  .course-nav-mobile ul{list-style:none;margin:0;padding:var(--space-2) 0 0}
+  .course-nav-mobile a{display:flex;align-items:center;min-height:44px}
+}
+@media (prefers-reduced-motion:reduce){
+  *{transition:none!important}
+  html{scroll-behavior:auto!important}
+}
+
+.ib-list{list-style:none;margin:0;padding:0;display:flex;
+  flex-direction:column;gap:var(--density-list-gap)}
+.ib-card{background:var(--card);border:1px solid var(--line);
+  border-radius:var(--r-2);padding:var(--density-card-pad)}
+.ib-group{margin:0 0 var(--space-4)}
+.ib-group-head{font-size:var(--text-body);font-weight:600;line-height:1.4;
+  margin:0 0 var(--space-2)}
+.ib-name{font-family:var(--font-chrome);font-size:var(--text-body);font-weight:600;
+  line-height:1.4;margin:0;overflow-wrap:anywhere}
+.ib-meta{font-family:var(--font-chrome);font-size:var(--text-xs);line-height:1.4;
+  color:var(--mut);margin:var(--space-1) 0 0;overflow-wrap:anywhere}
+.ib-body{font-size:var(--text-body);line-height:1.5;margin:var(--space-2) 0 0;
+  max-width:var(--measure-prose);overflow-wrap:anywhere}
+.ib-empty{font-size:var(--text-body);line-height:1.5;color:var(--mut);margin:0}
+.ib-slow{font-family:var(--font-ledger);font-size:var(--text-body);line-height:1.5;
+  color:var(--mut);margin:0}
+.ib-notice{border:1px solid var(--line);border-radius:var(--r-2);
+  padding:var(--space-2) var(--space-3);margin:0 0 var(--space-3);
+  font-family:var(--font-ledger);font-size:var(--text-body);line-height:1.5;
+  overflow-wrap:anywhere}
+.ib-notice-label{font-weight:600;margin-inline-end:var(--space-1)}
+.ib-notice-ok{color:var(--ok);background:var(--ok-bg);border-color:var(--ok)}
+.ib-notice-bad{color:var(--bad);background:var(--bad-bg);
+  border-color:var(--bad)}
+.ib-notice-warn{color:var(--warn);background:var(--warn-bg);
+  border-color:var(--warn)}
+.ib-notice-unknown{color:var(--unknown);background:var(--unknown-bg);
+  border-color:var(--unknown)}
+.ib-notice-pending{color:var(--pending);background:var(--pending-bg);
+  border-color:var(--pending)}
+.ib-chips{list-style:none;display:flex;flex-wrap:wrap;
+  gap:var(--density-list-gap);margin:var(--space-2) 0 0;padding:0}
+.ib-chip{display:inline-flex;align-items:center;gap:var(--space-1);
+  font-family:var(--font-chrome);font-size:var(--text-xs);line-height:1.4;
+  background:transparent;color:var(--ink);border:0;
+  border-inline-start:3px solid var(--edge);border-radius:0;
+  padding:0 var(--space-2);overflow-wrap:anywhere}
+.ib-chip .ib-dot{width:8px;height:8px;border-radius:var(--r-1);
+  background:var(--edge);flex:none}
+.ib-chip-ok{border-inline-start-color:var(--ok)}
+.ib-chip-ok .ib-dot{background:var(--ok)}
+.ib-chip-bad{border-inline-start-color:var(--bad)}
+.ib-chip-bad .ib-dot{background:var(--bad)}
+.ib-chip-warn{border-inline-start-color:var(--warn)}
+.ib-chip-warn .ib-dot{background:var(--warn)}
+.ib-chip-unknown{border-inline-start-color:var(--unknown)}
+.ib-chip-unknown .ib-dot{background:var(--unknown)}
+.ib-chip-pending{border-inline-start-color:var(--pending)}
+.ib-chip-pending .ib-dot{background:var(--pending)}
+.ib-fill-row{display:flex;flex-wrap:wrap;align-items:center;
+  gap:var(--space-2);margin:var(--space-2) 0 0}
+.ib-fill{display:inline-flex;gap:var(--space-1);align-items:center}
+.ib-fill i{display:inline-block;width:12px;height:12px;
+  border-radius:var(--r-1);border:1px solid var(--edge);background:transparent}
+.ib-fill i.on{background:var(--ink);border-color:var(--ink)}
+.ib-fill-legend{font-family:var(--font-ledger);font-size:var(--text-xs);line-height:1.4;
+  color:var(--mut)}
+.ib-path{font-family:var(--font-code);font-size:var(--text-xs);line-height:1.5;
+  overflow-wrap:anywhere}
+.ib-setting-row{display:flex;flex-wrap:wrap;gap:var(--space-1) var(--space-3);
+  padding:var(--space-2) 0}
+.ib-setting-label{font-size:var(--text-body);line-height:1.5}
+.ib-settings-group + .ib-settings-group{border-top:1px solid var(--line);
+  margin-top:var(--space-3);padding-top:var(--space-3)}
+.ib-walkthrough{border:1px solid var(--accent);border-radius:var(--r-3);
+  background:var(--card);padding:var(--density-card-pad);
+  margin:0 0 var(--space-3)}
+.ib-walkthrough p{max-width:var(--measure-prose)}
+.ib-activity-frame{margin:var(--space-4) 0}
+.ib-activity-details{margin:0 0 var(--space-3);color:var(--mut)}
+.ib-activity-details summary{cursor:pointer;min-height:44px;display:flex;align-items:center;
+  font:var(--text-body)/1.5 var(--font-chrome)}
+.ib-activity-facts{display:flex;flex-wrap:wrap;gap:var(--space-2) var(--space-4);margin:var(--space-2) 0 var(--space-3)}
+.ib-activity-facts div{min-width:10rem}.ib-activity-facts dt{font-size:12px;color:var(--mut)}
+.ib-activity-facts dd{margin:2px 0 0;font-size:16px}.ib-course-identity p,.ib-source{color:var(--mut)}
+.ib-profile-trajectory-deck .ib-activity-frame{border-top:2px solid var(--edge);padding-top:var(--space-3)}
+.ib-profile-field-guide .ib-source{border-inline-start:2px solid var(--line);padding-inline-start:var(--space-3)}
+.ib-profile-guide-main{max-width:var(--measure-prose)}
+.ib-profile-deck-task{border:1px solid var(--edge);border-radius:var(--r-2);
+  padding:var(--space-3);background:var(--card)}
+.ib-profile-deck-task .actions{margin:var(--space-3) 0 0}
+.ib-capture textarea{display:block;width:100%;min-width:0;min-height:44px;
+  max-height:calc(var(--text-body) * 1.5 * 8 + var(--space-3));overflow-y:auto;
+  font-family:var(--font-paper);font-size:var(--text-body);line-height:1.5;
+  color:var(--ink);background:var(--bg);border:1px solid var(--edge);
+  border-radius:var(--r-1);padding:var(--space-2)}
+.ib-capture label{display:block;font-size:var(--text-body);font-weight:600;
+  line-height:1.4;margin:var(--space-2) 0 var(--space-1)}
+.ib-stage{border:1px solid var(--line);border-radius:var(--r-3);
+  padding:var(--density-card-pad);margin:0 0 var(--space-3)}
+.ib-nodes{display:flex;flex-wrap:wrap;gap:var(--density-list-gap);
+  margin:var(--space-2) 0 0;padding:0;list-style:none}
+.ib-node{border:1px solid var(--line);border-radius:var(--r-1);
+  padding:var(--space-1) var(--space-2);background:var(--chip);
+  font-family:var(--font-ledger);font-size:var(--text-xs);line-height:1.4}
+.ib-diff{margin:0 0 var(--space-3)}
+.ib-diff pre{margin:var(--space-2) 0 0}
+
+html{scroll-padding-top:88px}
+body{margin:0;background:var(--paper);color:var(--product-ink)}
+.product-workspace .context-line{position:static}
+.product-shell{min-height:100vh;display:block}
+.product-sidebar{position:sticky;top:0;z-index:20;min-height:64px;
+  border-bottom:1px solid var(--product-line);font-family:var(--font-chrome);
+  padding:var(--space-2) var(--space-4);display:flex;align-items:center;
+  gap:var(--space-4);background:var(--card)}
+.standalone-product-nav{width:100%}
+.wrap:has(.standalone-product-nav){margin-left:auto}
+.product-brand{font-family:var(--font-chrome);font-size:var(--text-heading);font-weight:600;
+  color:var(--product-ink);display:flex;align-items:center;min-height:44px;
+  letter-spacing:-.02em}
+.product-nav{display:flex;flex-wrap:wrap;gap:var(--space-2);margin:0}
+.product-nav a{min-height:44px;padding:var(--space-2) var(--space-3);border-radius:var(--r-1);
+  color:var(--product-muted);display:flex;align-items:center;gap:var(--space-2);position:relative}
+.product-nav a:hover{background:var(--product-active);color:var(--product-ink);text-decoration:none}
+.product-nav a[aria-current]{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.product-nav a[aria-current]:before{content:"";position:absolute;left:var(--space-3);
+  right:var(--space-3);bottom:0;height:2px;background:var(--accent)}
+.product-nav svg{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;
+  stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.product-local{margin:0 0 0 auto;color:var(--product-muted);font-size:var(--text-xs)}
+.product-workspace{min-width:0}
+.product-topbar{min-height:44px;max-width:1200px;margin:auto;padding:var(--space-2) var(--space-5);
+  display:flex;align-items:center;color:var(--product-muted);
+  font-size:var(--text-xs);gap:var(--space-3)}
+.product-topbar span{overflow-wrap:anywhere}
+.surface,.surface.wide{max-width:1200px;margin:0 auto;padding:var(--space-4) var(--space-5) var(--space-7)}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
+  clip:rect(0,0,0,0);border:0}
+.surface:has(.desk-heading)>h1{position:absolute;width:1px;height:1px;padding:0;
+  margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}
+.product-workspace h1{font-family:var(--font-chrome);font-weight:600;
+  font-size:var(--text-display);letter-spacing:-.025em;line-height:1.2}
+.product-workspace h2{font-size:var(--text-heading);line-height:1.25;overflow-wrap:anywhere}
+.app-nav{display:none}
+button.go,a.go{border-radius:var(--r-1);padding-inline:var(--space-4)}
+button.go,a.go,.product-nav a{transition:background-color .12s,border-color .12s,color .12s}
+button.go:disabled{color:var(--mut);background:var(--chip);cursor:not-allowed}
+.product-workspace :is(input,textarea,select){background:var(--card);color:var(--ink)}
+.product-workspace .reading-column{border-block-start:3px solid var(--source-mark);
+  padding-block-start:var(--space-3)}
+.product-workspace .reading-notes{background:var(--note-bg);
+  border-inline-start:3px solid var(--note-mark);padding:var(--space-3)}
+.product-workspace .reading-notes textarea{background:var(--card);color:var(--ink);
+  border:1px solid var(--edge)}
+button.go.primary,a.go.primary{background:var(--accent);border-color:var(--accent);
+  color:var(--accent-soft)}
+button.go:not(:disabled):hover,a.go:hover,
+.shelf-order-controls button:not(:disabled):hover{background:var(--chip);border-color:var(--ink)}
+button.go:not(:disabled):active,a.go:active,
+.shelf-order-controls button:not(:disabled):active{background:var(--accent-soft);
+  box-shadow:inset 0 0 0 1px var(--accent)}
+button.go.primary:not(:disabled):hover,a.go.primary:hover,
+button.go.primary:not(:disabled):active,a.go.primary:active{
+  background:var(--accent);border-color:var(--accent);color:var(--accent-soft)}
+button.go.primary:not(:disabled):hover,a.go.primary:hover{
+  box-shadow:inset 0 0 0 1px var(--accent-soft)}
+button.go.primary:not(:disabled):active,a.go.primary:active{
+  box-shadow:inset 0 0 0 2px var(--accent-soft)}
+button.go[aria-pressed="true"]{background:var(--accent-soft);color:var(--ink);
+  border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.product-nav a:active,.course-areas a:hover{background:var(--product-active);color:var(--product-ink)}
+.course-details summary:hover,.course-tools summary:hover{color:var(--product-ink)}
+.desk-heading{display:flex;justify-content:space-between;align-items:end;gap:var(--space-4);
+  margin-bottom:var(--space-4);border-bottom:1px solid var(--product-line);padding-bottom:var(--space-3)}
+.desk-heading h2{font-family:var(--font-chrome);font-size:var(--text-display);
+  font-weight:600;letter-spacing:-.025em;margin:0}
+.desk-heading p,.desk-count{color:var(--product-muted);margin:0;font-size:var(--text-xs)}
+.desk-count{font-family:var(--font-chrome);font-variant-numeric:tabular-nums}
+.desk-eyebrow{font-family:var(--font-chrome);font-size:var(--text-xs);
+  font-weight:600;color:var(--product-muted)}
+.desk-focus{display:flex;align-items:center;justify-content:space-between;gap:var(--space-5);
+  padding:var(--space-4) var(--space-5);margin-bottom:var(--space-5);
+  border:1px solid var(--product-line);border-left:3px solid var(--accent);
+  border-radius:var(--r-1);background:var(--card)}
+.desk-focus-copy{min-width:0}
+.desk-focus h2{font-family:var(--font-chrome);font-size:var(--text-heading);
+  font-weight:600;margin:var(--space-1) 0}
+.resume-cue{color:var(--product-muted);font-size:var(--text-body);overflow-wrap:anywhere}
+.desk-focus .resume-cue{margin:var(--space-1) 0 0}
+.desk-session-context{font-family:var(--font-ledger);font-size:var(--text-body);
+  color:var(--product-ink);margin:var(--space-2) 0}
+.desk-session-context[hidden]{display:none}
+.desk-focus-actions{display:flex;flex-wrap:wrap;gap:var(--space-2);align-items:center}
+.desk-focus-actions a,.desk-focus-actions button{min-height:44px}
+.desk-focus-actions .primary{font-weight:600}
+.walkthrough-offer{margin-block:var(--space-3)}
+.walkthrough-offer form{display:flex;flex-wrap:wrap;gap:var(--space-2);margin-top:var(--space-2)}
+.walkthrough-replay{margin-top:var(--space-2)}
+.desk-below{min-width:0}
+.desk-section-title{display:flex;align-items:baseline;justify-content:space-between;
+  gap:var(--space-3);border-bottom:1px solid var(--product-line);padding-bottom:var(--space-2)}
+.desk-section-title h2{font-family:var(--font-chrome);font-size:var(--text-body);
+  font-weight:600;margin:0}.desk-section-title span{font-size:var(--text-xs);color:var(--product-muted)}
+.course-shelf{display:block;min-width:0}
+.course-card{display:grid;grid-template-columns:36px minmax(0,1fr) auto;align-items:start;
+  gap:var(--space-1) var(--space-3);padding:var(--space-3) 0;
+  border-bottom:1px solid var(--product-line);min-width:0}
+.course-mark{display:block;font:600 var(--text-xs)/1 var(--font-ledger);
+  color:var(--product-muted);padding-top:5px;font-variant-numeric:tabular-nums}
+.course-card-main{min-width:0}
+.course-card h2{font-family:var(--font-chrome);font-size:var(--text-body);font-weight:600;
+  line-height:1.35;margin:0 0 var(--space-1);overflow-wrap:anywhere}
+.course-card .chip{display:inline-block;font-family:var(--font-chrome);
+  font-size:var(--text-xs);color:var(--product-muted);background:transparent;
+  border:0;border-radius:0;padding:0;margin-right:var(--space-2);overflow-wrap:anywhere}
+.course-card .resume-cue{margin:var(--space-1) 0 0}
+.course-card[data-attention="up_to_date"] .chip{display:none}
+.course-card .shelf-order-controls [data-drag-handle]{border-color:transparent;
+  color:var(--product-muted);padding-inline:var(--space-2)}
+.course-card-actions{display:flex;flex-wrap:wrap;gap:var(--space-2);align-items:center}
+.course-card-actions a,.course-card-actions button{min-height:44px}
+.course-details{grid-column:2/-1;min-width:0;color:var(--product-muted);font-size:var(--text-xs)}
+.course-details summary{display:inline-flex;align-items:center;min-height:44px;cursor:pointer;
+  color:var(--product-muted);font-family:var(--font-chrome);font-size:var(--text-body);
+  text-decoration:underline;text-underline-offset:3px}
+.course-details[open]{padding-bottom:var(--space-2)}
+.course-options{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2);
+  padding-top:var(--space-2)}
+.course-details .actions{margin:var(--space-2) 0;gap:var(--space-2)}
+.course-details a,.course-details button{min-height:44px}
+.course-details form{margin:0;max-width:100%}
+.course-details .sample-note{overflow-wrap:anywhere;flex-basis:100%;margin:0}
+.shelf-order-help{font-size:var(--text-xs);color:var(--product-muted);margin:var(--space-3) 0}
+.shelf-order-controls{display:flex;flex-wrap:wrap;gap:var(--space-2);align-items:center}
+.shelf-order-controls button{min-width:44px;min-height:44px;border:1px solid var(--edge);
+  border-radius:var(--r-1);background:transparent;color:var(--product-ink);font:inherit;
+  font-family:var(--font-chrome);font-size:var(--text-body);cursor:pointer;
+  transition:background-color .12s,border-color .12s,box-shadow .12s}
+.shelf-order-controls [data-drag-handle]{cursor:grab;touch-action:none}
+.course-card.is-dragging{opacity:.55;background:var(--product-active)}
+.shelf-order-controls button:disabled{opacity:.35;cursor:default}
+.product-workspace .ib-shelf>.ib-list{gap:0;border-top:1px solid var(--product-line)}
+.product-workspace .ib-shelf>.ib-list>.ib-card{display:grid;
+  grid-template-columns:minmax(0,1fr) auto;column-gap:var(--space-4);
+  padding:var(--space-4) 0;border:0;border-bottom:1px solid var(--product-line);
+  border-radius:0;background:transparent;min-width:0}
+.product-workspace .ib-shelf>.ib-list>.ib-card>:not(.actions){grid-column:1;min-width:0}
+.product-workspace .ib-shelf>.ib-list>.ib-card>.actions{grid-column:2;grid-row:1 / span 4;
+  align-self:center;margin:0;gap:var(--space-2)}
+.product-workspace .ib-shelf .ib-name{font-size:var(--text-body);line-height:1.4}
+.product-workspace .ib-shelf .ib-meta{font-size:var(--text-body)}
+.course-areas ul{display:flex;flex-wrap:wrap;gap:var(--space-2) var(--space-4);
+  list-style:none;padding:0;margin:0}
+.course-nav-desktop{display:flex;align-items:center;gap:var(--space-4);position:relative}
+.course-tools{margin-left:auto}
+.course-tools summary{cursor:pointer;min-height:44px;display:flex;align-items:center;
+  color:var(--product-muted);font-size:var(--text-body);font-weight:600}
+.course-tools[open] ul{position:absolute;right:0;top:100%;z-index:8;display:grid;
+  gap:0;width:min(18rem,100%);padding:var(--space-2);border:1px solid var(--product-line);
+  border-radius:var(--r-2);background:var(--paper)}
+.course-tools li a{display:block;min-height:44px;padding:var(--space-2)}
+.course-areas{border-bottom:1px solid var(--product-line);padding-bottom:var(--space-3);
+  margin-bottom:var(--space-5)}
+.course-areas a{display:inline-flex;align-items:center;min-height:44px;
+  padding:var(--space-2);color:var(--product-muted);border-bottom:2px solid transparent}
+.course-areas a[aria-current]{background:var(--paper);color:var(--product-ink);border-bottom-color:var(--accent);
+  text-decoration:none}
+.course-rows{list-style:none;padding:0;margin:0;display:grid;grid-template-columns:minmax(0,1fr)}
+.course-rows .row{padding:var(--space-4) 0;border:0;border-bottom:1px solid var(--product-line);
+  border-radius:0;background:transparent;min-width:0}
+.overview-path .course-rows{grid-template-columns:minmax(0,1fr)}
+.overview-path .course-rows .row{background:transparent;border:0;
+  border-bottom:1px solid var(--product-line);border-radius:0;padding:var(--space-4) 0}
+.row-head{display:flex;flex-wrap:wrap;justify-content:space-between;gap:var(--space-2)}
+.row-note,.area-lead{color:var(--product-muted)}
+@media(min-width:768px) and (max-width:1000px){
+  .product-sidebar{padding-inline:var(--space-3);gap:var(--space-3)}
+  .product-local{display:none}
+  .product-nav a{padding-inline:var(--space-2)}
+}
+/* Home's course choices and activity roots share the workshop's rhythm. */
+.overhaul-course-choices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:var(--space-3)}
+.overhaul-course-choice{border:1px solid var(--line);border-radius:var(--r-2);
+  background:var(--card);padding:var(--space-4)}
+.overhaul-course-heading{border-block-start:3px solid var(--accent);
+  padding-block-start:var(--space-4);margin-bottom:var(--space-4)}
+.overhaul-saved-sittings{border:1px solid var(--line);background:var(--card);
+  padding:var(--space-4);border-radius:var(--r-2)}
+.overhaul-reading,.overhaul-lesson,.overhaul-quiz{min-width:0}
+@media(max-width:767px){.overhaul-course-choices{grid-template-columns:minmax(0,1fr)}}
+/* A shared workshop composition, with prose measured inside a wider activity. */
+.overhaul-journey{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);
+  gap:var(--space-5);align-items:start}
+.overhaul-journey>*{min-width:0}
+.overhaul-lead{padding:var(--space-5);background:var(--card);
+  border:1px solid var(--line);border-block-start:4px solid var(--accent);
+  border-radius:var(--r-2);margin-bottom:var(--space-5)}
+.overhaul-lead h2{font-family:var(--font-paper);font-size:var(--text-display);
+  margin:var(--space-2) 0 var(--space-3)}
+.overhaul-prose{font-family:var(--font-paper);max-width:var(--measure-prose)}
+.overhaul-prose p{font-size:var(--text-lesson);line-height:var(--leading-lesson)}
+.overhaul-source{border-inline-start:3px solid var(--source-mark);
+  background:var(--source-bg);padding:var(--space-4)}
+.overhaul-notes{border-inline-start:3px solid var(--note-mark);
+  background:var(--note-bg);padding:var(--space-4)}
+.overhaul-source h2,.overhaul-notes h2{margin:0 0 var(--space-3)}
+.overhaul-notes textarea{width:100%;min-height:120px;font:inherit;
+  padding:var(--space-3);background:var(--card);color:var(--ink);border:1px solid var(--edge)}
+.overhaul-response{padding:var(--space-4);border:1px solid var(--edge);
+  background:var(--card);border-radius:var(--r-2);margin-top:var(--space-4)}
+.overhaul-response legend{font-size:var(--text-body);font-weight:600}
+.overhaul-response label{display:flex;align-items:center;gap:var(--space-2);
+  min-height:44px;font-size:var(--text-body)}
+@media(max-width:1000px){.overhaul-journey{grid-template-columns:minmax(0,1fr)}}
+.vf-diff,.ib-diff{border-radius:var(--r-2);overflow:auto}
+@media(max-width:767px){
+  html{scroll-padding-top:var(--space-3);scroll-padding-bottom:112px}
+  .course-nav-desktop{display:none}
+  .product-sidebar{position:fixed;z-index:20;top:auto;bottom:0;
+    left:0;right:0;width:100%;min-height:70px;padding:0 var(--space-1);border:0;
+    border-top:1px solid var(--product-line);background:var(--card)}
+  .product-brand,.product-local{display:none}.product-nav{width:100%;display:grid;
+    grid-template-columns:repeat(4,minmax(0,1fr));gap:0;margin:0}
+  .product-nav a{display:flex;flex-direction:column;justify-content:center;gap:var(--space-1);
+    padding:var(--space-2) var(--space-1);min-height:70px;text-align:center;font-size:var(--text-body)}
+  .product-nav a[aria-current]:before{left:var(--space-3);right:var(--space-3);
+    top:0;bottom:auto;height:2px}
+  .product-nav svg{width:18px;height:18px}
+  .product-topbar{padding:var(--space-2) var(--space-3)}
+  .ib-palette-open{display:none}
+  .surface,.surface.wide{padding:var(--space-3) var(--space-3) calc(var(--space-7) + 112px)}
+  .desk-heading{align-items:baseline;flex-wrap:wrap;gap:var(--space-2)}
+  .desk-focus{align-items:flex-start;flex-direction:column;padding:var(--space-3)}
+  .course-card{grid-template-columns:28px minmax(0,1fr);column-gap:var(--space-2)}
+  .course-card-actions,.course-details{grid-column:2}
+  .course-card-actions{justify-content:flex-start}
+  .product-workspace .ib-shelf>.ib-list>.ib-card{grid-template-columns:minmax(0,1fr)}
+  .product-workspace .ib-shelf>.ib-list>.ib-card>.actions{grid-column:1;grid-row:auto;
+    margin-top:var(--space-3)}
+}
+@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;
+  transition-duration:0s!important;animation-duration:0s!important}}
+
+
+.intro,.reading,.experiment,.prediction,.context,.next{margin-bottom:32px}
+.reading p{font:18px/1.65 var(--font-paper)}
+.eyebrow,.locator{font:12px/1.5 var(--font-ledger);color:var(--mut)}
+.experiment{padding:24px;border:1px solid var(--line);border-radius:8px}
+.experiment-head,.readouts>div{display:flex;justify-content:space-between;gap:16px}
+svg{display:block;width:100%;max-width:640px;margin:auto;color:var(--ink)}
+.grid{display:none}.track{stroke:var(--line);stroke-width:2}.travel{fill:none;stroke-width:4}
+.a{stroke:var(--source-mark);color:var(--source-mark)}.b{stroke:var(--note-mark);color:var(--note-mark)}
+.walker{stroke-width:3;stroke-linecap:round;fill:currentColor}.walker path{fill:none}
+.scrubber input{display:block;width:100%;min-height:44px}
+.range-ends{display:flex;justify-content:space-between}
+fieldset{border:0}fieldset label{display:flex;align-items:center;gap:8px;min-height:44px}
+.formula{padding:16px;background:var(--chip);margin:24px 0}.formula small{display:block}
+.trail{display:flex;gap:24px}.trail a,.source-link,summary{display:inline-flex;align-items:center;min-height:44px}
+.note label span{display:block;font-size:12px}.note textarea{width:100%;min-height:88px}
+.source blockquote{margin:16px 0;font:18px/1.65 var(--font-paper)}
+.next{border-top:1px solid var(--line);padding-top:24px}
+
+</style></head><body><div class="product-shell"><aside class="product-sidebar"><a class="product-brand" href="/">itembank</a><nav class="product-nav" aria-label="Main navigation"><a href="/"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><path d="M9 21v-7h6v7"/></svg><span>Your desk</span></a><a href="/courses" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 4.5c2.6-1 5.3-.8 8 1v14c-2.7-1.8-5.4-2-8-1z"/><path d="M20 4.5c-2.6-1-5.3-.8-8 1v14c2.7-1.8 5.4-2 8-1z"/></svg><span>Courses</span></a><a href="/activity"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 5h16M4 12h16M4 19h16"/><path d="M7 3v4M7 10v4M7 17v4"/></svg><span>Activity</span></a><a href="/settings"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M5 5l2 2m10 10 2 2M19 5l-2 2M7 17l-2 2"/></svg><span>Settings</span></a></nav><p class="product-local">On this device</p></aside><div class="product-workspace"><header class="product-topbar"><span>Same time. Different distances.</span></header><div class="surface"><h1>Same time. Different distances.</h1><main><p class="state">Current source shell, same synthetic content. Static comparison; use candidates for interaction.</p><div class="intro"><div class="eyebrow">Everyday physics <span>/</span> Unit 01 · Motion</div><p class="dek">Explore how speed changes the ground you cover.</p><div class="trail" aria-label="Lesson sequence"><a href="#reading" class="current">01 Read</a><a href="#experiment">02 Explore</a><a href="#prediction">03 Predict</a></div></div>
+<section class="reading overhaul-prose" id="reading" aria-labelledby="reading-title"><span class="eyebrow">The idea</span><h2 id="reading-title">Time is shared. Speed is not.</h2><p>Two walkers start together. Walker A travels at <strong>3 metres per second</strong>; Walker B travels at <strong>5 metres per second</strong>. Both keep a steady speed.</p><p>Distance is speed multiplied by elapsed time. Give each walker the same amount of time and the faster walker covers more ground.</p><div class="formula"><span>distance = speed × time</span><small>metres = metres/second × seconds</small></div><a class="source-link" href="#source">Read the source <span aria-hidden="true">↗</span></a></section>
+<section class="experiment" id="experiment" aria-labelledby="experiment-title"><div class="experiment-head"><div><span class="eyebrow">Explore · unscored</span><h2 id="experiment-title">Give them a little time.</h2></div><span class="live-time"><output id="clock">6</output><small>seconds</small></span></div>
+<figure><svg id="diagram" viewBox="0 0 640 272" role="img" aria-labelledby="diagram-title diagram-desc"><title id="diagram-title">Distances travelled by two walkers</title><desc id="diagram-desc">At six seconds A has travelled 18 metres and B 30 metres. The scale runs from 0 to 60 metres.</desc><defs><pattern id="grid" width="48" height="48" patternUnits="userSpaceOnUse"><path d="M48 0H0V48" fill="none" stroke="currentColor" stroke-opacity=".08"/></pattern></defs><rect class="grid" x="0" y="0" width="640" height="272" fill="url(#grid)"/><g class="ruler" fill="currentColor" font-size="14"><text x="60" y="250">0</text><text x="230" y="250">20</text><text x="405" y="250">40</text><text x="575" y="250">60 m</text></g><path class="track" d="M64 92H592M64 188H592"/><path class="travel a" id="distance-a" d="M64 92H222"/><path class="travel b" id="distance-b" d="M64 188H328"/><g id="walker-a" class="walker a" transform="translate(222 92)"><circle cy="-22" r="7"/><path d="M0 -14V3M0 -7L-10 1M0 -7L10 -14M0 3L-10 17M0 3L11 15"/></g><g id="walker-b" class="walker b" transform="translate(328 188)"><circle cy="-22" r="7"/><path d="M0 -14V3M0 -7L-10 1M0 -7L10 -14M0 3L-10 17M0 3L11 15"/></g><g fill="currentColor" font-size="16"><text x="16" y="97">A</text><text x="16" y="193">B</text></g></svg><figcaption>Same start, same time. Each marker shows distance from the start.</figcaption></figure>
+<div class="scrubber"><label for="elapsed">Elapsed time <span>0 to 12 seconds</span></label><input id="elapsed" type="range" min="0" max="12" value="6" step="1"><div class="range-ends"><span>0 s</span><span>12 s</span></div></div><div class="readouts"><div><span class="dot a"></span><span>Walker A <small>3 m/s</small></span><output id="a-value">18 m</output></div><div><span class="dot b"></span><span>Walker B <small>5 m/s</small></span><output id="b-value">30 m</output></div></div><p id="description" class="static-meaning">At 6 seconds: A travels 18 m; B travels 30 m. B travels 12 m farther.</p><noscript><p>Diagram controls need JavaScript. At 6 seconds, A travels 3 × 6 = 18 m and B travels 5 × 6 = 30 m. At 12 seconds, both distances double.</p></noscript></section>
+<section class="prediction overhaul-response" id="prediction" aria-labelledby="prediction-title"><div><span class="eyebrow">Pause & predict</span><h2 id="prediction-title">What changes at 12 seconds?</h2><p>Predict before you move the time control. What happens to the distance each walker covers?</p></div><fieldset><legend>Your prediction</legend><label><input type="radio" name="prediction" value="double"> Both distances double.</label><label><input type="radio" name="prediction" value="same"> Both distances stay the same.</label></fieldset><button disabled id="reveal" class="go primary">Explore the explanation <span aria-hidden="true">→</span></button><p id="feedback" role="status" hidden></p></section>
+<aside class="context overhaul-journey"><section id="source" class="source overhaul-source"><span class="eyebrow">Source reference</span><h2>A model of steady motion</h2><blockquote>“For a constant speed, the distance travelled is the speed multiplied by the time elapsed.”</blockquote><p class="locator">Synthetic Motion Handbook<br>§1.2 · Steady motion · Demo source</p><details><summary>Read source context</summary><p>This fictional source assumes constant speed, a shared start, and no pauses. It supports the equation, not a claim about every real walking trip.</p><a href="#reading">Return to the lesson</a></details></section><section class="note overhaul-notes" id="note"><label for="private-note">Private note <span>Only in this open preview</span></label><textarea id="private-note" rows="3" placeholder="What helped this click?"></textarea><p>Try: time scales both distances, but the speed ratio stays 3:5.</p></section></aside>
+<footer class="next"><div><span class="eyebrow">Next · practice detour</span><h2>Try a new elapsed time.</h2><p>Keep this lesson and your draft nearby.</p></div><button disabled class="go primary" data-practice>Open demo practice <span aria-hidden="true">→</span></button></footer>
+</main><noscript><p>Static synthetic comparison.</p></noscript></div></div></div></body></html>

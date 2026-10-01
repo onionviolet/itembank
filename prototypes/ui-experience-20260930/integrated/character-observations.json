@@ -1,0 +1,38 @@
+[
+  {
+    "scheme": "light",
+    "noteGround": "rgb(240, 237, 246)",
+    "overflow": false,
+    "sourceGround": "color(srgb 0.946667 0.953333 0.953529)",
+    "width": 1280,
+    "draft": "Character check, retained draft 1280 light",
+    "focus": "source-content"
+  },
+  {
+    "scheme": "light",
+    "noteGround": "rgb(240, 237, 246)",
+    "overflow": false,
+    "sourceGround": "color(srgb 0.946667 0.953333 0.953529)",
+    "width": 390,
+    "draft": "Character check, retained draft 390 light",
+    "focus": "source-content"
+  },
+  {
+    "scheme": "dark",
+    "noteGround": "rgb(35, 31, 48)",
+    "overflow": false,
+    "sourceGround": "color(srgb 0.0872549 0.109216 0.139412)",
+    "width": 1280,
+    "draft": "Character check, retained draft 1280 dark",
+    "focus": "source-content"
+  },
+  {
+    "scheme": "dark",
+    "noteGround": "rgb(35, 31, 48)",
+    "overflow": false,
+    "sourceGround": "color(srgb 0.0872549 0.109216 0.139412)",
+    "width": 390,
+    "draft": "Character check, retained draft 390 dark",
+    "focus": "source-content"
+  }
+]

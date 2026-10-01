@@ -1,0 +1,8 @@
+{
+  "overflow": false,
+  "source": "For constant speed, distance equals speed multiplied by elapsed time. Mira moves at 3 metres per second; Noor moves at 5. Both share the same elapsed time. Noor adds 2 more metres each second, so the gap grows by 2 metres for each second that passes.",
+  "staticMeaning": "Read the full explanation without the controls\n\nDistance = speed × elapsed time. At 6 seconds, Mira has travelled 3 × 6 = 18 metres. Noor has travelled 5 × 6 = 30 metres. Their gap is 30 − 18 = 12 metres.\n\nNoor travels 2 more metres each second, so gap = (5 − 3) × time = 2 × time. This holds because both start together, move in the same direction, and keep constant speed.\n\nUseful static values\nTime\tMira, 3 m/s\tNoor, 5 m/s\tGap\n0 s\t0 m\t0 m\t0 m\n4 s\t12 m\t20 m\t8 m\n6 s\t18 m\t30 m\t12 m\n12 s\t36 m\t60 m\t24 m\n\nReference: this original synthetic model assumes constant speed and a common start. Open the plain Markdown lesson.",
+  "staticOpen": true,
+  "toolsHidden": true,
+  "width": 390
+}

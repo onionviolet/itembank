@@ -1,0 +1,335 @@
+source-only: fresh app archives, sample builds and dependency installation are deferred
+ok      lint     
+ok      broken   
+skip    build    sample build deferred (--source-only)
+ok      guard    0 offending files
+ok      mirrors  
+ok      readme   ok: every README command token is a registered subcommand (56 registered)
+ok      schemas  ok: agent_usage.schema.json
+ok      vendored ok: pdfplumber (pin 0.11.10, deps/source-adapter-pins.txt)
+ok      paths    
+ok      summaries summaries: 205 present, 190 in baseline, 15 new
+run     tests    (slow)
+        [1/188] a2_question_families_roundtrip.py
+        [2/188] a3_course_tutor_roundtrip.py
+        [3/188] a3_course_workflows_roundtrip.py
+        [4/188] a4_source_recovery_roundtrip.py
+        [5/188] a5_inline_fields_roundtrip.py
+        deferred app build: a5_integrated_package_roundtrip.py
+        [7/188] a5_research_context_roundtrip.py
+        [8/188] a5_served_integration_roundtrip.py
+        [9/188] acceptance_tracer.py
+        [10/188] activity_declaration_check.py
+        [11/188] activity_graph_contract_roundtrip.py
+        [12/188] agent_lesson_revision_roundtrip.py
+        [13/188] agent_operation_roundtrip.py
+        [14/188] agent_roundtrip.py
+        [15/188] anki_keys_roundtrip.py
+        [16/188] assessment_authority_adversarial.py
+        [17/188] audio_export_roundtrip.py
+        [18/188] audit_authoring_roundtrip.py
+        [19/188] audit_cli_roundtrip.py
+        [20/188] audit_coverage_roundtrip.py
+        [21/188] audit_quality_roundtrip.py
+        [22/188] audit_roundtrip.py
+        [23/188] audit_writer_roundtrip.py
+        [24/188] binding_roundtrip.py
+        [25/188] blueprint_roundtrip.py
+        [26/188] capabilities_roundtrip.py
+        [27/188] capability_diagnostics_roundtrip.py
+        [28/188] capability_profile_check.py
+        [29/188] capability_stress_corpus_tracer.py
+        [30/188] check_disclosure_roundtrip.py
+        [31/188] check_kill_roundtrip.py
+        [32/188] check_roundtrip.py
+        [33/188] component_primitives_roundtrip.py
+        [34/188] config_roundtrip.py
+        [35/188] connected_unit_roundtrip.py
+        [36/188] course_assessment_area_roundtrip.py
+        [37/188] course_ops_roundtrip.py
+        [38/188] course_package_roundtrip.py
+        [39/188] course_preparation_prototype_roundtrip.py
+        [40/188] course_resume_roundtrip.py
+        [41/188] course_shell_roundtrip.py
+        [42/188] course_workbench_roundtrip.py
+        [43/188] cross_subject_suite_tracer.py
+        [44/188] daemon_discovery_roundtrip.py
+        [45/188] daemon_roundtrip.py
+        [46/188] day_edit_roundtrip.py
+        [47/188] day_roundtrip.py
+        [48/188] degraded_state_roundtrip.py
+        [49/188] desk_craft_roundtrip.py
+        [50/188] desk_experience_roundtrip.py
+        [51/188] diagram_roundtrip.py
+        [52/188] director_roundtrip.py
+        [53/188] discovery_cache_roundtrip.py
+        [54/188] due_roundtrip.py
+        [55/188] durability_roundtrip.py
+        [56/188] evidence_anchor_contract_roundtrip.py
+        [57/188] evidence_roundtrip.py
+        [58/188] extension_registry_roundtrip.py
+        [59/188] f1_inline_completion_roundtrip.py
+        [60/188] file_fault_tracer.py
+        [61/188] fill_roundtrip.py
+        [62/188] fill_surface_roundtrip.py
+        [63/188] formal_assessment_connected_roundtrip.py
+        [64/188] formal_exam_roundtrip.py
+        [65/188] four_subject_review.py
+        [66/188] gate_roundtrip.py
+        [67/188] gift_export_roundtrip.py
+        [68/188] graph_roundtrip.py
+        [69/188] guard_roundtrip.py
+        [70/188] hint_roundtrip.py
+        [71/188] home_roundtrip.py
+        [72/188] hotspot_roundtrip.py
+        [73/188] ia_route_roundtrip.py
+        [74/188] ia_storyboard_tracer.py
+        [75/188] identity_roundtrip.py
+        [76/188] import_roundtrip.py
+        [77/188] journal_roundtrip.py
+        [78/188] latex_input_roundtrip.py
+        [79/188] launcher_roundtrip.py
+        [80/188] legacy_upgrade_roundtrip.py
+        [81/188] lesson_code_roundtrip.py
+        [82/188] lesson_interaction_roundtrip.py
+        [83/188] lesson_progressive_roundtrip.py
+        [84/188] lesson_retention_roundtrip.py
+        [85/188] lesson_roundtrip.py
+        [86/188] lesson_run_roundtrip.py
+        [87/188] local_harness_roundtrip.py
+        [88/188] localization_render_check.py
+        [89/188] lti_roundtrip.py
+        [90/188] matching_workflow_roundtrip.py
+        deferred app build: math_offline_roundtrip.py
+        [92/188] mcp_roundtrip.py
+        [93/188] missed_review_roundtrip.py
+        [94/188] mock_exam_roundtrip.py
+        [95/188] mode_layer_roundtrip.py
+        [96/188] model_adapter_roundtrip.py
+        [97/188] model_evidence_roundtrip.py
+        [98/188] model_gate_roundtrip.py
+        [99/188] model_phase_roundtrip.py
+        [100/188] model_surface_roundtrip.py
+        [101/188] model_ui_roundtrip.py
+        [102/188] navigation_color_roundtrip.py
+        [103/188] note_promotion_roundtrip.py
+        [104/188] note_schema_roundtrip.py
+        [105/188] note_trio_roundtrip.py
+        [106/188] open_notebook_roundtrip.py
+        [107/188] operations_roundtrip.py
+        [108/188] ordering_authoring_roundtrip.py
+        [109/188] ordering_contract_roundtrip.py
+        [110/188] ordering_gate_roundtrip.py
+        [111/188] ordering_workflow_roundtrip.py
+        [112/188] ordinary_restore_atomicity_roundtrip.py
+        [113/188] output_mode_check.py
+        [114/188] paced_lesson_tracer.py
+        [115/188] paced_steps_roundtrip.py
+        [116/188] paced_view_roundtrip.py
+        [117/188] pacing_roundtrip.py
+        [118/188] package_fixture_inventory_roundtrip.py
+        deferred app build: packaging_roundtrip.py
+        [120/188] packaging_shell_roundtrip.py
+        [121/188] palette_check.py
+        [122/188] phase10_uat.py
+        [123/188] phase_031_audit.py
+        [124/188] phase_062_audit.py
+        [125/188] polynomial_checker_contract_roundtrip.py
+        [126/188] polynomial_production_roundtrip.py
+        [127/188] populated_restore_atomicity_roundtrip.py
+        [128/188] practice_review_roundtrip.py
+        [129/188] preflight_roundtrip.py
+        [130/188] presentation_profiles_roundtrip.py
+        [131/188] presentation_roundtrip.py
+        [132/188] progress_claim_roundtrip.py
+        [133/188] protocol_roundtrip.py
+        [134/188] question_workflow_recovery_roundtrip.py
+        [135/188] quiz_reference_continuity_roundtrip.py
+        [136/188] quiz_symbol_return_roundtrip.py
+        [137/188] reading_declarations_roundtrip.py
+        [138/188] reading_desk_roundtrip.py
+        [139/188] reading_graph_roundtrip.py
+        [140/188] reading_ops_roundtrip.py
+        [141/188] reading_package_roundtrip.py
+        [142/188] responsive_product_roundtrip.py
+        [143/188] retention_roundtrip.py
+        [144/188] retention_ui_roundtrip.py
+        [145/188] runner_verdict_roundtrip.py
+        [146/188] schema_bounds_roundtrip.py
+        [147/188] scoring_roundtrip.py
+        [148/188] seeding_roundtrip.py
+        [149/188] selection_retention_roundtrip.py
+        [150/188] selection_roundtrip.py
+        [151/188] serve_roundtrip.py
+        [152/188] settings_roundtrip.py
+        [153/188] source_adapters_roundtrip.py
+        [154/188] source_binding_surface_roundtrip.py
+        [155/188] source_locator_resolution_roundtrip.py
+        [156/188] staged_activity_contract_roundtrip.py
+        [157/188] staged_checker_continuity_roundtrip.py
+        [158/188] staged_checker_disclosure_roundtrip.py
+        [159/188] staged_checker_ui_roundtrip.py
+        [160/188] staged_parser_roundtrip.py
+        [161/188] staged_production_roundtrip.py
+        [162/188] storage_roundtrip.py
+        [163/188] strategy_precedence_roundtrip.py
+        [164/188] strategy_registry_roundtrip.py
+        [165/188] style_roundtrip.py
+        [166/188] stylesheet_roundtrip.py
+        [167/188] subject_loop_roundtrip.py
+        [168/188] surface_coverage_check.py
+        [169/188] surface_roundtrip.py
+        [170/188] task_ledger_roundtrip.py
+        [171/188] theme_roundtrip.py
+        [172/188] three_domain_tracer.py
+        [173/188] timeline_roundtrip.py
+        [174/188] trace_roundtrip.py
+        [175/188] true_false_roundtrip.py
+        [176/188] ui_overhaul_journey_roundtrip.py
+        [177/188] ui_overhaul_navigation_roundtrip.py
+        [178/188] ui_overhaul_visual_roundtrip.py
+        [179/188] ui_overhaul_workspace_roundtrip.py
+        [180/188] update_roundtrip.py
+        [181/188] vision_audit_roundtrip.py
+        [182/188] visual_accessibility_roundtrip.py
+        [183/188] visual_authoring_roundtrip.py
+        [184/188] visual_character_roundtrip.py
+        [185/188] visual_evidence_roundtrip.py
+        [186/188] visual_roundtrip.py
+        [187/188] visual_system_roundtrip.py
+        [188/188] workspace_roundtrip.py
+FAIL    tests    (CI step: Test suite)
+        == tests/paced_lesson_tracer.py
+          ok: ladder: rung 1 markers (4 steps), rung 2 heading slugs, rung 3 whole document
+          scenario_ladder                  passed  0.003s
+          ok: full sitting: step 1 of 3, tier 1/2 on the first wrong attempt, tier 3 reveal on the second, resume at step 2, TOC jump to step 3
+          scenario_full_sitting            passed  0.288s
+          ok: resume: an inserted earlier step leaves 'mechanism' resolvable; removing its marker fires the fallback line at step 1
+          scenario_resume_across_edit      passed  0.025s
+          ok: denominator: 5 rows, 2 lesson_run rows excluded, denominator 3
+          scenario_denominator             passed  0.001s
+          ok: exam contrast: exam and diagnostic checkpoints refused by name; the plain lesson route carries no paced chrome
+          scenario_exam_contrast           passed  0.008s
+          ok: rung 3: pace none, one step, the served plain page is byte-identical across two GETs
+          scenario_rung3_byte_identity     passed  0.014s
+          report: the fixture uses authored [STEP:] markers: True
+          ok: tier 1 non-triviality: 3 of 4 options remain unresolved after one wrong single pick
+          ok: reconsideration: marker-usage reported, tier 1 is not trivially solvable, no lesson_run row reaches a denominator unpoliced
+          scenario_reconsideration_probes  passed  0.003s
+        FAIL: tools/visual_qa.py did not report a clean matrix: "/Users/weiwei/Documents/Dev/itembank/tools/visual_qa.py", line 606, in main
+            browser = pw.chromium.launch(
+                channel=os.environ.get("ITEMBANK_VISUAL_QA_CHANNEL") or None)
+          File "/Users/weiwei/Library/Python/3.14/lib/python/site-packages/playwright/sync_api/_generated.py", line 16702, in launch
+            self._sync(
+            ~~~~~~~~~~^
+                self._impl_obj.launch(
+                ^^^^^^^^^^^^^^^^^^^^^^
+            ...<17 lines>...
+                )
+                ^
+            )
+            ^
+          File "/Users/weiwei/Library/Python/3.14/lib/python/site-packages/playwright/_impl/_sync_base.py", line 115, in _sync
+            return task.result()
+                   ~~~~~~~~~~~^^
+          File "/Users/weiwei/Library/Python/3.14/lib/python/site-packages/playwright/_impl/_browser_type.py", line 97, in launch
+            await self._channel.send(
+                "launch", TimeoutSettings.launch_timeout, params
+            )
+          File "/Users/weiwei/Library/Python/3.14/lib/python/site-packages/playwright/_impl/_connection.py", line 76, in send
+            return await self._connection.wrap_api_call(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            ...<3 lines>...
+            )
+            ^
+          File "/Users/weiwei/Library/Python/3.14/lib/python/site-packages/playwright/_impl/_connection.py", line 632, in wrap_api_call
+            raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+        playwright._impl._errors.Error: BrowserType.launch: Executable doesn't exist at /Users/weiwei/Library/Caches/ms-playwright/chromium_headless_shell-1234/chrome-headless-shell-mac-arm64/chrome-headless-shell
+        ╔════════════════════════════════════════════════════════════╗
+        ║ Looks like Playwright was just installed or updated.       ║
+        ║ Please run the following command to download new browsers: ║
+        ║                                                            ║
+        ║     playwright install                                     ║
+        ║                                                            ║
+        ║ <3 Playwright Team                                         ║
+        ╚════════════════════════════════════════════════════════════╝
+        
+          scenario_layout_leg              FAILED  0.559s
+        TRACER: 7 passed, 1 failed
+        elapsed: 0.905s
+        == tests/visual_accessibility_roundtrip.py
+        ok: modality equivalence: one serializer, one committed/tentative reducer
+        ok: commit boundary: explicit commits only; cancel/unchanged append nothing
+        ok: no canvas; SVG named and keyboard-operable; polite status region
+        ok: visual ActionStatus: one named exception with ordered alert lifecycle
+        ok: served public payloads carry no key/scoring/explanation material
+        ok: offline refusal: served_required flag, no key/scoring material, honest copy
+        ok: static build: visual items refuse loudly with no key/scoring material
+        ok: served page: asVisual + commit boundary + SVG + status region, no canvas
+        ok: draft autosave: served-only, text and scoped assignment controls, latest-edit restore, keyed by bank and item so a restart cannot orphan it
+        FAIL: visual_qa.py reported an unexpected matrix:
+        "/Users/weiwei/Documents/Dev/itembank/tools/visual_qa.py", line 606, in main
+            browser = pw.chromium.launch(
+                channel=os.environ.get("ITEMBANK_VISUAL_QA_CHANNEL") or None)
+          File "/Users/weiwei/Library/Python/3.14/lib/python/site-packages/playwright/sync_api/_generated.py", line 16702, in launch
+            self._sync(
+            ~~~~~~~~~~^
+                self._impl_obj.launch(
+                ^^^^^^^^^^^^^^^^^^^^^^
+            ...<17 lines>...
+                )
+                ^
+            )
+            ^
+          File "/Users/weiwei/Library/Python/3.14/lib/python/site-packages/playwright/_impl/_sync_base.py", line 115, in _sync
+            return task.result()
+                   ~~~~~~~~~~~^^
+          File "/Users/weiwei/Library/Python/3.14/lib/python/site-packages/playwright/_impl/_browser_type.py", line 97, in launch
+            await self._channel.send(
+                "launch", TimeoutSettings.launch_timeout, params
+            )
+          File "/Users/weiwei/Library/Python/3.14/lib/python/site-packages/playwright/_impl/_connection.py", line 76, in send
+            return await self._connection.wrap_api_call(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            ...<3 lines>...
+            )
+            ^
+          File "/Users/weiwei/Library/Python/3.14/lib/python/site-packages/playwright/_impl/_connection.py", line 632, in wrap_api_call
+            raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+        playwright._impl._errors.Error: BrowserType.launch: Executable doesn't exist at /Users/weiwei/Library/Caches/ms-playwright/chromium_headless_shell-1234/chrome-headless-shell-mac-arm64/chrome-headless-shell
+        ╔════════════════════════════════════════════════════════════╗
+        ║ Looks like Playwright was just installed or updated.       ║
+        ║ Please run the following command to download new browsers: ║
+        ║                                                            ║
+        ║     playwright install                                     ║
+        ║                                                            ║
+        ║ <3 Playwright Team                                         ║
+        ╚════════════════════════════════════════════════════════════╝
+run     clean    (slow)
+FAIL    clean    (CI step: The test suite left the working tree clean)
+        the suite left the working tree dirty:
+         M .planning/IDEA-LEDGER.md
+         M .planning/USER-VISION-INBOX.md
+         M .planning/USER-VISION.md
+         M .planning/research/ui-goal-review-2026-09-29.md
+         M surfaces/reading_desk.py
+        ?? .planning/research/ui-experience-parallel-2026-09-30.md
+        ?? prototypes/ui-experience-20260930/
+        
+        Write to a temp dir instead, or gate the write behind an explicit flag the way tests/file_fault_tracer.py does.
+        
+        diff --git a/.planning/IDEA-LEDGER.md b/.planning/IDEA-LEDGER.md
+        index 760e7c6..8d794f2 100644
+        --- a/.planning/IDEA-LEDGER.md
+        +++ b/.planning/IDEA-LEDGER.md
+        @@ -2910,3 +2910,25 @@ to undo this candidate.
+         **Disposition:** Registered UI extensions, Prototype new checking/composition behavior, and Backburner specialized adapters with named promotion triggers. Retain implementation intent across all rows. Existing fill and checker fixes stay under their implementation record. This extends IL-20260925-02 and IL-20260928-01 without erasing their history or accepting new scoring, schemas, dependencies or milestone scope.
+         
+         **Next action:** Reconcile the current baseline, then prepare one bounded existing-scorer completion/matching slice. Branching cases, executable Parsons and structured sketches remain subsequent prototype seeds. Recovery removes only this dated capture and its new owner file. No capability is rejected by this routing.
+        +
+run     js       (slow)
+ok      js       ✔ offline: inline sentence positions reuse labelled existing field controls (2.478125ms)
+ci-only -        Install pinned optional test dependencies
+ci-only -        Runtime output matches published schema
+
+preflight: FAILED on tests, clean.

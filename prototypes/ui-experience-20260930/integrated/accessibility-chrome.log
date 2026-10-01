@@ -1,0 +1,11 @@
+ok: modality equivalence: one serializer, one committed/tentative reducer
+ok: commit boundary: explicit commits only; cancel/unchanged append nothing
+ok: no canvas; SVG named and keyboard-operable; polite status region
+ok: visual ActionStatus: one named exception with ordered alert lifecycle
+ok: served public payloads carry no key/scoring/explanation material
+ok: offline refusal: served_required flag, no key/scoring material, honest copy
+ok: static build: visual items refuse loudly with no key/scoring material
+ok: served page: asVisual + commit boundary + SVG + status region, no canvas
+ok: draft autosave: served-only, text and scoped assignment controls, latest-edit restore, keyed by bank and item so a restart cannot orphan it
+ok: driven-browser matrix: 13 positive gates green in a real layout engine; the hover-only negative failed for the equivalence reason
+PASS visual_accessibility_roundtrip.py

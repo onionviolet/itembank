@@ -1,0 +1,83 @@
+[
+  {
+    "viewport": [
+      1440,
+      1000
+    ],
+    "theme": "light",
+    "overflow": false,
+    "journey": "read, manipulate, note, save, reference, return, prediction, return, reload, save failure",
+    "focus_return": true,
+    "note_restore": true,
+    "draft_on_failure": true,
+    "keyboard_resize": true,
+    "page_errors": []
+  },
+  {
+    "viewport": [
+      1440,
+      1000
+    ],
+    "theme": "dark",
+    "overflow": false,
+    "journey": "read, manipulate, note, save, reference, return, prediction, return, reload, save failure",
+    "focus_return": true,
+    "note_restore": true,
+    "draft_on_failure": true,
+    "keyboard_resize": true,
+    "page_errors": []
+  },
+  {
+    "viewport": [
+      390,
+      844
+    ],
+    "theme": "light",
+    "overflow": false,
+    "journey": "read, manipulate, note, save, reference, return, prediction, return, reload, save failure",
+    "focus_return": true,
+    "note_restore": true,
+    "draft_on_failure": true,
+    "keyboard_resize": false,
+    "page_errors": []
+  },
+  {
+    "viewport": [
+      390,
+      844
+    ],
+    "theme": "dark",
+    "overflow": false,
+    "journey": "read, manipulate, note, save, reference, return, prediction, return, reload, save failure",
+    "focus_return": true,
+    "note_restore": true,
+    "draft_on_failure": true,
+    "keyboard_resize": false,
+    "page_errors": []
+  },
+  {
+    "viewport": [
+      320,
+      844
+    ],
+    "overflow": false,
+    "keyboard_time_control": true
+  },
+  {
+    "viewport": [
+      768,
+      844
+    ],
+    "overflow": false,
+    "keyboard_time_control": true
+  },
+  {
+    "viewport": [
+      390,
+      844
+    ],
+    "javascript": false,
+    "static_meaning": true,
+    "overflow": false
+  }
+]

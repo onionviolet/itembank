@@ -1,0 +1,20 @@
+  ok: ladder: rung 1 markers (4 steps), rung 2 heading slugs, rung 3 whole document
+  scenario_ladder                  passed  0.006s
+  ok: full sitting: step 1 of 3, tier 1/2 on the first wrong attempt, tier 3 reveal on the second, resume at step 2, TOC jump to step 3
+  scenario_full_sitting            passed  0.315s
+  ok: resume: an inserted earlier step leaves 'mechanism' resolvable; removing its marker fires the fallback line at step 1
+  scenario_resume_across_edit      passed  0.030s
+  ok: denominator: 5 rows, 2 lesson_run rows excluded, denominator 3
+  scenario_denominator             passed  0.001s
+  ok: exam contrast: exam and diagnostic checkpoints refused by name; the plain lesson route carries no paced chrome
+  scenario_exam_contrast           passed  0.011s
+  ok: rung 3: pace none, one step, the served plain page is byte-identical across two GETs
+  scenario_rung3_byte_identity     passed  0.020s
+  report: the fixture uses authored [STEP:] markers: True
+  ok: tier 1 non-triviality: 3 of 4 options remain unresolved after one wrong single pick
+  ok: reconsideration: marker-usage reported, tier 1 is not trivially solvable, no lesson_run row reaches a denominator unpoliced
+  scenario_reconsideration_probes  passed  0.001s
+  ok: layout leg: tools/visual_qa.py reported a clean matrix
+  scenario_layout_leg              passed  9.477s
+TRACER: 8 passed, 0 failed
+elapsed: 9.865s

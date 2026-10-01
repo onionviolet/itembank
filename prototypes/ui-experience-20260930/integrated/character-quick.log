@@ -1,0 +1,18 @@
+source-only: fresh app archives, sample builds and dependency installation are deferred
+ok      lint     
+ok      broken   
+skip    build    sample build deferred (--source-only)
+ok      guard    0 offending files
+ok      mirrors  
+ok      readme   ok: every README command token is a registered subcommand (56 registered)
+ok      schemas  ok: agent_usage.schema.json
+ok      vendored ok: pdfplumber (pin 0.11.10, deps/source-adapter-pins.txt)
+ok      paths    
+ok      summaries summaries: 205 present, 190 in baseline, 15 new
+skip    tests    (--quick)
+skip    clean    (--quick)
+skip    js       (--quick)
+ci-only -        Install pinned optional test dependencies
+ci-only -        Runtime output matches published schema
+
+preflight: every gate that ran passed (build, tests, clean, js skipped).

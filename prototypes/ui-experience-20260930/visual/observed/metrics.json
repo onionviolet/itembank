@@ -1,0 +1,1010 @@
+[
+  {
+    "composition": "atlas",
+    "theme": "light",
+    "width": 1440,
+    "overflow": 0,
+    "scheme": "light",
+    "fontLoaded": true,
+    "targets": [
+      {
+        "name": "Learn",
+        "height": 44
+      },
+      {
+        "name": "Practice",
+        "height": 44
+      },
+      {
+        "name": "Sources",
+        "height": 44
+      },
+      {
+        "name": "Notes",
+        "height": 44
+      },
+      {
+        "name": "A · Field AtlasB · Motion StudioCurrent ",
+        "height": 44
+      },
+      {
+        "name": "LightDark",
+        "height": 44
+      },
+      {
+        "name": "Why distance grows with time",
+        "height": 44
+      },
+      {
+        "name": "",
+        "height": 44
+      },
+      {
+        "name": "Reset",
+        "height": 44
+      },
+      {
+        "name": "6 s",
+        "height": 44
+      },
+      {
+        "name": "12 s",
+        "height": 44
+      },
+      {
+        "name": "Both distances double.",
+        "height": 44
+      },
+      {
+        "name": "Both distances stay the same.",
+        "height": 44
+      },
+      {
+        "name": "Compare at 12 seconds →",
+        "height": 44
+      },
+      {
+        "name": "Read source excerpt",
+        "height": 44
+      },
+      {
+        "name": "Read source context",
+        "height": 44
+      },
+      {
+        "name": "Private note Empty",
+        "height": 44
+      },
+      {
+        "name": "Open demo practice →",
+        "height": 44
+      }
+    ],
+    "motion": "0s",
+    "detourDraftsRetained": true
+  },
+  {
+    "composition": "atlas",
+    "theme": "light",
+    "width": 390,
+    "overflow": 0,
+    "scheme": "light",
+    "fontLoaded": true,
+    "targets": [
+      {
+        "name": "Learn",
+        "height": 44
+      },
+      {
+        "name": "Practice",
+        "height": 44
+      },
+      {
+        "name": "Sources",
+        "height": 44
+      },
+      {
+        "name": "Notes",
+        "height": 44
+      },
+      {
+        "name": "A · Field AtlasB · Motion StudioCurrent ",
+        "height": 44
+      },
+      {
+        "name": "LightDark",
+        "height": 44
+      },
+      {
+        "name": "Why distance grows with time",
+        "height": 44
+      },
+      {
+        "name": "",
+        "height": 44
+      },
+      {
+        "name": "Reset",
+        "height": 44
+      },
+      {
+        "name": "6 s",
+        "height": 44
+      },
+      {
+        "name": "12 s",
+        "height": 44
+      },
+      {
+        "name": "Both distances double.",
+        "height": 44
+      },
+      {
+        "name": "Both distances stay the same.",
+        "height": 44
+      },
+      {
+        "name": "Compare at 12 seconds →",
+        "height": 44
+      },
+      {
+        "name": "Read source excerpt",
+        "height": 44
+      },
+      {
+        "name": "Read source context",
+        "height": 44
+      },
+      {
+        "name": "Private note Empty",
+        "height": 44
+      },
+      {
+        "name": "Open demo practice →",
+        "height": 44
+      }
+    ],
+    "motion": "0s",
+    "detourDraftsRetained": true
+  },
+  {
+    "composition": "atlas",
+    "theme": "dark",
+    "width": 1440,
+    "overflow": 0,
+    "scheme": "dark",
+    "fontLoaded": true,
+    "targets": [
+      {
+        "name": "Learn",
+        "height": 44
+      },
+      {
+        "name": "Practice",
+        "height": 44
+      },
+      {
+        "name": "Sources",
+        "height": 44
+      },
+      {
+        "name": "Notes",
+        "height": 44
+      },
+      {
+        "name": "A · Field AtlasB · Motion StudioCurrent ",
+        "height": 44
+      },
+      {
+        "name": "LightDark",
+        "height": 44
+      },
+      {
+        "name": "Why distance grows with time",
+        "height": 44
+      },
+      {
+        "name": "",
+        "height": 44
+      },
+      {
+        "name": "Reset",
+        "height": 44
+      },
+      {
+        "name": "6 s",
+        "height": 44
+      },
+      {
+        "name": "12 s",
+        "height": 44
+      },
+      {
+        "name": "Both distances double.",
+        "height": 44
+      },
+      {
+        "name": "Both distances stay the same.",
+        "height": 44
+      },
+      {
+        "name": "Compare at 12 seconds →",
+        "height": 44
+      },
+      {
+        "name": "Read source excerpt",
+        "height": 44
+      },
+      {
+        "name": "Read source context",
+        "height": 44
+      },
+      {
+        "name": "Private note Empty",
+        "height": 44
+      },
+      {
+        "name": "Open demo practice →",
+        "height": 44
+      }
+    ],
+    "motion": "0s",
+    "detourDraftsRetained": true
+  },
+  {
+    "composition": "atlas",
+    "theme": "dark",
+    "width": 390,
+    "overflow": 0,
+    "scheme": "dark",
+    "fontLoaded": true,
+    "targets": [
+      {
+        "name": "Learn",
+        "height": 44
+      },
+      {
+        "name": "Practice",
+        "height": 44
+      },
+      {
+        "name": "Sources",
+        "height": 44
+      },
+      {
+        "name": "Notes",
+        "height": 44
+      },
+      {
+        "name": "A · Field AtlasB · Motion StudioCurrent ",
+        "height": 44
+      },
+      {
+        "name": "LightDark",
+        "height": 44
+      },
+      {
+        "name": "Why distance grows with time",
+        "height": 44
+      },
+      {
+        "name": "",
+        "height": 44
+      },
+      {
+        "name": "Reset",
+        "height": 44
+      },
+      {
+        "name": "6 s",
+        "height": 44
+      },
+      {
+        "name": "12 s",
+        "height": 44
+      },
+      {
+        "name": "Both distances double.",
+        "height": 44
+      },
+      {
+        "name": "Both distances stay the same.",
+        "height": 44
+      },
+      {
+        "name": "Compare at 12 seconds →",
+        "height": 44
+      },
+      {
+        "name": "Read source excerpt",
+        "height": 44
+      },
+      {
+        "name": "Read source context",
+        "height": 44
+      },
+      {
+        "name": "Private note Empty",
+        "height": 44
+      },
+      {
+        "name": "Open demo practice →",
+        "height": 44
+      }
+    ],
+    "motion": "0s",
+    "detourDraftsRetained": true
+  },
+  {
+    "composition": "studio",
+    "theme": "light",
+    "width": 1440,
+    "overflow": 0,
+    "scheme": "light",
+    "fontLoaded": true,
+    "targets": [
+      {
+        "name": "Learn",
+        "height": 44
+      },
+      {
+        "name": "Practice",
+        "height": 44
+      },
+      {
+        "name": "Sources",
+        "height": 44
+      },
+      {
+        "name": "Notes",
+        "height": 44
+      },
+      {
+        "name": "A · Field AtlasB · Motion StudioCurrent ",
+        "height": 44
+      },
+      {
+        "name": "LightDark",
+        "height": 44
+      },
+      {
+        "name": "Why distance grows with time",
+        "height": 44
+      },
+      {
+        "name": "",
+        "height": 44
+      },
+      {
+        "name": "Reset",
+        "height": 44
+      },
+      {
+        "name": "6 s",
+        "height": 44
+      },
+      {
+        "name": "12 s",
+        "height": 44
+      },
+      {
+        "name": "Both distances double.",
+        "height": 44
+      },
+      {
+        "name": "Both distances stay the same.",
+        "height": 44
+      },
+      {
+        "name": "Compare at 12 seconds →",
+        "height": 44
+      },
+      {
+        "name": "Read source excerpt",
+        "height": 44
+      },
+      {
+        "name": "Read source context",
+        "height": 44
+      },
+      {
+        "name": "Private note Empty",
+        "height": 44
+      },
+      {
+        "name": "Open demo practice →",
+        "height": 44
+      }
+    ],
+    "motion": "0s",
+    "detourDraftsRetained": true
+  },
+  {
+    "composition": "studio",
+    "theme": "light",
+    "width": 390,
+    "overflow": 0,
+    "scheme": "light",
+    "fontLoaded": true,
+    "targets": [
+      {
+        "name": "Learn",
+        "height": 44
+      },
+      {
+        "name": "Practice",
+        "height": 44
+      },
+      {
+        "name": "Sources",
+        "height": 44
+      },
+      {
+        "name": "Notes",
+        "height": 44
+      },
+      {
+        "name": "A · Field AtlasB · Motion StudioCurrent ",
+        "height": 44
+      },
+      {
+        "name": "LightDark",
+        "height": 44
+      },
+      {
+        "name": "Why distance grows with time",
+        "height": 44
+      },
+      {
+        "name": "",
+        "height": 44
+      },
+      {
+        "name": "Reset",
+        "height": 44
+      },
+      {
+        "name": "6 s",
+        "height": 44
+      },
+      {
+        "name": "12 s",
+        "height": 44
+      },
+      {
+        "name": "Both distances double.",
+        "height": 44
+      },
+      {
+        "name": "Both distances stay the same.",
+        "height": 44
+      },
+      {
+        "name": "Compare at 12 seconds →",
+        "height": 44
+      },
+      {
+        "name": "Read source excerpt",
+        "height": 44
+      },
+      {
+        "name": "Read source context",
+        "height": 44
+      },
+      {
+        "name": "Private note Empty",
+        "height": 44
+      },
+      {
+        "name": "Open demo practice →",
+        "height": 44
+      }
+    ],
+    "motion": "0s",
+    "detourDraftsRetained": true
+  },
+  {
+    "composition": "studio",
+    "theme": "dark",
+    "width": 1440,
+    "overflow": 0,
+    "scheme": "dark",
+    "fontLoaded": true,
+    "targets": [
+      {
+        "name": "Learn",
+        "height": 44
+      },
+      {
+        "name": "Practice",
+        "height": 44
+      },
+      {
+        "name": "Sources",
+        "height": 44
+      },
+      {
+        "name": "Notes",
+        "height": 44
+      },
+      {
+        "name": "A · Field AtlasB · Motion StudioCurrent ",
+        "height": 44
+      },
+      {
+        "name": "LightDark",
+        "height": 44
+      },
+      {
+        "name": "Why distance grows with time",
+        "height": 44
+      },
+      {
+        "name": "",
+        "height": 44
+      },
+      {
+        "name": "Reset",
+        "height": 44
+      },
+      {
+        "name": "6 s",
+        "height": 44
+      },
+      {
+        "name": "12 s",
+        "height": 44
+      },
+      {
+        "name": "Both distances double.",
+        "height": 44
+      },
+      {
+        "name": "Both distances stay the same.",
+        "height": 44
+      },
+      {
+        "name": "Compare at 12 seconds →",
+        "height": 44
+      },
+      {
+        "name": "Read source excerpt",
+        "height": 44
+      },
+      {
+        "name": "Read source context",
+        "height": 44
+      },
+      {
+        "name": "Private note Empty",
+        "height": 44
+      },
+      {
+        "name": "Open demo practice →",
+        "height": 44
+      }
+    ],
+    "motion": "0s",
+    "detourDraftsRetained": true
+  },
+  {
+    "composition": "studio",
+    "theme": "dark",
+    "width": 390,
+    "overflow": 0,
+    "scheme": "dark",
+    "fontLoaded": true,
+    "targets": [
+      {
+        "name": "Learn",
+        "height": 44
+      },
+      {
+        "name": "Practice",
+        "height": 44
+      },
+      {
+        "name": "Sources",
+        "height": 44
+      },
+      {
+        "name": "Notes",
+        "height": 44
+      },
+      {
+        "name": "A · Field AtlasB · Motion StudioCurrent ",
+        "height": 44
+      },
+      {
+        "name": "LightDark",
+        "height": 44
+      },
+      {
+        "name": "Why distance grows with time",
+        "height": 44
+      },
+      {
+        "name": "",
+        "height": 44
+      },
+      {
+        "name": "Reset",
+        "height": 44
+      },
+      {
+        "name": "6 s",
+        "height": 44
+      },
+      {
+        "name": "12 s",
+        "height": 44
+      },
+      {
+        "name": "Both distances double.",
+        "height": 44
+      },
+      {
+        "name": "Both distances stay the same.",
+        "height": 44
+      },
+      {
+        "name": "Compare at 12 seconds →",
+        "height": 44
+      },
+      {
+        "name": "Read source excerpt",
+        "height": 44
+      },
+      {
+        "name": "Read source context",
+        "height": 44
+      },
+      {
+        "name": "Private note Empty",
+        "height": 44
+      },
+      {
+        "name": "Open demo practice →",
+        "height": 44
+      }
+    ],
+    "motion": "0s",
+    "detourDraftsRetained": true
+  },
+  {
+    "composition": "baseline",
+    "theme": "light",
+    "width": 1440,
+    "overflow": 0,
+    "scheme": "light",
+    "fontLoaded": true,
+    "targets": [
+      {
+        "name": "Learn",
+        "height": 44
+      },
+      {
+        "name": "Practice",
+        "height": 44
+      },
+      {
+        "name": "Sources",
+        "height": 44
+      },
+      {
+        "name": "Notes",
+        "height": 44
+      },
+      {
+        "name": "A · Field AtlasB · Motion StudioCurrent ",
+        "height": 44
+      },
+      {
+        "name": "LightDark",
+        "height": 44
+      },
+      {
+        "name": "Why distance grows with time",
+        "height": 44
+      },
+      {
+        "name": "",
+        "height": 44
+      },
+      {
+        "name": "Reset",
+        "height": 44
+      },
+      {
+        "name": "6 s",
+        "height": 44
+      },
+      {
+        "name": "12 s",
+        "height": 44
+      },
+      {
+        "name": "Both distances double.",
+        "height": 44
+      },
+      {
+        "name": "Both distances stay the same.",
+        "height": 44
+      },
+      {
+        "name": "Compare at 12 seconds →",
+        "height": 44
+      },
+      {
+        "name": "Read source excerpt",
+        "height": 44
+      },
+      {
+        "name": "Read source context",
+        "height": 44
+      },
+      {
+        "name": "Private note Empty",
+        "height": 44
+      },
+      {
+        "name": "Open demo practice →",
+        "height": 44
+      }
+    ],
+    "motion": "0s",
+    "detourDraftsRetained": true
+  },
+  {
+    "composition": "baseline",
+    "theme": "light",
+    "width": 390,
+    "overflow": 0,
+    "scheme": "light",
+    "fontLoaded": true,
+    "targets": [
+      {
+        "name": "Learn",
+        "height": 44
+      },
+      {
+        "name": "Practice",
+        "height": 44
+      },
+      {
+        "name": "Sources",
+        "height": 44
+      },
+      {
+        "name": "Notes",
+        "height": 44
+      },
+      {
+        "name": "A · Field AtlasB · Motion StudioCurrent ",
+        "height": 44
+      },
+      {
+        "name": "LightDark",
+        "height": 44
+      },
+      {
+        "name": "Why distance grows with time",
+        "height": 44
+      },
+      {
+        "name": "",
+        "height": 44
+      },
+      {
+        "name": "Reset",
+        "height": 44
+      },
+      {
+        "name": "6 s",
+        "height": 44
+      },
+      {
+        "name": "12 s",
+        "height": 44
+      },
+      {
+        "name": "Both distances double.",
+        "height": 44
+      },
+      {
+        "name": "Both distances stay the same.",
+        "height": 44
+      },
+      {
+        "name": "Compare at 12 seconds →",
+        "height": 44
+      },
+      {
+        "name": "Read source excerpt",
+        "height": 44
+      },
+      {
+        "name": "Read source context",
+        "height": 44
+      },
+      {
+        "name": "Private note Empty",
+        "height": 44
+      },
+      {
+        "name": "Open demo practice →",
+        "height": 44
+      }
+    ],
+    "motion": "0s",
+    "detourDraftsRetained": true
+  },
+  {
+    "composition": "baseline",
+    "theme": "dark",
+    "width": 1440,
+    "overflow": 0,
+    "scheme": "dark",
+    "fontLoaded": true,
+    "targets": [
+      {
+        "name": "Learn",
+        "height": 44
+      },
+      {
+        "name": "Practice",
+        "height": 44
+      },
+      {
+        "name": "Sources",
+        "height": 44
+      },
+      {
+        "name": "Notes",
+        "height": 44
+      },
+      {
+        "name": "A · Field AtlasB · Motion StudioCurrent ",
+        "height": 44
+      },
+      {
+        "name": "LightDark",
+        "height": 44
+      },
+      {
+        "name": "Why distance grows with time",
+        "height": 44
+      },
+      {
+        "name": "",
+        "height": 44
+      },
+      {
+        "name": "Reset",
+        "height": 44
+      },
+      {
+        "name": "6 s",
+        "height": 44
+      },
+      {
+        "name": "12 s",
+        "height": 44
+      },
+      {
+        "name": "Both distances double.",
+        "height": 44
+      },
+      {
+        "name": "Both distances stay the same.",
+        "height": 44
+      },
+      {
+        "name": "Compare at 12 seconds →",
+        "height": 44
+      },
+      {
+        "name": "Read source excerpt",
+        "height": 44
+      },
+      {
+        "name": "Read source context",
+        "height": 44
+      },
+      {
+        "name": "Private note Empty",
+        "height": 44
+      },
+      {
+        "name": "Open demo practice →",
+        "height": 44
+      }
+    ],
+    "motion": "0s",
+    "detourDraftsRetained": true
+  },
+  {
+    "composition": "baseline",
+    "theme": "dark",
+    "width": 390,
+    "overflow": 0,
+    "scheme": "dark",
+    "fontLoaded": true,
+    "targets": [
+      {
+        "name": "Learn",
+        "height": 44
+      },
+      {
+        "name": "Practice",
+        "height": 44
+      },
+      {
+        "name": "Sources",
+        "height": 44
+      },
+      {
+        "name": "Notes",
+        "height": 44
+      },
+      {
+        "name": "A · Field AtlasB · Motion StudioCurrent ",
+        "height": 44
+      },
+      {
+        "name": "LightDark",
+        "height": 44
+      },
+      {
+        "name": "Why distance grows with time",
+        "height": 44
+      },
+      {
+        "name": "",
+        "height": 44
+      },
+      {
+        "name": "Reset",
+        "height": 44
+      },
+      {
+        "name": "6 s",
+        "height": 44
+      },
+      {
+        "name": "12 s",
+        "height": 44
+      },
+      {
+        "name": "Both distances double.",
+        "height": 44
+      },
+      {
+        "name": "Both distances stay the same.",
+        "height": 44
+      },
+      {
+        "name": "Compare at 12 seconds →",
+        "height": 44
+      },
+      {
+        "name": "Read source excerpt",
+        "height": 44
+      },
+      {
+        "name": "Read source context",
+        "height": 44
+      },
+      {
+        "name": "Private note Empty",
+        "height": 44
+      },
+      {
+        "name": "Open demo practice →",
+        "height": 44
+      }
+    ],
+    "motion": "0s",
+    "detourDraftsRetained": true
+  }
+]

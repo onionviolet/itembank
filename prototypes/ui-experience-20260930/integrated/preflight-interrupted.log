@@ -1,0 +1,72 @@
+source-only: fresh app archives, sample builds and dependency installation are deferred
+ok      lint     
+ok      broken   
+skip    build    sample build deferred (--source-only)
+ok      guard    0 offending files
+ok      mirrors  
+ok      readme   ok: every README command token is a registered subcommand (56 registered)
+ok      schemas  ok: agent_usage.schema.json
+ok      vendored ok: pdfplumber (pin 0.11.10, deps/source-adapter-pins.txt)
+ok      paths    
+ok      summaries summaries: 205 present, 190 in baseline, 15 new
+run     tests    (slow)
+        [1/188] a2_question_families_roundtrip.py
+        [2/188] a3_course_tutor_roundtrip.py
+        [3/188] a3_course_workflows_roundtrip.py
+        [4/188] a4_source_recovery_roundtrip.py
+        [5/188] a5_inline_fields_roundtrip.py
+        deferred app build: a5_integrated_package_roundtrip.py
+        [7/188] a5_research_context_roundtrip.py
+        [8/188] a5_served_integration_roundtrip.py
+        [9/188] acceptance_tracer.py
+        [10/188] activity_declaration_check.py
+        [11/188] activity_graph_contract_roundtrip.py
+        [12/188] agent_lesson_revision_roundtrip.py
+        [13/188] agent_operation_roundtrip.py
+        [14/188] agent_roundtrip.py
+        [15/188] anki_keys_roundtrip.py
+        [16/188] assessment_authority_adversarial.py
+        [17/188] audio_export_roundtrip.py
+        [18/188] audit_authoring_roundtrip.py
+        [19/188] audit_cli_roundtrip.py
+        [20/188] audit_coverage_roundtrip.py
+        [21/188] audit_quality_roundtrip.py
+        [22/188] audit_roundtrip.py
+        [23/188] audit_writer_roundtrip.py
+        [24/188] binding_roundtrip.py
+        [25/188] blueprint_roundtrip.py
+        [26/188] capabilities_roundtrip.py
+        [27/188] capability_diagnostics_roundtrip.py
+        [28/188] capability_profile_check.py
+        [29/188] capability_stress_corpus_tracer.py
+        [30/188] check_disclosure_roundtrip.py
+        [31/188] check_kill_roundtrip.py
+        [32/188] check_roundtrip.py
+        [33/188] component_primitives_roundtrip.py
+        [34/188] config_roundtrip.py
+        [35/188] connected_unit_roundtrip.py
+        [36/188] course_assessment_area_roundtrip.py
+        [37/188] course_ops_roundtrip.py
+        [38/188] course_package_roundtrip.py
+        [39/188] course_preparation_prototype_roundtrip.py
+        [40/188] course_resume_roundtrip.py
+        [41/188] course_shell_roundtrip.py
+        [42/188] course_workbench_roundtrip.py
+        [43/188] cross_subject_suite_tracer.py
+        [44/188] daemon_discovery_roundtrip.py
+        [45/188] daemon_roundtrip.py
+        [46/188] day_edit_roundtrip.py
+        [47/188] day_roundtrip.py
+        [48/188] degraded_state_roundtrip.py
+        [49/188] desk_craft_roundtrip.py
+        [50/188] desk_experience_roundtrip.py
+        [51/188] diagram_roundtrip.py
+        [52/188] director_roundtrip.py
+        [53/188] discovery_cache_roundtrip.py
+        [54/188] due_roundtrip.py
+        [55/188] durability_roundtrip.py
+        [56/188] evidence_anchor_contract_roundtrip.py
+        [57/188] evidence_roundtrip.py
+        [58/188] extension_registry_roundtrip.py
+        [59/188] f1_inline_completion_roundtrip.py
+        [60/188] file_fault_tracer.py
