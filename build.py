@@ -257,7 +257,13 @@ def copy_stable_artifact(artifact, out_dir):
 def main():
     ap = argparse.ArgumentParser(description="Build the itembank release artifact.")
     ap.add_argument("--out", default="dist", help="output directory (default: dist)")
+    ap.add_argument("--checksums-only", action="store_true",
+                    help="Refresh checksums after installer creation without rebuilding artifacts")
     a = ap.parse_args()
+
+    if a.checksums_only:
+        print("Checksums refreshed: %s" % sha256sums(a.out))
+        return 0
 
     artifact = build(a.out)
     print("%d bytes -> %s" % (os.path.getsize(artifact), artifact))

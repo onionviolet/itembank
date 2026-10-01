@@ -64,5 +64,9 @@ hdiutil create \
   "$OUT/itembank-$(uname -m).dmg"
 hdiutil verify "$OUT/itembank-$(uname -m).dmg"
 
+# The portable build runs before the installer exists or replaces older bytes.
+# Cover the final installer without changing the verified runtime archive.
+python3 build.py --out "$OUT" --checksums-only
+
 echo "App: $OUT/itembank.app"
 echo "Installer: $OUT/itembank-$(uname -m).dmg"

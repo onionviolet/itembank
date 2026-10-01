@@ -175,6 +175,28 @@ def test_checksums_cover_every_artifact(out_dir, artifact):
         fail("SHA256SUMS.txt does not list the .pyz artifact")
 
 
+def test_final_installer_checksum_refresh(out_dir, artifact):
+    """A later installer replacement must not leave its old checksum behind."""
+    installer = os.path.join(out_dir, "itembank-synthetic.dmg")
+    with open(installer, "wb") as stream:
+        stream.write(b"old synthetic installer")
+    build.sha256sums(out_dir)
+    with open(installer, "wb") as stream:
+        stream.write(b"final synthetic installer")
+    archive_before = hashlib.sha256(open(artifact, "rb").read()).hexdigest()
+    result = subprocess.run([sys.executable, os.path.join(ROOT, "build.py"),
+                             "--out", out_dir, "--checksums-only"],
+                            capture_output=True, text=True)
+    if result.returncode:
+        fail("final installer checksum refresh failed: " + result.stderr)
+    listed = dict(line.split("  ", 1)[::-1] for line in
+                  open(os.path.join(out_dir, "SHA256SUMS.txt"), encoding="utf-8").read().splitlines())
+    if listed.get(os.path.basename(installer)) != hashlib.sha256(open(installer, "rb").read()).hexdigest():
+        fail("final installer checksum still names the old bytes")
+    if hashlib.sha256(open(artifact, "rb").read()).hexdigest() != archive_before:
+        fail("checksum refresh unexpectedly rebuilt the verified archive")
+
+
 def test_stable_launcher_artifact_ships(out_dir):
     """The regression this phase actually shipped: every launcher shim names
     `itembank.pyz`, and the release directory must contain exactly the
@@ -675,6 +697,7 @@ def main():
         test_no_evidence_or_bank_in_the_artifact(artifact)
         test_vendored_katex_in_the_artifact(artifact)
         test_checksums_cover_every_artifact(out_dir, artifact)
+        test_final_installer_checksum_refresh(out_dir, artifact)
         test_stable_launcher_artifact_ships(out_dir)
         test_every_launcher_ships(out_dir)
         test_launchers_carry_the_locked_failure_sentence()
