@@ -1158,10 +1158,13 @@ def check_resource_link_player_public_item():
             fail("player CSP %r is not the frame-ancestors origin" % csp)
         page = body.decode("utf-8", "replace")
         for forbidden in ("CORRECT:", "WHY BEST", "KEY DISCRIMINATOR",
-                          "DISTRACTOR ANALYSIS", "explain_payload",
-                          "answer_text"):
+                          "DISTRACTOR ANALYSIS", "explain_payload"):
             if forbidden in page:
                 fail("player page leaks %r before a recorded response" % forbidden)
+        # The client may name a released feedback property without carrying
+        # its value. Refuse an embedded keyed payload, not the consumer code.
+        if re.search(r'''["']answer_text["']\s*:''', page):
+            fail("player page embeds answer_text before a recorded response")
         # The rendered framing text is the verbatim privacy line (HTML entity
         # encoding of the apostrophe is a rendering detail, not a copy edit).
         if lti.PRIVACY_LINE not in html.unescape(page):

@@ -61,6 +61,15 @@ are machine-local under `.reasonix/main-app-update-20260930/`. Remote CI owns
 the combined final-HEAD and CI-only checks; inspect its actual run outcome,
 not the source-only coordinator result, before claiming those gates.
 
+The first source CI run reached the pinned LTI harness and failed because its
+page assertion matched the new feedback consumer's JavaScript property name
+`answer_text`, rather than an embedded keyed value. The assertion now refuses
+serialized answer payloads while retaining the exact public-item and gated
+feedback HTTP checks. All 24 LTI checks pass locally with the same pinned
+cryptography/PyJWT dependencies. This correction changes tests only, so it
+does not alter installed runtime bytes. The superseded pre-repair run was
+cancelled; the final main run remains the authoritative combined gate.
+
 ## Cleanup and recovery
 
 Removed from active build locations through recoverable Trash: the 2.2 GiB
