@@ -2910,3 +2910,64 @@ to undo this candidate.
 **Disposition:** Registered UI extensions, Prototype new checking/composition behavior, and Backburner specialized adapters with named promotion triggers. Retain implementation intent across all rows. Existing fill and checker fixes stay under their implementation record. This extends IL-20260925-02 and IL-20260928-01 without erasing their history or accepting new scoring, schemas, dependencies or milestone scope.
 
 **Next action:** Reconcile the current baseline, then prepare one bounded existing-scorer completion/matching slice. Branching cases, executable Parsons and structured sketches remain subsequent prototype seeds. Recovery removes only this dated capture and its new owner file. No capability is rejected by this routing.
+
+### IL-20260930-01: visual experience before test-count progress
+
+- **Origin:** [the exact request](USER-VISION.md#2026-09-30-prioritize-visual-experience-and-richer-app-inspiration).
+- **Core:** visual composition and interaction quality lead UI iteration;
+  necessary correctness/recovery checks support it. Do not use test counts as
+  evidence of visual acceptance.
+- **Prototype:** richer teaching interactions, spatial concept/source views,
+  resizable reading/reference/note panes, contextual actions, worked-example
+  steps and code traces. These are interpretations and candidates, not a user
+  commitment to each feature.
+- **Owner and evidence:** [the UI goal owner](research/ui-goal-review-2026-09-29.md#visual-experience-priority-september-30).
+  User priority is direct evidence; proposed transfers from Linear, Brilliant
+  and Obsidian are recommendations from current primary-source descriptions.
+  No live donor interaction, itembank visual comparison or human acceptance ran.
+- **Dependencies and costs:** current source-preview baseline, existing teaching
+  and authority contracts, visual iteration time and accessible interaction
+  implementation. A same-content comparison and complete learner task precede
+  promotion of individual richer capabilities.
+- **Recovery:** remove only these dated record additions. Preserve source,
+  prior directions and concurrent work. No idea rejected, source changed,
+  commit made or app installed by this capture.
+
+### IL-20260930-02: preserve character during visual refinement
+
+- **Origin:** [the exact comparison feedback](USER-VISION.md#2026-09-30-retain-personality-while-improving-the-workspace).
+- **Disposition:** Prototype, restore source/note color roles, stronger reading
+  typography and varied control treatment in the current workspace. Subject
+  visuals and activity-specific composition remain retained prototype routes.
+- **Owner:** [visual iteration packet](research/ui-experience-parallel-2026-09-30.md).
+- **Evidence:** direct user preference for slightly more earlier personality;
+  the proposed visual remedies are design inferences, not accepted outcomes.
+- **Dependencies and cost:** rendered same-content comparison, existing theme
+  tokens, narrow/dark/focus checks and deliberate future capability adoption.
+- **Revisit:** after the user tries the revised reading and teaching views.
+  No prior candidate or viable capability is rejected.
+
+Addendum, September 30: [later comparison feedback](USER-VISION.md#2026-09-30-visual-candidates-need-distinct-composition)
+finds all current treatments too similar. Retain document-led, experiment-led
+and learner-notebook-led compositions as Prototype proposals under the same
+owner, with a same-content rendered task and user comparison as the next gate.
+This is direct dissatisfaction evidence; the three remedies are agent inferences.
+
+### IL-20260930-03: retained feature completion and backend inspiration
+
+- **Idea:** complete feasible retained routes and audit older records while
+  examining useful backend mechanisms as well as interfaces.
+- **Disposition:** Registered.
+- **Owner:** completion coordinator and existing capability/domain owners;
+  research inventory under `research/audit-expansion-2026-09-30/`.
+- **Evidence class:** direct user direction in the matching September 30 vision
+  entry; specific native seams and donor mechanisms remain agent proposals.
+- **Dependencies and cost:** exact binding-format review, coordinated writer
+  leases, validated authority/recovery seams, donor revision/license and
+  maintenance evidence. Implementations retain source, human and installed
+  acceptance as separate states.
+- **Next gate and recovery:** reconcile CAP-01..27, F1..10 and older record
+  coverage in the completion coordination record; prove each delivered slice
+  and name remaining dependencies. No whole-platform adoption or hard rejection
+  follows from this entry. Undo only this additive entry and matching captures
+  against their task-start before images, preserving inherited dirty work.

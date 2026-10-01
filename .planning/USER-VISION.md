@@ -3365,3 +3365,110 @@ widget as proof of checking capability or learning benefit.
 **Planning effect:** The [question implementation backlog](research/question-types-2026-09-25/BACKLOG.md) owns scope, dispositions, evidence, dependencies, proposed sequence and acceptance gates. This turn saves the work without starting production implementation or accepting every donor mechanism.
 
 **Relationship to earlier entries:** Extends the September 26 question implementation and September 28 selective competitor absorption. Preserves typed fill as existing source work and retains broader capabilities under IL-20260928-02.
+
+### 2026-09-30: prioritize visual experience and richer app inspiration
+
+> ui sucks for certain stuff and no matter hwat I do it seems to remain stagnent even if you point out certain thngs, why is that
+
+> We should depriortize tests but focus on visual aspects and mre? be inspired from the other apps, advanced stuff and more>
+
+#### Interpretation recorded 2026-09-30
+
+**Status:** active experience priority; specific advanced capabilities exploratory.
+
+**Current interpretation:** Give visual composition, character, interaction feel,
+and useful advanced learning experiences more attention than expanding tests or
+reporting passing counts. Draw inspiration from other apps and iterate on
+rendered alternatives. Retain necessary correctness and recovery checks.
+
+**Open questions:** Which composition and richer interactions improve the user's
+experience? Resolve through same-content visual comparison and a complete learner
+task. The user has not selected a final visual language.
+
+**Planning effect:** The [UI goal owner](research/ui-goal-review-2026-09-29.md#visual-experience-priority-september-30)
+owns the design-first sequence and reference proposals. IL-20260930-01 retains
+the richer candidates. This changes UI iteration priority without waiving
+required gates or treating this records pass as source implementation.
+
+**Relationship to earlier entries:** Extends September 25 distinctive craft,
+September 28 selective absorption, and the September 30 overhaul routing in the
+inbox. Makes experiential improvement explicit over test-count progress.
+
+### 2026-09-30: retain personality while improving the workspace
+
+> before has more prsonality than thafter just a little, we can improve accordingly by removing AI slop feel and more? More to consider?
+
+#### Interpretation recorded 2026-09-30
+
+**Status:** active visual feedback; final preference remains open.
+
+**Current interpretation:** The user finds slightly more personality in the
+earlier reading composition. Improve the newer workspace without flattening
+its color roles, typographic character or material identity. Avoid generic
+card/button repetition and vague decorative teaching copy. These specific
+design changes are interpretations of the feedback, not quoted preferences.
+
+**Open questions:** Which retained details improve character without making
+reading harder? Compare the same source in the old, first-after and revised
+views, including narrow and dark rendering.
+
+**Planning effect:** The [visual iteration packet](research/ui-experience-parallel-2026-09-30.md)
+owns a reversible presentation correction and further design considerations.
+It preserves existing controls, runtime authority, prior captures and the
+installed/build hold.
+
+**Relationship to earlier entries:** Refines the September 30 visual-first
+direction using the user's first comparison. Partly supersedes the first
+integration choice to neutralize the source/note surfaces; it does not reject
+the workspace interaction improvements or settle the full product design.
+
+### 2026-09-30: visual candidates need distinct composition
+
+> they all feel really similar'
+
+#### Interpretation recorded 2026-09-30
+
+**Status:** active comparison feedback; current visual direction unaccepted.
+
+**Current interpretation:** Small changes to color, type and controls do not
+produce sufficiently distinct alternatives. Compare different dominant working
+areas and task sequences, while preserving authority and useful interactions.
+
+**Open questions:** Whether document-led reading, experiment-led exploration or
+learner-led notebook work best serves each activity. These are agent proposals,
+not a user selection or a mandate to implement all three.
+
+**Planning effect:** The visual iteration packet retains the proposed
+composition comparison. Current source checks do not establish visual success.
+
+**Relationship to earlier entries:** Refines the character correction and
+visual-first direction. The current refinements remain available, but they
+do not satisfy the user's request for meaningfully different designs.
+
+### 2026-09-30: complete retained features and consider backend inspiration
+
+> send chats to achieve feature completion,
+>
+> another to audit the older unnumbered audits and the and more stuff, we can always be inspired by good backend ad more
+
+#### Interpretation recorded 2026-09-30
+
+**Status:** active completion direction; specific backend choices exploratory.
+
+**Current interpretation:** Complete feasible retained features and account for
+older audit findings. Consider useful backend mechanisms alongside learner and
+author interfaces. Research and routing alone do not establish feature delivery.
+
+**Open questions:** Exact anchor, activity-graph and domain formats require
+direct review. Backend adoption depends on current fitness, provenance,
+maintenance, rights, authority and recovery evidence.
+
+**Planning effect:** The [dispatch](research/FEATURE-COMPLETION-DISPATCH-2026-09-30.md)
+assigns completion, exact-domain and older-audit lanes. The
+[coordination record](research/FEATURE-COMPLETION-COORDINATION-2026-09-30.md)
+owns implementation evidence and exact remaining gates. This does not authorize
+a new hosted authority, commit, push, build or installation.
+
+**Relationship to earlier entries:** Extends selective absorption and the
+September 30 app-inspiration direction to backend patterns and feature
+completion. Preserves visual dissatisfaction and the open human acceptance gate.

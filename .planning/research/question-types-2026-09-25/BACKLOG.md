@@ -7,6 +7,16 @@ Authority: [exact user direction](../../USER-VISION.md#2026-09-28-save-question-
 
 ## Baseline and evidence
 
+September 30 feature-completion pass: exact sets, interval unions, vectors and
+matrices now have a pure operand-normalization module and independent boundary
+tests. The [domain specimen](DOMAIN-COMPLETION-2026-09-30.md),
+[fixed-anchor specimen](EVIDENCE-ANCHOR-READINESS-2026-09-30.md) and
+[activity-graph specimen](ACTIVITY-GRAPH-READINESS-2026-09-30.md) remain proposed
+binding formats awaiting direct decisions. None is production grammar yet.
+The [completion record](../FEATURE-COMPLETION-COORDINATION-2026-09-30.md)
+owns current exact remainders and combined gate evidence; completed staged and
+polynomial production remains unchanged.
+
 **Staged/checker production promotion, September 30:** Direct user instruction
 resolved the pending bounded contracts. The
 [production packet](PRODUCTION-COORDINATION-2026-09-30.md) coordinates the sole

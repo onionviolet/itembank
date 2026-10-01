@@ -814,9 +814,35 @@ and creates a learner draft. Explicitly selected passages and notes can be
 previewed locally without a model request. Private note backups require consent;
 research inclusion state remains local and is named in the package loss report.
 
+The research page can search the saved selected passages and private notes with
+a literal, case-sensitive query. Equal quotes remain separate exact occurrences.
+Stale, unavailable or rights-blocked selections return no snippets, rather than
+an empty result that looks successful. Search sends no content to a model.
+
+Configured author requests now record director intent before a provider call.
+The Agent area shows unresolved requests after interruption or restart and
+recovers saved proposals without requesting them again. An unresolved transport
+outcome may still have produced provider work or cost. Refresh and check the
+provider before manually starting a new request; recovery does not auto-retry
+or accept a draft. Disabled or invalid backend setup remains read-only.
+
 When application builds are deferred, `python scripts/preflight.py --source-only`
 checks source suites and installed JavaScript dependencies, naming the omitted
 archive and sample-build checks. It does not certify a fresh packaged application.
+
+For an explicitly authorized offline recovery copy, the Python API
+`course_package.restore_merged_copy(package_root, source, dest, actor_kind,
+actor_name, expected_source_fingerprint)` builds a validated union at a fresh
+destination. Obtain the expected revision with
+`course_package.merge_source_fingerprint(source)`. This copies the entire
+source root, including private files, unrelated accepted work and history;
+it does not replace or automatically enroll the original course. Reopen the
+new copy deliberately. Registered source-root objects need read/export grants;
+unknown or denied rights refuse before copying. The caller authorizes private
+and locally owned unregistered files in that root. Conflicts, stale observed source revisions and raced
+destinations refuse publication. The original root remains untouched. This
+source API does not provide in-place atomic merging, an external writer lease
+or a power-loss guarantee. Reading transport uses its dedicated fresh restore.
 
 ## The `check` item type
 

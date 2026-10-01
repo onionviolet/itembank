@@ -1580,6 +1580,130 @@ def restore_package(package_root, dest, actor_kind, actor_name, _snapshot=None,
     return _restore_ordinary_package(snapshot, dest, actor_kind, actor_name)
 
 
+def _merge_tree_snapshot(root, copy_to=None):
+    """Pin a bounded, link-free tree; optionally copy its exact file bytes.
+
+    This is a read-only observed revision, not a lease over external writers.
+    Empty directories and permission bits are part of the revision.
+    """
+    root = os.path.abspath(root)
+    if os.path.islink(root) or not os.path.isdir(root):
+        raise PackageError('package.destination_exists', 'Merge source must be a plain directory.')
+    for row in journal.read_registry(root).values():
+        if not all(identity.rights_granted(row.get('rights'), operation)
+                   for operation in ('read', 'export')):
+            raise PackageError('package.rights_restricted',
+                               'Merge copy needs read and export grants for every registered source-root object. Review rights before copying.')
+    initial = os.stat(root, follow_symlinks=False)
+    rows, total = [], 0
+    with _directory_handle(root) as pinned:
+        for directory, dirs, names in os.walk(root, followlinks=False):
+            for name in sorted(dirs + names):
+                path = os.path.join(directory, name)
+                relative = os.path.relpath(path, root).replace(os.sep, '/')
+                info = os.lstat(path)
+                if (not _valid_relpath(relative) or stat.S_ISLNK(info.st_mode) or
+                        getattr(info, 'st_reparse_tag', 0)):
+                    raise PackageError('package.symlink_payload', 'Merge source contains a link or unsafe path.')
+                mode = stat.S_IMODE(info.st_mode)
+                if stat.S_ISDIR(info.st_mode):
+                    rows.append((relative, 'directory', mode, None))
+                    if copy_to is not None:
+                        os.makedirs(safe_target(copy_to, relative), exist_ok=True)
+                elif stat.S_ISREG(info.st_mode):
+                    raw = _read_relative(pinned, relative)
+                    total += len(raw)
+                    if total > 1024 * 1024 * 1024:
+                        raise PackageError('package.payload_too_large', 'Merge source exceeds the one GiB copy bound.')
+                    rows.append((relative, 'file', mode, _digest(raw)))
+                    if copy_to is not None:
+                        target = safe_target(copy_to, relative)
+                        _write_bytes_atomic(target, raw)
+                        os.chmod(target, mode)
+                else:
+                    raise PackageError('package.symlink_payload', 'Merge source contains a nonregular file.')
+                if len(rows) > 10000:
+                    raise PackageError('package.payload_too_large', 'Merge source exceeds the 10000-entry copy bound.')
+        current = os.stat(root, follow_symlinks=False)
+        if not os.path.samestat(initial, current):
+            raise PackageError('package.destination_changed', 'Merge source directory changed during capture.')
+    rows.sort()
+    revision = _digest(json.dumps(rows, ensure_ascii=True, separators=(',', ':')).encode('utf-8'))
+    return {'fingerprint': revision, 'entries': rows, 'bytes': total,
+            'root_identity': (initial.st_dev, initial.st_ino)}
+
+
+def merge_source_fingerprint(root):
+    """Read the expected revision for an explicitly authorized local merge copy."""
+    return _merge_tree_snapshot(root)['fingerprint']
+
+
+def restore_merged_copy(package_root, source, dest, actor_kind, actor_name,
+                        expected_source_fingerprint):
+    """Publish a validated union at a fresh destination; never replace source.
+
+    The caller authorizes copying the entire source, including private files
+    and locally owned unregistered files. Registered objects need read/export
+    grants; copying never grants missing rights.
+    This offline recovery API is separate from course enrollment and in-place
+    merge. Reopen the new root deliberately; never enroll both copies silently.
+    Source revisions are rechecked before publication, but no exclusion of
+    noncooperating writers or filesystem power-loss guarantee is claimed.
+    """
+    source, dest = os.path.abspath(source), os.path.abspath(dest)
+    parent = os.path.realpath(os.path.dirname(dest))
+    dest = os.path.join(parent, os.path.basename(dest))
+    real_source = os.path.realpath(source)
+    if (os.path.commonpath((real_source, dest)) in (real_source, dest) or
+            not os.path.isdir(parent) or os.path.lexists(dest)):
+        raise PackageError('package.destination_exists', 'Choose a fresh directory outside the merge source.')
+    snapshot = package_snapshot(package_root)
+    if snapshot.get('reading_transport_raw') is not None:
+        raise PackageError('package.atomic_merge_unsupported', 'Reading transport requires its dedicated fresh-root restore.')
+    if snapshot['manifest']['state'] != 'applied' or not snapshot['verification']['complete']:
+        raise PackageError('package.restore_incomplete', 'Package must be applied and complete before merging.')
+    validate_manifest(snapshot['manifest'], restore_dest=dest)
+    with private_stage(parent) as stage:
+        captured = _merge_tree_snapshot(source, copy_to=stage)
+        if captured['fingerprint'] != expected_source_fingerprint:
+            raise PackageError('package.destination_changed', 'Merge source differs from the expected revision. Nothing was published.')
+        registry = journal.read_registry(stage)
+        if registry != journal._compute_registry(stage) or any(
+                journal.object_state(stage, object_id) != 'clean' for object_id in registry):
+            raise PackageError('package.object_conflict', 'Copied acceptance history or object bytes are conflicted.')
+        with _directory_handle(stage) as copied:
+            for entry in snapshot['manifest']['entries']:
+                if entry['object_id'] in registry and entry['kind'] in PACKAGED_KINDS:
+                    if _read_relative(copied, registry[entry['object_id']]['path']) != snapshot['payloads'][entry['object_id']]:
+                        raise PackageError('package.object_conflict', 'Same identity has different exact bytes. Nothing was published.')
+            source_log = os.path.relpath(evidence.log_path(stage), stage).replace(os.sep, '/')
+            if os.path.exists(evidence.log_path(stage)):
+                _validated_evidence_events(_read_relative(copied, source_log))
+        result = restore_package(package_root, stage, actor_kind, actor_name,
+                                 _snapshot=snapshot, _staging=True)
+        if not result['complete']:
+            raise PackageError('package.restore_incomplete', 'The union is incomplete. Nothing was published.')
+        checked = _merge_tree_snapshot(source)
+        if checked != captured:
+            raise PackageError('package.destination_changed', 'Merge source changed while staging. Preserve it and retry.')
+        # Restore original directory modes after journal writes are finished.
+        for relative, kind, mode, _digest_value in reversed(captured['entries']):
+            if kind == 'directory':
+                os.chmod(safe_target(stage, relative), mode)
+        for directory, _dirs, names in os.walk(stage, topdown=False):
+            for name in names:
+                with open(os.path.join(directory, name), 'rb') as stream:
+                    os.fsync(stream.fileno())
+            evidence._sync_evidence_directory(os.path.join(directory, 'sentinel'))
+        publish_directory(parent, stage, dest)
+        evidence._sync_evidence_directory(dest)
+        result.update({'publication': 'whole-root-copy',
+                       'source_fingerprint': captured['fingerprint'],
+                       'source_entries_copied': len(captured['entries']),
+                       'source_preserved': True})
+        return result
+
+
 def _ordinary_destination_preflight(snapshot, dest):
     """Refuse identity/path/disk conflicts through existing authorities."""
     destination_registry = journal.read_registry(dest)

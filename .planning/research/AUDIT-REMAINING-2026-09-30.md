@@ -1,6 +1,16 @@
 # Remaining audit routes, September 30
 
 Status: bounded execution-routing inventory, not feature acceptance or a replacement backlog.
+
+Later feature-completion reconciliation: the
+[C coordination record](FEATURE-COMPLETION-COORDINATION-2026-09-30.md)
+owns the new native union-copy restore, pre-invoke author-request recovery and
+saved-context literal search slices, current combined/focused gates and exact
+remaining CAP/F decisions. R's in-place merge is still a refusal/no-op boundary;
+P3/P5 and D's exact domains remain proposed formats awaiting direct review.
+A's 74-file/6901-block older-record census maps 604 donor IDs and retains 600
+ambiguous prose routes; it does not certify semantic closure of every older idea.
+Historical lane snapshots below retain their original evidence and dates.
 Writer: Q, chat `01a0f075-e39e-7801-8767-adea4d73134a`. Integrator: I, chat `01a0f0f2-9ee4-76b2-ba08-67a0e4f3623c`.
 
 Later September 30 production reconciliation: direct user instruction resolved

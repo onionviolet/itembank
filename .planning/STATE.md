@@ -4,8 +4,8 @@ milestone: reach
 milestone_name: reach
 current_phase_name: 20-extensible-ui-foundation-and-interaction-clarity-pass
 current_phase: 20
-status: "September 30 source integrated and pushed to main, old worktrees preserved and cleaned. 182 source Python scripts and the JS suite pass; clean-tree verified. Three continuation chats created; installed and fresh-build holds remain protected."
-stopped_at: "Main source/recovery baseline 0a1194a is pushed and clean. R/P3/P5 continuation chats have disjoint write scopes and await the parent's handoff release before writes. Shared state remains parent-owned."
+status: "Bounded merge-copy, author-request recovery and selected-context search verified. Frozen candidate passes 189 source Python scripts and JS; final package/UI corrections pass focused gates. Preflight fails only clean. P3/P5/domain decisions pending; installed/build holds preserved."
+stopped_at: "C/D/A released bounded work at ac19880 plus uncommitted source changes. Exact binding decisions are the next gate; no new commit/push authority. In-place merge and broader human/external jobs remain open."
 last_updated: "2026-09-30"
 last_activity: 2026-09-30
 last_activity_desc: "Finished parallel staged/checker production integration, reviewed header acceptance/undo and served browser continuity; repaired broad-gate registry/pin/fixture failures and recorded exact verification limits."
@@ -17,6 +17,32 @@ progress:
   counting_rule: "phase directories under .planning/phases; a phase counts complete when frozen or when its execution gate is complete. Human, external, and waived legs remain named limits rather than active implementation phases. Reach phases 19A through 19E and Phase 20 have completed their recorded execution gates. A plan is complete only when its required gate passes; a summary file alone does not close it."
 ---
 # Project State
+
+**Current feature completion, September 30:** The
+[completion coordinator](research/FEATURE-COMPLETION-COORDINATION-2026-09-30.md)
+owns current source integration, CAP/F reconciliation and exact remainders.
+Actual HEAD `ac19880` includes R's populated-root no-op/refusal and P3/P5
+prototypes. R/P3/P5 are released inputs, not pending startup writers. A new
+offline merge-copy API preserves a populated root and publishes the validated
+union at a fresh destination; in-place replacement remains open because existing
+writers lack stable generation admission. Native author requests now persist
+director intent before provider invocation and expose unresolved or saved
+proposal recovery in the Agent area. Neither path changes installed learner work.
+
+D's exact-domain module is frozen and remains proposal-only. P3/P5/domain exact
+decisions have been presented for direct review under AGENT-WORKFLOW section 5.
+A released the 74-file/6901-block older-record census and nine pinned backend
+comparisons, retaining 600 ambiguous routes. One frozen source-only run passes
+189 Python scripts and JS; its clean-tree gate fails. Final exact-byte/evidence
+merge guards and Agent empty copy pass focused reruns. Existing dirty visual
+and vision bytes are preserved; the UI owner
+released append access before the exact dispatch quote was captured. No commit,
+push, fresh app archive, installation or release is authorized by this dispatch.
+
+Current next action: resolve the presented exact anchor/domain and replacement
+P5 binding choices, then promote only explicitly approved formats. Human
+visual/accessibility, in-place merge, live provider/companion and build/install
+gates remain separate. Older source-consolidation snapshots below are historical.
 
 **Current main consolidation, September 30:** The user requested new chats
 for the next parts, cleanup of old worktrees and integration into main. The

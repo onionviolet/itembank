@@ -1430,6 +1430,7 @@ def _agent_area_html(handler, state, course_dir):
     from surfaces import agent_operation as agent_op
     cfg = settings.load_settings(handler.root)
     records = agent_op.proposals(course_dir)
+    requests = agent_op.request_history(course_dir)
     selected = urllib.parse.parse_qs(urllib.parse.urlsplit(getattr(handler, "path", "")).query).get("proposal", [""])[-1]
     active = next((r for r in records if r.get("proposal_id") == selected), None)
     if active is None:
@@ -1529,21 +1530,30 @@ def _agent_area_html(handler, state, course_dir):
                      presentation.esc(active.get("operation_id") or ""), presentation.esc(active.get("interaction_id") or ""),
                      presentation.esc(active.get("entry_id") or "none"), presentation.esc(active.get("undo_entry_id") or "none")))
     else:
-        review = '<section><h3>No agent operations yet</h3><p>Start a skill to create a reviewable proposal. Nothing changes until you accept it.</p></section>'
+        review = '<section><h3>No saved proposals yet</h3><p>Start a skill to create a reviewable proposal. Accepted files change only after review and acceptance.</p></section>'
     history = "".join('<li><a href="/course/%s/%s?proposal=%s">%s</a> '
                       '<span class="mono">%s</span>, %s</li>'
                       % (cid, area, urllib.parse.quote(r.get("proposal_id") or "", safe=""),
                          presentation.esc(r.get("disposition") or "unavailable"),
                          presentation.esc(r.get("proposal_id") or "unknown"),
                          presentation.esc(r.get("target") or r.get("reason") or "")) for r in records)
+    request_rows = "".join(
+        '<li><strong>%s</strong>: %s <span class="mono">%s</span><p>%s</p></li>'
+        % (presentation.esc(r.get("skill") or "Author request"),
+           presentation.esc(r.get("request_state") or "unknown"),
+           presentation.esc(r.get("target") or ""),
+           presentation.esc(r.get("next_action") or "No durable result yet."))
+        for r in requests)
+    request_section = ('<section aria-label="Author request recovery"><h3>Request history</h3>'
+                       '<ul class="course-rows">%s</ul></section>' % request_rows) if request_rows else ""
     return ('<p>Configured operations draft a course-local file for review. Check the '
             '<a href="/course/%s/map">objective map</a> and '
             '<a href="/course/%s/sources">bound sources</a> before starting. '
             'The runtime remains the sole scoring authority.</p>'
-            '<section><h3>Start an agent operation</h3><ul class="course-rows">%s</ul></section>%s'
+            '<section><h3>Start an agent operation</h3><ul class="course-rows">%s</ul></section>%s%s'
             '<section><h3>Review history</h3><ul class="course-rows">%s</ul></section>'
             '<p class="mono">CLI twin: itembank course agent-operation %s status --proposal-id &lt;id&gt;</p>'
-            % (cid, cid, "".join(starts), review, history or "<li>No records.</li>", cid))
+            % (cid, cid, "".join(starts), request_section, review, history or "<li>No records.</li>", cid))
 
 
 def _course_area_extra(handler, state, course_dir):

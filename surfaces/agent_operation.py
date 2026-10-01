@@ -33,6 +33,7 @@ import uuid
 from datetime import datetime, timezone
 
 import identity
+import director
 import journal
 import model_adapter
 
@@ -213,6 +214,37 @@ def proposals(base):
 def pending(base):
     return [row for row in proposals(base)
             if row.get("disposition") == "proposed"]
+
+
+def request_history(base):
+    """Project author requests from the existing director checkpoints.
+
+    A receipt without a proposal or completion has unknown transport outcome,
+    including after restart. It never proves a provider did no work.
+    """
+    requests = {}
+    for entry in journal.entries(base):
+        agent = entry.get("agent") or {}
+        checkpoint = agent.get("checkpoint") or {}
+        if not isinstance(checkpoint, dict) or checkpoint.get("client") != "agent-operation":
+            continue
+        operation_id = agent.get("operation_id")
+        if not operation_id:
+            continue
+        row = dict(checkpoint, operation_id=operation_id,
+                   updated_at=entry.get("timestamp"))
+        requests[operation_id] = row
+    rows = []
+    for row in requests.values():
+        proposal = status(base, row.get("proposal_id"))
+        if proposal.get("disposition") in DISPOSITIONS:
+            row.update(request_state=proposal["disposition"],
+                       next_action="Review the saved proposal. Do not repeat the provider request.")
+        elif row.get("request_state") == "started":
+            row.update(request_state="unresolved", code="agent.request_unresolved",
+                       next_action="Refresh and check the provider before starting again. The request may still be running or have been interrupted; retry may repeat provider work and cost. No accepted file changed.")
+        rows.append(row)
+    return sorted(rows, key=lambda row: row.get("updated_at") or "", reverse=True)
 
 
 def propose_staged_cases(base, target, cases, expected_bank_fingerprint):
@@ -578,6 +610,36 @@ def start(skill, settings, base):
     request = model_adapter.request_from_operation(
         "author", iid, "",
         author_request=_author_payload(skill, spec))
+    if model_adapter.resolve_profile(settings or {})[0] is None:
+        # A disabled or invalid profile cannot start provider work. Keep the
+        # existing first-use refusal read-only and use the adapter's code.
+        result = model_adapter.invoke(request, settings or {})
+        error = result.get("error") or {}
+        code = error.get("code")
+        return _settled(iid, skill, code, error.get("message"),
+                        next_action=NEXT_ACTIONS[code], message=error.get("message"))
+    proposal_id = "p_" + uuid.uuid4().hex
+    operation_id = "op_" + uuid.uuid4().hex
+    checkpoint = {"client": "agent-operation", "proposal_id": proposal_id,
+                  "interaction_id": iid, "skill": skill, "target": spec["target"],
+                  "source_fingerprints": source_fingerprints,
+                  "request_state": "started"}
+    director.begin_operation(base, base, "Draft configured target: " + spec["target"],
+                             "agent", skill, "course-builder",
+                             (settings or {}).get("auditor_autonomy") or "report_only",
+                             scopes=spec["source_paths"], operation_id=operation_id,
+                             checkpoint=checkpoint)
+
+    def settle(*args, **kwargs):
+        outcome = _settled(*args, **kwargs)
+        receipt = dict(checkpoint, request_state="settled", code=outcome.get("code"),
+                       next_action=outcome.get("next_action") or outcome.get("reason"))
+        director.record_phase(base, operation_id, "report", 12, "applied",
+                              "agent", skill, checkpoint=receipt)
+        return dict(outcome, operation_id=operation_id, proposal_id=proposal_id)
+
+    # On interruption the started receipt remains unresolved. Do not claim a
+    # hosted call had no external effect or retry it automatically.
     result = model_adapter.invoke(request, settings or {})
 
     if result.get("status") != "ok":
@@ -585,7 +647,7 @@ def start(skill, settings, base):
         code = error.get("code")
         # Indexing directly, not .get(): a missing entry is a failure to
         # fix in the map above, never a silent fallback.
-        return _settled(iid, skill, code, error.get("message"),
+        return settle(iid, skill, code, error.get("message"),
                         next_action=NEXT_ACTIONS[code],
                         message=error.get("message"))
 
@@ -593,7 +655,7 @@ def start(skill, settings, base):
     if not isinstance(candidate, dict) \
             or not isinstance(candidate.get("draft"), str) \
             or not isinstance(candidate.get("citations"), list):
-        return _settled(
+        return settle(
             iid, skill, "agent.candidate_invalid",
             "The backend answered, but not with a draft this page can "
             "propose (it needs JSON with a draft string and a citations "
@@ -607,19 +669,19 @@ def start(skill, settings, base):
     except (OSError, ValueError):
         source_now = None
     if source_now != source_fingerprints:
-        return _settled(iid, skill, "agent.source_stale",
+        return settle(iid, skill, "agent.source_stale",
                         "A configured source changed during drafting. "
                         "Review it and start again. Nothing was written.")
     if spec["kind"] == "lesson":
         try:
             _lesson_preview_body(draft)
         except ValueError as exc:
-            return _settled(iid, skill, str(exc),
+            return settle(iid, skill, str(exc),
                             "The lesson draft cannot be previewed safely. "
                             "Correct the model request and start again. "
                             "Nothing was written.")
         if not citations or any(c not in spec["citations"] for c in citations):
-            return _settled(iid, skill, "agent.citations_unverified",
+            return settle(iid, skill, "agent.citations_unverified",
                             "The draft citations do not match the configured "
                             "sources. Check source bindings and start again. "
                             "Nothing was written.")
@@ -629,8 +691,6 @@ def start(skill, settings, base):
         with open(target_path, "rb") as fh:
             raw = fh.read()
 
-    proposal_id = "p_" + uuid.uuid4().hex
-    operation_id = "op_" + uuid.uuid4().hex
     created = _now()
     record = {
         "schema_version": RECORD_VERSION,

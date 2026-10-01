@@ -362,7 +362,7 @@ def check_accept_writes_once_through_the_journal():
     if course.bytes() != DRAFT.encode("utf-8"):
         fail("accept did not land the draft bytes")
         return
-    entries = course.journal_lines()
+    entries = [e for e in course.journal_lines() if e.get("operation") != "agent_operation"]
     applied = [e for e in entries if e.get("state") == "applied"]
     prepared = [e for e in entries if e.get("state") == "prepared"]
     refused = [e for e in entries if e.get("state") == "refused"]
@@ -429,6 +429,7 @@ def check_report_only_refuses_by_name():
         fail("report_only must not block proposing, gave %r"
              % proposed.get("state"))
         return
+    before_accept = course.journal_lines()
     settled = ao.accept(proposed, settings)
     if settled.get("state") != "settled" or settled.get("ok"):
         fail("report_only accept gave %r" % settled)
@@ -441,7 +442,7 @@ def check_report_only_refuses_by_name():
     if course.bytes() != ORIGINAL.encode("utf-8"):
         fail("a report_only refusal changed the file")
         return
-    if course.journal_lines():
+    if course.journal_lines() != before_accept:
         fail("a report_only refusal wrote journal lines")
         return
     again = ao.accept(proposed, settings)

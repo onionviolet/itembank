@@ -56,6 +56,60 @@ def _one(fields, key, default=''):
     return values[0]
 
 
+def search_selected(base, query):
+    """Bounded literal retrieval over explicitly admitted local context only."""
+    if (not isinstance(query, str) or not query.strip() or len(query) > 160 or
+            any(ord(char) < 32 or ord(char) == 127 for char in query)):
+        raise ValueError('Enter one literal query of 1 to 160 characters without control characters.')
+    read, admitted = _info(base)
+    scope_root, private = _roots(base)
+    accepted = source_adapters.read_context_scope(scope_root, read['object_id'])
+    if not accepted:
+        raise ValueError('Save an explicit selection before searching.')
+    scope = accepted['scope']
+    if len(scope['sources']) + len(scope['note_ids']) > 128:
+        raise ValueError('Select at most 128 passages and notes for one bounded search.')
+    selected = {ref['source_id'] for ref in scope['sources']}
+    common = {'query': query, 'egress': 'none', 'hits': [], 'truncated': False,
+              'excluded_sources': len(admitted - selected),
+              'selected_passages': len(scope['sources']), 'selected_notes': len(scope['note_ids'])}
+    context = source_adapters.resolve_context_scope(base, scope, private)
+    failures = list(context.get('failures') or [])
+    if not failures:
+        for ref in scope['sources']:
+            try:
+                _safe_source(base, ref)
+            except (ValueError, OSError, journal.JournalError) as exc:
+                failures.append({'kind': 'source', 'id': ref['source_id'],
+                                 'locator_id': ref['locator_id'], 'state': 'unavailable',
+                                 'reason': str(exc)})
+    if failures:
+        return dict(common, status='search_unavailable', failures=failures,
+                    next_action='Review the selected revisions and rights. No snippets were disclosed.')
+    passages = []
+    for ref, resolved in zip(scope['sources'], context['sources']):
+        passages.append((dict(ref, kind='source'), resolved['text']))
+    for note in context['notes']:
+        passages.append(({'kind': 'learner_note', 'note_id': note['note_id']}, note['wording']))
+    hits = []
+    for origin, text in passages:
+        if len(text) > 2 * 1024 * 1024:
+            return dict(common, status='search_unavailable', failures=[{'kind': origin['kind'], 'state': 'unsupported'}],
+                        next_action='Select a smaller passage. No snippets were disclosed.')
+        cursor = 0
+        while True:
+            start = text.find(query, cursor)
+            if start < 0:
+                break
+            if len(hits) == 32:
+                return dict(common, status='search', hits=hits, truncated=True, failures=[])
+            end = start + len(query)
+            hits.append(dict(origin, start=start, end=end,
+                             excerpt=text[max(0, start - 80):min(len(text), end + 80)]))
+            cursor = end
+    return dict(common, status='search', hits=hits, failures=[])
+
+
 def apply(base, fields):
     """Handle bounded native forms. A preview or cancel writes no durable state."""
     operation = _one(fields, 'operation')
@@ -64,12 +118,14 @@ def apply(base, fields):
         'link': {'source', 'locator', 'expected_notes_fingerprint', 'confirm'},
         'copy': {'source', 'locator', 'expected_notes_fingerprint', 'confirm'},
         'save_scope': {'reference', 'note_id', 'expected_notes_fingerprint', 'expected_scope_fingerprint', 'confirm'},
-        'request_context': set(), 'undo_note': {'entry_id'},
+        'request_context': set(), 'search_context': {'query'}, 'undo_note': {'entry_id'},
     }
     if operation not in permitted or set(fields) - permitted[operation] - {'operation'}:
         raise ValueError('Unsupported research form fields.')
     if operation == 'cancel':
         return {'status': 'canceled'}
+    if operation == 'search_context':
+        return search_selected(base, _one(fields, 'query'))
     read, _admitted = _info(base)
     cid = read['object_id']
     scope_root, private = _roots(base)
@@ -184,6 +240,24 @@ def panel(base, result=None, retained=None):
     out.append('<h3>Explicit inclusion</h3><p>Unselected sources and notes are excluded. New inventory does not change this selection. Personal inclusion state is omitted from course export and named in its loss report.</p>')
     out.append(form('save_scope', selection, 'Save selected context', True))
     out.append(form('request_context', '', 'Request local selected context'))
+    query = (result or {}).get('query') or _one(retained or {}, 'query')
+    out.append('<h3>Search selected context</h3><p>Literal, case-sensitive search. Only saved passages and selected private notes are searched; no model or index is used.</p>')
+    out.append(form('search_context', '<label>Query <input name="query" value="%s" maxlength="160" required></label>' % esc(query), 'Search selected context'))
+    if result and result['status'] in ('search', 'search_unavailable'):
+        out.append('<p>Selected passages: %d. Selected notes: %d. Excluded sources: %d. Egress: none.</p>' % (
+            result['selected_passages'], result['selected_notes'], result['excluded_sources']))
+        if result['status'] == 'search_unavailable':
+            out.append('<p role="alert">%s</p><ul>%s</ul>' % (esc(result['next_action']), ''.join(
+                '<li>%s: %s</li>' % (esc(row.get('kind')), esc(row.get('state'))) for row in result['failures'])))
+        else:
+            out.append('<p role="status">%d hits%s.</p>' % (len(result['hits']), '; more matches omitted after 32' if result['truncated'] else ''))
+            for hit in result['hits']:
+                label = ('Source %s, locator %s' % (hit['source_id'], hit['locator_id'])) if hit['kind'] == 'source' else 'Private learner note ' + hit['note_id']
+                out.append('<section><h4>%s, code-point range %d:%d</h4><pre>%s</pre>' % (esc(label), hit['start'], hit['end'], esc(hit['excerpt'])))
+                if hit['kind'] == 'source':
+                    body = hidden('source', json.dumps({k: hit[k] for k in ('source_id', 'fingerprint')})) + hidden('locator', hit['locator_id'])
+                    out.append(form('preview', body, 'Open exact source occurrence'))
+                out.append('</section>')
     if result and result['status'] == 'context':
         out.append('<p>Excluded sources: %d. Egress: none. Purpose: local advisory context.</p>' % result['excluded_sources'])
         for passage in result['sources']:

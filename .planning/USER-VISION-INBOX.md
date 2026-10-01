@@ -1248,3 +1248,45 @@ The expressive workshop is the reversible source working direction after an
 identical-content quiet/workshop comparison. Integration retains runtime and
 data authority, and checks served continuity rather than claiming installed or
 human acceptance. Final measured outcome and recovery belong to the same packet.
+
+### 2026-09-30: prioritize visual experience and richer app inspiration
+
+> ui sucks for certain stuff and no matter hwat I do it seems to remain stagnent even if you point out certain thngs, why is that
+
+> We should depriortize tests but focus on visual aspects and mre? be inspired from the other apps, advanced stuff and more>
+
+**Disposition:** Promote to [the vision entry](USER-VISION.md#2026-09-30-prioritize-visual-experience-and-richer-app-inspiration).
+The [UI goal owner](research/ui-goal-review-2026-09-29.md#visual-experience-priority-september-30)
+records design-first iteration and app references. This prioritizes rendered
+craft and richer interactions without claiming implementation or final design.
+
+### 2026-09-30: retain personality while improving the workspace
+
+> before has more prsonality than thafter just a little, we can improve accordingly by removing AI slop feel and more? More to consider?
+
+**Disposition:** Promote to [the vision entry](USER-VISION.md#2026-09-30-retain-personality-while-improving-the-workspace).
+The [visual iteration packet](research/ui-experience-parallel-2026-09-30.md)
+owns the bounded source/demo correction and rendered comparison. This is
+partial visual feedback, not final acceptance or permission to alter scoring.
+
+### 2026-09-30: visual candidates need distinct composition
+
+> they all feel really similar'
+
+**Disposition:** Promote to [the vision entry](USER-VISION.md#2026-09-30-visual-candidates-need-distinct-composition).
+The current passes are not visually distinct enough for the user. Further
+structural alternatives remain proposals in the visual iteration packet.
+
+### 2026-09-30: complete retained features and consider backend inspiration
+
+> send chats to achieve feature completion,
+>
+> another to audit the older unnumbered audits and the and more stuff, we can always be inspired by good backend ad more
+
+**Disposition:** Promote product direction to the matching
+[vision entry](USER-VISION.md#2026-09-30-complete-retained-features-and-consider-backend-inspiration).
+Route chat dispatch mechanics to the
+[dispatch packet](research/FEATURE-COMPLETION-DISPATCH-2026-09-30.md).
+Completion evidence belongs to the coordinator, domain specimens to the domain
+lane and record-level older-audit coverage to the research lane. Backend
+inspiration remains available without treating a donor platform as accepted.
