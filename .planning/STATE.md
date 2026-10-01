@@ -4,11 +4,11 @@ milestone: reach
 milestone_name: reach
 current_phase_name: 20-extensible-ui-foundation-and-interaction-clarity-pass
 current_phase: 20
-status: "Bounded merge-copy, author-request recovery and selected-context search verified. Frozen candidate passes 189 source Python scripts and JS; final package/UI corrections pass focused gates. Preflight fails only clean. P3/P5/domain decisions pending; installed/build holds preserved."
-stopped_at: "C/D/A released bounded work at ac19880 plus uncommitted source changes. Exact binding decisions are the next gate; no new commit/push authority. In-place merge and broader human/external jobs remain open."
+status: "Finished source work consolidated into main; latest macOS app built, verified and installed. Protected learner files unchanged; obsolete build duplicates moved to recoverable Trash. P3/P5/domain decisions and broader human/external gates remain separate."
+stopped_at: "Main and installed production payload include baa8284; packaging checksum repair is 6ee4054. Current result and recovery are in MAIN-APP-UPDATE-2026-09-30. Exact format decisions remain the next implementation gate."
 last_updated: "2026-09-30"
 last_activity: 2026-09-30
-last_activity_desc: "Finished parallel staged/checker production integration, reviewed header acceptance/undo and served browser continuity; repaired broad-gate registry/pin/fixture failures and recorded exact verification limits."
+last_activity_desc: "Integrated released C/D/A/UI work into main, built and installed the verified macOS app, repaired final-installer checksums and cleaned redundant build products recoverably."
 progress:
   total_phases: 41
   completed_phases: 41
@@ -18,7 +18,19 @@ progress:
 ---
 # Project State
 
-**Current feature completion, September 30:** The
+**Current main and app update, September 30:** Direct user instruction lifted
+the prior build/install hold for this candidate. The
+[main/app update record](research/MAIN-APP-UPDATE-2026-09-30.md) owns integration,
+package and native verification, installation, cleanup and rollback. All
+released source/proposals/research are on main. The latest accepted production
+payload is installed locally; 537 protected file fingerprints are unchanged.
+Current artifacts remain, and obsolete build duplicates moved to recoverable
+Trash. P3/P5/domain formats remain proposals awaiting their exact direct-user
+decisions. In-place merge, human visual/accessibility/learning and live
+provider gates stay open. Earlier dirty-tree/build-held entries below describe
+their original historical snapshots, not current installation state.
+
+**Prior feature completion, September 30:** The
 [completion coordinator](research/FEATURE-COMPLETION-COORDINATION-2026-09-30.md)
 owns current source integration, CAP/F reconciliation and exact remainders.
 Actual HEAD `ac19880` includes R's populated-root no-op/refusal and P3/P5
