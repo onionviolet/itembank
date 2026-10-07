@@ -96,8 +96,8 @@ These files are large. Read the section you need, not the file.
 
 ### Object, authority, and operation summary
 
-Full text: `AGENTS.md` §"Object and authority model", which is the mirror of
-record. The rules that gate every change:
+Full text: `docs/AGENT-REFERENCE.md` §"Object and authority model", the
+mirror of record; `AGENTS.md` keeps the gating summary. The rules that gate every change:
 
 - **Authority.** The learner owns goals, private notes, scratch work, strategy
   choice, and evidence export. A course builder defines scope, treatments, and
@@ -149,7 +149,7 @@ record. The rules that gate every change:
 
 ### Course artifact workflow
 
-Full text: `AGENTS.md` §"Course artifact workflow". Before creating a lesson,
+Full text: `docs/AGENT-REFERENCE.md` §"Course artifact workflow". Before creating a lesson,
 question set, bank, activity, or exam, in order:
 
 1. **Inventory** sources and artifacts across every user-approved root (course
