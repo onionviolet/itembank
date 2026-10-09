@@ -122,8 +122,8 @@ class SearchPresentation(unittest.TestCase):
         self.assertEqual(markup.count("<mark>Same phrase.</mark>"), 2)
         self.assertIn("&lt;tag&gt;literal&lt;/tag&gt;", markup)
         self.assertNotIn("<tag>", markup)
-        self.assertIn('aria-describedby="course-search-hit-0 course-search-location-0"', markup)
-        self.assertIn('aria-describedby="course-search-hit-1 course-search-location-1"', markup)
+        self.assertIn('aria-describedby="course-search-position-0 course-search-hit-0 course-search-location-0"', markup)
+        self.assertIn('aria-describedby="course-search-position-1 course-search-hit-1 course-search-location-1"', markup)
 
 
 if __name__ == "__main__":

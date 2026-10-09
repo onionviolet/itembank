@@ -672,6 +672,12 @@ def retry_request(base, proposal_id, settings):
     rows = [row for row in request_history(base) if row.get('proposal_id') == proposal_id]
     if len(rows) != 1 or rows[0]['request_state'] not in ('settled', 'unresolved'):
         raise AgentRequestError('agent.retry_unavailable', 'Inspect the existing request or saved proposal first.')
+    # The settled receipt lands before the worker thread releases its handle,
+    # so let a just-settled transport finish ending instead of refusing.
+    with _JOB_LOCK:
+        job = _RUNNING.get((os.path.realpath(base), proposal_id))
+    if job is not None:
+        job['done'].wait(5)
     return start_background(rows[0]['skill'], settings, base, retry_of=rows[0]['operation_id'])
 
 

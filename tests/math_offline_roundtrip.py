@@ -162,10 +162,12 @@ def test_math_profile_page_emits_local_assets_in_order():
                 if needle in page:
                     fail("math page carries a network reference %r" % needle)
             # Adapter never calls the scorer, evidence, or session APIs.
+            # Stylesheets are skipped: a class name is not an API call.
+            behavior = re.sub(r"(?s)<style\b.*?</style>", "", page)
             for forbidden in ("/api/submit", "/api/hint", "/api/report",
                               "score_response", "evidence", "fetch(",
                               "XMLHttpRequest"):
-                if forbidden in page:
+                if forbidden in behavior:
                     fail("math adapter reaches %r -- must be presentation "
                          "only (D-08)" % forbidden)
         finally:

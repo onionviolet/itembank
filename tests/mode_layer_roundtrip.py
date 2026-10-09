@@ -82,8 +82,11 @@ BANK = os.path.join(ROOT, "fixtures", "sample_bank.md")
 # Re-taken 2026-09-30 after the authorized compact frame and workshop CSS.
 # The no-sections equality, saved-accent and fixed-layer authority checks remain.
 # Previous: b557e9ce75f9eea3a35ac9d2be05676c9c34000d346cf3ab16a9f79c15c270aa.
+# Re-taken 2026-10-08 after the authorized UI character pass (US "color"
+# copy, 44px color input, per-look composition CSS). Mode authority unchanged.
+# Previous: 1f7622c4611c983a8001b2ff35441b5fe2d5f61c539036a5a80859f9c1f47804.
 THEME_PAGE_BASELINE = \
-    "1f7622c4611c983a8001b2ff35441b5fe2d5f61c539036a5a80859f9c1f47804"
+    "4e50d9176878151938cbfd2a3cf5db22b995acb61abc4afa02dada590c77b548"
 
 # Phase 16C appends rows here rather than creating a second fixture. Each row
 # is (setting_name, requests, expected_winning_layer, expected_value).
