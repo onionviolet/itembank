@@ -1,0 +1,14 @@
+{
+  "date": "2026-10-01",
+  "operation": "prototype interaction pass",
+  "owner": "prototypes/ui-character-20261001",
+  "base_sha256": "db447dd3225908175caa05005a1f075da7ebaf177a880dc43071fd0f70f464e9",
+  "final_sha256": "c1b11518d944f8f0f1d0ae503901e8d25f1a5f61de556edd9ea53e2b87dde374",
+  "recovery": "evidence/before-interaction-pass.html",
+  "native_writes": false,
+  "remote_egress": false,
+  "focused_checks": "passed",
+  "browser_checks": "passed at documented scope",
+  "final_quick_gate": "passed; build/full Python/full JS/clean skipped",
+  "readme_sha256": "00846b65747fdc64a44b6b4f86f01be5c789e382acc619b6f4f3650b118f8ef7"
+}

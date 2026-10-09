@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Course overview design study</title>
+<style>
+:root{color-scheme:light dark;--paper:#f5f4f0;--card:#fffefa;--ink:#242927;
+  --mut:#626b67;--line:#d9ddd6;--accent:#405f9d;--soft:#e9eef8;--green:#356457;
+  font:16px/1.5 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink)}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+a:focus-visible,summary:focus-visible,button:focus-visible{outline:3px solid var(--accent);outline-offset:4px}
+.preview{background:var(--soft);font-size:12px;padding:7px 24px;text-align:center;color:var(--accent)}
+.appbar{display:flex;align-items:center;gap:32px;min-height:64px;padding:0 32px;
+  border-bottom:1px solid var(--line);background:var(--card)}
+.brand{font-size:21px;font-weight:750;letter-spacing:-.04em;color:var(--ink)}
+.appnav{display:flex;gap:24px;align-items:center;font-size:14px;font-weight:600}
+.appnav a{color:var(--mut);padding:18px 0}.appnav a[aria-current]{color:var(--accent);
+  border-bottom:3px solid var(--accent)}.local{margin-left:auto;color:var(--mut);font-size:12px}
+main{max-width:1184px;margin:auto;padding:28px 32px 48px}
+.breadcrumb{font-size:13px;color:var(--mut);margin:0 0 10px}
+.title{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
+h1{margin:0;font-size:clamp(26px,3vw,34px);line-height:1.2;letter-spacing:-.04em}
+.subtitle{margin:7px 0 0;color:var(--mut);font-size:14px}
+.tools{position:relative;font-size:13px;flex-shrink:0}.tools summary{cursor:pointer;
+  min-height:44px;padding:11px 14px;border:1px solid var(--line);border-radius:7px;background:var(--card)}
+.tools ul{margin:8px 0 0;padding:12px 24px;background:var(--card);border:1px solid var(--line)}
+.tools li{padding:5px 0}.tabs{display:flex;gap:24px;border-bottom:1px solid var(--line);
+  margin-top:22px;margin-bottom:24px;align-items:center;min-height:44px;font-size:14px;font-weight:650}
+.tabs a,.tabs span{padding:10px 0;color:var(--mut)}.tabs [aria-current]{color:var(--ink);
+  border-bottom:3px solid var(--accent)}
+.workspace{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(260px,1fr);gap:24px;align-items:start}
+.continue{position:relative;background:var(--card);border:1px solid var(--line);border-radius:12px;
+  padding:24px;border-top:4px solid var(--accent)}
+.eyebrow{margin:0 0 12px;color:var(--accent);text-transform:uppercase;letter-spacing:.09em;font-size:11px;font-weight:750}
+h2{font-size:24px;letter-spacing:-.03em;line-height:1.3;margin:0 0 10px}
+.reason{font-size:15px;color:var(--mut);margin:0;max-width:48ch}
+.session{display:flex;align-items:center;flex-wrap:wrap;gap:9px;font-size:13px;margin:20px 0 16px}
+.badge{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);padding:4px 9px;border-radius:20px}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--accent)}
+.resume-row{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:0 0 16px}
+.resume-row h2{margin:0}.primary{background:var(--accent);color:white;border:0;border-radius:7px;
+  font-family:inherit;font-size:15px;font-weight:650;line-height:1.4;min-height:46px;padding:11px 18px;
+  display:inline-flex;align-items:center;gap:20px;white-space:nowrap}
+.primary:disabled{opacity:1;cursor:default}.secondary{display:inline-flex;align-items:center;min-height:44px;
+  padding:8px 0;font-size:14px;font-weight:600}.metadata{border-top:1px solid var(--line);
+  padding-top:14px;margin:20px 0 0;display:flex;gap:22px;font-size:12px;color:var(--mut)}
+.side{border:1px solid var(--line);background:var(--card);border-radius:12px;padding:20px}
+.side h2{font-size:17px;margin-bottom:14px}.objective{display:grid;grid-template-columns:24px 1fr;gap:11px;
+  margin:0;padding:15px 0;border-bottom:1px solid var(--line);font-size:14px}
+.objective:last-of-type{border:0}.ordinal{font-size:11px;background:var(--soft);color:var(--accent);
+  border-radius:5px;text-align:center;height:24px;padding-top:3px;font-weight:700}
+.objective strong{font-size:14px;font-weight:600}.objective small{display:block;color:var(--mut);font-size:12px;margin-top:5px}
+.section-label{font-size:17px;font-weight:700;margin:26px 0 12px}
+.material{border:1px solid var(--line);border-radius:10px;background:var(--card);padding:18px;
+  display:grid;grid-template-columns:40px 1fr;gap:14px;align-items:start}
+.material-icon{display:grid;place-items:center;background:var(--soft);color:var(--accent);
+  border-radius:8px;height:40px;font-size:20px}.material h3{font-size:16px;margin:0 0 5px;
+  font-weight:650;letter-spacing:-.01em}.material p{font-size:13px;color:var(--mut);margin:0}
+.history{border-top:1px solid var(--line);padding-top:14px;margin-top:20px;font-size:13px;color:var(--mut)}
+.history summary{cursor:pointer;min-height:44px;display:flex;align-items:center;gap:8px}
+.history summary:before{content:'+';font-size:17px}.history[open] summary:before{content:'−'}
+.history p{margin:8px 0 0}.note{font-size:12px;color:var(--mut);margin:22px 0 0}
+@media(prefers-color-scheme:dark){:root{--paper:#1e2224;--card:#252b2e;--ink:#e7ecea;--mut:#a7b3b2;
+  --line:#3b464a;--accent:#9bb8f4;--soft:#2e3c50;--green:#a1c8b9}.primary{background:#45659f;color:white}}
+@media(max-width:720px){.appbar{min-height:54px;padding:0 16px;gap:20px}.brand{font-size:18px}
+  .appnav{gap:16px;font-size:12px}.appnav a{padding:15px 0}.appnav .less,.local{display:none}
+  main{padding:18px 16px 32px}.title{display:block}.tools{margin-top:12px}.tools summary{padding:8px 12px;
+    min-height:40px;display:inline-block}.tools ul{position:static}.subtitle{font-size:13px}
+  .tabs{gap:22px;margin-top:12px;margin-bottom:18px;font-size:13px}.workspace{grid-template-columns:minmax(0,1fr);gap:18px}
+  .continue{padding:18px}.continue h2{font-size:22px}.resume-row{flex-direction:column;align-items:stretch;
+    gap:14px}.primary{width:100%;justify-content:space-between}
+  .session{margin-top:16px}.metadata{gap:16px;flex-wrap:wrap}.side{padding:18px}.section-label{margin-top:22px}
+  .preview{font-size:11px;padding:6px 12px}.reason{font-size:14px}}
+@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
+</style>
+</head>
+<body>
+<div class="preview">Design preview · Synthetic course data</div>
+<header class="appbar">
+  <a class="brand" href="#overview">itembank</a>
+  <nav class="appnav" aria-label="Main navigation">
+    <a href="#overview">Your desk</a><a href="#overview" aria-current="page">Courses</a>
+    <a class="less" href="#history">Activity</a><a class="less" href="#tools">Settings</a>
+  </nav><span class="local">On this device</span>
+</header>
+<main id="overview">
+  <p class="breadcrumb"><a href="#overview">Courses</a> / Synthetic interaction lab</p>
+  <div class="title">
+    <div><h1>Synthetic interaction lab</h1><p class="subtitle">2 objectives · Source-backed lessons and practice</p></div>
+    <details class="tools" id="tools"><summary>Course tools</summary>
+      <ul><li><a href="#objectives">Course map</a></li><li><a href="#material">Sources</a></li>
+      <li><a href="#history">Evidence and review</a></li></ul></details>
+  </div>
+  <nav class="tabs" aria-label="Course areas"><span aria-current="page">Overview</span>
+    <a href="#material">Learn</a><a href="#practice">Practice</a><a href="#history">Test</a></nav>
+  <div class="workspace">
+    <div>
+      <section class="continue" aria-labelledby="continue-title" id="practice">
+        <p class="eyebrow">Continue where you left off</p>
+        <div class="resume-row"><h2 id="continue-title">Boundary workshop</h2>
+          <button class="primary" disabled>Resume practice <span aria-hidden="true">→</span></button></div>
+        <p class="reason">Your saved practice is ready. Continue at the same question, or revisit the lesson first.</p>
+        <div class="session"><span class="badge"><span class="dot" aria-hidden="true"></span>Practice in progress</span>
+          <span>Question 1 of 4</span></div>
+        <a class="secondary" href="#material">Revisit the boundary lesson →</a>
+        <p class="metadata"><span>Saved on this device</span><span>No responses submitted yet</span></p>
+      </section>
+      <h2 class="section-label" id="material">Learning material</h2>
+      <article class="material"><div class="material-icon" aria-hidden="true">⌘</div><div>
+        <h3>Boundary workshop</h3><p>5 sections · Predict, implement, repair and transfer</p>
+        <a class="secondary" href="#objectives">View its course objective →</a></div></article>
+      <details class="history" id="history"><summary>Saved sessions and evidence</summary>
+        <p>One practice session is in progress. There are no submitted responses or reviewed marks in this synthetic course.</p>
+      </details>
+    </div>
+    <aside class="side" aria-labelledby="objectives">
+      <h2 id="objectives">What this course helps you do</h2>
+      <p class="objective"><span class="ordinal" aria-hidden="true">01</span><span>
+        <strong>Explain and repair coding boundaries.</strong><small>Boundary workshop · Lesson and practice</small></span></p>
+      <p class="objective"><span class="ordinal" aria-hidden="true">02</span><span>
+        <strong>Compare equal intervals with a native visual.</strong><small>Rainfall, side by side · Lesson</small></span></p>
+      <a class="secondary" href="#material">Explore learning material →</a>
+    </aside>
+  </div>
+  <p class="note">This is a layout specimen. Resume is inactive; study state and scoring come from the existing app.</p>
+</main>
+</body>
+</html>

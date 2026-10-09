@@ -1,0 +1,865 @@
+diff --git a/surfaces/lesson.py b/surfaces/lesson.py
+index 8f707d1..e559a79 100644
+--- a/surfaces/lesson.py
++++ b/surfaces/lesson.py
+@@ -49,6 +49,14 @@ def product_reader_css():
+ .overhaul-lesson .reader-nav{margin-block:var(--space-3)}
+ 
+ .wrap>.lesson-context-nav{font-family:var(--font-chrome);padding-block:var(--space-2)}
++.wrap[data-reading-mode="guided"]>header{padding-bottom:var(--space-2);margin-bottom:var(--space-2)}
++.wrap[data-reading-mode="guided"]>header h1{font-family:var(--font-chrome);
++  font-size:var(--text-body);line-height:1.4;margin-bottom:var(--space-1)}
++.wrap[data-reading-mode="guided"] .lesson-reading-about summary{cursor:pointer;
++  font-family:var(--font-chrome);font-size:var(--text-xs);min-height:44px;
++  display:flex;align-items:center;color:var(--mut)}
++.wrap[data-reading-mode="guided"] #lesson-content>section:first-child{padding-top:var(--space-2)}
++.wrap[data-reading-mode="guided"] #lesson-content>section:first-child>h2{margin-top:var(--space-2)}
+ #lesson-content .callout{border-radius:var(--r-1);box-shadow:none;background:transparent;
+   padding:var(--space-4);margin-block:var(--space-4)}
+ #lesson-content :is(.callout-tip,.callout-note){border:0;border-inline-start:2px solid var(--line);
+@@ -242,6 +250,12 @@ pre code{display:block;font-family:var(--font-ledger);font-size:16px;
+   line-height:1.5;color:var(--ink)}
+ .lang{display:block;font-size:12px;letter-spacing:.05em;color:var(--mut);
+   margin-bottom:var(--space-1);font-family:var(--font-ledger)}
++.code-tools{display:flex;flex-wrap:wrap;gap:var(--space-2);align-items:center;
++  margin-block:var(--space-2)}
++.code-tools[hidden]{display:none}
++.code-tools button{min-height:44px}
++.code-status{font-size:12px;color:var(--mut)}
++.code-source:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+ table{border-collapse:collapse;margin:0 0 var(--space-2);min-width:100%}
+ th,td{border:1px solid var(--line);padding:var(--space-2);
+   text-align:left;font-size:16px;overflow-wrap:anywhere}
+@@ -283,6 +297,9 @@ th{background:var(--chip);color:var(--mut);font-weight:600;font-size:12px}
+ .gloss-more{margin:0;font-size:12px}
+ .gloss-more a{color:var(--accent);text-decoration:none}
+ .gloss-more a:hover,.gloss-more a:focus-visible{text-decoration:underline}
++.gloss-actions{display:flex;gap:var(--space-2);margin-top:var(--space-2)}
++.gloss-actions button{min-height:44px}
++.gloss-pin[hidden]{display:none}
+ #glossary dt:target,#glossary dt:target + dd{background:var(--chip)}
+ #glossary dt:target{border-inline-start:2px solid var(--accent)}
+ #glossary{margin-top:var(--space-7)}
+@@ -407,11 +424,11 @@ __RUNNABLE_CSS__
+ __PRODUCT_CSS__
+ </style>
+ __MATH_ASSETS__
+-</head><body><div class="wrap overhaul-lesson ib-profile ib-profile-__PRESENTATION_PROFILE__" data-presentation-profile="__PRESENTATION_PROFILE__">__PRODUCT_NAV__
++</head><body><div class="wrap overhaul-lesson ib-profile ib-profile-__PRESENTATION_PROFILE__" data-presentation-profile="__PRESENTATION_PROFILE__" data-reading-mode="__READING_MODE__">__PRODUCT_NAV__
+ <header>
+-  <p class="sub">Application: itembank</p>
++  __READER_APPLICATION__
+   <h1>__TITLE__</h1>
+-  <div class="sub">Reading · __SUB__</div>
++  __READER_BYLINE__
+ </header>
+ __STATUS__
+ __CONTEXT_NAV__
+@@ -769,7 +786,7 @@ GLOSS_ENHANCEMENT_JS = """<script>
+     var def = panel && panel.querySelector(".gloss-def");
+     if (!def) { return; }
+     ev.preventDefault();
+-    if (panel.showPopover) { panel.showPopover(); }
++    if (panel.showPopover && !panel.matches(':popover-open')) { panel.showPopover(); }
+     if (def.getAttribute("data-gloss-state") === "done") { return; }
+     def.textContent = LOADING;
+     def.setAttribute("data-gloss-state", "loading");
+@@ -788,11 +805,54 @@ GLOSS_ENHANCEMENT_JS = """<script>
+ </script>""" % {"loading": json.dumps(LOADING_COPY),
+                  "unavailable": json.dumps(UNAVAILABLE_COPY)}
+ 
++CODE_CRAFT_JS = """<script>
++(function () {
++  document.querySelectorAll('#lesson-content .code-tools').forEach(function (tools) {
++    var source = tools.parentElement.querySelector('.code-source code');
++    if (!source) return;
++    tools.hidden = false;
++    var status = tools.querySelector('.code-status');
++    var copy = tools.querySelector('.code-copy');
++    var pending = false;
++    tools.querySelector('.code-select').addEventListener('click', function () {
++      if (!source.textContent.length) { status.textContent = 'No code to select.'; return; }
++      var selection = window.getSelection();
++      if (!selection) { status.textContent = 'Selection unavailable. Select the source manually.'; return; }
++      var range = document.createRange();
++      range.selectNodeContents(source);
++      source.closest('.code-source').focus({preventScroll:true});
++      selection.removeAllRanges();
++      selection.addRange(range);
++      status.textContent = 'Code selected.';
++    });
++    copy.addEventListener('click', async function () {
++      if (pending) return;
++      var text = source.textContent;
++      if (!text.length) { status.textContent = 'No code to copy.'; return; }
++      if (!navigator.clipboard || !navigator.clipboard.writeText) {
++        status.textContent = 'Copy unavailable. Use Select code and copy manually.'; return;
++      }
++      pending = true;
++      copy.setAttribute('aria-disabled', 'true');
++      status.textContent = 'Copying code...';
++      try {
++        await navigator.clipboard.writeText(text);
++        status.textContent = 'Code copied.';
++      } catch (_) {
++        status.textContent = 'Copy denied. Use Select code and copy manually.';
++      } finally {
++        pending = false;
++        copy.removeAttribute('aria-disabled');
++      }
++    });
++  });
++})();
++</script>"""
++
+ GLOSS_HOVER_JS = """<script>
+ (function () {
+   var media = matchMedia("(hover:hover) and (pointer:fine)");
+-  if (!media.matches) { return; }
+-  var openTimer = null, closeTimer = null, origin = null;
++  var openTimer = null, closeTimer = null, origin = null, returning = false;
+   function cancel() { clearTimeout(openTimer); clearTimeout(closeTimer); }
+   function panelFor(term) {
+     return document.getElementById(term.getAttribute("aria-details"));
+@@ -800,7 +860,69 @@ GLOSS_HOVER_JS = """<script>
+   function pinned() {
+     return document.querySelector('.gloss:popover-open[data-gloss-open="click"]');
+   }
++  function remember(term, gloss) {
++    if (!term.id) { term.id = "gloss-origin-" + Date.now().toString(36); }
++    origin = term.id;
++    gloss.dataset.glossOrigin = term.id;
++  }
++  function setPinned(gloss, value) {
++    gloss.dataset.glossOpen = value ? "click" : "hover";
++    var pin = gloss.querySelector('.gloss-pin');
++    if (pin) { pin.setAttribute('aria-pressed', String(value)); pin.textContent = value ? 'Unpin' : 'Pin'; }
++  }
++  function hide(gloss, restore) {
++    var previous = returning;
++    returning = true;
++    try {
++      gloss.hidePopover();
++      var term = restore && document.getElementById(gloss.dataset.glossOrigin);
++      if (term) term.focus({preventScroll:true});
++    } finally { returning = previous; }
++  }
++  function close(gloss) {
++    cancel();
++    hide(gloss, true);
++  }
++  document.addEventListener('toggle', function (ev) {
++    var gloss = ev.target;
++    if (!gloss.classList || !gloss.classList.contains('gloss')) return;
++    var pin = gloss.querySelector('.gloss-pin');
++    if (pin) pin.hidden = false;
++  }, true);
++  document.addEventListener('focusin', function (ev) {
++    var term = ev.target.closest && ev.target.closest('.term');
++    if (!term || pinned() || returning) return;
++    var gloss = panelFor(term);
++    if (!gloss || !gloss.showPopover) return;
++    remember(term, gloss);
++    setPinned(gloss, false);
++    if (!gloss.matches(':popover-open')) gloss.showPopover();
++  });
++  document.addEventListener('focusout', function (ev) {
++    if (returning) return;
++    var term = ev.target.closest && ev.target.closest('.term');
++    var gloss = (ev.target.closest && ev.target.closest('.gloss')) || (term && panelFor(term));
++    if (!gloss || gloss.dataset.glossOpen !== 'hover') return;
++    if (ev.relatedTarget && (gloss.contains(ev.relatedTarget) || ev.relatedTarget === term)) return;
++    if (gloss.hidePopover) hide(gloss, false);
++  });
++  document.addEventListener('keydown', function (ev) {
++    var term = ev.target.closest && ev.target.closest('.term');
++    var gloss = ev.target.closest && ev.target.closest('.gloss');
++    if (term && ev.key === 'ArrowDown') {
++      gloss = panelFor(term);
++      if (!gloss || !gloss.showPopover) return;
++      ev.preventDefault();
++      remember(term, gloss); setPinned(gloss, true);
++      if (!gloss.matches(':popover-open')) gloss.showPopover();
++      gloss.querySelector('a,button').focus();
++    } else if (ev.key === 'Escape') {
++      gloss = gloss || (term && panelFor(term));
++      if (gloss && gloss.matches(':popover-open')) { ev.preventDefault(); close(gloss); }
++    }
++  });
+   document.addEventListener("pointerenter", function (ev) {
++    if (!media.matches) return;
+     var term = ev.target.closest && ev.target.closest(".term");
+     var panel = ev.target.closest && ev.target.closest(".gloss");
+     clearTimeout(closeTimer);
+@@ -808,25 +930,38 @@ GLOSS_HOVER_JS = """<script>
+     openTimer = setTimeout(function () {
+       if (pinned()) { return; }
+       var gloss = panelFor(term);
+-      if (gloss) { gloss.dataset.glossOpen = "hover"; gloss.showPopover(); }
++      if (gloss && gloss.showPopover) {
++        remember(term, gloss); setPinned(gloss, false);
++        if (!gloss.matches(':popover-open')) gloss.showPopover();
++      }
+     }, 180);
+   }, true);
+   document.addEventListener("pointerleave", function (ev) {
++    if (!media.matches) return;
+     var term = ev.target.closest && ev.target.closest(".term");
+     var panel = ev.target.closest && ev.target.closest(".gloss");
+     if (!term && !panel) { return; }
+     clearTimeout(openTimer);
+     closeTimer = setTimeout(function () {
+       var gloss = panel || (term && panelFor(term));
+-      if (gloss && gloss.dataset.glossOpen === "hover") { gloss.hidePopover(); }
++      if (gloss && gloss.dataset.glossOpen === "hover") { hide(gloss, false); }
+     }, 260);
+   }, true);
+   document.addEventListener("click", function (ev) {
+     var term = ev.target.closest && ev.target.closest(".term");
+     if (term) {
+       var gloss = panelFor(term);
+-      if (!term.id) { term.id = "gloss-origin-" + Date.now().toString(36); }
+-      if (gloss) { gloss.dataset.glossOpen = "click"; origin = term.id; }
++      if (gloss && gloss.showPopover) {
++        ev.preventDefault();
++        remember(term, gloss); setPinned(gloss, true);
++        if (!gloss.matches(':popover-open')) gloss.showPopover();
++      }
++    }
++    var pin = ev.target.closest && ev.target.closest('.gloss-pin');
++    if (pin) { var gloss = pin.closest('.gloss'); setPinned(gloss, gloss.dataset.glossOpen !== 'click'); }
++    var closer = ev.target.closest && ev.target.closest('.gloss-close');
++    if (closer && closer.closest('.gloss').hidePopover) {
++      ev.preventDefault(); close(closer.closest('.gloss'));
+     }
+     var more = ev.target.closest && ev.target.closest(".gloss-more a");
+     if (more) {
+@@ -836,7 +971,7 @@ GLOSS_HOVER_JS = """<script>
+         var back = entry.nextElementSibling && entry.nextElementSibling.querySelector(".gloss-back");
+         if (back) { back.href = "#" + origin; back.textContent = "Back to the text"; }
+       }
+-      if (panel) { panel.hidePopover(); }
++      if (panel) { hide(panel, false); }
+     }
+   }, true);
+   ["scroll", "pointerdown", "keydown", "visibilitychange"].forEach(function (name) {
+@@ -888,9 +1023,13 @@ def _gloss_panel_html(record, slug, key_anchor=None):
+     return ('<div id="gloss-%s" class="gloss" popover>'
+             '<p class="gloss-term">%s</p>'
+             '<p class="gloss-def">%s</p>'
+-            '%s<p class="gloss-more"><a href="#term-%s">%s</a></p></div>'
++            '%s<p class="gloss-more"><a href="#term-%s">%s</a></p>'
++            '<div class="gloss-actions"><button type="button" class="go gloss-pin" '
++            'aria-pressed="false" hidden>Pin</button>'
++            '<button type="button" class="go gloss-close" popovertarget="gloss-%s" '
++            'popovertargetaction="hide">Close</button></div></div>'
+             % (slug, html.escape(record["canonical"]), _inline(record["def"]),
+-               key_link, slug, html.escape(FULL_ENTRY_COPY)))
++               key_link, slug, html.escape(FULL_ENTRY_COPY), slug))
+ 
+ 
+ def _glossary_html(gloss_map, first_uses):
+@@ -1685,7 +1824,11 @@ def _code_block(info, content, ctx=None):
+     label = ('<span class="lang">%s</span>' % html.escape(lang)
+              if lang else "")
+     return ('<div class="scroll" data-code-block="%d" data-lang="%s">'
+-            '%s<pre>%s</pre>%s</div>'
++            '%s<pre class="code-source" tabindex="0" role="region" '
++            'aria-label="Example code">%s</pre>'
++            '<div class="code-tools" hidden><button type="button" class="go code-select">'
++            'Select code</button><button type="button" class="go code-copy">Copy code</button>'
++            '<span class="code-status" role="status" aria-live="polite"></span></div>%s</div>'
+             % (block_id, html.escape(lang), label, code, notice))
+ 
+ 
+@@ -2848,6 +2991,13 @@ def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
+             .replace("__DIR__", doc_dir)
+             .replace("__PRESENTATION_PROFILE__",
+                      html.escape(presentation_profile, quote=True))
++            .replace("__READING_MODE__", mode)
++            .replace("__READER_APPLICATION__",
++                     '' if mode == "guided" else '<p class="sub">Application: itembank</p>')
++            .replace("__READER_BYLINE__",
++                     ('<details class="lesson-reading-about"><summary>About this reading</summary>'
++                      '<div class="sub">Reading · __SUB__</div></details>')
++                     if mode == "guided" else '<div class="sub">Reading · __SUB__</div>')
+             .replace("__THEME__", THEME_CSS if theme_css is None else theme_css)
+             .replace("__SHARED_CSS__", SHARED_CSS)
+             .replace("__LESSON_CSS__", LESSON_CSS + (lesson_interaction.CSS
+@@ -2868,7 +3018,8 @@ def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
+                      if 'class="lesson-comparison"' in body else "")
+                      + (lesson_interaction.LINEPLOT_JS
+                         if 'class="lesson-lineplot"' in body else "")
+-                     + (lesson_progressive.JS if mode == "guided" else ""))
++                     + (lesson_progressive.JS if mode == "guided" else "")
++                     + (CODE_CRAFT_JS if 'class="code-tools"' in body else ""))
+             .replace("__STATUS__", status_html)
+             .replace("__CONTEXT_NAV__", context_nav_html)
+             .replace("__RUNNABLE_JS__", runnable_js)
+diff --git a/surfaces/lesson_interaction.py b/surfaces/lesson_interaction.py
+index 8dfd7c5..3acb047 100644
+--- a/surfaces/lesson_interaction.py
++++ b/surfaces/lesson_interaction.py
+@@ -14,7 +14,8 @@ CSS = """
+ .comparison-controls {margin-block:1.5rem;border-top:1px solid var(--line);padding-top:1rem;
+   font-family:var(--font-chrome)}
+ .comparison-controls label {display:block}
+-.comparison-controls input[type=range] {width:100%;min-height:44px;accent-color:var(--accent)}
++.comparison-controls input[type=range], .comparison-meter-b {position:absolute;width:1px;height:1px;
++  min-height:0;padding:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+ .comparison-adjust {display:flex;align-items:end;flex-wrap:wrap;gap:.5rem;margin-block:.75rem}
+ .comparison-adjust label {font-size:var(--text-xs);color:var(--mut)}
+ .comparison-adjust input {display:block;width:7rem;max-width:100%;min-height:44px;
+@@ -25,7 +26,15 @@ CSS = """
+ .comparison-controls button:disabled {opacity:.4}
+ .comparison-controls :is(input,button):focus-visible {outline:2px solid var(--accent);outline-offset:3px}
+ .comparison-bars {display:grid;gap:.75rem;margin-block:1rem;font-variant-numeric:tabular-nums}
+-.comparison-bars meter {width:100%;height:1.5rem}
++.comparison-bars meter:not(.comparison-meter-b) {width:calc(100% - 44px);height:1.5rem;margin-inline:22px}
++.comparison-direct {position:relative;height:52px;margin-inline:22px;touch-action:pan-y}
++.comparison-direct-track {position:absolute;inset:22px 0 auto;height:8px;background:var(--line);border-radius:var(--r-1)}
++.comparison-direct-fill {height:100%;width:var(--comparison-b);background:var(--accent);border-radius:inherit}
++.comparison-controls .comparison-handle {position:absolute;top:4px;left:var(--comparison-b);transform:translateX(-50%);
++  width:44px;height:44px;padding:0;touch-action:none;cursor:ew-resize;border-color:var(--accent);font-weight:700}
++.comparison-handle[data-pending="1"] {background:var(--accent);color:var(--bg)}
++.comparison-controls:has(input[type=range]:focus-visible) .comparison-handle {outline:2px solid var(--accent);outline-offset:3px}
++.comparison-gesture-help {font-size:var(--text-xs);color:var(--mut)}
+ .comparison-result {font-weight:600;border-top:1px solid var(--line);padding-top:.75rem}
+ @media print {.comparison-controls {display:none!important}.comparison-static strong {text-shadow:none}}
+ @media (forced-colors:active) {.lesson-comparison strong {color:CanvasText;background:Canvas;text-decoration:underline;text-shadow:none}}
+@@ -43,11 +52,14 @@ JS = """<script>
+       const increase = root.querySelector('.comparison-increase');
+       const reset = root.querySelector('.comparison-reset');
+       const controls = root.querySelector('.comparison-controls');
+-      if (!input || !number || !decrease || !increase || !reset || !controls) return;
++      const direct = root.querySelector('.comparison-direct');
++      const handle = root.querySelector('.comparison-handle');
++      if (!input || !number || !decrease || !increase || !reset || !controls || !direct || !handle) return;
+       const a = Number(input.dataset.a), initial = Number(input.defaultValue);
+       const maximum = Number(input.max), unit = input.dataset.unit;
+       if (![a, initial, maximum].every(Number.isSafeInteger) || maximum < 1 ||
+           maximum > 10000 || a < 0 || a > maximum || initial < 0 || initial > maximum) return;
++      let gesture = null;
+       function update() {
+         let b = Number(input.value);
+         if (!Number.isSafeInteger(b) || b < 0 || b > maximum) b = initial;
+@@ -59,16 +71,70 @@ JS = """<script>
+         const delta = b - a;
+         root.querySelector('.comparison-b').textContent = String(b);
+         root.querySelector('.comparison-meter-b').value = b;
++        direct.style.setProperty('--comparison-b', (b / maximum * 100) + '%');
++        handle.dataset.pending = gesture && gesture.moved ? '1' : '0';
+         root.querySelector('.comparison-result').textContent =
+           'B − A = ' + delta + ' ' + unit + '. ' +
+           (delta === 0 ? 'Equal quantities.' : 'B is ' + Math.abs(delta) + ' ' + unit +
+           (delta > 0 ? ' higher.' : ' lower.')) +
+-          (b === initial ? ' Authored starting value.' : ' Hypothetical value.');
++          (b === initial ? ' Authored starting value.' : ' Hypothetical value.') +
++          (gesture && gesture.moved ? ' Preview. Release to keep; Escape to cancel.' : '');
+       }
++      function finish(cancelled) {
++        if (!gesture) return;
++        const previous = gesture;
++        gesture = null;
++        if (cancelled) input.value = String(previous.start);
++        if (handle.hasPointerCapture && handle.hasPointerCapture(previous.id)) {
++          handle.releasePointerCapture(previous.id);
++        }
++        update();
++      }
++      handle.onpointerdown = event => {
++        if (gesture || !event.isPrimary || event.button !== 0) return;
++        const bounds = direct.getBoundingClientRect();
++        if (!bounds.width) return;
++        event.preventDefault();
++        input.focus({preventScroll:true});
++        const start = Number(input.value);
++        gesture = {id:event.pointerId, start, x:event.clientX, y:event.clientY,
++          left:bounds.left, width:bounds.width, height:bounds.height,
++          offset:event.clientX - (bounds.left + start / maximum * bounds.width), moved:false};
++        try { handle.setPointerCapture(event.pointerId); }
++        catch (_) { finish(true); }
++      };
++      function previewPointer(event) {
++        if (!gesture || gesture.id !== event.pointerId) return;
++        const dx = event.clientX - gesture.x, dy = event.clientY - gesture.y;
++        if (!gesture.moved && dx * dx + dy * dy < 16) return;
++        gesture.moved = true;
++        input.value = String(Math.max(0, Math.min(maximum, Math.round(
++          (event.clientX - gesture.left - gesture.offset) / gesture.width * maximum))));
++        update();
++      }
++      handle.onpointermove = previewPointer;
++      handle.onpointerup = event => {
++        if (gesture && gesture.id === event.pointerId) { previewPointer(event); finish(false); }
++      };
++      handle.onpointercancel = event => { if (gesture && gesture.id === event.pointerId) finish(true); };
++      handle.onlostpointercapture = event => { if (gesture && gesture.id === event.pointerId) finish(true); };
++      root.addEventListener('keydown', event => {
++        if (event.key === 'Escape' && gesture) { event.preventDefault(); finish(true); }
++      });
++      ['blur', 'resize', 'pagehide'].forEach(name => window.addEventListener(name, () => finish(true)));
++      if (typeof ResizeObserver === 'function') {
++        new ResizeObserver(() => {
++          if (!gesture) return;
++          const bounds = direct.getBoundingClientRect();
++          if (bounds.width !== gesture.width || bounds.height !== gesture.height) finish(true);
++        }).observe(direct);
++      }
++      input.addEventListener('blur', () => finish(true));
+       input.value = String(initial);
+-      input.oninput = update;
++      input.oninput = () => { const value = input.value; finish(true); input.value = value; update(); };
+       number.oninput = () => number.setCustomValidity('');
+       number.onchange = () => {
++        finish(true);
+         const b = Number(number.value);
+         if (!number.value || !Number.isSafeInteger(b) || b < 0 || b > maximum) {
+           number.setCustomValidity('Enter a whole number from 0 to ' + maximum + '.');
+@@ -78,9 +144,9 @@ JS = """<script>
+         input.value = String(b);
+         update();
+       };
+-      decrease.onclick = () => { input.value = String(Math.max(0, Number(input.value) - 1)); update(); };
+-      increase.onclick = () => { input.value = String(Math.min(maximum, Number(input.value) + 1)); update(); };
+-      reset.onclick = () => { input.value = String(initial); update(); };
++      decrease.onclick = () => { finish(true); input.value = String(Math.max(0, Number(input.value) - 1)); update(); };
++      increase.onclick = () => { finish(true); input.value = String(Math.min(maximum, Number(input.value) + 1)); update(); };
++      reset.onclick = () => { finish(true); input.value = String(initial); update(); };
+       update();
+       root.dataset.initialized = '1';
+       controls.hidden = false;
+@@ -112,8 +178,14 @@ def render(data, inline):
+         '<button class="comparison-reset" type="button">Reset comparison</button></div>'
+         '<div class="comparison-bars">'
+         '<label>A: %d %s <meter min="0" max="%d" value="%d"></meter></label>'
+-        '<label>B: <span class="comparison-b">%d</span> %s '
+-        '<meter class="comparison-meter-b" min="0" max="%d" value="%d"></meter></label>'
++        '<div>B: <span class="comparison-b">%d</span> %s '
++        '<meter class="comparison-meter-b" aria-label="B quantity" min="0" max="%d" value="%d"></meter>'
++        '<div class="comparison-direct" aria-hidden="true">'
++        '<div class="comparison-direct-track"><div class="comparison-direct-fill"></div></div>'
++        '<button class="comparison-handle" type="button" tabindex="-1">B</button></div></div>'
++        '<p class="comparison-gesture-help">Drag the B handle to compare quantities. '
++        'Release to keep the value; Escape cancels. Tab to adjust B with arrow keys, '
++        'or use exact entry and step buttons.</p>'
+         '</div><p class="comparison-result" role="status" aria-live="polite"></p>'
+         '</div></div>'
+         % (inline(data["text"]), a, unit, b, unit, b-a, unit,
+diff --git a/surfaces/lesson_progressive.py b/surfaces/lesson_progressive.py
+index a8fd236..792bd98 100644
+--- a/surfaces/lesson_progressive.py
++++ b/surfaces/lesson_progressive.py
+@@ -3,6 +3,9 @@
+ CSS = """
+ .lesson-reading-controls {display:flex;flex-wrap:wrap;gap:.75rem;align-items:center;margin-block:1rem}
+ .lesson-reading-controls button {min-height:44px;white-space:normal}
++.lesson-reading-options {margin-block:var(--space-2);color:var(--ink)}
++.lesson-reading-options>summary {min-height:44px;cursor:pointer;color:var(--mut)}
++.lesson-reading-options .lesson-reading-controls {margin-block:var(--space-2)}
+ .lesson-reading-outline summary,.lesson-reading-detail summary {min-height:44px;cursor:pointer;font-weight:700}
+ .lesson-reading-outline a {display:inline-block;padding-block:.5rem}
+ .lesson-source-preview {margin-block:.75rem}
+@@ -40,8 +43,20 @@ JS = """<script>
+       return control;
+     }
+     let count = 1;
+-    const next = button('Next explanation', () => {count = Math.min(count + 1, stages.length); paint();});
++    const next = button('Next explanation', () => {
++      if (count === stages.length) return;
++      count += 1;
++      paint();
++      stages[count - 1].scrollIntoView({behavior:'instant', block:'start'});
++    });
+     next.classList.add('primary');
++    const options = document.createElement('details');
++    options.className = 'lesson-reading-options';
++    const optionsTitle = document.createElement('summary');
++    optionsTitle.textContent = 'Reading options';
++    options.append(optionsTitle);
++    const tools = document.createElement('div');
++    tools.className = 'lesson-reading-controls';
+     const all = button('Show all explanations', () => {count = stages.length; paint();});
+     button('Start again', () => {count = 1; paint();});
+     const emphasis = button('Highlight key wording', () => {
+@@ -49,11 +64,12 @@ JS = """<script>
+       emphasis.setAttribute('aria-pressed', String(active));
+     });
+     emphasis.setAttribute('aria-pressed', 'false');
++    Array.from(bar.children).slice(1).forEach(control => tools.append(control));
++    options.append(tools);
+     const status = document.createElement('span');
+     status.setAttribute('role', 'status');
+     status.setAttribute('aria-live', 'polite');
+     bar.append(status);
+-    root.prepend(bar);
+     // An outline uses only headings already present after runtime truncation.
+     const outline = document.createElement('details');
+     outline.className = 'lesson-reading-outline';
+@@ -76,7 +92,8 @@ JS = """<script>
+       list.append(item);
+     });
+     outline.append(list);
+-    root.insertBefore(outline, bar);
++    options.append(outline);
++    root.append(options);
+     // Preview a single already-rendered source excerpt beside its citation.
+     // External sources and ambiguous targets keep their ordinary link.
+     root.querySelectorAll('a[href^="#"]').forEach(link => {
+@@ -113,6 +130,7 @@ JS = """<script>
+       label.replaceWith(detail);
+     });
+     function paint() {
++      const focused = bar.contains(document.activeElement) ? document.activeElement : null;
+       stages.forEach((stage, index) => {
+         stage.hidden = index >= count;
+         if (index === count - 1) stage.setAttribute('aria-current', 'step');
+@@ -121,6 +139,10 @@ JS = """<script>
+       next.disabled = count === stages.length;
+       all.disabled = count === stages.length;
+       status.textContent = count + ' of ' + stages.length + ' available explanations shown';
++      // Keep keyboard focus through the move; a finished Next returns to options.
++      stages[count - 1].after(bar);
++      if (focused && focused.disabled) optionsTitle.focus({preventScroll:true});
++      else if (focused && document.activeElement !== focused) focused.focus({preventScroll:true});
+     }
+     function revealFragment(fragment) {
+       let id;
+diff --git a/surfaces/presentation.py b/surfaces/presentation.py
+index c92ea35..87832f0 100644
+--- a/surfaces/presentation.py
++++ b/surfaces/presentation.py
+@@ -489,6 +489,11 @@ body{margin:0;background:var(--paper);color:var(--product-ink)}
+   padding:var(--space-2) var(--space-4);display:flex;align-items:center;
+   gap:var(--space-4);background:var(--card)}
+ .standalone-product-nav{width:100%}
++/* A standalone sitting already pins its context band. Keep one top anchor
++   so the app navigation cannot cover the course-return link after scrolling. */
++@media(min-width:768px){
++  .standalone-product-nav:has(~ [data-surface-context]){position:static}
++}
+ .wrap:has(.standalone-product-nav){margin-left:auto}
+ .product-brand{font-family:var(--font-chrome);font-size:var(--text-heading);font-weight:600;
+   color:var(--product-ink);display:flex;align-items:center;min-height:44px;
+diff --git a/tests/js/lesson_comparison_controls.test.mjs b/tests/js/lesson_comparison_controls.test.mjs
+index ae08fe8..e7a856e 100644
+--- a/tests/js/lesson_comparison_controls.test.mjs
++++ b/tests/js/lesson_comparison_controls.test.mjs
+@@ -62,3 +62,145 @@ test("comparison supports exact entry, step buttons, bounds, reset and back navi
+   assert.match(result.textContent, /Authored starting value/);
+   dom.window.close();
+ });
++
++function gesturePage(copies = 1) {
++  const dom = new JSDOM(fixture.body.repeat(copies), { runScripts: "outside-only" });
++  const { window } = dom;
++  const observers = [];
++  window.ResizeObserver = class {
++    constructor(callback) { this.callback = callback; observers.push(this); }
++    observe(target) { this.target = target; }
++  };
++  window.eval(fixture.script.replace(/^<script[^>]*>|<\/script>$/g, ""));
++  const views = [...window.document.querySelectorAll(".lesson-comparison")].map(root => {
++    const handle = root.querySelector(".comparison-handle");
++    const range = root.querySelector("input[type=range]");
++    let captured = null;
++    handle.setPointerCapture = id => { captured = id; };
++    handle.hasPointerCapture = id => captured === id;
++    handle.releasePointerCapture = id => {
++      assert.equal(captured, id);
++      captured = null;
++      send("lostpointercapture", 0, { pointerId: id });
++    };
++    const bounds = {left:100, width:240, height:52};
++    const direct = root.querySelector(".comparison-direct");
++    direct.getBoundingClientRect = () => bounds;
++    function send(type, x, extra = {}) {
++      const event = new window.Event(type, {bubbles:true, cancelable:true});
++      Object.assign(event, {pointerId:1, isPrimary:true, button:0, clientX:x, clientY:50}, extra);
++      handle.dispatchEvent(event);
++    }
++    return {root, handle, range, send, bounds, resize: () => observers.find(observer => observer.target === direct).callback(),
++      capture: () => captured};
++  });
++  return {dom, window, views};
++}
++
++test("B drag retains grab offset, waits for intent, clamps and commits only on release", () => {
++  const {dom, views:[view]} = gesturePage();
++  const {range, root, handle, send} = view;
++  send("pointerdown", 290); // B endpoint is 280; grab ten pixels to its right.
++  assert.equal(dom.window.document.activeElement, range);
++  send("pointermove", 293);
++  assert.equal(range.value, "18");
++  assert.equal(handle.dataset.pending, "0");
++  send("pointermove", 315);
++  assert.equal(range.value, "21", "half steps snap to a whole authored unit");
++  assert.match(root.querySelector(".comparison-result").textContent, /Preview/);
++  send("pointermove", 900, {pointerId:2});
++  assert.equal(range.value, "21", "another pointer must not alter the gesture");
++  send("pointermove", 900);
++  assert.equal(range.value, "24");
++  send("pointermove", -200);
++  assert.equal(range.value, "0");
++  send("pointermove", 310);
++  send("pointerup", 310);
++  assert.equal(range.value, "20");
++  assert.equal(view.capture(), null);
++  assert.equal(handle.dataset.pending, "0");
++  assert.doesNotMatch(root.querySelector(".comparison-result").textContent, /Preview/);
++  dom.window.close();
++});
++
++test("all gesture interruptions restore the value at grab and clear preview and capture", () => {
++  for (const reason of ["Escape", "blur", "resize", "pointercancel", "lostpointercapture", "pagehide", "focusloss"]) {
++    const {dom, window, views:[view]} = gesturePage();
++    const {range, root, send} = view;
++    range.value = "9";
++    range.dispatchEvent(new window.Event("input"));
++    send("pointerdown", 200);
++    send("pointermove", 240);
++    assert.equal(range.value, "13");
++    if (reason === "Escape") range.dispatchEvent(new window.KeyboardEvent("keydown", {key:"Escape", bubbles:true}));
++    else if (reason === "focusloss") range.dispatchEvent(new window.Event("blur"));
++    else if (reason.startsWith("pointer") || reason === "lostpointercapture") send(reason, 240);
++    else window.dispatchEvent(new window.Event(reason));
++    assert.equal(range.value, "9", reason);
++    assert.equal(root.querySelector(".comparison-number").value, "9", reason);
++    assert.equal(view.capture(), null, reason);
++    assert.equal(view.handle.dataset.pending, "0", reason);
++    assert.doesNotMatch(root.querySelector(".comparison-result").textContent, /Preview/, reason);
++    send("pointerup", 240);
++    assert.equal(range.value, "9", "release after cancellation cannot commit");
++    dom.window.close();
++  }
++});
++
++test("instances remain isolated and cancelled movement is never the next gesture's base", () => {
++  const {dom, window, views:[first, second]} = gesturePage(2);
++  first.send("pointerdown", 280);
++  first.send("pointermove", 300);
++  assert.equal(first.range.value, "20");
++  assert.equal(second.range.value, "18");
++  first.send("pointercancel", 300);
++  first.send("pointerdown", 280);
++  first.send("pointermove", 260);
++  first.send("pointerup", 260);
++  assert.equal(first.range.value, "16");
++  window.dispatchEvent(new window.Event("pageshow"));
++  assert.equal(first.range.value, "16");
++  second.root.querySelector(".comparison-increase").click();
++  assert.equal(second.range.value, "19");
++  assert.equal(first.range.value, "16");
++  dom.window.close();
++});
++
++test("a tap, secondary pointer or failed capture does not change B", () => {
++  const {dom, views:[view]} = gesturePage();
++  view.send("pointerdown", 280, {button:2});
++  assert.equal(view.capture(), null);
++  view.send("pointerdown", 280, {isPrimary:false});
++  assert.equal(view.capture(), null);
++  view.send("pointerdown", 280);
++  view.send("pointerup", 280);
++  assert.equal(view.range.value, "18");
++  assert.equal(view.capture(), null);
++  view.handle.setPointerCapture = () => { throw new Error("capture unavailable"); };
++  view.send("pointerdown", 280);
++  view.send("pointermove", 320);
++  assert.equal(view.range.value, "18");
++  assert.equal(view.handle.dataset.pending, "0");
++  dom.window.close();
++});
++
++test("release applies the last pointer position and direct layout resize cancels", () => {
++  const {dom, views:[view]} = gesturePage();
++  view.send("pointerdown", 280);
++  view.send("pointermove", 300);
++  assert.equal(view.range.value, "20");
++  view.send("pointerup", 310);
++  assert.equal(view.range.value, "21", "release can arrive after the last move event");
++  view.send("pointerdown", 310);
++  view.send("pointermove", 320);
++  view.resize();
++  assert.equal(view.range.value, "22", "initial unchanged observer delivery keeps the gesture");
++  view.bounds.width = 200;
++  view.resize();
++  assert.equal(view.range.value, "21", "control resize restores the value at grab");
++  assert.equal(view.capture(), null);
++  assert.equal(view.handle.dataset.pending, "0");
++  view.send("pointerup", 320);
++  assert.equal(view.range.value, "21");
++  dom.window.close();
++});
+diff --git a/tests/js/lesson_progressive.test.mjs b/tests/js/lesson_progressive.test.mjs
+index f59b83c..3868354 100644
+--- a/tests/js/lesson_progressive.test.mjs
++++ b/tests/js/lesson_progressive.test.mjs
+@@ -23,6 +23,8 @@ test('native stages reveal, restart, highlight, and preserve authored wording',
+   const dom = await reader();
+   const doc = dom.window.document;
+   const stages = [...doc.querySelectorAll('.stage')];
++  const scrolled = [];
++  dom.window.HTMLElement.prototype.scrollIntoView = function (options) {scrolled.push({node:this,options});};
+   assert.ok(stages.length > 1);
+   assert.equal(doc.querySelector('.stage .stage'), null);
+   const content = stages.map(stage => stage.textContent);
+@@ -34,18 +36,30 @@ test('native stages reveal, restart, highlight, and preserve authored wording',
+   const visible = () => stages.filter(stage => !stage.hidden).length;
+   const button = label => [...doc.querySelectorAll('button')].find(b => b.textContent === label);
+   assert.equal(visible(), 1);
++  assert.ok(stages[0].compareDocumentPosition(doc.querySelector('.lesson-reading-controls')) &
++    dom.window.Node.DOCUMENT_POSITION_FOLLOWING);
++  button('Next explanation').focus();
+   button('Next explanation').click();
+   assert.equal(visible(), 2);
++  assert.equal(doc.activeElement, button('Next explanation'));
++  assert.equal(scrolled.length, 1);
++  assert.equal(scrolled[0].node, stages[1]);
++  assert.deepEqual({...scrolled[0].options}, {behavior:'instant',block:'start'});
++  while (!button('Next explanation').disabled) button('Next explanation').click();
++  assert.equal(doc.activeElement, doc.querySelector('.lesson-reading-options>summary'));
++  button('Start again').click();
+   button('Show all explanations').click();
+   assert.equal(visible(), stages.length);
+   assert.equal(button('Next explanation').disabled, true);
+   button('Start again').click();
+   assert.equal(visible(), 1);
++  const advanceScrolls = scrolled.length;
+   button('Highlight key wording').click();
+   assert.equal(button('Highlight key wording').getAttribute('aria-pressed'), 'true');
+   assert.ok(doc.getElementById('lesson-content').classList.contains('reading-emphasis'));
+   button('Highlight key wording').click();
+   assert.equal(button('Highlight key wording').getAttribute('aria-pressed'), 'false');
++  assert.equal(scrolled.length, advanceScrolls);
+   assert.deepEqual(stages.map(stage => stage.textContent), content);
+   dom.window.close();
+ });
+diff --git a/tests/lesson_interaction_roundtrip.py b/tests/lesson_interaction_roundtrip.py
+index d4a435f..3c6af00 100644
+--- a/tests/lesson_interaction_roundtrip.py
++++ b/tests/lesson_interaction_roundtrip.py
+@@ -38,6 +38,9 @@ class ComparisonTests(unittest.TestCase):
+         page = self.page()
+         self.assertIn('class="lesson-comparison"', page)
+         self.assertIn('type="range"', page)
++        self.assertIn('class="comparison-handle"', page)
++        self.assertIn('class="comparison-direct" aria-hidden="true"', page)
++        self.assertIn('Release to keep the value; Escape cancels.', page)
+         self.assertIn('AI-authored synthesis', page)
+         self.assertIn('href="#source-rain-01"', page)
+         self.assertIn('id="source-rain-01"', page)
+diff --git a/tests/lesson_progressive_roundtrip.py b/tests/lesson_progressive_roundtrip.py
+index 5b81f4d..ce7cb9a 100644
+--- a/tests/lesson_progressive_roundtrip.py
++++ b/tests/lesson_progressive_roundtrip.py
+@@ -29,6 +29,14 @@ class ProgressiveTests(unittest.TestCase):
+         self.assertNotIn('Highlight key wording', self.page())
+         self.assertEqual(before, FIXTURE.read_bytes())
+ 
++    def test_guided_header_names_current_concept_without_changing_other_modes(self):
++        page = self.page(mode='guided')
++        self.assertIn('data-reading-mode="guided"', page)
++        self.assertIn('<details class="lesson-reading-about">', page)
++        self.assertIn('id="lesson-content"', page)
++        for mode in ('continuous', 'paced'):
++            self.assertNotIn('<details class="lesson-reading-about">', self.page(mode=mode))
++
+     def test_show_all_cannot_cross_required_check(self):
+         with tempfile.TemporaryDirectory() as tmp:
+             path = Path(tmp) / 'bank.md'
+diff --git a/tests/lesson_roundtrip.py b/tests/lesson_roundtrip.py
+index bd7c283..e428202 100644
+--- a/tests/lesson_roundtrip.py
++++ b/tests/lesson_roundtrip.py
+@@ -1017,7 +1017,7 @@ def _lesson_content_region(pg):
+     09-04 `id="lesson-content"` target; the opening tag is matched loosely
+     so the attribute addition does not break the extraction."""
+     m = re.search(
+-        r'<div class="card"[^>]*>(.*?)</div>\s*'
++        r'<div class="card"[^>]*>(.*?)</div>\s*(?:<script>.*?</script>\s*)*'
+         r'<p class="style-foot">.*?</p>\s*</div></body></html>',
+         pg, re.S)
+     if not m:
+@@ -1025,6 +1025,23 @@ def _lesson_content_region(pg):
+     return m.group(1)
+ 
+ 
++def _phase3_content_region(pg):
++    """Compare historical teaching bytes after removing only added code controls.
++
++    Dedicated craft tests verify these controls; this golden continues to catch
++    any change to code text, indentation, language, prose or unavailable copy.
++    """
++    content = _lesson_content_region(pg)
++    tools = ('<div class="code-tools" hidden><button type="button" class="go code-select">'
++             'Select code</button><button type="button" class="go code-copy">Copy code</button>'
++             '<span class="code-status" role="status" aria-live="polite"></span></div>')
++    opening = ('<pre class="code-source" tabindex="0" role="region" '
++               'aria-label="Example code">')
++    if content.count(opening) != content.count(tools):
++        fail("every public code fence must retain its selection/copy pair")
++    return content.replace(tools, '').replace(opening, '<pre>')
++
++
+ def test_lesson_style_composes_theme_shared_lesson():
+     """Test 1: the rendered lesson page's <style> composes theme_css then
+     SHARED_CSS then LESSON_CSS, and LESSON_TEMPLATE carries no private type
+@@ -1093,7 +1110,7 @@ def test_lesson_content_region_byte_identical_phase3():
+     golden = open(GOLDEN_CONTENT_P3, encoding="utf-8").read()
+     pg = lesson.lesson_page(LES_BANK, itembank.load(LES_BANK),
+                             itembank.parse_lesson(LES_BANK))
+-    content = _lesson_content_region(pg)
++    content = _phase3_content_region(pg)
+     if content != golden:
+         fail("content region drifted from the Phase 3 golden "
+              "(%d chars, expected %d; style block excluded per "
+@@ -1300,7 +1317,7 @@ def test_provenance_compatibility_floor():
+     golden = open(GOLDEN_CONTENT_P3, encoding="utf-8").read()
+     pg = lesson.lesson_page(LES_BANK, itembank.load(LES_BANK),
+                             itembank.parse_lesson(LES_BANK))
+-    if _lesson_content_region(pg) != golden:
++    if _phase3_content_region(pg) != golden:
+         fail("no-provenance bank content region drifted from the Phase 3 "
+              "golden (style block excluded per 03.1-UI-SPEC §12)")
+     plain_text = open(LES_BANK, encoding="utf-8").read()
+@@ -1800,7 +1817,11 @@ def test_existing_block_branches_byte_identical_without_callouts():
+               "</table></div>\n"
+               '<div class="scroll" data-code-block="1" data-lang="py">'
+               '<span class="lang">py</span>'
+-              '<pre><code class="language-py">x = 1</code></pre>'
++              '<pre class="code-source" tabindex="0" role="region" '
++              'aria-label="Example code"><code class="language-py">x = 1</code></pre>'
++              '<div class="code-tools" hidden><button type="button" class="go code-select">'
++              'Select code</button><button type="button" class="go code-copy">Copy code</button>'
++              '<span class="code-status" role="status" aria-live="polite"></span></div>'
+               '<p class="run-unavailable">Run this example in the local app. '
+               "The source remains available here.</p></div>"
+               "</section>")
+@@ -3005,7 +3026,7 @@ def test_gloss_placement_hover_and_key_link_contract():
+                    "(max-width:767px) and (pointer:coarse)",
+                    '#gloss-airway{--gloss-anchor:--anchor-airway}',
+                    'href="#key-1111111111111111">Also a key point</a>',
+-                   'dataset.glossOpen = "hover"', "Back to the text"):
++                   'gloss.dataset.glossOpen = value ? "click" : "hover"', "Back to the text"):
+         if needle not in pg:
+             fail("phase 13.5 gloss contract missing %r" % needle)
+     panel = pg[pg.index('<div id="gloss-airway"'):
+@@ -3018,7 +3039,7 @@ def test_gloss_placement_hover_and_key_link_contract():
+         settings_text=json.dumps({"reader": {"gloss_hover": "off"}}))
+     off_pg = lesson.lesson_page(off, itembank.load(off),
+                                 itembank.parse_lesson(off))
+-    if 'dataset.glossOpen = "hover"' in off_pg:
++    if 'gloss.dataset.glossOpen = value ? "click" : "hover"' in off_pg:
+         fail("gloss_hover off must omit the hover-intent script")
+ 
+     original = lesson.lesson_slug
+@@ -3593,7 +3614,7 @@ def test_no_terms_bank_matches_phase3_golden():
+             json.dumps(golden["qs"], sort_keys=True):
+         fail("a bank with no TERMS section drifted from the Phase 3 golden "
+              "parse")
+-    content = _lesson_content_region(
++    content = _phase3_content_region(
+         lesson.lesson_page(LES_BANK, itembank.load(LES_BANK),
+                            itembank.parse_lesson(LES_BANK)))
+     if content != open(GOLDEN_CONTENT_P3, encoding="utf-8").read():

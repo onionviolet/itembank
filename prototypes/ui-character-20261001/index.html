@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>itembank: boundary lab design study</title>
+<style>
+:root{color-scheme:light;--page:#f5f2eb;--ink:#252b28;--quiet:#5e655e;--line:#d4d7cd;--stage:#fffef9;--accent:#ac442e;--soft:#f4e3d8;--rail:#243b32;--rail-ink:#f4f0e5;--font-chrome:system-ui,sans-serif;--font-paper:Georgia,serif;--font-code:ui-monospace,monospace}
+*{box-sizing:border-box}body{margin:0;background:var(--page);color:var(--ink);font:16px/1.5 var(--font-chrome)}button,input{font:inherit}button,a,input{touch-action:manipulation}button{cursor:pointer;min-height:44px}a{color:inherit}button:focus-visible,a:focus-visible,input:focus-visible{outline:3px solid var(--accent);outline-offset:4px}[hidden]{display:none!important}
+body[data-theme="night"]{color-scheme:dark;--page:#1c2421;--ink:#f3f0e7;--quiet:#b6c0b7;--line:#48534b;--stage:#27322b;--accent:#f0ab81;--soft:#3b3028;--rail:#111b16;--rail-ink:#f4f0e5}
+.study-tag{padding:8px 24px;border-bottom:1px solid var(--line);font-size:12px;color:var(--quiet);display:flex;justify-content:space-between;gap:16px}.shell{min-height:calc(100vh - 35px);display:grid;grid-template-columns:208px minmax(0,1fr)}.rail{background:var(--rail);color:var(--rail-ink);padding:28px 20px;display:flex;flex-direction:column;gap:32px}.wordmark{font-size:20px;font-weight:600;letter-spacing:-.7px}.wordmark span{display:inline-block;width:20px;height:20px;vertical-align:-2px;margin-right:10px;border-left:3px solid currentColor;border-bottom:3px solid currentColor}.rail p{margin:0}.rail .label{font-size:12px;opacity:.75;letter-spacing:.06em}.rail nav{display:grid;gap:8px}.nav-button{background:none;color:inherit;border:0;text-align:left;padding:10px 12px;font-weight:600}.nav-button[aria-current="page"]{background:#ffffff12;border-left:3px solid var(--rail-ink)}.rail-course{border-top:1px solid #ffffff35;padding-top:24px}.rail-course p+ p{margin-top:8px}.rail-footer{margin-top:auto;display:grid;gap:12px}.theme-button{background:none;color:inherit;border:1px solid #ffffff50;border-radius:4px;padding:8px 12px;text-align:left}.main{padding:24px 40px 40px;max-width:1450px;width:100%;min-width:0}.topline{display:flex;justify-content:space-between;align-items:center;gap:16px;color:var(--quiet);font-size:12px;padding-bottom:20px;border-bottom:1px solid var(--line)}.back{font-size:16px;text-decoration:none}.overline{font-size:12px;color:var(--accent);letter-spacing:.08em;font-weight:600;margin:0 0 12px}.hero{margin:32px 0 24px;display:flex;align-items:flex-start;justify-content:space-between;gap:24px}h1{font-size:32px;font-weight:600;line-height:1.2;letter-spacing:-1px;margin:0 0 14px;max-width:28ch}h2{font-size:20px;font-weight:600;line-height:1.3;margin:0 0 16px}h3{font-size:18px;font-weight:600;margin:0 0 8px}p{margin:0 0 16px}.intro{font:18px/1.6 var(--font-paper);max-width:55ch;margin:0}.unit-number{font:32px/1 var(--font-code);color:var(--quiet);border-bottom:4px solid var(--accent);padding-bottom:14px;flex:0 0 auto}.lab-layout{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(240px,1fr);gap:32px;align-items:start}.experiment{background:var(--stage);padding:24px 28px;border-top:3px solid var(--accent)}.experiment-head{display:flex;gap:12px;justify-content:space-between;margin-bottom:12px}.experiment-head p{font-size:12px;color:var(--quiet);margin:0}.rule{margin:0;padding:0;border:0;display:flex;gap:8px;flex-wrap:wrap}.rule legend{margin-bottom:12px;font-size:12px;color:var(--quiet)}.rule label{padding:10px 14px;border:1px solid var(--line);border-radius:4px;display:flex;align-items:center;gap:8px;min-height:44px;font-family:var(--font-code)}.rule label:has(input:checked){background:var(--soft);border-color:var(--accent)}.rule input{accent-color:var(--accent)}.numberline{user-select:none;-webkit-user-select:none;touch-action:pan-y;width:100%;height:auto;display:block;margin:24px 0 16px;overflow:visible}.numberline text{pointer-events:none;fill:var(--ink);font:16px var(--font-code)}.numberline line{stroke:var(--line);stroke-width:2}.numberline .selected{fill:var(--accent);stroke:var(--accent)}.numberline .inactive{fill:var(--page);stroke:var(--line);stroke-width:2}.numberline .boundary{fill:var(--stage);stroke:var(--ink);stroke-width:2}.numberline .marker{fill:var(--accent)}.slider-row{display:flex;justify-content:space-between;font-size:12px;color:var(--quiet)}.range{width:100%;accent-color:var(--accent);min-height:44px}.observation{display:flex;align-items:baseline;gap:16px;padding-top:16px;border-top:1px solid var(--line);margin-top:8px;flex-wrap:wrap}.formula{font:20px var(--font-code);margin:0}.outcome{font-size:16px;font-weight:600}.explanation{padding-top:8px}.explanation p{font:18px/1.7 var(--font-paper)}.margin-note{border-left:2px solid var(--accent);padding-left:16px;margin:24px 0;color:var(--quiet);font:16px/1.6 var(--font-paper)}.source{font-size:12px;color:var(--quiet);border-top:1px solid var(--line);padding-top:16px}.actions{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-top:28px}.primary{background:var(--rail);color:var(--rail-ink);border:0;border-radius:4px;padding:12px 20px;font-weight:600}.secondary{background:none;color:var(--ink);border:1px solid var(--line);border-radius:4px;padding:10px 16px}.text-action{background:none;border:0;color:var(--ink);padding:10px 0;text-align:left}.path{margin-top:32px;border-top:1px solid var(--line);padding-top:20px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}.path p{font-size:12px;color:var(--quiet);margin:6px 0 0}.path b{font-size:16px;font-weight:600}.path .step-num{font:12px var(--font-code);color:var(--accent);display:block;margin-bottom:8px}.course-layout{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(240px,1fr);gap:40px}.course-lead{padding:28px;background:var(--stage);border-left:4px solid var(--accent)}.course-list{padding:0;margin:24px 0;list-style:none}.course-list li{padding:20px 0;border-bottom:1px solid var(--line);display:grid;grid-template-columns:32px 1fr;gap:12px}.course-list span{font:16px var(--font-code);color:var(--quiet)}.course-list small{font-size:12px;color:var(--quiet)}.code-layout{align-items:start;display:grid;grid-template-columns:minmax(0,1.4fr) minmax(240px,1fr);gap:24px}.code-stage{background:var(--rail);color:var(--rail-ink);min-width:0;padding:24px}.code-stage p{font-size:12px;opacity:.8}.code-stage pre{font:16px/1.8 var(--font-code);white-space:pre-wrap;overflow-wrap:anywhere;margin:16px 0}.code-stage .code-mark{background:#ffffff18;border-left:3px solid #efb28c;display:block;padding-left:12px;margin-left:-12px}.cases{border-collapse:collapse;width:100%;font-size:16px}.cases td,.cases th{padding:12px 8px;text-align:left;border-bottom:1px solid var(--line)}.cases th{font-size:12px;font-weight:600;color:var(--quiet)}.cases .equality{background:var(--soft)}.example-tag{display:inline-block;color:var(--quiet);font-size:12px;margin-bottom:12px}.prototype-note{font-size:12px;color:var(--quiet);margin:24px 0 0}.mobile-course{display:none}.noscript{padding:20px;border-left:3px solid var(--accent)}
+.line-hit,.marker-hit{fill:transparent;pointer-events:all}.line-hit,#points circle{cursor:ew-resize}.drag-handle{cursor:grab;touch-action:none}.marker-hit{cursor:inherit;touch-action:none}.handle-halo{fill:var(--soft);stroke:var(--accent);stroke-width:2;vector-effect:non-scaling-stroke;opacity:0;pointer-events:none}.drag-handle:hover .handle-halo,.numberline[data-dragging] .handle-halo,.experiment:has(#value:focus-visible) .handle-halo{opacity:1}.numberline[data-dragging],.numberline[data-dragging] .marker-hit{cursor:grabbing}.diagram-range:focus-visible{outline:0}.drag-hint{font-size:16px;color:var(--quiet);margin:12px 0 0}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+@media(min-width:801px){.hero{margin:20px 0}.topline{padding-bottom:12px}.hero .intro{font-size:16px;line-height:1.6}.numberline{margin:16px 0 8px}.numberline{max-height:140px}.experiment .rule legend{margin-bottom:8px}.experiment h2{margin-bottom:8px}}
+@media(max-width:1100px){.main{padding:24px}.lab-layout{gap:24px;grid-template-columns:minmax(0,1.3fr) minmax(220px,1fr)}.experiment{padding:20px}.course-layout,.code-layout{gap:24px}}
+@media(max-width:800px){.shell{grid-template-columns:1fr}.rail{padding:12px 16px;display:flex;flex-direction:row;align-items:center;gap:12px;flex-wrap:wrap}.rail nav{display:flex;gap:0}.rail-course,.rail-footer,.rail>.label{display:none}.wordmark{font-size:18px}.nav-button{padding:8px 12px}.nav-button[aria-current="page"]{border-left:0;border-bottom:3px solid var(--rail-ink)}.main{padding:20px 16px}.hero{margin:24px 0;gap:12px}.unit-number{font-size:20px}.lab-layout,.course-layout,.code-layout{grid-template-columns:1fr}.experiment{padding:20px 16px}.explanation p{font-size:18px}.path{grid-template-columns:repeat(2,minmax(0,1fr))}.study-tag{padding:8px 16px}.study-tag{flex-wrap:wrap;align-items:center}.topline{font-size:12px}.cases td,.cases th{padding:10px 6px}.intro{font-size:18px}}
+@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+
+.rail-brand{display:flex;justify-content:space-between;align-items:center;gap:8px}.rail-brand .theme-button{min-width:44px;width:44px;height:44px;display:grid;place-items:center;padding:0;border:0;font-size:20px}.rail-brand .theme-button[aria-pressed="true"]{background:#ffffff18}.nav-button{text-decoration:none;display:block;min-height:44px}.nav-button:hover,.rail-brand .theme-button:hover{background:#ffffff12}.rail a:focus-visible,.rail button:focus-visible{outline-color:var(--rail-ink)}.primary,.secondary,.text-action{display:inline-flex;align-items:center;min-height:44px;text-decoration:none}.primary:hover{filter:brightness(1.12)}.secondary:hover,.text-action:hover{color:var(--accent)}button:disabled{cursor:default;opacity:.5}.rule label:hover{border-color:var(--accent)}.rule label:has(input:focus-visible){outline:3px solid var(--accent);outline-offset:3px}.rule input:focus-visible{outline:0}.experiment .slider-row{margin-top:16px}.case-button{background:transparent;color:var(--accent);border:0;padding:8px 4px;text-decoration:underline;text-underline-offset:3px;text-align:left}.case-button:hover,.case-button[aria-expanded="true"]{background:var(--soft)}.inspection-row td{background:var(--soft);padding:16px}.inspection-row p{margin:0;line-height:1.6}.code-mark[data-inspected]{border-left-color:var(--accent)}.study-tag .save-state{font-size:16px;line-height:1.3}.numberline .marker{fill:var(--ink)}
+@media(max-width:800px){.rail-brand{width:100%}.rail nav{width:100%;justify-content:space-between}.study-tag{gap:4px 16px}}
+.code-stage pre{white-space:pre;overflow-x:auto;overflow-wrap:normal;max-width:100%}.code-stage .code-mark{display:inline;box-decoration-break:clone}.code-stage .code-scroll-hint{font-size:16px;opacity:1;margin-bottom:0}#code-example:focus-visible{outline:3px solid var(--rail-ink);outline-offset:4px}
+
+.study-tag{align-items:center;min-height:36px}.save-tools{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.save-tools button{font-size:14px;padding:4px 8px}.experiment:has(.numberline[data-dragging]) .slider-row label::after{content:' · preview';color:var(--accent)}.term-button{font:inherit;color:inherit;border:0;border-bottom:1px dotted var(--accent);background:none;padding:0;min-height:0;text-align:left;cursor:help}.term-button:hover,.term-button[aria-expanded="true"]{color:var(--accent)}.reference-card{position:fixed;z-index:5;width:320px;max-width:calc(100vw - 24px);max-height:calc(100vh - 24px);overflow:auto;padding:16px;background:var(--stage);border:1px solid var(--accent);border-radius:4px;box-shadow:0 8px 24px #0002}.reference-head{display:flex;align-items:center;justify-content:space-between;gap:12px}.reference-head h2{font-size:16px;margin:0}.reference-tools{display:flex;gap:4px}.reference-tools button{background:none;border:1px solid var(--line);border-radius:4px;color:var(--ink);padding:4px 10px}.reference-tools button[aria-pressed="true"]{background:var(--soft);border-color:var(--accent)}.reference-card p{font:16px/1.6 var(--font-paper);margin:12px 0 0}.reference-card .reference-source{font:12px/1.5 var(--font-chrome);color:var(--quiet)}.code-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.code-toolbar p{flex:1 1 180px;margin:0}.code-tool{background:none;color:var(--rail-ink);border:1px solid #ffffff60;border-radius:4px;padding:8px 12px}.code-tool:hover{background:#ffffff12}.code-tool:focus-visible{outline-color:var(--rail-ink)}.code-tool[aria-disabled="true"]{opacity:.6;cursor:wait}.code-stage .copy-state{min-height:24px;margin:8px 0 0;font-size:14px;opacity:1}.code-stage pre{user-select:text;-webkit-user-select:text}.code-stage pre::selection,.code-stage pre *::selection{background:#f0ab81;color:#111b16}
+</style>
+</head>
+<body>
+<div class="study-tag"><span>Design study · original synthetic teaching</span><span class="save-tools"><span id="local-status" class="save-state" role="status">Experiment settings</span><button id="retry-save" class="text-action" type="button" hidden>Retry saving</button><button id="reset-cache" class="text-action" type="button" hidden>Start fresh</button></span></div>
+<div class="shell">
+<aside class="rail" aria-label="Learning workspace">
+  <div class="rail-brand"><div class="wordmark"><span aria-hidden="true"></span>itembank</div><button class="theme-button" id="theme" type="button" aria-label="Use dark theme" aria-pressed="false"><span aria-hidden="true">☾</span></button></div>
+  <p class="label">YOUR WORKSHOP</p>
+  <nav aria-label="Design study screens">
+    <a class="nav-button" href="#course" data-view="course" id="nav-course">Course map</a>
+    <a class="nav-button" href="#learn" data-view="learn" id="nav-learn" aria-current="page">Learn</a>
+    <a class="nav-button" href="#practice" data-view="practice" id="nav-practice">Practice</a>
+  </nav>
+  <div class="rail-course"><p class="label">PROGRAMMING FOUNDATIONS</p><p>Comparisons<br>and boundaries</p></div>
+  <div class="rail-footer"><p class="label">Original teaching sample</p></div>
+</aside>
+<main class="main">
+<div class="topline"><a class="back" href="#course" id="course-back" data-view="course">← Course map</a><span id="course-context" hidden>Unit overview</span><span>Programming foundations / Comparisons</span></div>
+<section id="learn" aria-labelledby="learn-title">
+ <header class="hero"><div><p class="overline">BOUNDARY LAB / CONCEPT</p><h1 id="learn-title" tabindex="-1">Where does equality go?</h1><p class="intro">Two comparison rules differ at exactly one point. Put a value on that point and watch what changes.</p></div><span class="unit-number" aria-hidden="true">01</span></header>
+ <div class="lab-layout">
+  <div class="experiment">
+   <div class="experiment-head"><h2>Try the boundary</h2><p>Threshold: 10</p></div>
+   <fieldset class="rule" disabled><legend>Choose the comparison rule</legend><label><input type="radio" name="rule" value="strict" checked>value &gt; 10</label><label><input type="radio" name="rule" value="inclusive">value ≥ 10</label></fieldset>
+   <div class="slider-row"><label for="value">Selected value</label><output id="value-number" for="value" aria-live="off">10</output></div>
+   <svg class="numberline" viewBox="0 0 470 136" role="img" aria-labelledby="diagram-title diagram-desc"><title id="diagram-title">Values around the threshold ten</title><desc id="diagram-desc">For the strict rule, ten is excluded and values greater than ten are included. Change the rule to include equality.</desc><line x1="32" y1="58" x2="438" y2="58"/><rect class="line-hit" x="12" y="36" width="446" height="72"/><g id="points"><circle cx="32.00000" cy="58" r="5" data-value="7" class="inactive"/><text x="32.00000" y="94" text-anchor="middle">7</text><circle cx="99.66667" cy="58" r="5" data-value="8" class="inactive"/><text x="99.66667" y="94" text-anchor="middle">8</text><circle cx="167.33333" cy="58" r="5" data-value="9" class="inactive"/><text x="167.33333" y="94" text-anchor="middle">9</text><circle cx="235.00000" cy="58" r="9" data-value="10" class="boundary"/><text x="235.00000" y="94" text-anchor="middle">10</text><circle cx="302.66667" cy="58" r="5" data-value="11" class="selected"/><text x="302.66667" y="94" text-anchor="middle">11</text><circle cx="370.33333" cy="58" r="5" data-value="12" class="selected"/><text x="370.33333" y="94" text-anchor="middle">12</text><circle cx="438.00000" cy="58" r="5" data-value="13" class="selected"/><text x="438.00000" y="94" text-anchor="middle">13</text></g><g id="drag-handle" class="drag-handle" transform="translate(235 32)"><circle class="handle-halo" cx="0" cy="-6" r="18"/><path id="marker" class="marker" d="M 0 0 L -7 -12 L 7 -12 Z"/><rect id="marker-hit" class="marker-hit" x="-22" y="-28" width="44" height="44"/></g><text x="235" y="131" text-anchor="middle">boundary</text></svg>
+   <input class="diagram-range sr-only" id="value" type="range" min="7" max="13" value="10" step="1" aria-describedby="drag-hint"><p class="drag-hint" id="drag-hint">Drag or choose a value. Arrows move; Escape cancels.</p><p id="drag-state" class="sr-only" role="status">Release to keep a dragged value.</p>
+   <div class="observation" role="status" aria-live="polite"><p class="formula" id="formula">10 &gt; 10</p><span class="outcome" id="outcome">False · excluded</span></div>
+  </div>
+  <div class="explanation"><h2>Exactly equal is its own case.</h2><p id="strict-definition"><button class="term-button" id="strict-term" type="button" aria-expanded="false" aria-controls="comparison-reference">Strictly greater</button> means crossing the boundary. Greater than or equal means the boundary itself counts too.</p><p>Changing <code>&gt;</code> to <code>≥</code> changes equality. The values on either side keep the same result.</p><div class="margin-note">Before writing the comparison, try one value below, one equal, and one above.</div><p class="source">Original explanation · comparison semantics<br>Static example: 10 &gt; 10 is false; 10 ≥ 10 is true.</p></div>
+ </div>
+ <div class="actions"><a class="primary" href="#practice" data-view="practice" id="learn-to-practice">See the repair workspace →</a><button class="text-action" id="reset">Reset the experiment</button></div>
+ <div class="path" aria-label="Proposed learning sequence"><div><span class="step-num">01</span><b>Predict</b><p>Choose a revealing example.</p></div><div><span class="step-num">02</span><b>Build</b><p>Translate the requirement.</p></div><div><span class="step-num">03</span><b>Repair</b><p>Explain the failing case.</p></div><div><span class="step-num">04</span><b>Transfer</b><p>Use it in a new setting.</p></div></div>
+</section>
+<section id="course" aria-labelledby="course-title" hidden>
+ <header class="hero"><div><p class="overline">PROGRAMMING FOUNDATIONS</p><h1 id="course-title" tabindex="-1">Comparisons and boundaries</h1><p class="intro">Turn a written rule into a condition that works at the edge.</p></div><span class="unit-number" aria-hidden="true">01</span></header>
+ <div class="course-layout"><div><div class="course-lead"><p class="overline">START HERE</p><h2>Where does equality go?</h2><p>Explore the boundary before writing the function.</p><a class="primary" href="#learn" data-view="learn" id="course-to-learn">Open boundary lab →</a></div><ol class="course-list"><li><span>01</span><div><h3>Predict a result</h3><small>Compare the rule with a carefully chosen input.</small></div></li><li><span>02</span><div><h3>Build the condition</h3><small>Apply the requirement to every value.</small></div></li><li><span>03</span><div><h3>Repair a boundary bug</h3><small>Explain the mismatch before changing the code.</small></div></li><li><span>04</span><div><h3>Transfer to an event window</h3><small>Combine two boundaries in a new context.</small></div></li></ol></div><div class="explanation"><h2>What you will work with</h2><p>Functions, loops and comparison operators. The new skill is choosing the comparison that matches the meaning of the requirement.</p><div class="margin-note">A unit has a destination: an unfamiliar boundary problem you can explain and solve.</div><h3>Take it further</h3><p>Build a small command-line tool that counts active events at a chosen time.</p><p class="source">Original design sample<br>No completion or mastery data is simulated.</p></div></div>
+</section>
+<section id="practice" aria-labelledby="practice-title" hidden>
+ <header class="hero"><div><p class="overline">BOUNDARY LAB / REPAIR</p><h1 id="practice-title" tabindex="-1">Find the case that changes.</h1><p class="intro">This function should count integers strictly greater than the limit. Inspect the equality case in this fixed example.</p></div><span class="unit-number" aria-hidden="true">03</span></header>
+ <div class="code-layout"><div class="code-stage"><div class="code-toolbar"><p>count_over.py · read-only teaching example</p><button id="select-code" class="code-tool" type="button">Select code</button><button id="copy-code" class="code-tool" type="button">Copy code</button></div><pre id="code-example" tabindex="0" role="region" aria-label="Read-only Python example" aria-describedby="code-scroll-hint"><code>def count_over(values, limit):
+    matches = 0
+    for value in values:
+<span class="code-mark">        if value &gt;= limit:</span>
+            matches += 1
+    return matches</code></pre><p class="code-scroll-hint" id="code-scroll-hint" hidden>Scroll sideways to read the full code.</p><p class="copy-state" id="copy-status" role="status">Indentation is preserved when selecting or copying.</p></div><div><span class="example-tag">Example observations · limit = 10</span><table class="cases"><caption class="sr-only">Worked-example comparison of required and current behavior</caption><thead><tr><th>Input</th><th>Required</th><th>Current</th></tr></thead><tbody><tr><td>9</td><td>Excluded</td><td>Excluded</td></tr><tr class="equality"><td><button class="case-button" id="inspect" type="button" aria-expanded="false" aria-controls="inspection" aria-label="Inspect the equal-value case">10 · inspect</button></td><td>Excluded</td><td>Included</td></tr><tr id="inspection" class="inspection-row" hidden><td colspan="3"><p role="status">The comparison <code>10 ≥ 10</code> is true. A strict greater-than requirement excludes equality.</p></td></tr><tr><td>11</td><td>Included</td><td>Included</td></tr></tbody></table><div class="margin-note">Only equality changes. Locate the operator that makes ten count.</div></div></div>
+ <div class="actions"><a class="primary" href="#learn" data-view="learn" id="practice-to-learn">Return to the concept →</a><a class="text-action" href="#course" data-view="course" id="practice-to-course">View the unit map</a></div><p class="prototype-note">Fixed teaching example. This design study does not run code, score an answer, or save learner evidence.</p>
+</section>
+<div id="comparison-reference" class="reference-card" role="dialog" aria-modal="false" aria-labelledby="reference-title" hidden><div class="reference-head"><h2 id="reference-title">Strict comparison</h2><div class="reference-tools"><button id="pin-reference" type="button" aria-pressed="false">Pin</button><button id="close-reference" type="button" aria-label="Close comparison reference">Close</button></div></div><p id="reference-text"></p><p>10 &gt; 10 is false; 10 ≥ 10 is true.</p><p class="reference-source">From the explanation beside the experiment.</p></div>
+<noscript><style>section[hidden]{display:block!important}.theme-button,#reset,.diagram-range,.drag-hint,.save-state,.save-tools,.code-toolbar button,.copy-state,.drag-state{display:none!important}.term-button{border:0}</style><div class="noscript">The strict comparison excludes ten. The inclusive comparison includes ten. Values below and above ten are unchanged. Interactive navigation needs JavaScript; this concept remains readable without it.</div></noscript>
+</main>
+</div>
+<script>
+(() => {
+ const sections = ['learn','course','practice'];
+ const range = document.getElementById('value');
+ const points = document.getElementById('points');
+ const diagram = document.querySelector('.numberline');
+ const handle = document.getElementById('drag-handle');
+ const ruleField = document.querySelector('.rule');
+ const inspection = document.getElementById('inspection');
+ const inspect = document.getElementById('inspect');
+ const theme = document.getElementById('theme');
+ const storageKey = 'itembank.boundary-design-study.v1';
+ const returnPoints = {};
+ let activeView = null, storageAvailable = true, blockedSavedState = false;
+ let blockedSavedReason = 'Saved settings unavailable · choose Start fresh';
+ let activePointer = null, grabOffset = 0, dragStart = null, dragMoved = false;
+ let lastSaved = null;
+ function update(){
+  const value=Number(range.value), inclusive=document.querySelector('input[name="rule"]:checked').value==='inclusive';
+  const included=inclusive?value>=10:value>10;
+  document.getElementById('value-number').textContent=value;
+  document.getElementById('formula').textContent=`${value} ${inclusive?'≥':'>'} 10`;
+  document.getElementById('outcome').textContent=`${included?'True · included':'False · excluded'}`;
+  handle.setAttribute('transform',`translate(${32+(value-7)*406/6} 32)`);
+  points.querySelectorAll('circle').forEach(point=>{const n=Number(point.dataset.value);point.setAttribute('class',(inclusive?n>=10:n>10)?'selected':n===10?'boundary':'inactive');});
+  document.getElementById('reset').disabled=Number(range.value)===10 && !inclusive && !blockedSavedState;
+  document.getElementById('diagram-desc').textContent=`${inclusive?'Inclusive':'Strict'} comparison: ten is ${inclusive?'included':'excluded'}; all values greater than ten are included. Selected value ${value} is ${included?'included':'excluded'}.`;
+ }
+ function handleGeometry(){
+  const matrix=diagram.getScreenCTM();
+  if(!matrix)return;
+  const scale=Math.hypot(matrix.a,matrix.b);
+  if(!scale)return;
+  const hit=document.getElementById('marker-hit'),halo=handle.querySelector('.handle-halo');
+  diagram.querySelectorAll('text').forEach(label=>{label.style.fontSize=`${Math.max(16,12/scale)}px`;});
+  hit.setAttribute('x',-22/scale);hit.setAttribute('y',-28/scale);
+  hit.setAttribute('width',44/scale);hit.setAttribute('height',44/scale);
+  halo.setAttribute('cy',-6/scale);halo.setAttribute('r',18/scale);
+  document.getElementById('marker').setAttribute('d',`M 0 0 L ${-7/scale} ${-12/scale} L ${7/scale} ${-12/scale} Z`);
+ }
+ function pointerX(event){
+  const matrix=diagram.getScreenCTM();
+  if(!matrix)return null;
+  const inverse=matrix.inverse();
+  return inverse.a*event.clientX+inverse.c*event.clientY+inverse.e;
+ }
+ function movePointer(event){
+  if(!dragStart)return;
+  if(!dragMoved && Math.hypot(event.clientX-dragStart.x,event.clientY-dragStart.y)<4)return;
+  const x=pointerX(event);
+  if(x===null)return;
+  dragMoved=true;diagram.setAttribute('data-dragging','');
+  range.value=String(Math.max(7,Math.min(13,Math.round(7+(x-grabOffset-32)*6/406))));
+  update();setDragNotice('Previewing · release to keep, Escape to cancel.');
+ }
+ function setDragNotice(text){
+  const node=document.getElementById('drag-state');
+  if(node.textContent!==text)node.textContent=text;
+ }
+ function endDrag({commit=false}={}){
+  if(activePointer===null)return;
+  const pointer=activePointer,previous=dragStart.value;
+  activePointer=null;dragStart=null;diagram.removeAttribute('data-dragging');
+  if(!commit){range.value=previous;update();}
+  if(diagram.hasPointerCapture(pointer))diagram.releasePointerCapture(pointer);
+  setDragNotice(commit?'Value kept. Arrow keys also move one step.':'Drag cancelled · starting value restored.');
+  if(commit)saveState();
+ }
+ diagram.addEventListener('pointerdown',event=>{
+  if(!event.isPrimary || event.button!==0 || activePointer!==null)return;
+  if(!event.target.closest('#drag-handle,.line-hit,#points circle'))return;
+  const x=pointerX(event);
+  if(x===null)return;
+  event.preventDefault();activePointer=event.pointerId;
+  const marker=Boolean(event.target.closest('#drag-handle'));
+  dragStart={value:range.value,x:event.clientX,y:event.clientY,marker};dragMoved=false;
+  grabOffset=marker?x-(32+(Number(range.value)-7)*406/6):0;
+  diagram.setPointerCapture(activePointer);range.focus({preventScroll:true});
+ });
+ diagram.addEventListener('pointermove',event=>{if(event.pointerId===activePointer)movePointer(event);});
+ diagram.addEventListener('pointerup',event=>{
+  if(event.pointerId!==activePointer)return;
+  if(!dragMoved && !dragStart.marker){const x=pointerX(event);if(x!==null){range.value=String(Math.max(7,Math.min(13,Math.round(7+(x-32)*6/406))));update();}}
+  else movePointer(event);
+  endDrag({commit:true});
+ });
+ diagram.addEventListener('pointercancel',event=>{if(event.pointerId===activePointer)endDrag();});
+ diagram.addEventListener('lostpointercapture',event=>{if(event.pointerId===activePointer)endDrag();});
+ document.addEventListener('keydown',event=>{if(event.key==='Escape' && activePointer!==null){event.preventDefault();endDrag();}});
+ window.addEventListener('blur',()=>endDrag());
+ window.addEventListener('resize',()=>endDrag());
+ new ResizeObserver(()=>{endDrag();handleGeometry();}).observe(diagram);
+ function setTheme(night){
+  document.body.dataset.theme=night?'night':'day';
+  theme.setAttribute('aria-pressed',String(night));
+  theme.setAttribute('aria-label',night?'Use light theme':'Use dark theme');
+  theme.title=night?'Use light theme':'Use dark theme';
+  theme.querySelector('span').textContent=night?'☀︎':'☾';
+ }
+ function setInspection(open){
+  inspection.hidden=!open;
+  inspect.setAttribute('aria-expanded',String(open));
+  inspect.setAttribute('aria-label',open?'Close the equal-value explanation':'Inspect the equal-value case');
+  inspect.textContent=open?'10 · close':'10 · inspect';
+  const line=document.querySelector('.code-mark');
+  if(open)line.setAttribute('data-inspected','');else line.removeAttribute('data-inspected');
+ }
+ function setNotice(text){
+  const node=document.getElementById('local-status');
+  if(node.textContent!==text)node.textContent=text;
+  const retry=document.getElementById('retry-save');
+  retry.hidden=blockedSavedState || (storageAvailable && retry.hidden);
+  retry.textContent=storageAvailable?'Save again':'Retry saving';
+  document.getElementById('reset-cache').hidden=!blockedSavedState;
+ }
+ function saveState(){
+  if(blockedSavedState){setNotice(blockedSavedReason);return;}
+  if(activePointer!==null)return;
+  if(!storageAvailable){setNotice('Kept in this tab · saving unavailable');return;}
+  try{
+   if(localStorage.getItem(storageKey)!==lastSaved){
+    blockedSavedState=true;blockedSavedReason='Saved settings changed elsewhere · choose Start fresh';
+    update();setNotice(blockedSavedReason);return;
+   }
+   const serialized=JSON.stringify({version:1,value:Number(range.value),rule:document.querySelector('input[name="rule"]:checked').value,night:document.body.dataset.theme==='night',inspection:!inspection.hidden});
+   if(serialized!==lastSaved)localStorage.setItem(storageKey,serialized);
+   lastSaved=serialized;setNotice('Settings saved in this browser');
+  }catch(error){storageAvailable=false;setNotice('Kept in this tab · saving unavailable');}
+ }
+ function restoreState(){
+  let raw;
+  try{raw=localStorage.getItem(storageKey);}catch(error){storageAvailable=false;return;}
+  if(raw===null)return;
+  try{
+   const saved=JSON.parse(raw);
+   if(saved.version!==1 || !Number.isInteger(saved.value) || saved.value<7 || saved.value>13 || !['strict','inclusive'].includes(saved.rule) || typeof saved.night!=='boolean' || typeof saved.inspection!=='boolean')throw new Error('Unavailable cached experiment');
+   range.value=String(saved.value);
+   document.querySelector(`input[name="rule"][value="${saved.rule}"]`).checked=true;
+   setTheme(saved.night);setInspection(saved.inspection);
+   lastSaved=raw;
+  }catch(error){blockedSavedState=true;blockedSavedReason='Saved settings unavailable · choose Start fresh';}
+ }
+ function rememberView(){
+  if(activeView===null)return;
+  const previous=returnPoints[activeView]||{};
+  returnPoints[activeView]={scroll:window.scrollY,focus:previous.focus||null};
+ }
+ function codeOverflow(){
+  const code=document.getElementById('code-example');
+  if(code.clientWidth)document.getElementById('code-scroll-hint').hidden=code.scrollWidth<=code.clientWidth;
+ }
+ new ResizeObserver(codeOverflow).observe(document.getElementById('code-example'));
+ function show(view,{push=true,focus=true}={}){
+  if(!sections.includes(view))view='learn';
+  if(view===activeView)return;
+  endDrag();closeReference(false);rememberView();activeView=view;
+  sections.forEach(id=>{document.getElementById(id).hidden=id!==view;});
+  document.querySelectorAll('.nav-button').forEach(link=>{if(link.dataset.view===view)link.setAttribute('aria-current','page');else link.removeAttribute('aria-current');});
+  document.getElementById('course-back').hidden=view==='course';
+  document.getElementById('course-context').hidden=view!=='course';
+  if(push)history.pushState({boundaryStudy:true},'','#'+view);
+  requestAnimationFrame(()=>{
+   if(activeView!==view)return;
+   const point=returnPoints[view],candidate=point?.focus?document.getElementById(point.focus):null;
+   const target=candidate && document.getElementById(view).contains(candidate)?candidate:document.getElementById(view+'-title');
+   if(focus)target.focus({preventScroll:true});
+   window.scrollTo({top:point?.scroll||0,left:0,behavior:'instant'});
+   handleGeometry();codeOverflow();
+  });
+ }
+ document.addEventListener('focusin',event=>{
+  const section=event.target.closest('section');
+  if(section && sections.includes(section.id) && event.target.id && !event.target.id.endsWith('-title')){
+   returnPoints[section.id]={...returnPoints[section.id],focus:event.target.id};
+  }
+ });
+ document.querySelectorAll('a[data-view]').forEach(link=>link.addEventListener('click',event=>{
+  if(event.button!==0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)return;
+  event.preventDefault();show(link.dataset.view);
+ }));
+ const route=()=>{const view=location.hash.slice(1);if(view!==activeView)show(view,{push:false});};
+ window.addEventListener('popstate',route);window.addEventListener('hashchange',route);
+ history.scrollRestoration='manual';
+ range.addEventListener('input',()=>{const next=range.value;endDrag();range.value=next;update();saveState();});
+ document.querySelectorAll('input[name="rule"]').forEach(input=>input.addEventListener('change',()=>{endDrag();update();saveState();}));
+ document.getElementById('reset').addEventListener('click',()=>{
+  if(blockedSavedState){blockedSavedState=false;storageAvailable=true;try{lastSaved=localStorage.getItem(storageKey);}catch(error){storageAvailable=false;}}
+  range.value=10;document.querySelector('input[value="strict"]').checked=true;update();saveState();range.focus({preventScroll:true});document.querySelector('.experiment').scrollIntoView({block:'nearest',behavior:'instant'});
+ });
+ inspect.addEventListener('click',()=>{setInspection(inspection.hidden);saveState();if(!inspection.hidden)inspection.scrollIntoView({block:'nearest',behavior:'instant'});});
+ document.addEventListener('keydown',event=>{
+  if(event.key==='Escape' && activeView==='practice' && !inspection.hidden){event.preventDefault();setInspection(false);saveState();inspect.focus({preventScroll:true});}
+ });
+ theme.addEventListener('click',()=>{endDrag();setTheme(document.body.dataset.theme!=='night');saveState();});
+ window.addEventListener('pagehide',()=>{endDrag();saveState();});
+ document.getElementById('retry-save').addEventListener('click',()=>{storageAvailable=true;saveState();});
+ document.getElementById('reset-cache').addEventListener('click',()=>{
+  blockedSavedState=false;storageAvailable=true;
+  try{lastSaved=localStorage.getItem(storageKey);}catch(error){storageAvailable=false;}
+  saveState();update();theme.focus({preventScroll:true});
+ });
+ const term=document.getElementById('strict-term'),reference=document.getElementById('comparison-reference');
+ const pin=document.getElementById('pin-reference');
+ let referencePinned=false,referenceTimer=null;
+ document.getElementById('reference-text').textContent=document.getElementById('strict-definition').textContent;
+ function positionReference(){
+  if(reference.hidden)return;
+  const anchor=term.getBoundingClientRect(),width=reference.getBoundingClientRect().width;
+  const below=window.innerHeight-anchor.bottom-20,above=anchor.top-20;
+  reference.style.maxHeight=`${Math.max(80,Math.max(below,above))}px`;
+  const height=reference.getBoundingClientRect().height;
+  reference.style.left=`${Math.max(12,Math.min(anchor.left,window.innerWidth-width-12))}px`;
+  reference.style.top=`${Math.max(12,below>=height?anchor.bottom+8:anchor.top-height-8)}px`;
+ }
+ function openReference(pinned=false){
+  clearTimeout(referenceTimer);referencePinned=pinned || referencePinned;reference.hidden=false;
+  term.setAttribute('aria-expanded','true');term.setAttribute('aria-describedby','reference-text');
+  pin.setAttribute('aria-pressed',String(referencePinned));pin.textContent=referencePinned?'Unpin':'Pin';positionReference();
+ }
+ function closeReference(returnFocus=false){
+  clearTimeout(referenceTimer);referencePinned=false;reference.hidden=true;
+  term.setAttribute('aria-expanded','false');term.removeAttribute('aria-describedby');
+  if(returnFocus){term.focus({preventScroll:true});reference.hidden=true;term.setAttribute('aria-expanded','false');term.removeAttribute('aria-describedby');}
+ }
+ function scheduleReferenceClose(){
+  clearTimeout(referenceTimer);referenceTimer=setTimeout(()=>{if(!referencePinned && !reference.contains(document.activeElement) && document.activeElement!==term)closeReference();},160);
+ }
+ term.addEventListener('pointerenter',event=>{if(event.pointerType==='mouse')openReference();});
+ term.addEventListener('pointerleave',scheduleReferenceClose);
+ term.addEventListener('focus',()=>openReference());
+ term.addEventListener('blur',scheduleReferenceClose);
+ term.addEventListener('click',()=>{if(referencePinned)closeReference();else openReference(true);});
+ term.addEventListener('keydown',event=>{
+  if(!reference.hidden && (event.key==='ArrowDown' || (event.key==='Tab' && !event.shiftKey))){event.preventDefault();pin.focus({preventScroll:true});}
+ });
+ pin.addEventListener('keydown',event=>{if(event.key==='Tab' && event.shiftKey){event.preventDefault();term.focus({preventScroll:true});}});
+ reference.addEventListener('pointerenter',()=>clearTimeout(referenceTimer));
+ reference.addEventListener('pointerleave',scheduleReferenceClose);
+ reference.addEventListener('focusout',scheduleReferenceClose);
+ pin.addEventListener('click',()=>{referencePinned=!referencePinned;pin.setAttribute('aria-pressed',String(referencePinned));pin.textContent=referencePinned?'Unpin':'Pin';});
+ document.getElementById('close-reference').addEventListener('click',()=>closeReference(true));
+ document.addEventListener('pointerdown',event=>{if(!reference.hidden && !reference.contains(event.target) && event.target!==term)closeReference();});
+ document.addEventListener('keydown',event=>{if(event.key==='Escape' && !reference.hidden){event.preventDefault();closeReference(true);}});
+ window.addEventListener('scroll',()=>{if(!reference.hidden){const r=term.getBoundingClientRect();if(r.bottom<0 || r.top>window.innerHeight)closeReference();else positionReference();}}, {passive:true});
+ window.addEventListener('resize',positionReference);
+ const code=document.querySelector('#code-example code'),copy=document.getElementById('copy-code');
+ function copyNotice(text){const node=document.getElementById('copy-status');if(node.textContent!==text)node.textContent=text;}
+ document.getElementById('select-code').addEventListener('click',()=>{
+  if(!code.textContent){copyNotice('No code to select.');return;}
+  document.getElementById('code-example').focus({preventScroll:true});
+  const selection=window.getSelection(),selected=document.createRange();selected.selectNodeContents(code);selection.removeAllRanges();selection.addRange(selected);
+  copyNotice('Code selected · use your usual copy shortcut.');
+ });
+ copy.addEventListener('click',async()=>{
+  if(copy.getAttribute('aria-disabled')==='true')return;
+  if(!code.textContent){copyNotice('No code to copy.');return;}
+  copy.setAttribute('aria-disabled','true');copyNotice('Copying…');
+  try{await navigator.clipboard.writeText(code.textContent);copyNotice('Copied exact source.');}
+  catch(error){copyNotice('Could not copy · select the code and copy manually.');}
+  finally{copy.removeAttribute('aria-disabled');}
+ });
+ ruleField.disabled=false;setTheme(false);restoreState();update();handleGeometry();
+ const initial=sections.includes(location.hash.slice(1))?location.hash.slice(1):'learn';
+ history.replaceState({boundaryStudy:true},'','#'+initial);show(initial,{push:false,focus:false});saveState();
+})();
+</script>
+</body>
+</html>

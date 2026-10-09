@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Proposed source-question context, not production registration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "course_object_id", "question", "source_spans", "learner_notes", "attempt"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "course_object_id": {"type": "string", "minLength": 1},
+    "question": {"type": "string", "minLength": 1, "maxLength": 2000},
+    "attempt": {"const": 1},
+    "source_spans": {
+      "type": "array", "minItems": 1, "maxItems": 1,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["citation_id", "source_id", "locator_id", "fingerprint", "text"],
+        "properties": {
+          "citation_id": {"const": "S1"},
+          "source_id": {"type": "string", "minLength": 1},
+          "locator_id": {"type": "string", "minLength": 1},
+          "fingerprint": {"type": "string", "minLength": 1},
+          "text": {"type": "string", "minLength": 1, "maxLength": 12000}
+        }
+      }
+    },
+    "learner_notes": {
+      "type": "array", "maxItems": 8,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["citation_id", "note_id", "wording"],
+        "properties": {
+          "citation_id": {"type": "string", "pattern": "^N[1-8]$"},
+          "note_id": {"type": "string", "minLength": 1},
+          "wording": {"type": "string", "maxLength": 4000}
+        }
+      }
+    }
+  }
+}

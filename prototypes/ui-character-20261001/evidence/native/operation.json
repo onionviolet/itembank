@@ -1,0 +1,124 @@
+{
+  "operation": "native-interaction-craft-2026-10-01",
+  "recorded_at_utc": "2026-10-01T23:54:09.366287+00:00",
+  "authorization": "User continuation: run in parallel accordingly",
+  "source_base_revision": "28bf561865cf0696a8beb42dd6f356b8bf6ec648",
+  "state": "local source and disposable preview verified; installed and human gates open",
+  "lanes": [
+    "native_lesson_craft",
+    "native_visual_craft",
+    "native_journey_gate"
+  ],
+  "owners": {
+    "lesson": "lesson renderer and progressive reader",
+    "visual": "existing native comparison treatment",
+    "integration": "shared presentation frame and existing UI owner"
+  },
+  "tracked_sources": [
+    {
+      "path": "surfaces/lesson.py",
+      "base_sha256": "e7af446339d6904e64908ec62ad55027dfb3e4d8e2d96b1c68f2a29012ff56c3",
+      "final_sha256": "9bd0dc695b8b5a722d9eb94be3f0f28b5b97eae8711265bcd920689aa648759e"
+    },
+    {
+      "path": "surfaces/lesson_progressive.py",
+      "base_sha256": "cc172091909b4c6326b030c81ee21bb608277d968532905cb4c694e09544b618",
+      "final_sha256": "7f5c678c324e34c98add50a026c23ec55dc7618ebf14700a54b9078bc9a8b18b"
+    },
+    {
+      "path": "surfaces/lesson_interaction.py",
+      "base_sha256": "97153cb29fabf9404db7ab687a6147eda79e530ecbbe9292e7ddd4b256d8a364",
+      "final_sha256": "f89d501d549f607df5a87aaf81146e660ca5ad1482ac9de30542c97060d45814"
+    },
+    {
+      "path": "surfaces/presentation.py",
+      "base_sha256": "f3ae0422acc88c7235ec6d69a764966ef440ccb2c68397cf14d46d2d62970685",
+      "final_sha256": "1c73d41aec714f09fe28bc3fe1fa4b8b5946f343815eb3155a2324540b531c13"
+    },
+    {
+      "path": "tests/lesson_roundtrip.py",
+      "base_sha256": "d459f0cfde4bd78b5b348a6197e49ddd4b9741289bd3ee9ca6b8b29186fe5585",
+      "final_sha256": "6e4a5ab4df122b1b4a70e78c0c21755543a012692b9971716e34a8d4f1dbaf8e"
+    },
+    {
+      "path": "tests/lesson_progressive_roundtrip.py",
+      "base_sha256": "f9a411d3c873e511b580ab5e41523f41ab2223ad8babe03f988ba41041d935f3",
+      "final_sha256": "27189b0c279c1f0b90bc23a4ccac3b9279dcf2a73f4b6ab43aca0e4c148d80f2"
+    },
+    {
+      "path": "tests/lesson_interaction_roundtrip.py",
+      "base_sha256": "9b362a7b4a220702ccdc97c89487ddd13256baa046526dd0fdf4808cf5461ef9",
+      "final_sha256": "211d9b0bfb3e553df5e7f706536583d1e4acbc57f16ed6bb857db404caaa831e"
+    },
+    {
+      "path": "tests/js/lesson_progressive.test.mjs",
+      "base_sha256": "d7afcce23912d863255e66c3254e1ecd3da9f291554b14014ce39faf5b617ff8",
+      "final_sha256": "94b6fc5c92da2017837d0c2e07f4cff9a248fc5ffc69817d9cf6b81089ae651b"
+    },
+    {
+      "path": "tests/js/lesson_comparison_controls.test.mjs",
+      "base_sha256": "3ee116b9205fa7d1ace489fd0c3664fad3a17d406a3495e97f9d2b7163a65b24",
+      "final_sha256": "e0543b944ebf677412167e98238469214cc3e4f01b55944c9cdcb2d265c20bbf"
+    }
+  ],
+  "new_source_paths": [
+    {
+      "path": "prototypes/ui-character-20261001/native-preview.py",
+      "base": "absent",
+      "final_sha256": "b6806c72f66997387e08b50bc2edf7fd3ebfe969bb6a76970d753a7a4fc140fb"
+    },
+    {
+      "path": "tests/interaction_craft_native_roundtrip.py",
+      "base": "absent",
+      "final_sha256": "93c92afbeda7ebf85cf9a6aecac6db791217e58daae8ea87ea4757b1d5e3e702"
+    },
+    {
+      "path": "tests/js/lesson_craft.test.mjs",
+      "base": "absent",
+      "final_sha256": "45c2fa77a8f2f7569d9081f321c57b2a79b03602e8ac3c5e096303f62a774a3f"
+    }
+  ],
+  "owner_appends": [
+    {
+      "path": "prototypes/ui-character-20261001/README.md",
+      "expected_base_sha256": "00846b65747fdc64a44b6b4f86f01be5c789e382acc619b6f4f3650b118f8ef7",
+      "final_sha256": "0a58da2d53d54a1dc8422c8589784701acbcdf322c3947079f63492bd187cdcf",
+      "base_bytes": 19712,
+      "suffix_sha256": "b6ad914a699a14b404d1be737ab0f1163ac3723e5dc841a12d6c11b93de230c0",
+      "publication": "expected bytes checked before and after temporary write; atomic replace"
+    },
+    {
+      "path": ".planning/research/ui-goal-review-2026-09-29.md",
+      "expected_base_sha256": "bf7afbc941c34a61d250a97925f9ec9fa33ebc0d095a0bf9f37a3d9a5deed976",
+      "final_sha256": "6aab590a0d865e29c155107eaf7f9b71b005f1ce67d35dcb074dff828e9cfd8d",
+      "base_bytes": 27782,
+      "suffix_sha256": "642f45ae8a8696ca1bc24fedfbe481d30a8915c2b68c17ced74a829000de3f25",
+      "publication": "expected bytes checked before and after temporary write; atomic replace"
+    }
+  ],
+  "protected_sha256": {
+    "runtime.py": "7c005333989929fc214d906566189a38c289a57fff223f1a77d4baa7a6cfba15",
+    "schemas/response.schema.json": "1dc5664f12e159f151b5a6f2677c3bd5e1217bae26a9877ca5a3dfd4c0afc787",
+    "schemas/session.schema.json": "72e3ab90b0dd6afcc450b9fb1a0f9d9b1e13e8e14013e965b1195a50ac8124ef",
+    "surfaces/daemon.py": "9ea7155380dc2dfebb309b4c3b61323431ceb8e318f8bd686eb7c2f3a32d12a9",
+    "surfaces/quiz_page.py": "50f43bb6f1eea09e49216e709067716034eaf18120318aff97f716a09ba96422",
+    "surfaces/reading_desk.py": "ee35c19642c88d691ce3bf9d1051d704d2dab1e02f2a23e32ab612ab8b1b88ac",
+    "surfaces/session.py": "dee236ff9dab47589fdbe6ae9ac03311f273e7af9d17eaebfdad74933b3b6686",
+    ".planning/STATE.md": "3906102fa6c989d3040cb727df16bbc60d6635155826e50207e3fd8b24e5e639",
+    ".planning/IDEA-LEDGER.md": "9afc901df995120342585318be9feb6bf68734110ab227099137050003d02605"
+  },
+  "frozen_prototype_sha256": "c1b11518d944f8f0f1d0ae503901e8d25f1a5f61de556edd9ea53e2b87dde374",
+  "validation": "T1-T5 in checks.md; recovery patch scoped to owned tracked sources",
+  "rights": "repository source and synthetic fixtures; no third-party learning source",
+  "remote_egress": "none; disposable preview bound to loopback",
+  "accepted_learner_revision": null,
+  "temporary_root": "removed on Enter; not an accepted learner object",
+  "recovery": "Check final hashes and later edits before reversing recovery.patch. Remove new helper/tests only if still owned and unchanged. Owner additions are matching suffixes, not replacements of earlier state.",
+  "remaining_gates": [
+    "installed application",
+    "physical touch",
+    "screen readers and browser-native zoom",
+    "human visual acceptance and learning benefit",
+    "native clipboard readback"
+  ]
+}

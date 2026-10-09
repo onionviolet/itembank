@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Proposed runtime response provenance, not a registered event field",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "origin_note_id", "origin_note_revision", "submitted_content_revision", "item_revision", "rubric_snapshot", "artifact_kind"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "origin_note_id": {"type": "string", "minLength": 1},
+    "origin_note_revision": {"type": "string", "minLength": 1},
+    "submitted_content_revision": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "item_revision": {"type": "string", "minLength": 1},
+    "rubric_snapshot": {"type": "array", "items": {"type": "string"}},
+    "artifact_kind": {"enum": ["explanation", "proof", "program", "project"]}
+  }
+}
