@@ -146,6 +146,9 @@ def check_response_type_presentation_matrix():
              "case_sensitive": True, "whitespace": "exact"}]:
         fail("fill fixtures stopped preserving their public field presentation")
     source = open(os.path.join(ROOT, "surfaces", "quiz_page.py"), encoding="utf-8").read()
+    for asset in sorted(os.listdir(os.path.join(ROOT, "surfaces", "assets", "quiz"))):
+        source += open(os.path.join(ROOT, "surfaces", "assets", "quiz", asset),
+                         encoding="utf-8").read()
     for response_type, (label, instruction) in expected.items():
         if presentation.RESPONSE_FORMAT_LABELS.get(response_type) != label:
             fail("response type %s lost learner-facing label" % response_type)

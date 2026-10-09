@@ -973,6 +973,9 @@ def test_no_family_literal_in_surface_templates():
         if not os.path.exists(path):
             continue
         src = open(path, encoding="utf-8").read()
+        if fn == "quiz_page.py":
+            src += open(os.path.join(ROOT, "surfaces", "assets", "quiz", "latex-input.css"),
+                        encoding="utf-8").read()
         for decl in re.findall(r"font-family:\s*([^;}\"\n]+)", src):
             if "Source Serif" in decl or "iA Writer" in decl:
                 fail("%s declares a vendored family literally: %r"

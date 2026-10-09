@@ -3,7 +3,8 @@ import {readFileSync} from 'node:fs';
 import test from 'node:test';
 import vm from 'node:vm';
 
-const source = readFileSync(new URL('../../surfaces/quiz_page.py', import.meta.url), 'utf8');
+const source = ['offline.js', 'served.js'].map(name =>
+  readFileSync(new URL(`../../surfaces/assets/quiz/${name}`, import.meta.url), 'utf8')).join('\n');
 const helpers = [...source.matchAll(/function fillFields\(q, body\)\{[\s\S]*?\n\}\n\n(?=function asFill)/g)].map(match => match[0]);
 assert.equal(helpers.length, 2);
 

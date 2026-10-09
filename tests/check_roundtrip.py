@@ -1191,6 +1191,9 @@ def check_refusal_states():
     # No generic message covers more than one cause.
     page_src = open(os.path.join(ROOT, "surfaces", "quiz_page.py"),
                     encoding="utf-8").read()
+    for asset in sorted(os.listdir(os.path.join(ROOT, "surfaces", "assets", "quiz"))):
+        page_src += open(os.path.join(ROOT, "surfaces", "assets", "quiz", asset),
+                         encoding="utf-8").read()
     if re.search(r"(something went wrong|an error occurred|unknown error)",
                  page_src, re.IGNORECASE):
         fail("a generic failure message covers more than one cause")
@@ -1265,6 +1268,8 @@ def check_honest_limits_gate():
     }
     zero_files = ["model.py", "runner.py", "surfaces/quiz_page.py",
                   "surfaces/session.py", "surfaces/daemon.py", "GRADING.md"]
+    zero_files.extend(os.path.join("surfaces", "assets", "quiz", asset)
+                      for asset in sorted(os.listdir(os.path.join(ROOT, "surfaces", "assets", "quiz"))))
     import glob
     phase = os.path.join(ROOT, ".planning", "phases",
                          "05-check-item-type-code-editor")

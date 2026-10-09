@@ -40,6 +40,9 @@ PY = sys.executable
 
 # Local architecture checks supplement the mirrored CI steps.
 LOCAL_ONLY = {
+    "Python module size warning":
+        "local advisory gate; warns for tracked root and surfaces Python "
+        "modules over 3,000 lines without affecting exit status",
     "Core modules do not import client surfaces":
         "local architecture gate; scans every root Python module except "
         "the launcher, packager, and server",
@@ -225,6 +228,30 @@ def gate_core_layers():
                             "%d core modules have no client imports" % checked)
 
 
+def gate_module_size():
+    """Report large tracked modules without failing preflight."""
+    code, out = run(["git", "ls-files", "-z", "--", "*.py"])
+    if code != 0:
+        return True, "WARN: cannot inspect tracked Python module sizes: " + out.strip()
+    oversized = []
+    for name in out.split("\0"):
+        if not name.endswith(".py") or ("/" in name and not name.startswith("surfaces/")):
+            continue
+        try:
+            with open(os.path.join(ROOT, name), encoding="utf-8") as source:
+                count = sum(1 for _ in source)
+        except OSError as exc:
+            print("WARN    size     %s: cannot count lines: %s" % (name, exc), flush=True)
+            continue
+        if count > 3000:
+            oversized.append((count, name))
+    if oversized:
+        rows = sorted(oversized, key=lambda row: (-row[0], row[1]))
+        return True, "WARN: Python modules over 3,000 lines:\n" + "\n".join(
+            "%s: %d lines" % (name, count) for count, name in rows)
+    return True, "no tracked root or surfaces Python modules over 3,000 lines"
+
+
 def gate_skill_mirrors():
     # Python rather than `diff -rq`: diff is not on a stock Windows box, so the
     # shell version of this gate simply could not run locally.
@@ -291,6 +318,7 @@ def gate_summaries():
 
 # (gate id, CI step or local check name, function, slow?)
 GATES = [
+    ("size", "Python module size warning", gate_module_size, False),
     ("layers", "Core modules do not import client surfaces", gate_core_layers, False),
     ("lint", "Sample fixture lints clean", gate_lint_clean, False),
     ("broken", "Broken fixture is caught", gate_broken_caught, False),
@@ -347,6 +375,10 @@ def main():
         if ok is None:
             skipped.append(gate_id)
             print("skip    %-8s %s" % (gate_id, out), flush=True)
+            continue
+        if ok and out.startswith("WARN:"):
+            for line in out.removeprefix("WARN: ").splitlines():
+                print("WARN    %-8s %s" % (gate_id, line), flush=True)
             continue
         if ok:
             print("ok      %-8s %s" % (gate_id, out.strip().splitlines()[0]

@@ -80,7 +80,7 @@ def check_reading_and_practice_share_the_frame():
     if "addEventListener(\"resize\"" in quiz_page.TEMPLATE or \
             "addEventListener('resize'" in quiz_page.TEMPLATE:
         fail("practice owns resize behavior that could reset runtime or draft state")
-    quiz_source = open(os.path.join(ROOT, "surfaces", "quiz_page.py"),
+    quiz_source = open(os.path.join(ROOT, "surfaces", "assets", "quiz", "served.js"),
                        encoding="utf-8").read()
     for token in ("itembank.draft.", "localStorage", "dataset.itemId"):
         if token not in quiz_source:

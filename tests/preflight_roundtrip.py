@@ -109,6 +109,34 @@ with tempfile.TemporaryDirectory() as root:
         ok, _ = preflight.gate_core_layers()
         check(not ok, "core-layer gate silently skipped an unparseable module")
 
+# Size warnings cover tracked root and nested surface modules, preserve the
+# strict threshold, sort descending, and never fail the command.
+check(any(g[0] == "size" and not g[3] for g in preflight.GATES),
+      "module-size warning is missing or skipped by --quick")
+with tempfile.TemporaryDirectory() as root:
+    inventory = {"large.py": 3001, "surfaces/nested/client.py": 4000,
+                 "boundary.py": 3000, "tests/ignored.py": 5000,
+                 "scripts/ignored.py": 6000, "untracked.py": 7000}
+    for name, count in inventory.items():
+        path = os.path.join(root, name)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as source:
+            source.write("# line\n" * count)
+    tracked = "\0".join(name for name in inventory if name != "untracked.py") + "\0"
+    with mock.patch.object(preflight, "ROOT", root), \
+            mock.patch.object(preflight, "run", return_value=(0, tracked)):
+        ok, message = preflight.gate_module_size()
+    check(ok and message.splitlines()[1:] == [
+        "surfaces/nested/client.py: 4000 lines", "large.py: 3001 lines"],
+        "module-size warning changed threshold, scope, ordering or status: " + message)
+    output = io.StringIO()
+    with mock.patch.object(preflight, "GATES", [("size", "Python module size warning", lambda: (ok, message), False)]), \
+            mock.patch.object(sys, "argv", ["preflight.py", "--quick"]), contextlib.redirect_stdout(output):
+        status = preflight.main()
+    check(status == 0 and "WARN" in output.getvalue() and
+          "large.py: 3001 lines" in output.getvalue(),
+          "module-size warning failed preflight or hid a listed module")
+
 # Source-only verification must never launch one of the fresh archive tests,
 # while default CI parity still runs the whole inventory.
 names = sorted(preflight.APP_BUILD_TESTS) + ["protocol_roundtrip.py"]

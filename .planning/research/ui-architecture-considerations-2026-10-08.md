@@ -240,3 +240,59 @@ passed after correction, with no test changes.
 `tests/mode_layer_roundtrip.py`, `tests/model_phase_roundtrip.py`, and
 `tests/source_adapters_roundtrip.py`. Reviewer HTTP coverage and acceptance
 remain open. No staging, commit, push, app build, install, or deployment.
+
+## A4 wave 1 and A6 execution evidence, 2026-10-09
+
+Source extraction only, awaiting reviewer acceptance. Nine verbatim assets now
+live under `surfaces/assets/quiz/`: question-stem.js, latex-input.css,
+latex-input.js, question-symbols.js, structure-adapter.js, math-adapter.js,
+assist.js, offline.js, and served.js. Import-time `resources.read_text` calls
+retain the same constant names, script wrappers, substitutions, and
+QUESTION_STEM_JS concatenations. HTML templates remain in Python. Final
+`quiz_page.py` line count: 1,049. The large module was sampled by symbols and
+windows, never displayed whole.
+
+A throwaway script outside the repository saved pre-edit constants and rendered
+outputs to JSON. Every final constant is byte-identical: QUESTION_STEM_JS,
+LATEX_INPUT_STYLES, LATEX_INPUT_JS, QUESTION_SYMBOLS_JS, STRUCTURE_ADAPTER_JS,
+MATH_ADAPTER_JS, ASSIST_JS, OFFLINE_JS, and SERVED_JS. Offline and served
+`quiz.page_for` output (served with assist enabled), plus a synthetic
+`baseline_for` output, also match. Eight pre-existing em dash characters in
+client copy were preserved to satisfy the hard byte-identity invariant;
+new Python and documentation prose introduces none.
+
+Source-reading tests retain all assertions. JS a5_inline_fields now reads
+both offline.js and served.js. Python responsive_product reads served.js;
+presentation_profiles reads quiz_page.py plus every quiz asset; check reads
+that same combined source for generic-refusal checks and includes every asset
+in its per-file claim-word checks; presentation's font-family check includes
+latex-input.css. No constant line-number dependencies were found.
+
+The new fast `size` preflight gate lists tracked root and recursive surfaces
+Python modules over 3,000 lines, sorted descending, as non-failing warnings.
+It is registered in `--list` and LOCAL_ONLY. The roundtrip tests cover the
+threshold, tracked inventory, scope, ordering, warning visibility, and exit 0.
+Current warnings: model.py 4,954; surfaces/daemon.py 4,690; runtime.py 3,994;
+surfaces/lesson.py 3,306.
+
+Packaging was verified using `build.stage` into a temporary directory, then a
+temporary zipapp. All nine asset files were included verbatim, and a fresh
+process imported all nine constants from the archive with byte-identical
+values. `build.py` recursively copies surfaces through STAGE_DIRS; no build
+allowlist change or installed-app build was needed.
+
+Checks passed: `python3 scripts/preflight.py --quick` (exit 0; Python/JS suites
+and clean-tree gate skipped), `node --test tests/js/*.test.mjs` (147 passed,
+0 failed, 0 skipped), `python3 tests/preflight_roundtrip.py` (15 CI steps,
+15 gates, 2 CI-only), responsive_product (5 passed), presentation_profiles,
+latex_input, and a5_inline_fields. The changed check refusal/honest-limits
+functions and presentation font-family function passed when invoked without
+sockets. Python syntax and diff whitespace checks passed.
+
+Full `tests/check_roundtrip.py` stopped at its HTTP test because loopback bind
+raised `PermissionError: [Errno 1] Operation not permitted`; subsequent socket
+checks in that suite remain unverified. `tests/serve_roundtrip.py` and
+`tests/daemon_roundtrip.py` were not run because they require loopback servers.
+Reviewer HTTP coverage remains open. No Git staging, commit, push, installation,
+or human acceptance was performed. HTML extraction and later A4 waves remain
+outside this work.
