@@ -39,7 +39,7 @@ def check_read_models_and_markup():
             {"href": "/courses", "label": "Back to courses"},
             ia.course_dir_for(root, sample_course.SAMPLE_COURSE_ID))
         plain = html.unescape(page)
-        for needle in ("Current area: Learn", "Course area: Learn",
+        for needle in ('<h2 id="learn">Learn</h2>', "Course area: Learn",
                        'href="/courses"', "Back to courses"):
             if needle not in plain:
                 fail("course frame omitted %r" % needle)

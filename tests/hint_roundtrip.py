@@ -591,11 +591,17 @@ def test_teaching_payload_locked_preview_full_and_next():
         fail("one genuine wrong attempt entitles the next tier: %r" % full)
     if full["next_locked"]["index"] != 0 or full["next_locked"]["name"] != "lesson":
         fail("the next locked tier is not tier 0: %r" % full["next_locked"])
-    if full["next_locked"]["unlock_copy"] != [
+    # The wrong attempt already unlocked tier 0, so the LOCKED rows would be
+    # false here; the card states the true rule instead.
+    if full["next_locked"]["unlock_copy"] != ["Tier 0 is unlocked."]:
+        fail("an entitled next tier must not claim it is locked: %r"
+             % full["next_locked"]["unlock_copy"])
+    fresh = runtime.teaching_payload(q, runtime.new_teaching_record(), "practice", "full")
+    if fresh["entitled"] is not False or fresh["next_locked"]["unlock_copy"] != [
             "Tier 0 unlocks after another attempt.",
             "Or unlock it now with \"I'm stumped\"."]:
         fail("the next-locked unlock copy drifted from the LOCKED rows: %r"
-             % full["next_locked"]["unlock_copy"])
+             % fresh["next_locked"]["unlock_copy"])
     if len(full["further_locked"]) != 5:
         fail("full preview must carry the other five locked tiers: %r"
              % full["further_locked"])
@@ -609,7 +615,8 @@ def test_teaching_payload_locked_preview_full_and_next():
     if nxt["further_locked"] != []:
         fail("next preview must emit no further-locked tiers: %r"
              % nxt["further_locked"])
-    if nxt["next_locked"]["unlock_copy"][-1] != "5 more tiers after this one.":
+    if nxt["next_locked"]["unlock_copy"] != [
+            "Tier 0 is unlocked.", "5 more tiers after this one."]:
         fail("next preview must append the inherited count line: %r"
              % nxt["next_locked"]["unlock_copy"])
 

@@ -98,7 +98,8 @@ def cmd_audit_author(a, author_callable=None):
         "retry_cap": a.retry_cap,
         "mode": a.mode,
     }
-    bank_text = open(a.bank, encoding="utf-8", newline="").read()
+    with open(a.bank, encoding="utf-8", newline="") as source_handle:
+        bank_text = source_handle.read()
     config = {
         "target_path": a.bank,
         "state_dir": a.state_dir,
@@ -175,7 +176,8 @@ def cmd_audit_coverage(a):
                          ensure_ascii=False, indent=2))
         return 1
     try:
-        bank_text = open(a.bank, encoding="utf-8", newline="").read()
+        with open(a.bank, encoding="utf-8", newline="") as source_handle:
+            bank_text = source_handle.read()
     except OSError as exc:
         print(json.dumps({"schema_version": 1,
                           "error": {"code": "bank.unreadable",

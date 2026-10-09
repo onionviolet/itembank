@@ -26,19 +26,21 @@ def check_desktop_workspace():
         '<section class="desk-focus"></section><div class="desk-below"></div>')
     required = (
         'class="product-shell"', 'class="product-sidebar"',
-        'class="product-workspace"', 'class="product-topbar"',
+        'class="product-workspace"',
         'class="product-nav"', 'class="desk-below"',
     )
     for token in required:
         if token not in page:
             fail("desktop workspace omitted %r" % token)
+    if "product-topbar" in page:
+        fail("the page title is the h1; a topbar repeating it was removed "
+             "(ui-generic audit P3)")
     if page.count('class="product-sidebar"') != 1:
         fail("desktop workspace rendered duplicate persistent navigation")
     css = presentation.PRODUCT_CSS
     for rule in (".product-shell{min-height:100vh;display:block}",
-                 ".product-topbar{min-height:44px",
                  ".product-sidebar{position:sticky",
-                 ".desk-focus{display:flex", ".desk-below{min-width:0}",
+                 ".desk-focus{display:grid", ".desk-below{min-width:0;counter-reset:desk-section}",
                  ".course-card{display:grid;grid-template-columns:36px minmax(0,1fr) auto"):
         if rule not in css:
             fail("desktop composition lost %r" % rule)
@@ -54,7 +56,7 @@ def check_phone_workflow():
     phone = css[css.index("@media(max-width:767px)"):]
     required = (
         "position:fixed", "bottom:0",
-        "min-height:70px", ".desk-focus{align-items:flex-start;flex-direction:column",
+        "min-height:70px", ".desk-focus{align-items:flex-start;grid-template-columns:minmax(0,1fr)",
         ".course-card{grid-template-columns:28px minmax(0,1fr)",
         ".course-card-actions,.course-details{grid-column:2}",
         ".ib-palette-open{display:none}",

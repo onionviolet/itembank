@@ -110,7 +110,8 @@ def read_attempt_md(path):
 
     Never writes to `path`.
     """
-    text = open(path, encoding="utf-8").read()
+    with open(path, encoding="utf-8") as source_handle:
+        text = source_handle.read()
     blocks = re.split(r"(?m)^(?=##\s+Item\s)", text)
     records = []
     for block in blocks:
@@ -188,7 +189,8 @@ def read_legacy_session(path):
     Never writes to `path`.
     """
     try:
-        data = json.load(open(path, encoding="utf-8"))
+        with open(path, encoding="utf-8") as source_handle:
+            data = json.load(source_handle)
     except (OSError, ValueError) as exc:
         return [{"ref": os.path.basename(path), "unparsed": True,
                  "file_error": str(exc)}]

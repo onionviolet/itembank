@@ -167,6 +167,27 @@ body{margin:0;background:var(--bg);color:var(--ink);
   --text-lesson:18px;
   --text-heading:20px;
   --text-display:32px;
+  /* Two display steps above the frozen five, added 2026-10-07 (ui-generic
+     audit P1) so a page title, a focus title and a question stem form a real
+     hierarchy instead of sitting 12px apart. They shrink at phone width in
+     the media query below, so no screen needs its own override and neither
+     size can overflow 320px. */
+  --text-title:40px;
+  --text-hero:56px;
+  --rule-thin:1px;
+  --rule-heavy:3px;
+  --composition-display-font:var(--font-paper);
+  --composition-label-font:var(--font-ledger);
+  --composition-title-size:var(--text-title);
+  --composition-hero-size:var(--text-hero);
+  --composition-question-size:var(--text-display);
+  --composition-row-pad:var(--space-4);
+  --composition-rule-width:var(--rule-thin);
+  --composition-card-border:0px;
+  --composition-card-radius:0px;
+  --composition-card-bg:transparent;
+  --composition-card-pad:0px;
+  --composition-list-gap:0px;
   /* Density aliases (17A-UI-SPEC Density tokens). Comfortable is the default
      and is what every existing rule already spaces by, so adopting a token
      changes nothing until a surface opts into compact. Every value on both
@@ -178,6 +199,7 @@ body{margin:0;background:var(--bg);color:var(--ink);
   --density-card-pad:var(--space-3);
   --density-list-gap:var(--space-2)
 }
+@media(max-width:640px){:root{--text-title:32px;--text-hero:40px}}
 /* Compact is one opt-in attribute on any ancestor, so a dense panel can sit
    inside a comfortable page. The bound is the alias, not a clamp: there is no
    third step below this one. */
@@ -489,10 +511,16 @@ body{margin:0;background:var(--paper);color:var(--product-ink)}
   padding:var(--space-2) var(--space-4);display:flex;align-items:center;
   gap:var(--space-4);background:var(--card)}
 .standalone-product-nav{width:100%}
+/* A standalone sitting already pins its context band. Keep one top anchor
+   so the app navigation cannot cover the course-return link after scrolling. */
+@media(min-width:768px){
+  .standalone-product-nav:has(~ [data-surface-context]){position:static}
+}
 .wrap:has(.standalone-product-nav){margin-left:auto}
-.product-brand{font-family:var(--font-chrome);font-size:var(--text-heading);font-weight:600;
+.product-brand{font-family:var(--font-paper);font-size:var(--text-heading);font-weight:600;
   color:var(--product-ink);display:flex;align-items:center;min-height:44px;
-  letter-spacing:-.02em}
+  letter-spacing:-.03em}
+.product-brand:after{content:".";color:var(--accent)}
 .product-nav{display:flex;flex-wrap:wrap;gap:var(--space-2);margin:0}
 .product-nav a{min-height:44px;padding:var(--space-2) var(--space-3);border-radius:var(--r-1);
   color:var(--product-muted);display:flex;align-items:center;gap:var(--space-2);position:relative}
@@ -504,18 +532,15 @@ body{margin:0;background:var(--paper);color:var(--product-ink)}
   stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
 .product-local{margin:0 0 0 auto;color:var(--product-muted);font-size:var(--text-xs)}
 .product-workspace{min-width:0}
-.product-topbar{min-height:44px;max-width:1200px;margin:auto;padding:var(--space-2) var(--space-5);
-  display:flex;align-items:center;color:var(--product-muted);
-  font-size:var(--text-xs);gap:var(--space-3)}
-.product-topbar span{overflow-wrap:anywhere}
 .surface,.surface.wide{max-width:1200px;margin:0 auto;padding:var(--space-4) var(--space-5) var(--space-7)}
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
   clip:rect(0,0,0,0);border:0}
 .surface:has(.desk-heading)>h1{position:absolute;width:1px;height:1px;padding:0;
   margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}
-.product-workspace h1{font-family:var(--font-chrome);font-weight:600;
-  font-size:var(--text-display);letter-spacing:-.025em;line-height:1.2}
-.product-workspace h2{font-size:var(--text-heading);line-height:1.25;overflow-wrap:anywhere}
+.product-workspace h1{font-family:var(--composition-display-font);font-weight:600;
+  font-size:var(--text-title);letter-spacing:-.03em;line-height:1.15;overflow-wrap:anywhere}
+.product-workspace h2{font-family:var(--composition-display-font);font-size:var(--text-heading);
+  font-weight:600;line-height:1.25;overflow-wrap:anywhere}
 .app-nav{display:none}
 button.go,a.go{border-radius:var(--r-1);padding-inline:var(--space-4)}
 button.go,a.go,.product-nav a{transition:background-color .12s,border-color .12s,color .12s}
@@ -546,20 +571,20 @@ button.go[aria-pressed="true"]{background:var(--accent-soft);color:var(--ink);
 .product-nav a:active,.course-areas a:hover{background:var(--product-active);color:var(--product-ink)}
 .course-details summary:hover,.course-tools summary:hover{color:var(--product-ink)}
 .desk-heading{display:flex;justify-content:space-between;align-items:end;gap:var(--space-4);
-  margin-bottom:var(--space-4);border-bottom:1px solid var(--product-line);padding-bottom:var(--space-3)}
-.desk-heading h2{font-family:var(--font-chrome);font-size:var(--text-display);
-  font-weight:600;letter-spacing:-.025em;margin:0}
+  margin-bottom:var(--space-5);border-bottom:0;padding-bottom:0}
+.desk-heading h2{font-family:var(--composition-display-font);font-size:var(--composition-hero-size);
+  font-weight:600;letter-spacing:-.035em;line-height:1;margin:0}
 .desk-heading p,.desk-count{color:var(--product-muted);margin:0;font-size:var(--text-xs)}
-.desk-count{font-family:var(--font-chrome);font-variant-numeric:tabular-nums}
-.desk-eyebrow{font-family:var(--font-chrome);font-size:var(--text-xs);
-  font-weight:600;color:var(--product-muted)}
-.desk-focus{display:flex;align-items:center;justify-content:space-between;gap:var(--space-5);
-  padding:var(--space-4) var(--space-5);margin-bottom:var(--space-5);
-  border:1px solid var(--product-line);border-left:3px solid var(--accent);
-  border-radius:var(--r-1);background:var(--card)}
+.desk-count{font-family:var(--font-ledger);font-variant-numeric:tabular-nums}
+.desk-eyebrow{font-family:var(--font-ledger);font-size:var(--text-xs);
+  font-weight:400;letter-spacing:.06em;text-transform:uppercase;color:var(--product-muted)}
+.desk-focus{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:var(--space-5);
+  padding:var(--space-4) 0 var(--space-5);margin-bottom:var(--space-5);
+  border:0;border-top:3px solid var(--accent);border-bottom:1px solid var(--line);
+  border-radius:0;background:transparent}
 .desk-focus-copy{min-width:0}
-.desk-focus h2{font-family:var(--font-chrome);font-size:var(--text-heading);
-  font-weight:600;margin:var(--space-1) 0}
+.desk-focus h2{font-family:var(--composition-display-font);font-size:var(--composition-title-size);
+  font-weight:600;letter-spacing:-.025em;line-height:1.1;margin:var(--space-1) 0}
 .resume-cue{color:var(--product-muted);font-size:var(--text-body);overflow-wrap:anywhere}
 .desk-focus .resume-cue{margin:var(--space-1) 0 0}
 .desk-session-context{font-family:var(--font-ledger);font-size:var(--text-body);
@@ -567,15 +592,21 @@ button.go[aria-pressed="true"]{background:var(--accent-soft);color:var(--ink);
 .desk-session-context[hidden]{display:none}
 .desk-focus-actions{display:flex;flex-wrap:wrap;gap:var(--space-2);align-items:center}
 .desk-focus-actions a,.desk-focus-actions button{min-height:44px}
-.desk-focus-actions .primary{font-weight:600}
+.desk-focus-actions .primary{font-weight:600;min-height:var(--space-6);padding-inline:var(--space-5)}
 .walkthrough-offer{margin-block:var(--space-3)}
 .walkthrough-offer form{display:flex;flex-wrap:wrap;gap:var(--space-2);margin-top:var(--space-2)}
 .walkthrough-replay{margin-top:var(--space-2)}
-.desk-below{min-width:0}
+.desk-below{min-width:0;counter-reset:desk-section}
+.desk-course-section+.desk-course-section{margin-top:var(--space-5)}
 .desk-section-title{display:flex;align-items:baseline;justify-content:space-between;
   gap:var(--space-3);border-bottom:1px solid var(--product-line);padding-bottom:var(--space-2)}
-.desk-section-title h2{font-family:var(--font-chrome);font-size:var(--text-body);
-  font-weight:600;margin:0}.desk-section-title span{font-size:var(--text-xs);color:var(--product-muted)}
+.desk-section-title{align-items:center;border-bottom:0}
+.desk-section-title a{display:inline-flex;align-items:center;min-height:44px}
+.overhaul-home-tools summary{cursor:pointer;padding-block:var(--space-3)}
+.desk-section-title h2{font-family:var(--composition-label-font);font-size:var(--text-xs);
+  font-weight:400;text-transform:uppercase;letter-spacing:.1em;margin:0}
+.desk-section-title h2::before{counter-increment:desk-section;
+  content:counter(desk-section,decimal-leading-zero) "  ";color:var(--accent)}.desk-section-title span{font-size:var(--text-xs);color:var(--product-muted)}
 .course-shelf{display:block;min-width:0}
 .course-card{display:grid;grid-template-columns:36px minmax(0,1fr) auto;align-items:start;
   gap:var(--space-1) var(--space-3);padding:var(--space-3) 0;
@@ -583,9 +614,9 @@ button.go[aria-pressed="true"]{background:var(--accent-soft);color:var(--ink);
 .course-mark{display:block;font:600 var(--text-xs)/1 var(--font-ledger);
   color:var(--product-muted);padding-top:5px;font-variant-numeric:tabular-nums}
 .course-card-main{min-width:0}
-.course-card h2{font-family:var(--font-chrome);font-size:var(--text-body);font-weight:600;
-  line-height:1.35;margin:0 0 var(--space-1);overflow-wrap:anywhere}
-.course-card .chip{display:inline-block;font-family:var(--font-chrome);
+.course-card h2{font-family:var(--composition-display-font);font-size:var(--text-heading);font-weight:600;
+  line-height:1.3;margin:0 0 var(--space-1);overflow-wrap:anywhere}
+.course-card .chip{display:inline-block;font-family:var(--font-ledger);
   font-size:var(--text-xs);color:var(--product-muted);background:transparent;
   border:0;border-radius:0;padding:0;margin-right:var(--space-2);overflow-wrap:anywhere}
 .course-card .resume-cue{margin:var(--space-1) 0 0}
@@ -641,6 +672,7 @@ button.go[aria-pressed="true"]{background:var(--accent-soft);color:var(--ink);
 .course-areas a[aria-current]{background:var(--paper);color:var(--product-ink);border-bottom-color:var(--accent);
   text-decoration:none}
 .course-rows{list-style:none;padding:0;margin:0;display:grid;grid-template-columns:minmax(0,1fr)}
+.course-rows .row a{display:inline-flex;align-items:center;min-height:44px}
 .course-rows .row{padding:var(--space-4) 0;border:0;border-bottom:1px solid var(--product-line);
   border-radius:0;background:transparent;min-width:0}
 .overview-path .course-rows{grid-template-columns:minmax(0,1fr)}
@@ -648,14 +680,78 @@ button.go[aria-pressed="true"]{background:var(--accent-soft);color:var(--ink);
   border-bottom:1px solid var(--product-line);border-radius:0;padding:var(--space-4) 0}
 .row-head{display:flex;flex-wrap:wrap;justify-content:space-between;gap:var(--space-2)}
 .row-note,.area-lead{color:var(--product-muted)}
+.course-guidance{display:grid;grid-template-columns:minmax(0,1fr) auto;
+  column-gap:var(--space-5);row-gap:var(--space-2);border-block:1px solid var(--product-line);
+  border-inline-start:3px solid var(--accent);padding:var(--space-4);
+  margin-block:var(--space-4) var(--space-5);min-width:0}
+.course-guidance h3{font-family:var(--font-paper);font-size:var(--text-heading);margin:0}
+.course-guidance h3,.course-guidance-objective,.course-guidance-reason{grid-column:1}
+.course-guidance-objective,.course-guidance-reason{margin:0;overflow-wrap:anywhere}
+.course-guidance-reason{max-width:var(--measure-prose);color:var(--product-muted)}
+.course-guidance-reason strong{color:var(--product-ink)}
+.course-guidance-actions{grid-column:2;grid-row:1 / span 3;display:flex;
+  flex-direction:column;align-self:center;gap:var(--space-2);max-width:28ch;min-width:0}
+.course-guidance-actions .go{min-height:44px;white-space:normal;overflow-wrap:anywhere}
+@media(max-width:900px){.course-guidance{grid-template-columns:minmax(0,1fr)}
+  .course-guidance-actions{grid-column:1;grid-row:auto;max-width:none;margin-top:var(--space-2)}}
+/* Objective context reads like a course page, with a separate place to act. */
+.course-objective,.course-source-context{border-block-start:1px solid var(--product-line);
+  padding-block:var(--space-5);min-width:0;scroll-margin-block:var(--space-5) 112px}
+.course-objective-heading{display:flex;align-items:baseline;gap:var(--space-3);margin-bottom:var(--space-4)}
+.course-objective-heading h3{font-family:var(--font-paper);font-size:var(--text-heading);
+  line-height:1.35;margin:0;overflow-wrap:anywhere}
+.course-objective-number{font-family:var(--font-paper);font-size:var(--text-display);
+  line-height:1;color:var(--product-muted);font-variant-numeric:tabular-nums;flex-shrink:0}
+.course-objective-workspace{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);
+  gap:var(--space-5);align-items:start}
+.course-objective-workspace>*{min-width:0}
+.course-prerequisites{border-inline-start:3px solid var(--source-mark);padding-inline-start:var(--space-4)}
+.course-prerequisites h4,.course-objective-activities h4{margin-block:0 var(--space-2)}
+.course-prerequisites>ul{padding:0;margin:0;list-style:none}
+.course-prerequisite+.course-prerequisite{margin-top:var(--space-4);padding-top:var(--space-3);
+  border-top:1px solid var(--product-line)}
+.course-prerequisite-link{display:inline-flex;align-items:center;min-height:44px;font-weight:600;
+  overflow-wrap:anywhere}
+.course-prerequisite-rationale{font-family:var(--font-paper);font-size:var(--text-lesson);
+  line-height:var(--leading-lesson);margin-block:var(--space-2)}
+.course-context-evidence{color:var(--product-muted);overflow-wrap:anywhere}
+.course-objective details>summary,.course-source-impact details>summary{cursor:pointer;
+  min-height:44px;padding-block:var(--space-2);color:var(--product-muted)}
+.course-objective-alignment{margin-top:var(--space-3)}
+.course-objective-activities{padding:var(--space-4);background:var(--paper);
+  border-block-start:3px solid var(--accent);border-block-end:1px solid var(--product-line)}
+.course-objective-activities ul{list-style:none;padding:0;margin:0}
+.course-objective-activities a,.course-context-return a,.course-objective-back a,
+  .course-source-impact li a{display:inline-flex;align-items:center;min-height:44px;
+  max-width:100%;overflow-wrap:anywhere}
+.course-objective-activities p{margin:0;color:var(--product-muted)}
+.course-objective-back p{margin-block:var(--space-3) 0}
+.course-context-return{margin-block:0 var(--space-4)}
+.course-objective dl,.course-source-impact dl{display:grid;grid-template-columns:minmax(0,1fr);
+  gap:var(--space-1);margin-block:var(--space-2)}
+.course-objective dd,.course-source-impact dd{margin:0 0 var(--space-2);overflow-wrap:anywhere}
+.course-source-context h3{font-family:var(--font-paper);font-size:var(--text-heading);overflow-wrap:anywhere}
+.course-source-text{max-height:28rem;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;
+  padding:var(--space-4);border-inline-start:3px solid var(--source-mark);background:var(--source-bg)}
+.course-source-impact{margin-block:var(--space-4);padding:var(--space-4);
+  border:1px solid var(--product-line);border-inline-start:3px solid var(--accent)}
+.course-source-impact h4:first-child{margin-top:0}
+.course-map-checks{border-block:1px solid var(--product-line);padding-block:var(--space-2);
+  margin-top:var(--space-4);overflow-wrap:anywhere}
+.course-map-checks>summary{cursor:pointer;min-height:44px;padding-block:var(--space-2);
+  font-weight:600;color:var(--product-muted)}
+@media(max-width:900px){.course-objective-workspace{grid-template-columns:minmax(0,1fr);
+  gap:var(--space-3)}.course-objective-heading{gap:var(--space-2)}}
+@media(forced-colors:active){.course-objective-activities,.course-prerequisites,
+  .course-source-text,.course-source-impact{border-color:CanvasText}}
 @media(min-width:768px) and (max-width:1000px){
   .product-sidebar{padding-inline:var(--space-3);gap:var(--space-3)}
   .product-local{display:none}
   .product-nav a{padding-inline:var(--space-2)}
 }
 /* Home's course choices and activity roots share the workshop's rhythm. */
-.overhaul-course-choices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
-  gap:var(--space-3)}
+.overhaul-course-choices{display:grid;grid-template-columns:minmax(0,1fr);
+  gap:var(--composition-list-gap)}
 .overhaul-course-choice{border:1px solid var(--line);border-radius:var(--r-2);
   background:var(--card);padding:var(--space-4)}
 .overhaul-course-heading{border-block-start:3px solid var(--accent);
@@ -664,6 +760,25 @@ button.go[aria-pressed="true"]{background:var(--accent-soft);color:var(--ink);
   padding:var(--space-4);border-radius:var(--r-2)}
 .overhaul-reading,.overhaul-lesson,.overhaul-quiz{min-width:0}
 @media(max-width:767px){.overhaul-course-choices{grid-template-columns:minmax(0,1fr)}}
+.overhaul-home .overhaul-course-choice{background:var(--composition-card-bg);
+  border:var(--composition-card-border) solid var(--edge);
+  border-top:var(--composition-rule-width) solid var(--edge);
+  border-radius:var(--composition-card-radius);box-shadow:none;
+  padding:var(--composition-row-pad) var(--composition-card-pad);
+  grid-template-columns:minmax(0,1fr) auto}
+.desk-focus{background:var(--composition-card-bg);
+  border-radius:var(--composition-card-radius);padding-inline:var(--composition-card-pad)}
+.course-shelf .course-card{background:var(--composition-card-bg);
+  border:var(--composition-card-border) solid var(--edge);
+  border-bottom:var(--composition-rule-width) solid var(--edge);
+  border-radius:var(--composition-card-radius);
+  padding:var(--composition-row-pad) var(--composition-card-pad)}
+.overhaul-home .overhaul-course-choice h2{font-size:var(--text-heading)}
+@media(max-width:640px){
+  .desk-focus{grid-template-columns:minmax(0,1fr)}
+  .overhaul-home .overhaul-course-choice{grid-template-columns:minmax(0,1fr)}
+}
+
 /* A shared workshop composition, with prose measured inside a wider activity. */
 .overhaul-journey{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);
   gap:var(--space-5);align-items:start}
@@ -689,6 +804,11 @@ button.go[aria-pressed="true"]{background:var(--accent-soft);color:var(--ink);
   min-height:44px;font-size:var(--text-body)}
 @media(max-width:1000px){.overhaul-journey{grid-template-columns:minmax(0,1fr)}}
 .vf-diff,.ib-diff{border-radius:var(--r-2);overflow:auto}
+.agent-operation-workspace{min-width:0}
+.agent-operation-workspace dl{display:grid;grid-template-columns:minmax(0,1fr)}
+.agent-operation-workspace dd{margin:0 0 var(--space-2);overflow-wrap:anywhere}
+.agent-operation-workspace .mono{overflow-wrap:anywhere}
+.agent-operation-workspace .vf-diff{max-width:100%}
 @media(max-width:767px){
   html{scroll-padding-top:var(--space-3);scroll-padding-bottom:112px}
   .course-nav-desktop{display:none}
@@ -702,11 +822,10 @@ button.go[aria-pressed="true"]{background:var(--accent-soft);color:var(--ink);
   .product-nav a[aria-current]:before{left:var(--space-3);right:var(--space-3);
     top:0;bottom:auto;height:2px}
   .product-nav svg{width:18px;height:18px}
-  .product-topbar{padding:var(--space-2) var(--space-3)}
   .ib-palette-open{display:none}
   .surface,.surface.wide{padding:var(--space-3) var(--space-3) calc(var(--space-7) + 112px)}
   .desk-heading{align-items:baseline;flex-wrap:wrap;gap:var(--space-2)}
-  .desk-focus{align-items:flex-start;flex-direction:column;padding:var(--space-3)}
+  .desk-focus{align-items:flex-start;grid-template-columns:minmax(0,1fr);padding:var(--space-3)}
   .course-card{grid-template-columns:28px minmax(0,1fr);column-gap:var(--space-2)}
   .course-card-actions,.course-details{grid-column:2}
   .course-card-actions{justify-content:flex-start}
@@ -717,6 +836,89 @@ button.go[aria-pressed="true"]{background:var(--accent-soft);color:var(--ink);
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;
   transition-duration:0s!important;animation-duration:0s!important}}
 """
+
+
+# Keep the question composition shared by static and served runtime clients.
+QUIZ_PRODUCT_CSS = r"""
+.overhaul-quiz{max-width:1120px;background:var(--paper);color:var(--product-ink)}
+.overhaul-quiz #host{max-width:var(--measure-prose);margin:var(--space-5) auto;padding:0}
+.overhaul-quiz #host:has(.response-check,.response-visual,.response-dnd,.response-build,.response-table,[data-response-type=check],[data-response-type=visual],[data-response-type=dnd],[data-response-type=build],[data-response-type=table]){max-width:100%}
+.overhaul-quiz .overhaul-question{background:transparent;border:0;border-radius:0;padding:var(--space-4) 0;box-shadow:none}
+.overhaul-quiz h1.stem{font-family:var(--composition-display-font);font-size:var(--composition-question-size);font-weight:600;letter-spacing:-.02em;line-height:1.2;max-width:var(--measure-prose);margin-bottom:var(--space-4)}
+.overhaul-quiz .hint{margin-bottom:var(--space-3)}
+@media(max-width:640px){.overhaul-quiz h1.stem{font-size:var(--text-display)}}
+.overhaul-quiz .overhaul-response{border:0;padding:0;margin-block-start:var(--space-4);min-width:0}
+.overhaul-quiz .overhaul-response .fill-field{display:grid;grid-template-columns:minmax(0,1fr);align-items:start;gap:var(--space-2);padding:0;min-width:0}
+.overhaul-quiz .fill-field .fill-help{grid-column:1/-1;max-width:100%;overflow-wrap:anywhere;order:3}
+.overhaul-quiz .fill-field input{grid-column:1/-1;min-width:0;width:100%;order:2}
+.overhaul-quiz summary{min-height:44px;padding-block:var(--space-2)}
+.overhaul-quiz .context-line a,.overhaul-quiz a.chip.lesson{display:inline-flex;align-items:center;min-height:44px}
+.overhaul-quiz .choice input{width:44px;height:44px;flex:0 0 44px}
+.overhaul-quiz .choices{gap:var(--composition-list-gap);margin-top:var(--space-4)}
+.overhaul-quiz .choice{min-height:var(--space-6);
+  padding:min(var(--composition-row-pad),var(--space-3)) var(--space-2);
+  background:var(--composition-card-bg);border:var(--composition-card-border) solid var(--edge);
+  border-top:var(--composition-rule-width) solid var(--edge);
+  border-radius:var(--composition-card-radius);gap:var(--space-3)}
+.overhaul-quiz .choice:last-of-type{border-bottom:1px solid var(--line)}
+.overhaul-quiz .choice .k{font-family:var(--font-paper);font-size:var(--text-display);font-weight:600;color:var(--accent)}
+.overhaul-quiz .choice:has(input:checked){box-shadow:inset 3px 0 0 var(--accent);background:var(--accent-soft)}
+.overhaul-quiz .choice.right{background:var(--ok-bg);border-color:var(--ok)}
+.overhaul-quiz .choice.wrong{background:var(--bad-bg);border-color:var(--bad)}
+.overhaul-quiz .choice:has(input:checked).right{background:var(--ok-bg)}
+.overhaul-quiz .choice:has(input:checked).wrong{background:var(--bad-bg)}
+.overhaul-quiz .choice .ot{font-size:var(--text-heading);line-height:1.5}
+.overhaul-quiz .feedback:not(:empty){border:0;padding-block-start:0;margin-block-start:var(--space-4)}
+.overhaul-quiz .support-region{border-block-start:1px solid var(--line);padding-block-start:var(--space-3)}
+.overhaul-quiz .session-details{max-width:var(--measure-prose);margin-inline:auto}
+@media(max-width:767px){.overhaul-quiz #host{margin-block:var(--space-3)}.overhaul-quiz .overhaul-question{padding:var(--space-3) 0}}
+
+.overhaul-quiz .verdict{font-family:var(--font-paper);font-size:var(--text-heading);font-weight:400;
+  border-left:3px solid var(--accent);padding:var(--space-2) var(--space-3);margin:var(--space-4) 0}
+.overhaul-quiz .verdict::before{content:"Margin note";display:block;
+  font-family:var(--font-ledger);font-size:var(--text-xs);text-transform:uppercase;
+  letter-spacing:.1em;color:var(--mut);margin-bottom:var(--space-1)}
+"""
+
+
+def composition_css(look):
+    """Let looks assign inherited roles without overriding palette or authority.
+
+    Body-scoped aliases survive either stylesheet emission order. All sizes
+    resolve to the shared token block, including narrow display steps.
+    """
+    profiles = {
+        "classic": {},
+        "editorial": {"row-pad": "var(--space-5)",
+                      "question-size": "var(--text-title)"},
+        "neo": {"display-font": "var(--font-chrome)",
+                "rule-width": "var(--rule-heavy)",
+                "card-border": "var(--rule-heavy)",
+                "card-pad": "var(--space-3)", "list-gap": "var(--space-3)"},
+        "cash": {"display-font": "var(--font-chrome)",
+                 "question-size": "var(--text-title)", "rule-width": "0px",
+                 "card-bg": "var(--card)", "card-radius": "var(--space-4)",
+                 "card-pad": "var(--space-4)", "row-pad": "var(--space-5)",
+                 "list-gap": "var(--space-3)"},
+        "console": {"display-font": "var(--font-ledger)",
+                    "title-size": "var(--text-display)",
+                    "hero-size": "var(--text-title)",
+                    "card-border": "var(--rule-thin)",
+                    "card-pad": "var(--space-3)", "row-pad": "var(--space-2)",
+                    "list-gap": "var(--space-2)"},
+        "soft": {"card-bg": "var(--card)", "card-border": "var(--rule-thin)",
+                 "card-radius": "var(--space-4)", "card-pad": "var(--space-4)",
+                 "row-pad": "var(--space-4)", "list-gap": "var(--space-3)"},
+        "contrast": {"display-font": "var(--font-chrome)",
+                     "rule-width": "var(--rule-heavy)",
+                     "card-border": "var(--rule-heavy)",
+                     "card-pad": "var(--space-3)", "list-gap": "var(--space-2)"},
+    }
+    profile = profiles.get(look, profiles["classic"])
+    if not profile:
+        return ""
+    return "body{%s}" % ";".join(
+        "--composition-%s:%s" % (name, value) for name, value in profile.items())
 
 
 def product_theme_css():
@@ -763,11 +965,13 @@ def _product_sidebar(current="courses", standalone=False):
 
 
 def product_frame_open(title):
-    """Open the shared responsive learner frame for standalone activities."""
+    """Open the shared responsive learner frame for standalone activities.
+
+    `title` is kept for callers, but no longer printed: the activity's own h1
+    is the one visible title, and the nav already names the section.
+    """
     return ('<div class="product-shell">%s'
-            '<div class="product-workspace"><header class="product-topbar">'
-            '<span>%s</span></header>'
-            % (_product_sidebar(), esc(title)))
+            '<div class="product-workspace">' % _product_sidebar())
 
 
 PRODUCT_FRAME_CLOSE = "</div></div>"
@@ -889,11 +1093,10 @@ def surface_shell(title, body, theme_css="", back=None, wide=False,
         return ("<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">"
                 "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
                 "<title>%s</title>%s</head><body><div class=\"product-shell\">%s"
-                '<div class="product-workspace"><header class="product-topbar">'
-                '<span>%s</span></header>'
+                '<div class="product-workspace">'
                 '<div class="%s"%s>%s%s<main>%s</main>%s%s'
                 '</div></div></div></body></html>'
-                % (esc(head_title), style, product_sidebar, esc(head_title), esc(cls),
+                % (esc(head_title), style, product_sidebar, esc(cls),
                    profile_attr, app_header, "\n".join(parts), body, ns, tail))
     return ("<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">"
             "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"

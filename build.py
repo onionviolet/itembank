@@ -152,8 +152,9 @@ def sha256sums(out_dir):
         if f != "SHA256SUMS.txt" and os.path.isfile(os.path.join(out_dir, f)))
     with open(target, "w", encoding="utf-8") as fh:
         for name in names:
-            digest = hashlib.sha256(
-                open(os.path.join(out_dir, name), "rb").read()).hexdigest()
+            with open(os.path.join(out_dir, name), "rb") as source_handle:
+                digest = hashlib.sha256(
+                    source_handle.read()).hexdigest()
             fh.write("%s  %s\n" % (digest, name))
     return target
 
@@ -206,8 +207,9 @@ def latest_json_hook(out_dir):
     if not m:
         return None
     tag = "v" + m.group(1)
-    signature = open(os.path.join(out_dir, sigs[0]),
-                     encoding="utf-8").read().strip()
+    with open(os.path.join(out_dir, sigs[0]),
+                     encoding="utf-8") as source_handle:
+        signature = source_handle.read().strip()
     return latest_json(out_dir, tag, installer, signature)
 
 

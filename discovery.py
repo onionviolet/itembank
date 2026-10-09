@@ -70,7 +70,7 @@ def _entry(root, path, state, size=None, fingerprint=None, note=""):
     }
 
 
-def _walk_one_root(root, roots):
+def _walk_one_root(root, roots, max_file_bytes=None, skip_dirs=()):
     """Yield entry dicts for every path under `root`, in deterministic
     pre-order (each directory's own files before its subdirectories, both
     sorted), the walk's own natural order. No cancel or resume logic lives
@@ -85,6 +85,8 @@ def _walk_one_root(root, roots):
 
         remaining_dirs = []
         for d in dirs:
+            if d in skip_dirs:
+                continue
             dpath = os.path.join(dirpath, d)
             if os.path.islink(dpath):
                 real_target = os.path.realpath(dpath)
@@ -115,17 +117,20 @@ def _walk_one_root(root, roots):
 
             try:
                 with open(fpath, "rb") as fh:
-                    raw = fh.read()
+                    raw = fh.read() if max_file_bytes is None else fh.read(max_file_bytes + 1)
             except (PermissionError, OSError) as exc:
                 yield _entry(root, fpath, "denied", note=str(exc))
                 continue
 
+            if max_file_bytes is not None and len(raw) > max_file_bytes:
+                yield _entry(root, fpath, "unavailable", note="File exceeds this inventory's read limit.")
+                continue
             fingerprint = identity.object_fingerprint(raw, "source")
             yield _entry(root, fpath, "readable", size=len(raw),
                          fingerprint=fingerprint)
 
 
-def inventory(roots, cancel=None, resume_after=None):
+def inventory(roots, cancel=None, resume_after=None, *, max_file_bytes=None, skip_dirs=()):
     """Yield one entry dict per inventoried path, across every root in the
     order given.
 
@@ -156,7 +161,7 @@ def inventory(roots, cancel=None, resume_after=None):
             }
             continue
 
-        for entry in _walk_one_root(root, roots):
+        for entry in _walk_one_root(root, roots, max_file_bytes, skip_dirs):
             if resuming:
                 if entry["path"] == resume_after and entry["root"] == root:
                     resuming = False
@@ -166,7 +171,8 @@ def inventory(roots, cancel=None, resume_after=None):
             yield entry
 
 
-def run_report(roots, cancel=None, resume_after=None, approved_roots=None):
+def run_report(roots, cancel=None, resume_after=None, approved_roots=None, *,
+               max_file_bytes=None, skip_dirs=()):
     """Drain `inventory()` into a single summary dict with keys `roots`,
     `entries`, `counts`, `complete`, `cancelled`, `denied`, `refused`,
     `unavailable`, and `omitted_reason`.
@@ -202,7 +208,8 @@ def run_report(roots, cancel=None, resume_after=None, approved_roots=None):
             return True
         return False
 
-    for entry in inventory(roots, cancel=_cancel_wrapper, resume_after=resume_after):
+    for entry in inventory(roots, cancel=_cancel_wrapper, resume_after=resume_after,
+                           max_file_bytes=max_file_bytes, skip_dirs=skip_dirs):
         entries.append(entry)
         counts[entry["state"]] = counts.get(entry["state"], 0) + 1
         if entry["state"] == "denied":

@@ -542,7 +542,10 @@ def test_emt_lesson_semantic_table(tmp):
     idx_p = h.index("<p>Scene management")
     idx_ul = h.index("<ul><li>Chief complaint</li><li>Airway status</li></ul>")
     idx_table = h.index("<table>")
-    idx_pre = h.index("<pre><code class=\"language-text\">")
+    idx_pre = h.index('<pre class="code-source"')
+    if ('<code class="language-text">' not in h or
+            'tabindex="0" role="region" aria-label="Example code"' not in h):
+        fail("fenced code must preserve its language and keyboard-readable region: %r" % h)
     if not (idx_h2 < idx_p < idx_ul < idx_table < idx_pre):
         fail("lesson source order must survive rendering: %r" % h)
     if "$not math$" not in h or "<strong>bold</strong>" in h:

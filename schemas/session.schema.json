@@ -436,7 +436,8 @@
             "dnd",
             "build",
             "short",
-            "fill"
+            "fill",
+            "check"
           ]
         },
         "answer": {

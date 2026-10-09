@@ -166,7 +166,11 @@ def main(runtime=None, browser_hold=False):
 
         status, page = get(prefix + "map")
         check(status == 200 and 'href="#objective-0"' in page, "objective row has no detail link")
-        check('id="objective-0"' in page and '/sources?source=0#source-0' in page,
+        source_link = re.search(r'href="(/course/[^"<>]+/sources\?[^"<>]+#source-0)"', page)
+        source_query = (urllib.parse.parse_qs(urllib.parse.urlsplit(
+            html.unescape(source_link.group(1))).query) if source_link else {})
+        check('id="objective-0"' in page and source_query.get('source') == ['0'] and
+              source_query.get('return_objective') == [objective_id],
               "objective detail lost source alignment")
         map_links = html.unescape(page)
         check('/quiz/unit3_bank?mode=practice&course=' in map_links and

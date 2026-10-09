@@ -372,7 +372,15 @@ def append_line_checked(path, line, dedupe_key):
         os.close(fd)
 
 
-def iter_raw(path):
+def _reader_warning(message, diagnostics, issue):
+    """Report locally by default, or deliver safe diagnostics to one caller."""
+    if diagnostics is None:
+        print(message)
+    else:
+        diagnostics(issue)
+
+
+def iter_raw(path, *, diagnostics=None):
     """Yield `(lineno, obj, raw)` for every line in `path` that parses to a dict.
 
     A missing log is an empty log, never an error — yields nothing rather than
@@ -403,10 +411,12 @@ def iter_raw(path):
             try:
                 obj = json.loads(stripped)
             except (ValueError, TypeError):
-                print("warn  %s:%d malformed, skipped" % (os.path.basename(path), lineno))
+                _reader_warning("warn  %s:%d malformed, skipped" % (os.path.basename(path), lineno),
+                                diagnostics, "Line %d is malformed and was skipped." % lineno)
                 continue
             if not isinstance(obj, dict):
-                print("warn  %s:%d malformed, skipped" % (os.path.basename(path), lineno))
+                _reader_warning("warn  %s:%d malformed, skipped" % (os.path.basename(path), lineno),
+                                diagnostics, "Line %d is malformed and was skipped." % lineno)
                 continue
             yield (lineno, obj, raw)
 
@@ -993,23 +1003,25 @@ def reading_state(log, course_id, occurrence_id, revision_id):
         return {"state": "unsupported", "event_ids": []}
 
 
-def events(log):
+def events(log, *, diagnostics=None):
     """Yield validated event dicts from `iter_raw`.
 
     Skips and warns on an event whose `event_type` is unknown or whose
     `schema_version` is newer than this build supports, so a log written by a
     later version of this tool degrades instead of crashing (D-09).
     """
-    for lineno, obj, raw in iter_raw(log):
+    for lineno, obj, raw in iter_raw(log, diagnostics=diagnostics):
         et = obj.get("event_type")
         sv = obj.get("schema_version")
         if et not in KNOWN_EVENT_TYPES:
-            print("warn  %s:%d unknown event_type %r, skipped" %
-                  (os.path.basename(log), lineno, et))
+            _reader_warning("warn  %s:%d unknown event_type %r, skipped" %
+                            (os.path.basename(log), lineno, et), diagnostics,
+                            "Line %d has an unsupported event type and was skipped." % lineno)
             continue
         if not isinstance(sv, int) or sv > EVENT_SCHEMA_VERSION:
-            print("warn  %s:%d schema_version %r unsupported, skipped" %
-                  (os.path.basename(log), lineno, sv))
+            _reader_warning("warn  %s:%d schema_version %r unsupported, skipped" %
+                            (os.path.basename(log), lineno, sv), diagnostics,
+                            "Line %d has an unsupported schema version and was skipped." % lineno)
             continue
         yield obj
 
@@ -1657,7 +1669,15 @@ def retracted_ids(log):
     return ids
 
 
-def live_events(log):
+def _live_rows(rows):
+    """Apply the same whole-log retraction rule to one materialized read."""
+    retracted = {ev.get("retracts") for ev in rows
+                 if ev.get("event_type") == RETRACTION_EVENT_TYPE and ev.get("retracts")}
+    return (ev for ev in rows if ev.get("event_type") != RETRACTION_EVENT_TYPE
+            and ev.get("event_id") not in retracted)
+
+
+def live_events(log, *, diagnostics=None):
     """Every non-retraction event whose `event_id` is not in
     `retracted_ids(log)`, in log order.
 
@@ -1666,6 +1686,11 @@ def live_events(log):
     history too, such as an audit. `attempt_number` and `objective_history`
     both read through this rather than `events` (D-10).
     """
+    if diagnostics is not None:
+        # The per-call diagnostics path captures once, so a skipped record
+        # is reported once and appending between filter passes cannot mix it.
+        yield from _live_rows(tuple(events(log, diagnostics=diagnostics)))
+        return
     retracted = retracted_ids(log)
     for ev in events(log):
         if ev.get("event_type") == RETRACTION_EVENT_TYPE:
@@ -1673,6 +1698,39 @@ def live_events(log):
         if ev.get("event_id") in retracted:
             continue
         yield ev
+
+
+def course_counts(log):
+    """Read-only live counts with availability separate from an empty history."""
+    keys = ("responses", "marks", "sessions", "events")
+    issues = []
+    try:
+        before = os.stat(log)
+    except FileNotFoundError:
+        return dict.fromkeys(keys, 0) | {"state": "empty", "complete": True, "issues": []}
+    except OSError:
+        return dict.fromkeys(keys, None) | {"state": "unavailable", "complete": False,
+                                            "issues": ["The evidence log cannot be read."]}
+    try:
+        rows = tuple(live_events(log, diagnostics=issues.append))
+        if any(not isinstance(row.get("event_id"), str) or not row.get("event_id") for row in rows):
+            issues.append("Some live records have no supported evidence identity.")
+        if any(row.get("session_id") is not None and not isinstance(row["session_id"], str) for row in rows):
+            issues.append("Some live records have an unsupported sitting identity.")
+        sessions = {row["session_id"] for row in rows
+                    if row.get("event_type") != "reading_declared"
+                    and isinstance(row.get("session_id"), str) and row["session_id"]}
+        counts = {"responses": sum(row.get("event_type") == "response" for row in rows),
+                  "marks": sum(row.get("event_type") == "mark" for row in rows),
+                  "sessions": len(sessions), "events": len(rows)}
+        after = os.stat(log)
+        if (before.st_ino, before.st_size, before.st_mtime_ns) != (after.st_ino, after.st_size, after.st_mtime_ns):
+            issues.append("The evidence log changed during this read. Reload for current counts.")
+    except (OSError, ValueError, TypeError):
+        return dict.fromkeys(keys, None) | {"state": "unavailable", "complete": False,
+                                            "issues": ["The evidence log cannot be read."]}
+    return counts | {"state": "incomplete" if issues else "ready" if rows else "empty",
+                     "complete": not issues, "issues": issues}
 
 
 def capture_events(log):

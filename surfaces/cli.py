@@ -482,7 +482,8 @@ def _corpus_marker(path):
     is the learner note document's own key (16C-02). A real corpus file that
     does not parse as a question bank still carries one of these."""
     try:
-        text = open(path, encoding="utf-8").read()
+        with open(path, encoding="utf-8") as source_handle:
+            text = source_handle.read()
     except Exception:
         return None
     for marker in CORPUS_SECTION_MARKERS:
@@ -558,8 +559,9 @@ def cmd_guard(a):
                 continue
             p = os.path.join(root, f)
             try:
-                n = len(parse_bank(
-                    _without_fenced_blocks(open(p, encoding="utf-8").read())))
+                with open(p, encoding="utf-8") as source_handle:
+                    n = len(parse_bank(
+                        _without_fenced_blocks(source_handle.read())))
             except Exception:
                 continue
             if n > 0 or any(h in f.lower() for h in BANK_FILE_HINTS):
@@ -631,7 +633,8 @@ def _corpus_documents(corpus_dir):
 def _expected_codes(path):
     """The style codes a corpus document declares it is expected to trip."""
     try:
-        text = open(path, encoding="utf-8").read()
+        with open(path, encoding="utf-8") as source_handle:
+            text = source_handle.read()
     except OSError:
         return frozenset()
     m = _CORPUS_EXPECT_RE.search(text)
@@ -666,7 +669,8 @@ def calibrate_corpus(corpus_dir, threshold=None):
     missed = collections.Counter()  # declared but never fired
     for path in _corpus_documents(corpus_dir):
         try:
-            qs = parse_bank(open(path, encoding="utf-8").read())
+            with open(path, encoding="utf-8") as source_handle:
+                qs = parse_bank(source_handle.read())
             lesson = parse_lesson(path)
             sources = parse_sources(path)
         except OSError:
@@ -1394,10 +1398,10 @@ def build_parser():
     ct = s.add_subparsers(dest="action", required=True)
     agent = ct.add_parser(
         "agent-operation",
-        help="start, inspect, preview, revise, accept, reject, or undo a stored agent proposal")
+        help="start, cancel, retry, inspect, revise, accept, reject, or undo an agent proposal; CLI launches wait for their transport")
     agent.add_argument("course_id", help="the course id")
     agent.add_argument("action",
-                       choices=("start", "status", "preview", "revise", "accept", "reject", "undo"))
+                       choices=("start", "start_async", "cancel", "retry", "status", "preview", "revise", "accept", "reject", "undo"))
     agent.add_argument("--skill", default="",
                        help="configured skill id, required for start")
     agent.add_argument("--proposal-id", default="",

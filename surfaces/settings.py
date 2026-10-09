@@ -226,7 +226,8 @@ def load_settings(base):
     if not os.path.exists(path):
         return dict(defaults)
     try:
-        raw = json.load(open(path, encoding="utf-8"))
+        with open(path, encoding="utf-8") as source_handle:
+            raw = json.load(source_handle)
     except (OSError, ValueError) as exc:
         sys.exit("settings.malformed_file: cannot read %s: %s" % (path, exc))
     if not isinstance(raw, dict):

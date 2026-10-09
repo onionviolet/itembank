@@ -140,6 +140,38 @@ def approved_roots(base):
     return list(state["doc"]["roots"]) or [os.path.abspath(base)]
 
 
+def recovery_root_preview(base, source_root, destination):
+    """Preview local root relocation without granting or changing any access."""
+    state = read_workspace(base)
+    if not state['present']:
+        return {'state': 'absent', 'read_only': True, 'roots': [], 'disabled_courses': []}
+    if state['state'] != 'clean':
+        raise WorkspaceError('workspace.conflict', 'Reconcile the workspace record before previewing recovery references.')
+    source_root, destination = _clean_root(source_root), _clean_root(destination)
+    proposed_roots, root_indexes, changes = [], {}, []
+    for index, root in enumerate(state['doc']['roots']):
+        root = _clean_root(root)
+        internal = os.path.commonpath([source_root, root]) == source_root
+        mapped = os.path.normpath(os.path.join(destination, os.path.relpath(root, source_root))) if internal else None
+        if mapped is not None:
+            if mapped not in proposed_roots:
+                proposed_roots.append(mapped)
+            root_indexes[index] = proposed_roots.index(mapped)
+        changes.append({'original': root, 'proposed': mapped,
+                        'state': 'remap' if internal else 'requires_reapproval'})
+    members, disabled = [], []
+    for member in state['doc']['courses']:
+        if member['root_index'] not in root_indexes:
+            disabled.append(dict(member, root=state['doc']['roots'][member['root_index']]))
+        else:
+            members.append(dict(member, root_index=root_indexes[member['root_index']]))
+    proposed = dict(state['doc'], roots=proposed_roots, courses=members)
+    _validate(proposed)
+    return {'state': 'preview', 'read_only': True, 'fingerprint': state['fingerprint'],
+            'roots': changes, 'disabled_courses': disabled, 'proposed_document': proposed,
+            'next_action': 'Review this proposal. Original references are unchanged; applying a root policy requires a separate explicit choice.'}
+
+
 def _document(base, object_id, ordered_members):
     roots = [os.path.abspath(base)]
     for member in ordered_members:

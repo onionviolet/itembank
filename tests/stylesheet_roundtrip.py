@@ -110,7 +110,7 @@ REPORTED_FONT_ROUTES = ()
 
 # 14-UI-SPEC §15 gate 12. The project type scale is five sizes at two weights,
 # and a family is named only by token (.planning/UI-SPEC.md §7).
-TYPE_SCALE_SIZES = (12, 16, 18, 20, 32)
+TYPE_SCALE_SIZES = (12, 16, 18, 20, 32, 40, 56)
 TYPE_SCALE_WEIGHTS = (400, 600)
 
 # The scope is an EXPLICIT tuple rather than "every collected stylesheet",
@@ -640,11 +640,24 @@ def bad_family_names(value):
 FROZEN_TYPE_TOKENS = {"--text-xs": "12px", "--text-body": "16px",
                       "--text-lesson": "18px", "--text-heading": "20px",
                       "--text-display": "32px"}
+# Two display steps added by the ui-generic audit (P1, 2026-10-07). Each is
+# declared once at its desktop size and once smaller under 640px; every
+# declared value must itself sit on the scale, so the pair cannot smuggle in
+# an eighth size.
+DISPLAY_TYPE_TOKENS = {"--text-title": ("40px", "32px"),
+                       "--text-hero": ("56px", "40px")}
 
 # 17A-UI-SPEC Density tokens. Each row is (comfortable, compact), and each side
 # must be an ALIAS of the existing spacing scale, never a raw length: that
 # aliasing is the whole bound. --space-1 is the floor of the scale, so nothing
 # tighter than 4px is expressible.
+# Composition may select existing steps, never introduce another type scale.
+COMPOSITION_TYPE_TOKENS = {
+    "--composition-title-size": ("--text-title", "--text-display"),
+    "--composition-hero-size": ("--text-hero", "--text-title"),
+    "--composition-question-size": ("--text-display", "--text-title"),
+}
+
 DENSITY_TOKENS = {"--density-row-gap": ("--space-3", "--space-2"),
                   "--density-card-pad": ("--space-3", "--space-2"),
                   "--density-list-gap": ("--space-2", "--space-1")}
@@ -684,7 +697,33 @@ def check_frozen_type_tokens(sheets):
         fail("the frozen type tokens are not defined anywhere in the emitted "
              "CSS: %s. The freeze is a claim about served bytes, not about a "
              "specification document" % ", ".join(missing))
+    for token, allowed in DISPLAY_TYPE_TOKENS.items():
+        for name, raw in sheets:
+            for value in declared_values(raw, token):
+                if value not in allowed:
+                    fail("%s declares %s:%s; the display steps are %s"
+                         % (name, token, value, "/".join(allowed)))
+                found.setdefault(token, set()).add(value)
+    missing = sorted(set(DISPLAY_TYPE_TOKENS) - set(found))
+    if missing:
+        fail("the display type tokens are not defined anywhere in the emitted "
+             "CSS: %s" % ", ".join(missing))
+    from surfaces import looks, theme
+    composition_sheets = sheets + [
+        ("look " + look, theme.theme_css({"look": look, "theme": "light"}))
+        for look in looks.LOOK_IDS]
+    for token, steps in COMPOSITION_TYPE_TOKENS.items():
+        values = [(name, value) for name, raw in composition_sheets
+                  for value in declared_values(raw, token)]
+        if not values:
+            fail("composition type token %s has no definition" % token)
+        for name, value in values:
+            if value not in ["var(%s)" % step for step in steps]:
+                fail("%s declares %s:%s; composition must alias %s"
+                     % (name, token, value, "/".join(steps)))
     sizes = set(int(v[:-2]) for v in FROZEN_TYPE_TOKENS.values())
+    sizes |= set(int(v[:-2]) for pair in DISPLAY_TYPE_TOKENS.values()
+                 for v in pair)
     if sizes != set(TYPE_SCALE_SIZES):
         fail("the five frozen type tokens cover %s but the project type scale "
              "is %s; a token and a literal may not disagree about how many "
@@ -809,19 +848,25 @@ def size_problems(where, prop, value):
     demanded a literal px, so `font-size:var(--text-xs)` failed gate 12 while
     the literal `12px` it stands for passed. A freeze nothing may consume is a
     documentation exercise, so the gate resolves the name instead. Only the
-    five frozen names resolve; any other `var(...)` still fails, because an
-    unresolvable name is exactly the hole that would let a sixth size in.
+    frozen and display names resolve. Composition names select only those
+    steps, with every alias checked by check_frozen_type_tokens. Any other
+    `var(...)` fails, so a new name cannot hide an off-scale size.
     """
     val = value.strip()
     if VAR_ONLY_RE.match(val):
         token = CUSTOM_NAME_RE.search(val).group(0)
-        if token not in FROZEN_TYPE_TOKENS:
-            return ["%s declares %s:%s, and %s is not one of the five frozen "
+        if (token not in FROZEN_TYPE_TOKENS and token not in DISPLAY_TYPE_TOKENS
+                and token not in COMPOSITION_TYPE_TOKENS):
+            return ["%s declares %s:%s, and %s is not one of the named "
                     "type tokens; a size may name %s or be a literal px on the "
                     "scale, and nothing else"
                     % (where, prop, val, token,
-                       "/".join(sorted(FROZEN_TYPE_TOKENS)))]
-        val = FROZEN_TYPE_TOKENS[token]
+                       "/".join(sorted(FROZEN_TYPE_TOKENS)
+                                + sorted(DISPLAY_TYPE_TOKENS)))]
+        if token in COMPOSITION_TYPE_TOKENS:
+            token = COMPOSITION_TYPE_TOKENS[token][0]
+        val = (FROZEN_TYPE_TOKENS.get(token)
+               or DISPLAY_TYPE_TOKENS[token][0])
     m = LENGTH_RE.match(val)
     if not m:
         return ["%s declares %s:%s, which is not a length this scale can "

@@ -122,12 +122,16 @@ def gate_tests(source_only=False):
         code, out = run([PY, os.path.join("tests", name)])
         if code != 0:
             failures.append("== tests/%s\n%s" % (name, out.rstrip()))
-    if failures:
-        return False, "\n".join(failures)
-    message = "%d test file(s) passed" % (len(tests) - len(deferred))
+    executed = len(tests) - len(deferred)
+    summary = ("Python suite: %d discovered, %d executed, %d passed, "
+               "%d failed, %d deferred app-build checks."
+               % (len(tests), executed, executed - len(failures),
+                  len(failures), len(deferred)))
     if deferred:
-        message += "; app-build checks deferred: " + ", ".join(deferred)
-    return True, message
+        summary += "\nApp-build checks deferred: " + ", ".join(deferred)
+    if failures:
+        return False, summary + "\n" + "\n".join(failures)
+    return True, summary
 
 
 def gate_clean_tree():
@@ -230,7 +234,8 @@ def gate_paths():
             files.append(full)
         for path in files:
             try:
-                text = open(path, encoding="utf-8", errors="replace").read()
+                with open(path, encoding="utf-8", errors="replace") as source_handle:
+                    text = source_handle.read()
             except OSError:
                 continue
             for lineno, line in enumerate(text.splitlines(), 1):
@@ -310,9 +315,9 @@ def main():
         failed.append(gate_id)
         print("FAIL    %-8s (CI step: %s)" % (gate_id, step), flush=True)
         diagnostics = out.rstrip().splitlines()
-        # Each failing script is a separate repair obligation. Truncating the
-        # suite after twenty lines silently hid later failures and tracebacks.
-        if gate_id != "tests":
+        # Suite output starts with passing cases. Keep the later failures and
+        # tracebacks visible for both Python and JavaScript diagnostics.
+        if gate_id not in ("tests", "js"):
             diagnostics = diagnostics[:20]
         for line in diagnostics:
             print("        " + line)

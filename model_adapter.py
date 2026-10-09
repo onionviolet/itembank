@@ -16,6 +16,7 @@ and never enter requests, results, logs, or evidence (D-03, D-15).
 """
 import json
 import os
+import signal
 import subprocess
 import time
 import urllib.error
@@ -33,6 +34,7 @@ SCHEMA_RESOURCE = "schemas/model_adapter.schema.json"
 # set-then-sorted tuple so sortedness is structural (the SETTINGS_CODES /
 # LINT_CODES construction precedent).
 ADAPTER_CODES = tuple(sorted({
+    "adapter.cancelled",
     "adapter.executable_missing", "adapter.http_error", "adapter.internal_error",
     "adapter.malformed_response", "adapter.output_cap_exceeded",
     "adapter.profile_disabled", "adapter.profile_invalid",
@@ -171,7 +173,7 @@ def _openai_system_prompt(request):
     return prefix + "Follow the embedded public contract and response shape."
 
 
-def _transport_hosted_cli(request, request_json, profile, settings):
+def _transport_hosted_cli(request, request_json, profile, settings, cancel=None):
     """The hosted CLI transport: subprocess.run over a configured argument
     vector, shell=False, with per-profile timeout and output cap (the
     launcher.py house pattern). A nonzero exit is a refusal; output beyond
@@ -182,9 +184,52 @@ def _transport_hosted_cli(request, request_json, profile, settings):
     max_bytes = profile.get("max_output_bytes") or 65536
     start = time.monotonic()
     try:
-        completed = subprocess.run(
-            command, input=request_json, text=True, capture_output=True,
-            timeout=timeout, shell=False)
+        if cancel is None:
+            completed = subprocess.run(
+                command, input=request_json, text=True, capture_output=True,
+                timeout=timeout, shell=False)
+        else:
+            if cancel.is_set():
+                return unavailable_result('adapter.cancelled', 'Request cancelled before launch.', interaction_id)
+            process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE, text=True, shell=False, start_new_session=(os.name == 'posix'))
+            initial = request_json
+            finished = False
+            try:
+                while True:
+                    if cancel.is_set():
+                        return unavailable_result('adapter.cancelled',
+                            'The local transport stopped. Provider work may already have occurred.', interaction_id)
+                    remaining = timeout - (time.monotonic() - start)
+                    if remaining <= 0:
+                        raise subprocess.TimeoutExpired(command, timeout)
+                    try:
+                        stdout, stderr = process.communicate(input=initial, timeout=min(0.05, remaining))
+                        completed = subprocess.CompletedProcess(command, process.returncode, stdout, stderr)
+                        finished = True
+                        break
+                    except subprocess.TimeoutExpired:
+                        initial = None
+            finally:
+                if not finished:
+                    try:
+                        if os.name == 'posix':
+                            os.killpg(process.pid, signal.SIGTERM)
+                        elif process.poll() is None:
+                            process.terminate()
+                    except ProcessLookupError:
+                        pass
+                    try:
+                        process.communicate(timeout=1)
+                    except subprocess.TimeoutExpired:
+                        try:
+                            if os.name == 'posix':
+                                os.killpg(process.pid, signal.SIGKILL)
+                            elif process.poll() is None:
+                                process.kill()
+                        except ProcessLookupError:
+                            pass
+                        process.communicate()
     except subprocess.TimeoutExpired:
         return unavailable_result("adapter.timeout",
                                   "hosted CLI timed out after %ss" % timeout,
@@ -335,7 +380,7 @@ TRANSPORT_REGISTRY, TRANSPORT_VERSIONS, TRANSPORT_DESCRIPTIONS = \
     build_registry(TRANSPORT_ENTRIES)
 
 
-def _invoke(request, settings):
+def _invoke(request, settings, cancel=None):
     if not isinstance(request, dict):
         return unavailable_result("adapter.request_invalid",
                                   "request must be a JSON object", None)
@@ -368,16 +413,24 @@ def _invoke(request, settings):
                                   % profile.get("transport"),
                                   interaction_id)
     request_json = json.dumps(request, ensure_ascii=False, sort_keys=True)
-    return transport(request=request, request_json=request_json,
-                     profile=profile, settings=settings)
+    if cancel is not None and cancel.is_set():
+        return unavailable_result('adapter.cancelled', 'Request cancelled before launch.', interaction_id)
+    kwargs = dict(request=request, request_json=request_json, profile=profile, settings=settings)
+    if cancel is not None and transport is _transport_hosted_cli:
+        kwargs['cancel'] = cancel
+    result = transport(**kwargs)
+    if cancel is not None and cancel.is_set():
+        return unavailable_result('adapter.cancelled',
+            'Local waiting ended; the provider outcome is unknown. No draft can be published from this attempt.', interaction_id)
+    return result
 
 
-def invoke(request, settings):
+def invoke(request, settings, *, cancel=None):
     """The single public boundary (D-01/D-02). Every failure family converts
     to one typed unavailable result; no exception escapes (RESEARCH Pattern 2
     -- authored hints, scoring, lessons, reports and marking continue)."""
     try:
-        return _invoke(request, settings)
+        return _invoke(request, settings, cancel)
     except Exception:  # last-resort safety net, never a traceback
         interaction_id = request.get("interaction_id") \
             if isinstance(request, dict) else None

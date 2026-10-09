@@ -71,10 +71,14 @@ learn that a guided lesson needs `transform` while a direct reading needs
 import json
 import os
 import sys
+import tempfile
+
+import workspace
 
 import course as course_module
 import course_package
 import director
+import evidence
 import graph
 import identity
 import journal
@@ -1477,6 +1481,283 @@ def _restore_and_publish(root, body, actor_kind, actor_name, snapshot):
     return result
 
 
+def restore_choices(root):
+    """Native restore choices use existing root and course authorities only."""
+    roots = workspace.approved_roots(root)
+    sources = [{"value": "root:%d" % index, "path": path,
+                "label": "Entire approved root: %s" % path}
+               for index, path in enumerate(roots)]
+    for card in ia.course_shelf_state(root)["cards"]:
+        if not card.get("degraded") and card.get("available"):
+            sources.append({"value": "course:" + card["course_id"],
+                            "path": card["path"],
+                            "label": "%s: %s" % (card["name"], card["path"])})
+    namespace = os.path.dirname(course_package.workspace_package_path(
+        root, "0000000000000000"))
+    packages = []
+    if os.path.isdir(namespace):
+        for leaf in sorted(os.listdir(namespace)):
+            try:
+                course_package.validate_package_id(leaf)
+            except course_package.PackageError:
+                continue
+            if os.path.isdir(os.path.join(namespace, leaf)):
+                packages.append(leaf)
+    return {"roots": roots, "sources": sources, "packages": packages}
+
+
+def _restore_scope(root, package_id, source_choice, destination_root, destination_name):
+    """Resolve form selectors, never client-supplied filesystem paths."""
+    import re
+    roots = workspace.approved_roots(root)
+    if not re.fullmatch(r"[0-9]+", str(destination_root)):
+        raise course_package.PackageError("package.invalid_scope", "Choose an approved destination root.")
+    index = int(destination_root)
+    if index >= len(roots):
+        raise course_package.PackageError("package.invalid_scope", "The approved roots changed. Preview again.")
+    if (not isinstance(destination_name, str) or
+            not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}", destination_name)):
+        raise course_package.PackageError("package.invalid_scope", "Use one fresh folder name, with letters, numbers, dots, underscores or hyphens.")
+    parent = os.path.abspath(roots[index])
+    if source_choice.startswith("root:") and re.fullmatch(r"root:[0-9]+", source_choice):
+        source_index = int(source_choice[5:])
+        if source_index >= len(roots):
+            raise course_package.PackageError("package.invalid_scope", "The source root is no longer approved. Preview again.")
+        source = os.path.abspath(roots[source_index])
+    elif source_choice.startswith("course:"):
+        source = os.path.abspath(resolve_course(root, source_choice[7:]))
+        if not any(source == os.path.abspath(path) or os.path.dirname(source) == os.path.abspath(path)
+                   for path in roots):
+            raise course_package.PackageError("package.invalid_scope", "The course must be an approved root or directly inside one.")
+    else:
+        raise course_package.PackageError("package.invalid_scope", "Choose an approved source root or course.")
+    for path in (parent, source, os.path.abspath(root)):
+        if os.path.islink(path) or not os.path.isdir(path):
+            raise course_package.PackageError("package.symlink_payload", "Approved roots and source directories must be available plain directories.")
+    # Reuse the existing recovery namespace. An immediate course child would
+    # be discovered by the shelf and silently introduce a duplicate identity.
+    recovery_parent = os.path.dirname(course_package.workspace_package_path(
+        parent, "0000000000000000", "restore"))
+    dest = os.path.join(recovery_parent, destination_name)
+    real_source, real_dest = os.path.realpath(source), os.path.realpath(dest)
+    if os.path.commonpath((real_source, real_dest)) in (real_source, real_dest):
+        raise course_package.PackageError("package.destination_exists", "Choose a fresh folder outside the copied source. An entire root needs a different approved destination root.")
+    package_root = course_package.workspace_package_path(root, package_id)
+    info = os.stat(parent, follow_symlinks=False)
+    state = workspace.read_workspace(root)
+    return {"source": source, "destination": dest, "package_path": package_root,
+            "destination_root": str(index), "destination_name": destination_name,
+            "source_choice": source_choice, "package_id": package_id,
+            "approved_roots": roots, "workspace_fingerprint": state["fingerprint"],
+            "parent_identity": [info.st_dev, info.st_ino],
+            "recovery_parent": recovery_parent,
+            "recovery_identity": list(_restore_directory_identity(recovery_parent))
+            if os.path.isdir(recovery_parent) else None}
+
+
+def _restore_directory_identity(path):
+    info = os.stat(path, follow_symlinks=False)
+    return info.st_dev, info.st_ino
+
+
+def _ensure_restore_parent(approved_root):
+    """Create only the existing private recovery namespace, never a course."""
+    course_package.ensure_package_namespace(approved_root)
+    with course_package._directory_handle(approved_root, course_package.PACKAGE_DIRNAME) as directory:
+        try:
+            if os.name == "nt":
+                os.mkdir(os.path.join(directory, course_package.PACKAGE_RESTORE_DIRNAME), mode=0o700)
+            else:
+                os.mkdir(course_package.PACKAGE_RESTORE_DIRNAME, mode=0o700, dir_fd=directory)
+        except FileExistsError:
+            pass
+    parent = os.path.dirname(course_package.workspace_package_path(
+        approved_root, "0000000000000000", "restore"))
+    with course_package._directory_handle(approved_root,
+            course_package.PACKAGE_DIRNAME + "/" + course_package.PACKAGE_RESTORE_DIRNAME):
+        pass
+    return parent
+
+
+def _native_restore_snapshot(root, package_id):
+    """Pin exact consumed package bytes, including normalized-content variants."""
+    root = os.path.realpath(root)
+    package_root = course_package.workspace_package_path(root, package_id)
+    snapshot = course_package.package_snapshot(
+        package_root, expected_package_id=package_id, workspace_root=root)
+    manifest = snapshot["manifest"]
+    if snapshot.get("reading_transport_raw") is not None:
+        raise course_package.PackageError("package.atomic_merge_unsupported", "This reading package needs its dedicated fresh-root restore. Ordinary union-copy cannot carry it.")
+    if manifest["state"] != "applied" or not snapshot["verification"]["complete"]:
+        raise course_package.PackageError("package.restore_incomplete", "The package is incomplete. Verify its missing or mismatched payloads before restoring.")
+    consumed = {course_package.MANIFEST_FILENAME: snapshot["manifest_raw"]}
+    for entry in manifest["entries"]:
+        consumed[course_package._payload_relpath(entry)] = snapshot["payloads"][entry["object_id"]]
+    evidence_path = course_package.EVIDENCE_DIRNAME + "/" + course_package.EVIDENCE_FILENAME
+    with course_package._directory_handle(root, os.path.relpath(package_root, root)) as directory:
+        for relative, expected in consumed.items():
+            if course_package._read_relative(directory, relative) != expected:
+                raise course_package.PackageError("package.package_changed", "Package bytes changed during preview. Verify and preview again.")
+        try:
+            raw = course_package._read_relative(directory, evidence_path)
+        except FileNotFoundError:
+            raw = None
+        if raw is not None:
+            if (manifest.get("evidence_fingerprint") is not None and
+                    course_package._digest(raw) != manifest["evidence_fingerprint"]):
+                raise course_package.PackageError("package.package_changed", "Package evidence changed. Verify and preview again.")
+            consumed[evidence_path] = raw
+    fingerprint = course_package._digest(json.dumps(
+        sorted((path, course_package._digest(raw)) for path, raw in consumed.items()),
+        separators=(",", ":")).encode("utf-8"))
+    return snapshot, consumed, fingerprint
+
+
+def _native_restore_preview(root, package_id, source_choice, destination_root, destination_name):
+    scope = _restore_scope(root, package_id, source_choice, destination_root, destination_name)
+    if os.path.lexists(scope["destination"]):
+        raise course_package.PackageError("package.destination_exists", "The destination already exists. Preserve it and choose a fresh folder.")
+    snapshot, consumed, package_fp = _native_restore_snapshot(root, package_id)
+    source = scope["source"]
+    captured = course_package._merge_tree_snapshot(source)
+    # Existing package and journal authorities decide conflicts. Preview never
+    # changes the copied source or its accepted objects.
+    registry = course_package._ordinary_destination_preflight(snapshot, source)
+    if registry != journal._compute_registry(source) or any(
+            journal.object_state(source, oid) != "clean" for oid in registry):
+        raise course_package.PackageError("package.object_conflict", "Source acceptance or disk bytes conflict. Reconcile the original before copying.")
+    with course_package._directory_handle(source) as directory:
+        for entry in snapshot["manifest"]["entries"]:
+            if entry["object_id"] in registry:
+                raw = course_package._read_relative(directory, registry[entry["object_id"]]["path"])
+                if raw != snapshot["payloads"][entry["object_id"]]:
+                    raise course_package.PackageError("package.object_conflict", "Same identity has different exact bytes. Review the conflicting revisions.")
+        log_path = os.path.relpath(evidence.log_path(source), source)
+        source_events = course_package._read_relative(directory, log_path) if os.path.isfile(os.path.join(source, log_path)) else b""
+    course_package._validated_evidence_events(source_events)
+    # Reuse the canonical evidence writer in a disposable probe to catch
+    # immutable identity and logical dedupe conflicts before consent.
+    with tempfile.TemporaryDirectory(prefix="itembank-restore-preview-") as probe:
+        if source_events:
+            os.makedirs(os.path.dirname(evidence.log_path(probe)), exist_ok=True)
+            course_package._write_bytes_atomic(evidence.log_path(probe), source_events)
+        course_package._restore_evidence(snapshot["evidence"], probe, snapshot["manifest"]["course_object_id"])
+    registered_paths = {row["path"] for row in registry.values()}
+    files = [row[0] for row in captured["entries"] if row[1] == "file"]
+    private_files = [path for path in files if path not in registered_paths]
+    pin = dict(scope, package_fingerprint=package_fp,
+               source_fingerprint=captured["fingerprint"], source_identity=captured["root_identity"])
+    scope_fp = course_package._digest(json.dumps(pin, sort_keys=True, separators=(",", ":")).encode("utf-8"))
+    try:
+        references = workspace.recovery_root_preview(source, source, scope['destination'])
+    except workspace.WorkspaceError as exc:
+        raise course_package.PackageError(exc.code, exc.message) from None
+    result = dict(scope, status="preview", package_fingerprint=package_fp,
+                  workspace_references=references,
+                  source_fingerprint=captured["fingerprint"], scope_fingerprint=scope_fp,
+                  source_files=files, private_files=private_files,
+                  source_entries=len(captured["entries"]), source_bytes=captured["bytes"],
+                  course_object_id=snapshot["manifest"]["course_object_id"],
+                  entries_in_manifest=len(snapshot["manifest"]["entries"]),
+                  losses=list(snapshot["manifest"]["loss_report"]),
+                  loss_report_text=course_package.loss_report_text(snapshot["manifest"]),
+                  rights_basis="Every registered source object needs existing read/export grants. Source grants are preserved; package-only objects arrive with unknown rights as its loss report states. Unregistered files require explicit whole-source/private-file consent.",
+                  remote_egress="none", next_action="Review the exact scope and losses, then confirm the fresh copy or cancel.")
+    return result, snapshot, consumed
+
+
+def preview_merged_restore(root, package_id, source_choice, destination_root, destination_name):
+    """Read-only native preview; no generic JSON operation is added."""
+    return _native_restore_preview(root, package_id, source_choice, destination_root, destination_name)[0]
+
+
+def apply_merged_restore(root, package_id, source_choice, destination_root, destination_name,
+                         expected_package_fingerprint, expected_source_fingerprint,
+                         expected_scope_fingerprint, confirm_copy=False, confirm_private=False,
+                         actor_kind="human", actor_name="local learner"):
+    """Authorize the named whole-source copy and replay existing authorities."""
+    if confirm_copy is not True or confirm_private is not True:
+        raise course_package.PackageError("package.consent_required", "Confirm the exact destination and all copied private/unregistered files, or cancel. Nothing was copied.")
+    preview, snapshot, consumed = _native_restore_preview(
+        root, package_id, source_choice, destination_root, destination_name)
+    for key, expected in (("package_fingerprint", expected_package_fingerprint),
+                          ("source_fingerprint", expected_source_fingerprint),
+                          ("scope_fingerprint", expected_scope_fingerprint)):
+        if not expected or preview[key] != expected:
+            raise course_package.PackageError("package.preview_changed", "The package, source or approved destination changed since preview. Review a new preview before copying.")
+    # This transient existing stage holds only verified consumed package bytes.
+    # It creates no canonical package, identity or store and is owned/cleaned by
+    # this call on normal exit, cancellation or failure.
+    approved_root = preview["approved_roots"][int(destination_root)]
+    parent = _ensure_restore_parent(approved_root)
+    parent_identity = _restore_directory_identity(parent)
+    if (preview["recovery_identity"] is not None and
+            list(parent_identity) != preview["recovery_identity"]):
+        raise course_package.PackageError("package.preview_changed", "Recovery parent changed. Preview again.")
+    with course_package.private_stage(parent) as pinned:
+        for relative, raw in consumed.items():
+            target = course_package.safe_target(pinned, relative)
+            os.makedirs(os.path.dirname(target), exist_ok=True)
+            course_package._write_bytes_atomic(target, raw)
+        # Refuse observed governance/parent changes before the primitive opens
+        # destination paths. Noncooperating external writers remain a limit.
+        scope = _restore_scope(root, package_id, source_choice, destination_root, destination_name)
+        if (any(scope[key] != preview[key] for key in scope if key != "recovery_identity") or
+                scope["recovery_identity"] != list(parent_identity)):
+            raise course_package.PackageError("package.preview_changed", "Approved roots or destination parent changed. Preview again.")
+        restored = course_package.restore_merged_copy(
+            pinned, preview["source"], preview["destination"], actor_kind, actor_name,
+            expected_source_fingerprint)
+    read = course_module.read_course(preview["destination"])
+    if read["object_id"] != preview["course_object_id"] or not restored["complete"]:
+        raise course_package.PackageError("package.restore_incomplete", "Published copy needs recovery review before reopening.")
+    info = os.stat(preview["destination"], follow_symlinks=False)
+    return dict(preview, **restored, status="restored",
+                course_fingerprint=read["fingerprint"], destination_identity=[info.st_dev, info.st_ino],
+                course_path=os.path.join(preview["destination"], course_module.COURSE_SIDECAR_FILENAME),
+                direct_course_reopen=not workspace.read_workspace(preview["destination"])["present"],
+                next_action="Explicitly reopen this validated destination; the original root remains intact.",
+                undo="After checking that no later work depends on it, move only the named new destination to trash. Keep the original and package.")
+
+
+def reopen_merged_restore(root, destination_root, destination_name,
+                          expected_course_id, expected_course_fingerprint,
+                          expected_destination_identity):
+    """Read a deliberately selected recovery copy without enrolling its ID."""
+    import re
+    roots = workspace.approved_roots(root)
+    if (not re.fullmatch(r"[0-9]+", str(destination_root)) or
+            int(destination_root) >= len(roots) or
+            not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}", destination_name)):
+        raise course_package.PackageError("package.invalid_scope", "Choose the exact approved recovery copy.")
+    approved = roots[int(destination_root)]
+    if os.path.islink(approved) or not os.path.isdir(approved):
+        raise course_package.PackageError("package.symlink_payload", "The approved root changed or is unavailable.")
+    approved = os.path.realpath(approved)
+    parent = os.path.dirname(course_package.workspace_package_path(
+        approved, "0000000000000000", "restore"))
+    destination = os.path.join(parent, destination_name)
+    with course_package._directory_handle(approved, os.path.relpath(destination, approved)):
+        observed_identity = list(_restore_directory_identity(destination))
+        if observed_identity != expected_destination_identity:
+            raise course_package.PackageError("package.destination_changed", "The recovery destination was replaced. Review it before reopening.")
+        read = course_module.read_course(destination)
+        registry = journal.read_registry(destination)
+        if (read["object_id"] != expected_course_id or read["fingerprint"] != expected_course_fingerprint or
+                registry != journal._compute_registry(destination) or
+                any(journal.object_state(destination, oid) != "clean" for oid in registry)):
+            raise course_package.PackageError("package.object_conflict", "The recovery copy's accepted objects changed or conflict. Review before reopening.")
+        if (_restore_directory_identity(destination) != tuple(expected_destination_identity) or
+                course_module.read_course(destination)["fingerprint"] != read["fingerprint"]):
+            raise course_package.PackageError("package.destination_changed", "The recovery copy changed while reopening. Review it again.")
+    return {"status": "reopened", "destination": destination,
+            "destination_root": str(destination_root), "destination_name": destination_name,
+            "destination_identity": observed_identity, "course_object_id": read["object_id"],
+            "course_fingerprint": read["fingerprint"], "course_view": read["doc"],
+            "next_action": "This exact recovered course is open as a read-only snapshot. Its identity has not been enrolled alongside the original.",
+            "remote_egress": "none"}
+
+
 def _binding_sentence(row, effective, right, snapshot, now):
     """One sentence saying what this binding claims and whether it still
     stands, in the order a person asks it: what is claimed, how sure, on
@@ -1917,16 +2198,22 @@ def _op_agent_operation(root, body, actor_kind, actor_name, base=None):
     implementation. The request carries identities and decisions only."""
     base = base or resolve_course(root, body["course_id"])
     action = body["action"]
-    if action == "start" and not body.get("skill"):
+    if action in ("start", "start_async") and not body.get("skill"):
         raise course_module.CourseError("course.invalid_request",
                                         "agent-operation start requires skill")
-    if action != "start" and not body.get("proposal_id"):
+    if action not in ("start", "start_async") and not body.get("proposal_id"):
         raise course_module.CourseError(
             "course.invalid_request",
             "agent-operation %s requires proposal_id" % action)
     cfg = settings_module.load_settings(root)
     if action == "start":
         result = agent_operation.start(body["skill"], cfg, base)
+    elif action == "start_async":
+        result = agent_operation.start_background(body['skill'], cfg, base)
+    elif action == "cancel":
+        result = agent_operation.cancel_request(base, body['proposal_id'])
+    elif action == "retry":
+        result = agent_operation.retry_request(base, body['proposal_id'], cfg)
     elif action == "status":
         result = agent_operation.status(base, body["proposal_id"])
     elif action == "preview":
@@ -1935,12 +2222,21 @@ def _op_agent_operation(root, body, actor_kind, actor_name, base=None):
         result = agent_operation.revise(
             base, body["proposal_id"], body.get("before_paragraph"),
             body.get("after_paragraph"), body.get("expected_draft_fingerprint"))
-    elif action == "accept":
-        result = agent_operation.accept(body["proposal_id"], cfg, base=base,
-                                        reviewer=actor_name)
-    elif action == "reject":
-        result = agent_operation.reject(base, body["proposal_id"], actor_name,
-                                        body.get("reason") or "")
+    elif action in ("accept", "reject"):
+        record = agent_operation.status(base, body["proposal_id"])
+        if record.get("skill") == "course-outline":
+            from surfaces import course_workbench
+            fields = {"proposal_id": body["proposal_id"]}
+            if body.get("expected_draft_fingerprint"):
+                fields["expected_draft_fingerprint"] = body["expected_draft_fingerprint"]
+            result = course_workbench.outline_action(base, action, fields, cfg,
+                                                     reviewer=actor_name)
+        elif action == "accept":
+            result = agent_operation.accept(body["proposal_id"], cfg, base=base,
+                                            reviewer=actor_name)
+        else:
+            result = agent_operation.reject(base, body["proposal_id"], actor_name,
+                                            body.get("reason") or "")
     elif action == "undo":
         result = agent_operation.undo(base, body["proposal_id"], actor_name)
     else:
@@ -2327,6 +2623,13 @@ def cmd_course(a):
             request["action"] = a.action
         payload = run(a.root, operation, request, actor_kind="human",
                       actor_name=getattr(a, "actor", "") or "")
+        if operation == 'agent_operation' and a.action in ('start_async', 'retry') and payload.get('state') == 'running':
+            base = resolve_course(a.root, a.course_id)
+            try:
+                payload = agent_operation.wait_request(base, payload['proposal_id'])
+            except KeyboardInterrupt:
+                agent_operation.cancel_request(base, payload['proposal_id'])
+                payload = agent_operation.wait_request(base, payload['proposal_id'], timeout=2)
         if getattr(a, "json", False):
             print(json.dumps(payload, ensure_ascii=False, indent=2))
             return 0

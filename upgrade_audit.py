@@ -76,7 +76,8 @@ def baseline_audit(bank_path, available=None):
     availability = dict(DEFAULT_AVAILABILITY)
     availability.update(available or {})
 
-    text = open(bank_path, encoding="utf-8").read()
+    with open(bank_path, encoding="utf-8") as source_handle:
+        text = source_handle.read()
     questions = model.load(bank_path)
     lesson = model.parse_lesson(bank_path) or {"headings": []}
     headings = lesson.get("headings") or []
@@ -225,7 +226,8 @@ def run_upgrade(bank_path, proposed_changes, available=None):
     Writes nothing on either path.
     """
     rows = baseline_audit(bank_path, available)
-    original = open(bank_path, encoding="utf-8").read()
+    with open(bank_path, encoding="utf-8") as source_handle:
+        original = source_handle.read()
     updated = _apply_in_memory(original, proposed_changes)
 
     before_qs = model.load(bank_path)

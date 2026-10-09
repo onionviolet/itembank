@@ -61,6 +61,35 @@ RESPONSE_FORMAT_INSTRUCTIONS = {
 }
 
 
+QUESTION_STEM_PATTERN = r"^([\s\S]*?)\n\n```([A-Za-z0-9_+-]*)\n([\s\S]*?)\n```\s*$"
+
+
+def question_stem_html(stem):
+    """Present one fenced public stimulus; leave the canonical stem untouched."""
+    raw = str(stem or '')
+    match = re.fullmatch(QUESTION_STEM_PATTERN, raw)
+    if not match or not match[1].strip() or '```' in match[1] or '```' in match[3]:
+        return '<h1 class="stem" tabindex="-1">%s</h1>' % html.escape(raw)
+    title, language, code = match.groups()
+    return ('<h1 class="stem" tabindex="-1">%s</h1>'
+            '<figure class="question-code"><figcaption>%s · Read-only code</figcaption>'
+            '<pre tabindex="0" role="region" aria-label="Read-only code"><code>%s</code></pre></figure>'
+            % (html.escape(title.strip()), html.escape(language or 'text'), html.escape(code)))
+
+
+QUESTION_STEM_JS = r"""
+function questionStemHTML(stem){
+  const raw = String(stem || "");
+  const match = raw.match(new RegExp(__STEM_PATTERN__));
+  if(!match || !match[1].trim() || match[1].includes("```") || match[3].includes("```"))
+    return `<h1 class="stem" tabindex="-1">${esc(raw)}</h1>`;
+  return `<h1 class="stem" tabindex="-1">${esc(match[1].trim())}</h1>`
+    + `<figure class="question-code"><figcaption>${esc(match[2] || "text")} · Read-only code</figcaption>`
+    + `<pre tabindex="0" role="region" aria-label="Read-only code"><code>${esc(match[3])}</code></pre></figure>`;
+}
+""".replace('__STEM_PATTERN__', json.dumps(QUESTION_STEM_PATTERN))
+
+
 LATEX_INPUT_STYLES = r""".latex-entry-note{margin:7px 0;color:var(--mut);font:16px/1.45 var(--font-ledger)}
 .latex-preview{min-height:56px;margin-top:9px;padding:12px;border:1px solid var(--line);
   border-radius:9px;background:var(--chip);overflow:auto;color:var(--ink)}
@@ -124,6 +153,10 @@ h1.stem{font-size:32px;font-weight:600;line-height:1.2;margin:0 0 14px;
 .quiz-argument-label{font:var(--text-xs)/1.5 var(--font-ledger);
   letter-spacing:.06em;text-transform:uppercase;color:var(--mut)}
 .quiz-argument-text{font-family:var(--font-paper);min-width:0}
+.question-code{margin:0 0 var(--space-4);min-width:0;max-width:100%;border:1px solid var(--edge);background:var(--chip)}
+.question-code figcaption{padding:var(--space-2) var(--space-3);color:var(--mut);font:var(--text-xs)/1.5 var(--font-ledger)}
+.question-code pre{margin:0;padding:var(--space-3);max-width:100%;overflow:auto;white-space:pre;font:16px/1.5 var(--font-code)}
+.question-code pre:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 /* Response controls: native inputs with a 44px target (D-03). */
 .choices{display:flex;flex-direction:column;gap:7px;border:0;padding:0;
   margin:0 0 6px}
@@ -1317,6 +1350,40 @@ def _activity_feedback(rows):
     return "".join(out)
 
 
+def _check_feedback_html(result):
+    """Display only runtime-released observations, without running or scoring."""
+    rows = (result.get('interaction_result') or {}).get('observations') or []
+    if not isinstance(rows, list) or not rows:
+        return ''
+    saved = ''
+    if result.get('saved_check_feedback'):
+        source = (result.get('interaction_result') or {}).get('response', '')
+        saved = ('<p>Saved run. Current edits have not been checked.</p>'
+                 '<details><summary>Code from this run</summary><pre>%s</pre></details>'
+                 % html.escape(str(source)))
+    labels = {'passed': 'Passed', 'wrong_output': 'Output differs',
+              'runtime_error': 'Program stopped', 'timeout': 'Time limit reached',
+              'output_cap': 'Output limit reached'}
+    out = [saved, '<div class="check-matrix" role="list" aria-label="Execution observations">']
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        status = labels.get(row.get('reason'), 'Observation')
+        cls = 'right' if row.get('passed') else 'wrong'
+        out.append('<div class="case %s" role="listitem"><div class="case-head">'
+                   '<span class="case-n">Case %s</span><span class="st">%s</span></div>'
+                   % (cls, html.escape(str(row.get('case_index', ''))), html.escape(status)))
+        for key, label in (('input', 'Input'), ('expected', 'Expected'), ('actual', 'Actual'), ('stderr', 'Program error')):
+            if key in row:
+                if key == 'expected' and row.get('expected_kind') == 'pattern':
+                    label = 'Expected (pattern)'
+                out.append('<div class="cf"><h5>%s</h5><pre>%s</pre></div>'
+                           % (label, html.escape(str(row[key]))))
+        out.append('</div>')
+    out.append('</div>')
+    return ''.join(out)
+
+
 def baseline_for(view, teaching_result, post_path, tokens, flash=None, prefill=None,
                  continue_href=None, continue_label=None, symbol_help=None):
     """Pure, key-free HTML adapter over public runtime projections.
@@ -1351,12 +1418,14 @@ def baseline_for(view, teaching_result, post_path, tokens, flash=None, prefill=N
         if flash.get("refused"):
             feedback = '<div id="fill-entry-error" class="refused pend" role="alert">%s</div>' % html.escape(str(flash["refused"]))
         elif flash.get("action") == "hold":
-            feedback = '<div class="verdict n">Not correct. Try a different answer, or open the next hint.</div>'
+            feedback = '<div class="verdict n">Not correct. Re-read the question, then try another answer or open the next hint.</div>'
             feedback += _selection_card(flash.get("selection_feedback"))
             feedback += _ordering_card(flash.get("ordering_diagnostic"))
         elif flash.get("action") == "defer_feedback":
             if activity:
                 feedback = '<div class="pend">Answer committed. Commit your reason to release feedback.</div>'
+            elif response_type == 'check' and (flash.get('interaction_result') or {}).get('observations'):
+                feedback = '<div class="pend">The run stopped. Review the observations and repair your code. No correctness verdict was settled.</div>'
             elif response_type == "short" and continue_href:
                 feedback = (
                     '<div class="pend"><b>Response recorded, pending human review.</b>'
@@ -1379,6 +1448,8 @@ def baseline_for(view, teaching_result, post_path, tokens, flash=None, prefill=N
                  "Not correct. Your answer was recorded."))
         if flash.get("activity_feedback"):
             feedback = _activity_feedback(flash["activity_feedback"])
+        if response_type == 'check':
+            feedback += _check_feedback_html(flash)
     # The served form uses PRG. The runtime may already hold the next cursor
     # after accepting this answer, but the learner must first see the verdict
     # for the item they just answered. This pause is presentation only: the
@@ -1391,14 +1462,14 @@ def baseline_for(view, teaching_result, post_path, tokens, flash=None, prefill=N
         return ('<div class="card overhaul-question" data-server-baseline data-feedback-pause '
                 'data-session-id="%s" data-item-id="%s" data-response-type="%s" '
                 'data-objective="%s" data-lesson-slug="%s">'
-                '<h1 class="stem" tabindex="-1">%s</h1>%s<p class="hint"><b>%s.</b> %s</p>'
+                '%s%s<p class="hint"><b>%s.</b> %s</p>'
                 '<div class="feedback" role="status" aria-live="polite">%s</div>%s</div>' %
                 (html.escape(str(view.get("session_id", "")), quote=True),
                  html.escape(str(item.get("id", "")), quote=True),
                  html.escape(str(response_type), quote=True),
                  html.escape(str(item.get("objective", "")), quote=True),
                  html.escape(str(item.get("lesson_slug", "")), quote=True),
-                 html.escape(re.sub(r"\{\{[a-z][a-z0-9_]{0,31}\}\}", "____", str(item.get("stem", ""))) if item.get("fill_layout") == "inline" else str(item.get("stem", ""))), symbols,
+                 question_stem_html(re.sub(r"\{\{[a-z][a-z0-9_]{0,31}\}\}", "____", str(item.get("stem", ""))) if item.get("fill_layout") == "inline" else str(item.get("stem", ""))), symbols,
                  html.escape(format_label),
                 html.escape(instructions), activity_html + feedback, action))
     ladder = ""
@@ -1428,7 +1499,7 @@ def baseline_for(view, teaching_result, post_path, tokens, flash=None, prefill=N
               '<div class="act"><button class="go" type="submit">Submit answer</button></div>')
     return ('<div class="card overhaul-question" data-server-baseline data-session-id="%s" data-item-id="%s" '
             'data-response-type="%s" data-objective="%s" data-lesson-slug="%s" data-presentation-signature="%s">'
-            '<h1 class="stem" tabindex="-1">%s</h1>%s%s<p class="hint"><b>%s.</b> %s</p>'
+            '%s%s%s<p class="hint"><b>%s.</b> %s</p>'
             '<form method="post" action="%s" class="overhaul-response" data-answer-form>%s'
             '<input type="hidden" name="form_token" value="%s"><input type="hidden" name="action" value="submit">'
             '<div class="feedback" role="status" aria-live="polite">%s</div>'
@@ -1440,7 +1511,7 @@ def baseline_for(view, teaching_result, post_path, tokens, flash=None, prefill=N
              html.escape(str(item.get("lesson_slug", "")), quote=True),
              hashlib.sha256(json.dumps(item, sort_keys=True, ensure_ascii=False,
                                       separators=(",", ":")).encode("utf-8")).hexdigest(),
-             html.escape(re.sub(r"\{\{[a-z][a-z0-9_]{0,31}\}\}", "____", str(item.get("stem", ""))) if item.get("fill_layout") == "inline" else str(item.get("stem", ""))), symbols, assisted,
+             question_stem_html(re.sub(r"\{\{[a-z][a-z0-9_]{0,31}\}\}", "____", str(item.get("stem", ""))) if item.get("fill_layout") == "inline" else str(item.get("stem", ""))), symbols, assisted,
              html.escape(format_label), html.escape(instructions),
              html.escape(post_path, quote=True), activity_html + activity_fields + _form_controls(item, prefill, bool((flash or {}).get("refused"))),
              html.escape(tokens["submit"], quote=True), feedback, submit, ladder))
@@ -1462,7 +1533,7 @@ ASSIST_JS = (ASSIST_JS
 # canonical-key comparison lives; under `serve` this whole block is
 # substituted away so the daemon-served page contains none of the offline-only
 # implementation (plan 04-01 Test 5).
-OFFLINE_JS = r"""const Q = __DATA__;
+OFFLINE_JS = QUESTION_STEM_JS + r"""const Q = __DATA__;
 const SERVE = false;
 const LESSON_BASE = "__LESSON_BASE__";   /* empty when no reader sits behind this page */
 const LESSON_LABEL = "__LESSON_LABEL__";
@@ -1603,7 +1674,7 @@ function render(){
   setContext(q);
   const card = document.createElement("div");
   card.className = "card overhaul-question";
-  card.innerHTML = `<h1 class="stem" tabindex="-1">${esc(q.fill_layout === "inline" ? String(q.stem).replace(/\{\{[a-z][a-z0-9_]{0,31}\}\}/g, "____") : q.stem)}</h1>`;
+  card.innerHTML = questionStemHTML(q.fill_layout === "inline" ? String(q.stem).replace(/\{\{[a-z][a-z0-9_]{0,31}\}\}/g, "____") : q.stem);
   if(window.renderQuestionSymbols) window.renderQuestionSymbols(q, card);
   const body = document.createElement("div");
   body.className = `response-body overhaul-response response-${q.type}`;
@@ -2427,7 +2498,7 @@ render();
 # no key material, and no full item array -- it renders only what the server
 # returns. Presentation state (selection, current item, position) is managed
 # here; every verdict and every explanation comes from /api/submit.
-SERVED_JS = r"""const BOOT = __BOOT__;
+SERVED_JS = QUESTION_STEM_JS + r"""const BOOT = __BOOT__;
 const SERVE = true;
 const LESSON_BASE = "__LESSON_BASE__";   /* empty when no reader sits behind this page */
 const LESSON_LABEL = "__LESSON_LABEL__";
@@ -2631,7 +2702,7 @@ function renderItem(view){
   setContext(q);
   const card = document.createElement("div");
   card.className = "card overhaul-question";
-  card.innerHTML = `<h1 class="stem" tabindex="-1">${esc(q.fill_layout === "inline" ? String(q.stem).replace(/\{\{[a-z][a-z0-9_]{0,31}\}\}/g, "____") : q.stem)}</h1>`;
+  card.innerHTML = questionStemHTML(q.fill_layout === "inline" ? String(q.stem).replace(/\{\{[a-z][a-z0-9_]{0,31}\}\}/g, "____") : q.stem);
   if(currentActivity){
     const context = document.createElement("section");
     context.className = "staged-context";
@@ -4913,7 +4984,7 @@ function close(q, card, act, v, revert){
   if(v.action === "hold"){
     if(revert) revert();
     fb.innerHTML = v.score === false
-      ? `<div class="verdict n">Not correct. Try a different answer, or open the next hint.</div>`
+      ? `<div class="verdict n">Not correct. Re-read the question, then try another answer or open the next hint.</div>`
       : `<div class="status">Review your response before submitting again.</div>`;
     fb.innerHTML += selectionCard(v.selection_feedback);
     fb.innerHTML += orderingCard(v.ordering_diagnostic);

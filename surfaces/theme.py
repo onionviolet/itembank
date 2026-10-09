@@ -102,7 +102,7 @@ FOCUS_CONTRAST = 3.0
 
 # Exact CLI correction copy from plan 04-03 Task 2 (the browser settings copy
 # lives in 04-UI-SPEC; this is the command-line disclosure).
-ADJUST_NOTICE = ("Adjusted for readable contrast. Your source colour is "
+ADJUST_NOTICE = ("Adjusted for readable contrast. Your source color is "
                  "still saved.")
 
 # Exact browser-fallback copy for the picker degradation path (04-UI-SPEC
@@ -116,12 +116,12 @@ PICKER_FALLBACK = "System picker is unavailable here. Choose a color below inste
 # neutral line shown when no correction is needed.
 ADJUST_BROWSER_COPY = ("Adjusted for readable contrast. Your chosen color is "
                        "saved; this preview shows the accessible rendered color.")
-NO_ADJUST_COPY = ("Your chosen colour already meets the readable-contrast "
+NO_ADJUST_COPY = ("Your chosen color already meets the readable-contrast "
                   "floor in both modes.")
 RESET_CONFIRM_COPY = ("Reset accent to the app default? Your current custom "
                       "source color will be replaced.")
 PICKER_OPENING_COPY = "Opening system picker\u2026"
-SETTINGS_IDLE_COPY = ("Choose a colour to preview it, then Save accent to "
+SETTINGS_IDLE_COPY = ("Choose a color to preview it, then Save accent to "
                       "keep it.")
 SETTINGS_SAVED_COPY = "Accent saved. Other open pages change on refresh."
 SETTINGS_SAVE_ERROR_COPY = "Accent not saved. Choose a color below and try again."
@@ -346,7 +346,7 @@ def theme_css(config):
                 accent = raw_source
         look = looks.resolve(config.get("look"))
     derived = derive_theme(accent)
-    shape = looks.look_css(look)
+    shape = looks.look_css(look) + presentation.composition_css(look)
     tail = ("\n" + shape) if shape else ""
     if mode == "dark":
         return _root_block(_grounded(derived["dark"], look, "dark")) + tail
@@ -452,6 +452,7 @@ def persist_presentation_profile(base, profile):
 SETTINGS_CSS = r"""
 .field{margin:0 0 16px}
 .field label{display:block;font-size:var(--text-body);color:var(--mut);margin:0 0 8px}
+.field input[type="color"]{min-height:44px;min-width:44px}
 .field-row{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
 .source-text{font-size:var(--text-body);color:var(--mut)}
 .actions{display:flex;flex-wrap:wrap;gap:12px;margin:0 0 24px}
@@ -693,7 +694,7 @@ def _look_cards(selected):
 LOOK_BODY = r"""<section data-section="look" aria-labelledby="look-heading">
 <h2 id="look-heading">Look</h2>
 <p>Shape, type and control language. A look is independent of light and dark
-and of your accent colour: picking one writes the mode and accent it was
+and of your accent color: picking one writes the mode and accent it was
 designed around, and you can change either afterwards.</p>
 <div class="looks" role="group" aria-labelledby="look-heading">
 __LOOK_CARDS__
@@ -733,11 +734,11 @@ __LOOK_CARDS__
 # `presentation.surface_shell`.
 SETTINGS_BODY = r"""<section data-section="theme" aria-labelledby="theme-heading">
 <h2 id="theme-heading">Theme</h2>
-<p>One accent colour is shared by every surface. The tool keeps your chosen
-source colour and renders an accessible light/dark pair from it.</p>
+<p>One accent color is shared by every surface. The tool keeps your chosen
+source color and renders an accessible light/dark pair from it.</p>
 <form id="theme-form" data-theme-form novalidate>
 <div class="field">
-<label for="theme-source">Accent colour</label>
+<label for="theme-source">Accent color</label>
 <div class="field-row">
 <input type="color" id="theme-source" data-settings-source value="__SOURCE__">
 <span class="source-text mono" id="source-text" data-source-text>__SOURCE__</span>
@@ -820,7 +821,7 @@ __RATIO_ROWS__
     swatches.oled.style.background = p.oled.accent;
     adjust.textContent = p.adjusted_modes.length
       ? "Adjusted for readable contrast. Your chosen color is saved; this preview shows the accessible rendered color."
-      : "Your chosen colour already meets the readable-contrast floor in both modes.";
+      : "Your chosen color already meets the readable-contrast floor in both modes.";
     ratios.innerHTML = "";
     Object.keys(p.ratios).sort().forEach(function (label) {
       var row = document.createElement("div");
@@ -933,7 +934,7 @@ __RATIO_ROWS__
     });
   });
 
-  say("Choose a colour to preview it, then Save accent to keep it.");
+  say("Choose a color to preview it, then Save accent to keep it.");
 })();
 </script>
 """

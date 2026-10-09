@@ -20,7 +20,7 @@ exactly the conditions it always has, with the same message text, because
 that is still correct for the CLI; containing it is the daemon's job
 (`surfaces/daemon.py`'s `/api/*` handlers), not this module's.
 """
-import datetime, json, os, re, sys
+import datetime, hashlib, json, os, re, sys
 import contextlib, functools, threading
 
 import evidence
@@ -28,7 +28,7 @@ import retention
 import runner
 import selection
 import subjects
-from model import lint, load
+from model import content_fingerprint, lint, load
 from surfaces import settings
 from runtime import (INTERACTION_VERSION, REPORT_VERSION, SESSION_VERSION,
                      VISUAL_ACTIONS, VISUAL_PROTOCOL_VERSION,
@@ -42,6 +42,7 @@ from runtime import (INTERACTION_VERSION, REPORT_VERSION, SESSION_VERSION,
                      staged_case, staged_activity, staged_binding, staged_feedback,
                      validate_staged_binding,
                      assessment_feedback_released, report_feedback,
+                     saved_check_feedback, saved_pending_feedback,
                      teaching_payload, teaching_transition, submission_feedback,
                      visual_observation as runtime_visual_observation,
                      visual_state_in_domain, write_session)
@@ -631,6 +632,57 @@ def _expire_timed_exam(session_file, data):
 
 
 @_session_owner
+def do_check_feedback(session_file, expected_view=None):
+    """Read the latest live current-item response without execution or writes."""
+    data = read_session(session_file)
+    if data.get("status") != "active" or data.get("mode") != "practice":
+        return None
+    with open(data["bank"], "rb") as stream:
+        bank_revision = hashlib.sha256(stream.read()).hexdigest()
+    qs = load(data["bank"])
+    with open(data["bank"], "rb") as stream:
+        if hashlib.sha256(stream.read()).hexdigest() != bank_revision:
+            return None
+    if data["cursor"] >= len(data["items"]):
+        return None
+    q = qs[data["items"][data["cursor"]]]
+    if q.get("type") != "check":
+        return None
+    if expected_view is not None and (
+            expected_view.get("session_id") != data["session_id"]
+            or expected_view.get("position") != data["cursor"]
+            or (expected_view.get("item") or {}).get("id") != q["id"]):
+        return None
+    events = [event for event in evidence.live_events(
+        evidence.log_path(os.path.dirname(data["bank"])))
+        if event.get("event_type") == evidence.RESPONSE_EVENT_TYPE
+        and event.get("session_id") == data["session_id"]
+        and event.get("item_ref") == q["id"]]
+    return saved_check_feedback(events[-1], data, qs, bank_revision) if events else None
+
+
+@_session_owner
+def do_pending_feedback(session_file, expected_view):
+    """Read current live pending evidence under the existing session owner lock."""
+    data = read_session(session_file)
+    qs = load(data["bank"])
+    if session_view(data, qs) != expected_view:
+        return None
+    if data["cursor"] >= len(data["items"]):
+        return None
+    q = qs[data["items"][data["cursor"]]]
+    if q.get("type") != "short" or data.get("status") != "active" or data.get("mode") in ("exam", "diagnostic"):
+        return None
+    log = evidence.log_path(os.path.dirname(data["bank"]))
+    events = [event for event in evidence.live_events(log)
+              if event.get("event_type") == evidence.RESPONSE_EVENT_TYPE
+              and event.get("session_id") == data["session_id"]
+              and event.get("item_ref") == q["id"]]
+    return saved_pending_feedback(events[-1], data, qs,
+        settled_mark_keys(log, data["session_id"])) if events else None
+
+
+@_session_owner
 def do_next(session_file):
     data = read_session(session_file)
     qs = load(data["bank"])
@@ -1078,6 +1130,8 @@ def do_action(session_file, action, confidence=None, renderer_meta=None,
     """
     _validate_renderer_meta(renderer_meta)     # discarded before policy
     data = read_session(session_file)
+    with open(data["bank"], "rb") as stream:
+        check_bank_revision = hashlib.sha256(stream.read()).hexdigest()
     qs = load(data["bank"])
     data = _reconcile_staged(data, qs)
     data = _expire_timed_exam(session_file, data)
@@ -1209,13 +1263,23 @@ def do_action(session_file, action, confidence=None, renderer_meta=None,
             else None,
             error_category="timeout" if killed else None,
             staged=active_activity)
-        evidence_result = evidence.append_event(log, event)
         if q["type"] == "check":
             # The normalized result is data for feedback, not a second
             # verdict: the score is the exact score_response return.
             result["interaction_result"] = interaction_result(
                 q, check_source, score, run_result)
             result["explain"] = explain_payload(q, True, run_result)
+            # Retain the exact bounded run, not a reconstruction or another run.
+            # Optional v2 evidence fields leave older events readable.
+            with open(data["bank"], "rb") as stream:
+                bank_revision = hashlib.sha256(stream.read()).hexdigest()
+            if bank_revision == check_bank_revision:
+                event["check_feedback"] = {
+                    "bank_revision": bank_revision,
+                    "item_revision": content_fingerprint(q),
+                    "interaction_result": result["interaction_result"],
+                }
+        evidence_result = evidence.append_event(log, event)
         accepted = evidence_result["status"] == "recorded"
         recorded_event = evidence_result
         if not accepted:

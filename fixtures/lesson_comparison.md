@@ -18,7 +18,7 @@ Source RAIN-01, paragraph 1: [read the exact source excerpt](#source-rain-01).
 > Static examples: B=6 mm means B is 6 mm lower. B=12 mm means equal depths. B=18 mm means B is 6 mm higher.
 > **Takeaway:** compare depths over equal time intervals. A longer interval would mix two changing quantities.
 
-Interaction is temporary presentation state. Reset and reopen restore the authored values. Nothing requests a response or creates a score, mastery claim or learner evidence.
+Interaction is temporary presentation state. This tab remembers exploration through detours when the lesson identity and revision are admitted. Reset restores the authored values; changed content starts fresh. Nothing requests a response or creates a score, mastery claim or learner evidence.
 
 > [!TIP]
 > AI-authored synthesis from RAIN-01: **hold the time interval fixed** before comparing depth. Both source observations cover 24 hours. This keeps the comparison about rainfall depth.

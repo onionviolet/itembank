@@ -754,7 +754,8 @@ def write_day_log(path, log):
     L.append("")
     if os.path.dirname(path):
         os.makedirs(os.path.dirname(path), exist_ok=True)
-    open(path, "w", encoding="utf-8").write("\n".join(L))
+    with open(path, "w", encoding="utf-8") as source_handle:
+        source_handle.write("\n".join(L))
 
 
 def day_streak(log, today):
@@ -975,7 +976,7 @@ var INVALID_COPY="Plan not saved. Fix the highlighted cells and try again.";
 var CONFLICT_HEADING="Plan changed outside itembank \u2014 nothing was overwritten.";
 var FORCE_COPY="I understand this replaces these edited cells using the latest plan version.";
 var baseline={},draft={},forceToken="",forceDraftHash="",forceRevision="",dirty=false;
-var status=document.getElementById('edit-status');
+var editStatus=document.getElementById('edit-status');
 var saveBtn=document.getElementById('save-edits');
 var forcePanel=document.getElementById('force-panel');
 function revShort(r){return r?r.slice(0,12):"";}
@@ -1002,7 +1003,7 @@ function beforeunload(e){
  e.preventDefault();
  e.returnValue="You have unsaved plan changes.";
 }
-function say(t,cls){status.textContent=t;status.className="status "+(cls||"");}
+function say(t,cls){editStatus.textContent=t;editStatus.className="status "+(cls||"");}
 function draftHash(o){
  var keys=Object.keys(o).sort(),parts=[];
  keys.forEach(function(k){parts.push(JSON.stringify(k)+":"+JSON.stringify(o[k]));});
@@ -1017,7 +1018,13 @@ function post(path,payload,cb){
  var r=new XMLHttpRequest();
  r.open('POST',D.base+path);
  r.setRequestHeader('Content-Type','application/json');
- r.onload=function(){try{cb(JSON.parse(r.responseText));}catch(e){}};
+ r.onload=function(){
+  var response;
+  try{response=JSON.parse(r.responseText);}
+  catch(e){response={status:"unavailable",reason:"The local response could not be read. The request outcome is unknown; keep your draft and reload the current plan."};}
+  cb(response);
+ };
+ r.onerror=function(){cb({status:"unavailable",reason:"The local request was interrupted. Its outcome is unknown; keep your draft and reload the current plan."});};
  r.send(JSON.stringify(payload));
 }
 function copyText(t,btn){
@@ -1079,6 +1086,7 @@ function saveEdits(){
    SNAP.revision=d.revision;
    setBaseline(d.cells);
    setDraft({});
+   setDirty();
    document.getElementById('conflict').classList.remove('on');
    forcePanel.classList.remove('on');
    forceToken="";forceDraftHash="";
@@ -1122,7 +1130,7 @@ function getPage(){
  r.open('GET',D.base);
  r.onload=function(){
   try{
-   var m=r.responseText.match(/window\.__day__=(\{.*?\});\n/s);
+   var m=r.responseText.match(/window\\.__day__=(\\{.*?\\});\\n/s);
    if(!m){return;}
    var b=JSON.parse(m[1]);
    SNAP=b.snapshot||SNAP;
@@ -1204,6 +1212,7 @@ function initEditor(){
    if(d.status==="saved"){
     SNAP.revision=d.revision;
     setBaseline(d.cells);
+    setDirty();
     forceToken="";forceDraftHash="";
     document.getElementById('conflict').classList.remove('on');
     forcePanel.classList.remove('on');
@@ -1222,7 +1231,7 @@ function initEditor(){
  });
 }
 function paint(){
- var on=[].slice.call(document.querySelectorAll('input[type=checkbox].lane'))
+ var on=[].slice.call(document.querySelectorAll('.lane input[type=checkbox]'))
         .filter(function(i){return i.checked}).map(function(i){return i.name});
  var floor=D.floor.every(function(l){return on.indexOf(l)>=0});
  var full=D.lanes.every(function(l){return on.indexOf(l)>=0});
@@ -1281,15 +1290,14 @@ function saveOwnerTask(el){
 document.addEventListener('change',function(ev){
  var el=ev.target;
  if(el.classList&&el.classList.contains('owner-task')){saveOwnerTask(el);return;}
- if(el.classList&&el.classList.contains('open')){
+ if(el.classList&&el.classList.contains('open')&&el.hasAttribute('data-lane')){
   if(el.value!==''){openFile(el.getAttribute('data-lane'),parseInt(el.value,10));el.value='';}
   return;
  }
- if(el.classList&&el.classList.contains('day-edit')){return;}
- saveTicks();
+ if(el.matches&&el.matches('.lane input[type=checkbox]')){saveTicks();}
 });
 document.addEventListener('click',function(ev){
- var b=ev.target.closest&&ev.target.closest('button.open');
+ var b=ev.target.closest&&ev.target.closest('button.open[data-lane]');
  if(!b)return;
  ev.preventDefault();
  openFile(b.getAttribute('data-lane'),parseInt(b.getAttribute('data-i')||'0',10));
@@ -1492,6 +1500,7 @@ def day_page(iso, weekday, plan_row, done, streak, hist, plan_path, info=None,
     editor = ""
     if snapshot.get("status") == "ready" and editable:
         editor = (
+            '<button type="button" id="edit-btn" class="go">Edit plan</button>'
             '<fieldset class="editor" id="editor">'
             "<legend>Edit plan</legend>"
             '<p class="rev">Plan version <code id="revision-code">%s</code> '

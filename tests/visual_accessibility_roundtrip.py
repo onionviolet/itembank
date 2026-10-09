@@ -41,21 +41,11 @@ def ok(msg):
 
 
 def served_js():
-    src = open(os.path.join(ROOT, "surfaces", "quiz_page.py"),
-               encoding="utf-8").read()
-    m = re.search(r"SERVED_JS = r\"\"\"(.*?)\"\"\"", src, re.S)
-    if not m:
-        fail("cannot locate SERVED_JS in quiz_page.py")
-    return m.group(1)
+    return quiz_page.SERVED_JS
 
 
 def offline_js():
-    src = open(os.path.join(ROOT, "surfaces", "quiz_page.py"),
-               encoding="utf-8").read()
-    m = re.search(r"OFFLINE_JS = r\"\"\"(.*?)\"\"\"", src, re.S)
-    if not m:
-        fail("cannot locate OFFLINE_JS in quiz_page.py")
-    return m.group(1)
+    return quiz_page.OFFLINE_JS
 
 
 def load_questions():

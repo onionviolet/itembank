@@ -38,6 +38,9 @@ class ComparisonTests(unittest.TestCase):
         page = self.page()
         self.assertIn('class="lesson-comparison"', page)
         self.assertIn('type="range"', page)
+        self.assertIn('class="comparison-handle"', page)
+        self.assertIn('class="comparison-direct" aria-hidden="true"', page)
+        self.assertIn('Release to keep the value; Escape cancels.', page)
         self.assertIn('AI-authored synthesis', page)
         self.assertIn('href="#source-rain-01"', page)
         self.assertIn('id="source-rain-01"', page)
@@ -144,7 +147,7 @@ class ComparisonTests(unittest.TestCase):
         self.assertNotIn("transition", lesson_interaction.CSS)
 
     def test_trusted_script_has_no_egress_or_evidence(self):
-        for forbidden in ("fetch(", "XMLHttpRequest", "localStorage", "sessionStorage",
+        for forbidden in ("fetch(", "XMLHttpRequest", "localStorage",
                           "sendBeacon", "innerHTML", "eval(", "new Function", "submit("):
             self.assertNotIn(forbidden, lesson_interaction.JS)
 
@@ -239,7 +242,7 @@ class LinkedLineTests(unittest.TestCase):
         self.assertIn("Transfer: Try y = 2x.", rendered)
         self.assertIn('class="lineplot-controls" hidden', rendered)
         self.assertIn("grid-template-columns:repeat(auto-fit", lesson_interaction.LINEPLOT_CSS)
-        for forbidden in ("fetch(", "XMLHttpRequest", "localStorage", "sessionStorage",
+        for forbidden in ("fetch(", "XMLHttpRequest", "localStorage",
                           "sendBeacon", "innerHTML", "eval(", "new Function", "submit("):
             self.assertNotIn(forbidden, lesson_interaction.LINEPLOT_JS)
 

@@ -29,6 +29,7 @@ import json
 import os
 import re
 import tempfile
+import threading
 import uuid
 from datetime import datetime, timezone
 
@@ -58,6 +59,9 @@ AUTONOMY_MAY_WRITE = ("draft_and_approve", "audit_draft_lint_fix_commit")
 # design, so a new adapter code cannot ship with no copy on the page;
 # the import-time check below makes it loud even before the suite runs.
 NEXT_ACTIONS = {
+    "adapter.cancelled":
+        "No draft from this attempt can be accepted. Local transport has ended; "
+        "provider work may have occurred. Inspect the request, then retry explicitly if needed.",
     "adapter.profile_disabled":
         "No backend is active. Choose one in Settings, Model, then start "
         "the skill again. Studying, scoring and authored hints are "
@@ -241,8 +245,15 @@ def request_history(base):
             row.update(request_state=proposal["disposition"],
                        next_action="Review the saved proposal. Do not repeat the provider request.")
         elif row.get("request_state") == "started":
-            row.update(request_state="unresolved", code="agent.request_unresolved",
-                       next_action="Refresh and check the provider before starting again. The request may still be running or have been interrupted; retry may repeat provider work and cost. No accepted file changed.")
+            with _JOB_LOCK:
+                job = _RUNNING.get((os.path.realpath(base), row.get('proposal_id')))
+                if job is not None:
+                    row.update(request_state='cancel-requested' if job['cancel'].is_set() else 'running',
+                        next_action='Cancellation requested; wait for transport completion.' if job['cancel'].is_set()
+                        else 'Refresh for progress or cancel this request. Accepted files are unchanged.')
+                else:
+                    row.update(request_state="unresolved", code="agent.request_unresolved",
+                               next_action="Refresh and check the provider before starting again. The request may still be running or have been interrupted; retry may repeat provider work and cost. No accepted file changed.")
         rows.append(row)
     return sorted(rows, key=lambda row: row.get("updated_at") or "", reverse=True)
 
@@ -581,7 +592,90 @@ def _author_payload(skill, spec):
     }
 
 
-def start(skill, settings, base):
+_JOB_LOCK = threading.RLock()
+_RUNNING = {}
+
+
+class AgentRequestError(ValueError):
+    """A safe request refusal shared by the native form, API and CLI."""
+    def __init__(self, code, message):
+        self.code, self.message = code, message
+        super().__init__(code + ': ' + message)
+
+
+def start_background(skill, settings, base, *, retry_of=None):
+    """Run the existing proposal machine with process-local transport ownership.
+
+    Durable recovery is the director receipt, never this disposable handle.
+    A vanished handle after restart leaves the provider outcome unresolved.
+    """
+    base = os.path.realpath(base)
+    if model_adapter.resolve_profile(settings or {})[0] is None:
+        return start(skill, settings, base)
+    pid = 'p_' + uuid.uuid4().hex
+    ready = threading.Event()
+    job = {'cancel': threading.Event(), 'done': threading.Event(), 'result': None}
+    with _JOB_LOCK:
+        if any(key[0] == base for key in _RUNNING):
+            raise AgentRequestError('agent.request_running', 'Finish or cancel the current course request first.')
+        _RUNNING[(base, pid)] = job
+    def run():
+        try:
+            job['result'] = start(skill, settings, base, cancel=job['cancel'],
+                proposal_id=pid, retry_of=retry_of, on_started=lambda _row: ready.set())
+        except Exception:
+            job['result'] = {'state': 'settled', 'proposal_id': pid,
+                'code': 'agent.request_unresolved',
+                'next_action': 'Inspect request history. The provider outcome is unknown; no automatic retry will run.'}
+        finally:
+            with _JOB_LOCK:
+                _RUNNING.pop((base, pid), None)
+            job['done'].set()
+            ready.set()
+    threading.Thread(target=run, name='itembank-author', daemon=True).start()
+    ready.wait(1)
+    return job['result'] or {'state': 'running', 'proposal_id': pid,
+        'next_action': 'Refresh for progress or cancel this request.'}
+
+
+def cancel_request(base, proposal_id):
+    """Request cancellation of one owned live transport; never accept a late draft."""
+    with _JOB_LOCK:
+        if status(base, proposal_id).get('disposition') in DISPOSITIONS:
+            raise AgentRequestError('agent.request_finished', 'Inspect the saved proposal; its transport has already ended.')
+        job = _RUNNING.get((os.path.realpath(base), proposal_id))
+        if job is None:
+            raise AgentRequestError('agent.transport_unowned', 'Inspect request history; its provider outcome is unknown.')
+        job['cancel'].set()
+    return {'state': 'running', 'proposal_id': proposal_id, 'request_state': 'cancel-requested',
+            'next_action': 'Refresh until the transport ends. Accepted files are unchanged.'}
+
+
+def wait_request(base, proposal_id, timeout=None):
+    """Keep a CLI owner alive until its transport ends; never replay a receipt."""
+    with _JOB_LOCK:
+        job = _RUNNING.get((os.path.realpath(base), proposal_id))
+    if job is not None:
+        if job['done'].wait(timeout):
+            return job['result']
+        return {'state': 'running', 'proposal_id': proposal_id,
+                'next_action': 'Transport outcome remains unresolved. Inspect request history before retrying.'}
+    proposal = status(base, proposal_id)
+    if proposal.get('disposition') in DISPOSITIONS:
+        return proposal
+    receipt = next((row for row in request_history(base) if row.get('proposal_id') == proposal_id), None)
+    return dict(receipt or proposal, state='settled')
+
+
+def retry_request(base, proposal_id, settings):
+    """Explicit new attempt linked to its receipt, with fresh source/base admission."""
+    rows = [row for row in request_history(base) if row.get('proposal_id') == proposal_id]
+    if len(rows) != 1 or rows[0]['request_state'] not in ('settled', 'unresolved'):
+        raise AgentRequestError('agent.retry_unavailable', 'Inspect the existing request or saved proposal first.')
+    return start_background(rows[0]['skill'], settings, base, retry_of=rows[0]['operation_id'])
+
+
+def start(skill, settings, base, *, cancel=None, proposal_id=None, retry_of=None, on_started=None):
     """Run one skill: build the bounded request, invoke the boundary, and
     land in exactly one of two places. An ok result becomes a ``proposed``
     state carrying the draft, its citations, and a bounded diff against
@@ -618,17 +712,26 @@ def start(skill, settings, base):
         code = error.get("code")
         return _settled(iid, skill, code, error.get("message"),
                         next_action=NEXT_ACTIONS[code], message=error.get("message"))
-    proposal_id = "p_" + uuid.uuid4().hex
+    proposal_id = proposal_id or "p_" + uuid.uuid4().hex
     operation_id = "op_" + uuid.uuid4().hex
     checkpoint = {"client": "agent-operation", "proposal_id": proposal_id,
                   "interaction_id": iid, "skill": skill, "target": spec["target"],
                   "source_fingerprints": source_fingerprints,
                   "request_state": "started"}
+    if retry_of:
+        checkpoint['retry_of'] = retry_of
+    target_path = os.path.join(base, spec['target'])
+    raw = None
+    if os.path.exists(target_path):
+        with open(target_path, 'rb') as stream:
+            raw = stream.read()
     director.begin_operation(base, base, "Draft configured target: " + spec["target"],
                              "agent", skill, "course-builder",
                              (settings or {}).get("auditor_autonomy") or "report_only",
                              scopes=spec["source_paths"], operation_id=operation_id,
                              checkpoint=checkpoint)
+    if on_started is not None:
+        on_started(checkpoint)
 
     def settle(*args, **kwargs):
         outcome = _settled(*args, **kwargs)
@@ -640,7 +743,8 @@ def start(skill, settings, base):
 
     # On interruption the started receipt remains unresolved. Do not claim a
     # hosted call had no external effect or retry it automatically.
-    result = model_adapter.invoke(request, settings or {})
+    result = (model_adapter.invoke(request, settings or {}, cancel=cancel) if cancel is not None
+              else model_adapter.invoke(request, settings or {}))
 
     if result.get("status") != "ok":
         error = result.get("error") or {}
@@ -685,12 +789,6 @@ def start(skill, settings, base):
                             "The draft citations do not match the configured "
                             "sources. Check source bindings and start again. "
                             "Nothing was written.")
-    target_path = os.path.join(base, spec["target"])
-    raw = None
-    if os.path.exists(target_path):
-        with open(target_path, "rb") as fh:
-            raw = fh.read()
-
     created = _now()
     record = {
         "schema_version": RECORD_VERSION,
@@ -717,7 +815,11 @@ def start(skill, settings, base):
         "updated_at": created,
         "next_action": "Review proposal",
     }
-    _write_record(base, record)
+    with _JOB_LOCK:
+        if cancel is not None and cancel.is_set():
+            return settle(iid, skill, 'adapter.cancelled', 'Cancelled draft discarded.',
+                          next_action=NEXT_ACTIONS['adapter.cancelled'])
+        _write_record(base, record)
     # Compatibility for direct Python callers. The persisted record and every
     # transport response omit the course path.
     return dict(record, base=base)

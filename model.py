@@ -865,7 +865,8 @@ def parse_lesson(bank_path):
     `error`, and declaring the keys now keeps that addition one branch in the
     loader and nothing in the parser (D-02).
     """
-    text = open(bank_path, encoding="utf-8").read()
+    with open(bank_path, encoding="utf-8") as source_handle:
+        text = source_handle.read()
     preamble = []
     for ch in re.split(r"(?m)^(?=Q\d+\.)", text):
         if re.match(r"Q\d+\.", ch.strip()) and parse_question(ch) is not None:
@@ -891,7 +892,8 @@ def parse_lesson(bank_path):
             early.update(_lesson_directive_defaults())
             return early
         try:
-            head = open(resolved, encoding="utf-8").read()
+            with open(resolved, encoding="utf-8") as source_handle:
+                head = source_handle.read()
         except OSError as exc:
             early = {"source": source, "body": "", "intro": "",
                      "headings": [], "error": "lesson.src_unreadable",
@@ -1105,7 +1107,8 @@ def parse_terms(bank_path):
           `{"slug", "texts"}` naming every canonical text that collided with
           the first claimer
     """
-    text = open(bank_path, encoding="utf-8").read()
+    with open(bank_path, encoding="utf-8") as source_handle:
+        text = source_handle.read()
     preamble = []
     for ch in re.split(r"(?m)^(?=Q\d+\.)", text):
         if re.match(r"Q\d+\.", ch.strip()) and parse_question(ch) is not None:
@@ -1203,7 +1206,8 @@ def parse_sources(bank_path):
       `duplicates` -- source ids registered more than once, in first-seen order
       `path`    -- the bank path as given, so lint findings can name the file
     """
-    text = open(bank_path, encoding="utf-8").read()
+    with open(bank_path, encoding="utf-8") as source_handle:
+        text = source_handle.read()
     preamble = []
     for ch in re.split(r"(?m)^(?=Q\d+\.)", text):
         if re.match(r"Q\d+\.", ch.strip()) and parse_question(ch) is not None:
@@ -1288,7 +1292,8 @@ def parse_media(bank_path):
     Rights are read here and enforced nowhere (D-16A-8). This function records
     what an author declared; no code path in Phase 16A gates on it.
     """
-    text = open(bank_path, encoding="utf-8").read()
+    with open(bank_path, encoding="utf-8") as source_handle:
+        text = source_handle.read()
     preamble = []
     for ch in re.split(r"(?m)^(?=Q\d+\.)", text):
         if re.match(r"Q\d+\.", ch.strip()) and parse_question(ch) is not None:
@@ -1378,7 +1383,8 @@ def parse_activities(bank_path):
     module-level state, and writes nothing. Two calls on an unchanged file
     return equal dicts.
     """
-    text = open(bank_path, encoding="utf-8").read()
+    with open(bank_path, encoding="utf-8") as source_handle:
+        text = source_handle.read()
     preamble = []
     for ch in re.split(r"(?m)^(?=Q\d+\.)", text):
         if re.match(r"Q\d+\.", ch.strip()) and parse_question(ch) is not None:
@@ -1422,7 +1428,8 @@ def coverage_map(bank_path):
     [OBJECTIVE:] value plus its resolved [OBJ:] values (those registered in
     the bank's ## SOURCES). A bank with no items or no objectives maps to {}.
     """
-    text = open(bank_path, encoding="utf-8").read()
+    with open(bank_path, encoding="utf-8") as source_handle:
+        text = source_handle.read()
     qs = parse_bank(text)
     ps = parse_sources(bank_path)
     known = (ps or {}).get("sources") or {}
@@ -1663,7 +1670,8 @@ def parse_cases(bank_path):
           {target, item} (one entry per comma-separated target)
       `path`             -- the bank path as given
     """
-    text = open(bank_path, encoding="utf-8").read()
+    with open(bank_path, encoding="utf-8") as source_handle:
+        text = source_handle.read()
     preamble = []
     for ch in re.split(r"(?m)^(?=Q\d+\.)", text):
         if re.match(r"Q\d+\.", ch.strip()) and parse_question(ch) is not None:
@@ -1913,7 +1921,8 @@ def _bank_preamble(bank_path):
     chunk both matches `Qn.` at its start and parses as a real question, so
     an illustrative line shaped like a question marker cannot truncate the
     preamble."""
-    text = open(bank_path, encoding="utf-8").read()
+    with open(bank_path, encoding="utf-8") as source_handle:
+        text = source_handle.read()
     preamble = []
     for ch in re.split(r"(?m)^(?=Q\d+\.)", text):
         if re.match(r"Q\d+\.", ch.strip()) and parse_question(ch) is not None:
@@ -2032,7 +2041,8 @@ def load_style(style_id, base):
                     "error": "style.file_unreadable", "detail": str(exc)}
     else:
         try:
-            text = open(chosen, encoding="utf-8").read()
+            with open(chosen, encoding="utf-8") as source_handle:
+                text = source_handle.read()
         except OSError as exc:
             return {"id": style_id, "path": chosen, "voice": "",
                     "rules": [], "exemplar": "", "parent": "",
@@ -4591,7 +4601,8 @@ def lint(questions, lesson=LESSON_UNCHECKED, terms=TERMS_UNCHECKED,
             declared = (asset.get("integrity") or "").strip().lower()
             if not declared.startswith("sha256:"):
                 continue
-            digest = hashlib.sha256(open(target, "rb").read()).hexdigest()
+            with open(target, "rb") as source_handle:
+                digest = hashlib.sha256(source_handle.read()).hexdigest()
             if digest != declared.split(":", 1)[1].strip():
                 warnings.append(LintError(
                     "media.integrity_mismatch", "media", "BANK",

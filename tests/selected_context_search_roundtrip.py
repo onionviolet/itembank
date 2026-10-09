@@ -73,6 +73,25 @@ class SelectedSearch(unittest.TestCase):
         self.assertEqual(canceled['status'], 'canceled')
         self.assertEqual(tree(Path(self.base)), before)
 
+    def test_case_fold_keeps_original_unicode_locations_and_distinct_groups(self):
+        text = '🙂 Straße STRASSE σςΣ İ'
+        ranges = list(rc._literal_ranges(text, 'STRASSE', False))
+        self.assertEqual([text[start:end] for start, end in ranges], ['Straße', 'STRASSE'])
+        self.assertEqual(list(rc._literal_ranges('ß', 's', False)), [])
+        self.assertEqual([text[start:end] for start, end in rc._literal_ranges(text, 'σ', False)], ['σ', 'ς', 'Σ'])
+        before = tree(Path(self.base))
+        self.assertEqual(rc.search_selected(self.base, 'same sentence.')['hits'], [])
+        result = rc.apply(self.base, {'operation': ['search_context'], 'query': ['same sentence.'], 'ignore_case': ['yes']})
+        self.assertEqual(len(result['hits']), 3)
+        self.assertFalse(result['match_case'])
+        markup = rc.panel(self.base, result)
+        self.assertIn('Ignore capitalization', markup)
+        self.assertEqual(markup.count('Open exact source occurrence'), 2)
+        self.assertEqual(tree(Path(self.base)), before)
+        for offset in (-1, 4097, True, '32'):
+            with self.assertRaises(ValueError):
+                rc.search_selected(self.base, 'same', match_case=False, offset=offset)
+
     def test_stale_source_rights_and_symlink_escape_disclose_no_snippets(self):
         registry = journal.read_registry(self.base)
         row = registry[self.first['source_id']]
@@ -128,6 +147,13 @@ class SelectedSearch(unittest.TestCase):
         self.assertEqual(len(result['hits']), 32)
         self.assertTrue(result['truncated'])
         self.assertEqual(len({hit['start'] for hit in result['hits']}), 32)
+        self.assertEqual(result['next_offset'], 32)
+        self.assertIn('Next matches', rc.panel(self.base, result))
+        second = rc.apply(self.base, {'operation': ['search_context'], 'query': ['needle'], 'offset': ['32']})
+        self.assertEqual(len(second['hits']), 8)
+        self.assertFalse(second['truncated'])
+        self.assertEqual(len({hit['start'] for hit in result['hits'] + second['hits']}), 40)
+        self.assertIn('Previous matches', rc.panel(self.base, second))
         journal.op_grant_rights(self.base, ref['source_id'], {'quote': 'unknown'}, ref['fingerprint'], 'human', 'test')
         result = rc.search_selected(self.base, 'needle')
         self.assertEqual(result['status'], 'search_unavailable')

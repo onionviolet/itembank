@@ -497,7 +497,8 @@ def accept_candidate(bank_path, candidate, sources=None, block=None):
 
     # Exactly once: content-fingerprint dedup against the bank's own items.
     fp = model.content_fingerprint(candidate)
-    text = open(bank_path, encoding="utf-8", newline="").read()
+    with open(bank_path, encoding="utf-8", newline="") as source_handle:
+        text = source_handle.read()
     for q in model.parse_bank(text):
         if q.get("content_hash") == fp or model.content_fingerprint(q) == fp:
             result["reason"] = "already in the bank (same content fingerprint)"

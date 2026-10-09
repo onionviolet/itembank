@@ -85,7 +85,8 @@ def export_keys(bank, force=False):
               "#notetype column:2", "#deck column:3", "#tags column:6",
               "Guid\tNotetype\tDeck\tFront\tBack\tTags"]
     os.makedirs(os.path.dirname(out) or ".", exist_ok=True)
-    open(out, "w", encoding="utf-8").write("\n".join(header + rows) + "\n")
+    with open(out, "w", encoding="utf-8") as source_handle:
+        source_handle.write("\n".join(header + rows) + "\n")
     print("%d keys -> %s" % (len(keys), out))
     return out
 
@@ -125,6 +126,7 @@ def cmd_export(a):
         header += ["#notetype:Basic", "#tags column:3", "Front\tBack\tTags"]
         rows = [row + "\titembank" for row in rows]
     os.makedirs(os.path.dirname(a.out) or ".", exist_ok=True)
-    open(a.out, "w", encoding="utf-8").write("\n".join(header + rows) + "\n")
+    with open(a.out, "w", encoding="utf-8") as source_handle:
+        source_handle.write("\n".join(header + rows) + "\n")
     print("%d items -> %s" % (len(qs), a.out))
     return 0

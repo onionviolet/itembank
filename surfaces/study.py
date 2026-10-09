@@ -382,7 +382,8 @@ def study_page(bank_path, qs):
     cfg = settings.load_settings(base)
     css = theme_css(cfg)
     profile, _notice = settings.resolve_presentation_profile(cfg)
-    text = open(bank_path, encoding="utf-8").read()
+    with open(bank_path, encoding="utf-8") as source_handle:
+        text = source_handle.read()
     title = grab(r"(?m)^#\s+(.*?)\s*$", text) or os.path.basename(bank_path)
     page_title = "%s study set" % title
     back = {"href": "/", "label": "itembank"}
@@ -448,6 +449,7 @@ def cmd_study(a):
     out = a.out or os.path.splitext(a.bank)[0] + "_study.html"
     os.makedirs(os.path.dirname(out) or ".", exist_ok=True)
     page = study_page(a.bank, qs)
-    open(out, "w", encoding="utf-8").write(page)
+    with open(out, "w", encoding="utf-8") as source_handle:
+        source_handle.write(page)
     print("%d items -> %s" % (len(qs), out))
     return 0

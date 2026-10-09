@@ -310,7 +310,8 @@ def main(argv):
     schema_path = argv[0]
     rest = argv[1:]
     try:
-        schema = json.load(open(schema_path, encoding="utf-8"))
+        with open(schema_path, encoding="utf-8") as source_handle:
+            schema = json.load(source_handle)
     except Exception as exc:
         print("cannot read schema %s: %s" % (schema_path, exc))
         return 2
@@ -320,7 +321,8 @@ def main(argv):
             if len(rest) < 2:
                 print("--jsonl requires a path")
                 return 2
-            lines = open(rest[1], encoding="utf-8").read().splitlines()
+            with open(rest[1], encoding="utf-8") as source_handle:
+                lines = source_handle.read().splitlines()
             total = error_count = 0
             for i, line in enumerate(lines, start=1):
                 if not line.strip():
@@ -337,7 +339,8 @@ def main(argv):
             if len(rest) < 3:
                 print("--array requires a path and a key")
                 return 2
-            data = json.load(open(rest[1], encoding="utf-8"))
+            with open(rest[1], encoding="utf-8") as source_handle:
+                data = json.load(source_handle)
             items = data[rest[2]]
             total = error_count = 0
             for i, instance in enumerate(items):
@@ -353,8 +356,11 @@ def main(argv):
             print("missing instance path")
             return 2
         instance_path = rest[0]
-        instance = json.load(sys.stdin) if instance_path == "-" \
-            else json.load(open(instance_path, encoding="utf-8"))
+        if instance_path == "-":
+            instance = json.load(sys.stdin)
+        else:
+            with open(instance_path, encoding="utf-8") as source_handle:
+                instance = json.load(source_handle)
         errs = validate(instance, schema)
         for e in errs:
             print(e)

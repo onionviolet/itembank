@@ -584,6 +584,16 @@ def course_shelf_state(root, course=_UNSET):
                 member_root, member["path"]))] = member
     sidecar = getattr(_c, "COURSE_SIDECAR_FILENAME", "")
     cards_by_id = {}
+    direct = _root_course_record(root, _c)
+    if direct is not None:
+        if _record_field(direct, "resume_cue") is None:
+            try:
+                resume = _course_resume_state(root, root)
+            except Exception:
+                resume = {"cue": "Session status unavailable", "state": "unavailable", "sessions": ()}
+            direct = dict(direct, resume_cue=resume["cue"], resume=resume)
+        card = _healthy_card(direct, os.path.basename(os.path.abspath(root)), root, root)
+        cards_by_id[card["course_id"]] = card
     root_availability = {}
     for approved_root in roots:
         root_availability[approved_root] = os.path.isdir(approved_root)
@@ -756,7 +766,8 @@ def _course_resume_state(root, course_dir):
             if os.path.getsize(log):
                 if any(evidence.events(log)):
                     return {"cue": "Previous activity recorded; session status unavailable",
-                            "state": "unavailable", "sessions": ()}
+                            "state": "unavailable", "sessions": (),
+                            "evidence_without_sitting": True}
                 return {"cue": "Session status unavailable", "state": "unavailable",
                         "sessions": ()}
         except FileNotFoundError:
@@ -1013,6 +1024,23 @@ def course_dir_for(root, course_id, module=None):
     return _course_dir_for(root, course_id, module)
 
 
+def _root_course_record(root, module):
+    """An explicitly served course folder, without a competing workspace record."""
+    sidecar = getattr(module, "COURSE_SIDECAR_FILENAME", "")
+    path = os.path.join(root, sidecar) if sidecar else ""
+    if not path or not os.path.isfile(path) or os.path.islink(path):
+        return None
+    if workspace.read_workspace(root).get("present"):
+        return None
+    try:
+        record = module.read_course(root)
+        if record.get("state") != "clean" or not record.get("object_id"):
+            return None
+        return record
+    except Exception:
+        return None
+
+
 def _course_dir_for(root, course_id, module):
     """The directory whose sidecar names `course_id`, or the directory whose
     basename is `course_id` when no sidecar claims it.
@@ -1022,6 +1050,9 @@ def _course_dir_for(root, course_id, module):
     record already declares.
     """
     sidecar = getattr(module, "COURSE_SIDECAR_FILENAME", "")
+    direct = _root_course_record(root, module)
+    if direct is not None and direct["object_id"] == course_id:
+        return os.path.abspath(root)
     fallback = None
     for approved_root in workspace.approved_roots(root):
         try:

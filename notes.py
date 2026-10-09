@@ -663,6 +663,69 @@ def artifact_record(kind, course_id, objective_ids, rubric, content_path=""):
             "submitted_at": _now()}
 
 
+def artifact_content_revision(wording):
+    """Name an exact UTF-8 text revision, including leading and trailing space."""
+    return "sha256:" + hashlib.sha256(wording.encode("utf-8")).hexdigest()
+
+
+def _artifact_section(note):
+    return ("\n<!-- learner-artifact:" + note["note_id"] + " -->\n"
+            "## My work " + note["note_id"] + "\n\n" + note["learner_wording"] +
+            "\n<!-- /learner-artifact:" + note["note_id"] + " -->\n")
+
+
+def save_artifact_draft(dir_path, course_id, objective_ids, target, wording,
+                        *, expected_fingerprint, note_id=None,
+                        expected_revision=None, _validate_inputs=None):
+    """Save learner wording in NOTE-01 without creating assessment evidence.
+
+    Update only this surface's exact Markdown section. Other private notes
+    and text retain their bytes. Missing or edited companions require
+    reconciliation rather than a whole-document rewrite.
+    """
+    import copy
+    import journal
+    import re
+    if not isinstance(wording, str) or not wording.strip():
+        raise journal.JournalError("artifact.empty", "Write your own text before saving.")
+    if len(wording.encode("utf-8")) > 262144:
+        raise journal.JournalError("artifact.too_large", "Keep this text draft below 256 KiB.")
+    if note_id is not None and not re.fullmatch(r"[0-9a-f]{16}", note_id):
+        raise journal.JournalError("artifact.identity", "Choose a saved draft from this activity.")
+    old = read_note_document(dir_path, course_id)
+    if (old["fingerprint"] if old else None) != expected_fingerprint:
+        raise journal.JournalError("notes.stale", "Notes changed. Keep your draft and reload.")
+    sidecar = copy.deepcopy(old["sidecar"]) if old else {
+        "schema_version": NOTE_SCHEMA_VERSION, "course_id": course_id,
+        "note_document_id": new_note_id(), "notes": []}
+    markdown = old["markdown"] if old else "# My private work\n"
+    existing = next((n for n in sidecar["notes"] if n["note_id"] == note_id), None)
+    if note_id and existing is None:
+        raise journal.JournalError("artifact.missing", "This draft is unavailable. Keep your wording.")
+    if existing:
+        if (existing["authorship"] != "learner" or existing["privacy_scope"] != "private"
+                or existing["status"] != "draft" or existing["targets"] != [target]
+                or existing["objective_ids"] != list(objective_ids)):
+            raise journal.JournalError("artifact.target_changed", "The draft target changed. Keep your wording and reconcile it.")
+        if existing["revision_id"] != expected_revision:
+            raise journal.JournalError("notes.stale", "The saved draft changed. Keep your wording and reload.")
+        before = _artifact_section(existing)
+        if markdown.count(before) != 1:
+            raise journal.JournalError("artifact.markdown_conflict", "The draft's Markdown changed. Reconcile it before saving.")
+        note = dict(existing, learner_wording=wording, revision_id=new_note_id(), updated_at=_now())
+        sidecar["notes"] = [note if n["note_id"] == note_id else n for n in sidecar["notes"]]
+        markdown = markdown.replace(before, _artifact_section(note), 1)
+    else:
+        note = note_record(course_id, objective_ids, "learner_claim", wording, [target])
+        note["note_document_id"] = sidecar["note_document_id"]
+        sidecar["notes"].append(note)
+        markdown += _artifact_section(note)
+    written = write_note_document(dir_path, course_id, markdown, sidecar,
+                                  expected_fingerprint, _validate_inputs=_validate_inputs)
+    return {"note": note, "document": written,
+            "content_revision": artifact_content_revision(wording)}
+
+
 def artifact_evidence_view(artifact, response_event_id, log):
     """How a learner artifact reads: pending until a human settles it.
 

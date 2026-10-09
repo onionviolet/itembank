@@ -214,12 +214,14 @@ def main(argv):
         path = os.path.join(out_dir, name)
         with open(path, "w", encoding="utf-8") as fh:
             fh.write(body)
-        raw = open(path, "rb").read()
+        with open(path, "rb") as source_handle:
+            raw = source_handle.read()
         written.append((name, len(raw), hashlib.sha256(raw).hexdigest()))
     for name, size, digest in written:
         print("%s bytes=%d sha256=%s" % (name, size, digest))
     for name, _size, _digest in written[:2]:
-        text = open(os.path.join(out_dir, name), encoding="utf-8").read()
+        with open(os.path.join(out_dir, name), encoding="utf-8") as source_handle:
+            text = source_handle.read()
         body = text.split("</style>")[-1]
         print("%s: visible percent signs=%d, 'score'=%d, progressbar rows=%d"
               % (name, body.count("%"), body.lower().count("score"),

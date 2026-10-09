@@ -265,7 +265,9 @@ def check_question_hierarchy():
     if rstart < 0:
         fail("served client has no renderItem function")
     body_js = served_js[rstart:]
-    h1_at = body_js.find('<h1 class="stem" tabindex="-1">')
+    # The public-stem renderer emits the h1 and any inert code panel before
+    # response controls. Inspect its invocation, not a literal template.
+    h1_at = body_js.find('card.innerHTML = questionStemHTML(')
     fb_at = body_js.find('fb.className = "feedback"')
     fb_role_at = body_js.find('fb.setAttribute("role", "status")')
     fb_append_at = body_js.find("card.appendChild(fb)")

@@ -29,7 +29,9 @@ def check_course_action():
                "mode": "practice"}
         log = evidence.log_path(course_dir)
         os.makedirs(os.path.dirname(log), exist_ok=True)
-        open(log, "a", encoding="utf-8").close()
+        evidence.append_event(log, evidence.response_event(
+            "synthetic-missed-review", question, "B", False, "practice", 1,
+            os.path.basename(bank_path)))
         redirects, errors = [], []
         handler = SimpleNamespace(
             root=root, banks={"unit": bank_path},

@@ -98,7 +98,7 @@ def check(shots):
                 radio.check()
                 page.get_by_role('button', name='Submit answer', exact=True).click()
                 page.wait_for_load_state('networkidle')
-                assert 'Not correct. Try a different answer' in page.locator('.feedback').inner_text()
+                assert 'Not correct. Re-read the question' in page.locator('.feedback').inner_text()
                 assert not page.locator('[data-feedback-pause]').count()
                 assert len(response_events(root, sid)) == 1
                 course_link = page.locator('a[href="/course/synthetic"]').first

@@ -715,7 +715,7 @@
       "properties": {
         "operation": {"type": "string", "const": "agent_operation"},
         "course_id": {"$ref": "#/$defs/course_id"},
-        "action": {"type": "string", "enum": ["start", "status", "preview", "revise", "accept", "reject", "undo"]},
+        "action": {"type": "string", "enum": ["start", "start_async", "cancel", "retry", "status", "preview", "revise", "accept", "reject", "undo"]},
         "skill": {"type": "string", "minLength": 1},
         "proposal_id": {"type": "string", "pattern": "^p_[0-9a-f]{32}$"},
         "before_paragraph": {"type": "string", "minLength": 1, "maxLength": 16000},

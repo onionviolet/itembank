@@ -1017,12 +1017,41 @@ def _lesson_content_region(pg):
     09-04 `id="lesson-content"` target; the opening tag is matched loosely
     so the attribute addition does not break the extraction."""
     m = re.search(
-        r'<div class="card"[^>]*>(.*?)</div>\s*'
+        r'<div class="card"[^>]*>(.*?)</div>\s*(?:<script>.*?</script>\s*)*'
         r'<p class="style-foot">.*?</p>\s*</div></body></html>',
         pg, re.S)
     if not m:
         fail("lesson page has no <div class=\"card\"> content region")
     return m.group(1)
+
+
+def _phase3_teaching_content(content):
+    """Exclude only section-practice chrome from the immutable teaching floor.
+
+    Parsed item goldens retain exact stems and assessment semantics; the
+    public-preview suite separately covers current safe stem rendering.
+    """
+    content = re.sub(r'<details class="bl section-practice">.*?</details>',
+                     "", content, flags=re.S)
+    return re.sub(r'<div class="bl(?: orphan)?">.*?</div>',
+                  "", content, flags=re.S)
+
+
+def _phase3_content_region(pg):
+    """Compare historical teaching bytes after removing only added code controls.
+
+    Dedicated craft tests verify these controls; this golden continues to catch
+    any change to code text, indentation, language, prose or unavailable copy.
+    """
+    content = _lesson_content_region(pg)
+    tools = ('<div class="code-tools" hidden><button type="button" class="go code-select">'
+             'Select code</button><button type="button" class="go code-copy">Copy code</button>'
+             '<span class="code-status" role="status" aria-live="polite"></span></div>')
+    opening = ('<pre class="code-source" tabindex="0" role="region" '
+               'aria-label="Example code">')
+    if content.count(opening) != content.count(tools):
+        fail("every public code fence must retain its selection/copy pair")
+    return _phase3_teaching_content(content.replace(tools, '').replace(opening, '<pre>'))
 
 
 def test_lesson_style_composes_theme_shared_lesson():
@@ -1090,10 +1119,10 @@ def test_lesson_content_region_byte_identical_phase3():
     content region is byte-identical to the Phase 3 golden with the shared
     <style> block explicitly excluded (03.1-UI-SPEC §12.1-§12.2 LOCKED --
     the exclusion is the recorded decision)."""
-    golden = open(GOLDEN_CONTENT_P3, encoding="utf-8").read()
+    golden = _phase3_teaching_content(open(GOLDEN_CONTENT_P3, encoding="utf-8").read())
     pg = lesson.lesson_page(LES_BANK, itembank.load(LES_BANK),
                             itembank.parse_lesson(LES_BANK))
-    content = _lesson_content_region(pg)
+    content = _phase3_content_region(pg)
     if content != golden:
         fail("content region drifted from the Phase 3 golden "
              "(%d chars, expected %d; style block excluded per "
@@ -1297,10 +1326,10 @@ def test_provenance_compatibility_floor():
     excluded per 03.1-UI-SPEC §12) and parses identically -- the provenance
     grammar is additive (D-20, SEED-09)."""
     import model
-    golden = open(GOLDEN_CONTENT_P3, encoding="utf-8").read()
+    golden = _phase3_teaching_content(open(GOLDEN_CONTENT_P3, encoding="utf-8").read())
     pg = lesson.lesson_page(LES_BANK, itembank.load(LES_BANK),
                             itembank.parse_lesson(LES_BANK))
-    if _lesson_content_region(pg) != golden:
+    if _phase3_content_region(pg) != golden:
         fail("no-provenance bank content region drifted from the Phase 3 "
              "golden (style block excluded per 03.1-UI-SPEC §12)")
     plain_text = open(LES_BANK, encoding="utf-8").read()
@@ -1800,7 +1829,11 @@ def test_existing_block_branches_byte_identical_without_callouts():
               "</table></div>\n"
               '<div class="scroll" data-code-block="1" data-lang="py">'
               '<span class="lang">py</span>'
-              '<pre><code class="language-py">x = 1</code></pre>'
+              '<pre class="code-source" tabindex="0" role="region" '
+              'aria-label="Example code"><code class="language-py">x = 1</code></pre>'
+              '<div class="code-tools" hidden><button type="button" class="go code-select">'
+              'Select code</button><button type="button" class="go code-copy">Copy code</button>'
+              '<span class="code-status" role="status" aria-live="polite"></span></div>'
               '<p class="run-unavailable">Run this example in the local app. '
               "The source remains available here.</p></div>"
               "</section>")
@@ -1967,7 +2000,12 @@ def test_lesson_ref_filters_one_section():
     if "No items reference this section yet." in one:
         fail("the other heading's orphan backlinks must be absent")
     card = '<div class="card"'
-    if one[:one.index(card)] != full[:full.index(card)]:
+    def chrome(page):
+        # The outline reflects only visible headings. Everything else in the
+        # header, including the title and About metadata, stays identical.
+        return re.sub(r'<nav class="reader-nav[^"]*".*?</nav>', '',
+                      page[:page.index(card)], flags=re.S)
+    if chrome(one) != chrome(full):
         fail("the filtered page must keep the full page's chrome and byline")
 
 
@@ -2353,8 +2391,8 @@ def test_routes_and_cli_twin():
         for href in ("/quiz/lesson_bank#q1", "/quiz/lesson_bank#q2"):
             if href not in body:
                 fail("served lesson missing backlink %s" % href)
-        if "No items reference this section yet." not in body:
-            fail("orphan heading must render the locked orphan copy")
+        if "No items reference this section yet." in body:
+            fail("the learner reader must not expose author-only orphan diagnostics")
         for leak in ("CORRECT:", "WHY BEST", "Repositioning is first because"):
             if leak in body:
                 fail("served lesson leaks answer-key material: %r" % leak)
@@ -3005,7 +3043,7 @@ def test_gloss_placement_hover_and_key_link_contract():
                    "(max-width:767px) and (pointer:coarse)",
                    '#gloss-airway{--gloss-anchor:--anchor-airway}',
                    'href="#key-1111111111111111">Also a key point</a>',
-                   'dataset.glossOpen = "hover"', "Back to the text"):
+                   'gloss.dataset.glossOpen = value ? "click" : "hover"', "Back to the text"):
         if needle not in pg:
             fail("phase 13.5 gloss contract missing %r" % needle)
     panel = pg[pg.index('<div id="gloss-airway"'):
@@ -3018,7 +3056,7 @@ def test_gloss_placement_hover_and_key_link_contract():
         settings_text=json.dumps({"reader": {"gloss_hover": "off"}}))
     off_pg = lesson.lesson_page(off, itembank.load(off),
                                 itembank.parse_lesson(off))
-    if 'dataset.glossOpen = "hover"' in off_pg:
+    if 'gloss.dataset.glossOpen = value ? "click" : "hover"' in off_pg:
         fail("gloss_hover off must omit the hover-intent script")
 
     original = lesson.lesson_slug
@@ -3033,18 +3071,18 @@ def test_gloss_placement_hover_and_key_link_contract():
 
 
 def test_scroll_contract_and_reader_nav_modes():
-    """Phase 13.5-06: scroll clearance is shared and auto nav starts at four sections."""
+    """Scroll clearance is shared; multiple sections expose an in-flow outline."""
     tmp = tempfile.mkdtemp()
     three = "\n\n".join("### S%d\n\nBody." % n for n in range(1, 4))
     four = "\n\n".join("### S%d\n\nBody." % n for n in range(1, 5))
     bank3 = gloss_bank(tmp, "Airway | Definition.\n", three)
     page3 = lesson.lesson_page(bank3, itembank.load(bank3), itembank.parse_lesson(bank3))
-    if 'class="reader-nav' in page3:
-        fail("reader_nav auto must not render for three sections")
+    if page3.count('class="reader-nav"') != 1 or page3.count('class="nav-n"') != 3:
+        fail("reader_nav auto must expose one in-flow outline for all three sections")
     bank4 = gloss_bank(tmp, "Airway | Definition.\n", four)
     page4 = lesson.lesson_page(bank4, itembank.load(bank4), itembank.parse_lesson(bank4))
-    if page4.count('class="reader-nav nav-rail"') != 1:
-        fail("reader_nav auto must render one wide-rail-capable nav at four sections")
+    if page4.count('class="reader-nav"') != 1:
+        fail("reader_nav auto must render one in-flow outline at four sections")
     if page4.count('class="nav-n"') != 4 or "min-height:44px" not in page4:
         fail("reader nav must number all sections and expose 44px link rows")
     if "scroll-margin-top:calc(var(--sticky-h,0px) + var(--space-2))" not in page4:
@@ -3593,10 +3631,10 @@ def test_no_terms_bank_matches_phase3_golden():
             json.dumps(golden["qs"], sort_keys=True):
         fail("a bank with no TERMS section drifted from the Phase 3 golden "
              "parse")
-    content = _lesson_content_region(
+    content = _phase3_content_region(
         lesson.lesson_page(LES_BANK, itembank.load(LES_BANK),
                            itembank.parse_lesson(LES_BANK)))
-    if content != open(GOLDEN_CONTENT_P3, encoding="utf-8").read():
+    if content != _phase3_teaching_content(open(GOLDEN_CONTENT_P3, encoding="utf-8").read()):
         fail("a bank with no TERMS section drifted from the Phase 3 golden "
              "content region")
 

@@ -250,7 +250,11 @@ def _load_marks_batch(a):
         sys.exit("mark: give exactly one of --file, --marks, --item or "
                  "--proposal")
     if a.file:
-        text = sys.stdin.read() if a.file == "-" else open(a.file, encoding="utf-8").read()
+        if a.file == "-":
+            text = sys.stdin.read()
+        else:
+            with open(a.file, encoding="utf-8") as source_handle:
+                text = source_handle.read()
         entries = []
         for lineno, line in enumerate(text.splitlines(), 1):
             line = line.strip()
@@ -376,7 +380,8 @@ def cmd_marks(a):
     rows = []
     for path in session_paths:
         try:
-            sdata = json.load(open(path, encoding="utf-8"))
+            with open(path, encoding="utf-8") as source_handle:
+                sdata = json.load(source_handle)
         except (OSError, ValueError) as exc:
             print("skipping %s: %s" % (path, exc), file=sys.stderr)
             continue
@@ -421,7 +426,8 @@ def cmd_id_assign(a):
     taken = set()
     owner = {}
     for path in paths:
-        text = open(path, encoding="utf-8", newline="").read()
+        with open(path, encoding="utf-8", newline="") as source_handle:
+            text = source_handle.read()
         texts[path] = text
         for q in model.parse_bank(text):
             item_id = q.get("item_id", "")

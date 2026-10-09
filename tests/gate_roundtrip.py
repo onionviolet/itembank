@@ -1163,20 +1163,21 @@ def test_gate_mode_degrade():
 
 def test_gate_compatibility_floor():
     """Task 3 Test 2 (compatibility floor, GATE-05/D-14): a bank whose
-    lessons declare no gates renders byte-identically to Phase 3.1 output,
-    reusing 3.1's own fixture bank and golden, with the style-block
-    exclusion named (03.1-UI-SPEC section 12)."""
-    golden = open(lesson_roundtrip.GOLDEN_CONTENT_P3, encoding="utf-8").read()
+    lessons declare no gates preserves Phase 3.1 teaching bytes, using its
+    fixture/golden and the shared projection that excludes only styles and
+    the separately verified additive code controls."""
+    golden = lesson_roundtrip._phase3_teaching_content(
+        open(lesson_roundtrip.GOLDEN_CONTENT_P3, encoding="utf-8").read())
     path = lesson_roundtrip.LES_BANK
     qs = itembank.load(path)
     page = lesson.lesson_page(path, qs, itembank.parse_lesson(path))
     # The style block is excluded exactly as 3.1's own floor test excludes
     # it (03.1-UI-SPEC section 12): the content region between the card's
     # opening div and the style footer, compared against the Phase 3 golden.
-    content = lesson_roundtrip._lesson_content_region(page)
+    content = lesson_roundtrip._phase3_content_region(page)
     if content != golden:
         fail("a no-gate bank rendered differently from the Phase 3 golden")
-    print("gate compatibility floor: 3.1 fixture bank byte-identical")
+    print("gate compatibility floor: teaching bytes unchanged, additive code controls excluded")
     tmp = tempfile.mkdtemp()
     try:
         # A gate-bearing lesson without a session renders the same inert

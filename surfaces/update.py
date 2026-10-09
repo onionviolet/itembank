@@ -199,7 +199,8 @@ def read_manifest(base):
     """
     path = _manifest_path(base)
     try:
-        raw = json.load(open(path, encoding="utf-8"))
+        with open(path, encoding="utf-8") as source_handle:
+            raw = json.load(source_handle)
     except (OSError, ValueError):
         return None
     schema = json.loads(resources.read_text(MANIFEST_SCHEMA_RESOURCE))
@@ -251,7 +252,8 @@ def read_check_state(base):
     """
     path = os.path.join(base, *CHECK_STATE_REL.split("/"))
     try:
-        raw = json.load(open(path, encoding="utf-8"))
+        with open(path, encoding="utf-8") as source_handle:
+            raw = json.load(source_handle)
     except (OSError, ValueError):
         return {}
     return raw if isinstance(raw, dict) else {}

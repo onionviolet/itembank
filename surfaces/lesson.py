@@ -6,6 +6,7 @@ and reaches no verdict, and its links navigate rather than answer (D-10): the
 only way out of a lesson is to another surface, never to a score.
 """
 import html, json, os, re, sys
+from urllib.parse import parse_qs, quote, urlsplit, urlunsplit
 
 import capabilities
 from model import parse_lesson_comparison, parse_lesson_lineplot
@@ -28,11 +29,14 @@ def product_reader_css():
   padding-block:var(--space-5) var(--space-7)}
 .wrap>header,.wrap>.reader-nav,.wrap>.lesson-context,.wrap>.lesson-context-nav{
   max-width:var(--measure-prose);margin-inline:auto}
-.wrap>header{padding-bottom:var(--space-4);border-bottom:1px solid var(--line)}
-.wrap>header h1{font-family:var(--font-paper);font-weight:400;
-  font-size:var(--text-display);line-height:1.2;text-wrap:balance}
+.wrap>header{padding-bottom:var(--space-2);margin-bottom:var(--space-2);
+  border-bottom:1px solid var(--line)}
+.wrap>header h1{font-family:var(--font-paper);font-weight:600;
+  font-size:var(--text-title);font-weight:600;letter-spacing:-.025em;line-height:1.15;
+  text-wrap:balance}
 .wrap .sub{font-family:var(--font-chrome);font-size:var(--text-xs);line-height:1.6}
-.wrap .reader-nav summary{min-height:44px;display:flex;align-items:center;gap:var(--space-2)}
+.wrap .reader-nav summary{min-height:44px;display:flex;align-items:center;gap:var(--space-2);
+  font-family:var(--font-chrome);letter-spacing:normal;text-transform:none}
 .wrap .reader-nav summary:before{content:'+';font-size:var(--text-body)}
 .wrap .reader-nav details[open]>summary:before{content:'−'}
 #lesson-content>section>h2{font-family:var(--font-paper);font-size:var(--text-heading);
@@ -46,9 +50,34 @@ def product_reader_css():
 .overhaul-lesson #lesson-content>section:last-child{border-block-end:0}
 .overhaul-lesson #lesson-content :is(pre,.runnable,figure){min-width:0;max-width:100%}
 .overhaul-lesson #lesson-content pre{overflow-x:auto}
+#lesson-content figure.media{margin-inline:0;min-width:0}
+#lesson-content .media img{display:block;max-width:100%;height:auto}
+#lesson-content .media-description summary{min-height:44px;display:list-item;box-sizing:border-box;padding-block:var(--space-2);cursor:pointer}
+#lesson-content .media-description p{overflow-wrap:anywhere}
 .overhaul-lesson .reader-nav{margin-block:var(--space-3)}
 
 .wrap>.lesson-context-nav{font-family:var(--font-chrome);padding-block:var(--space-2)}
+.wrap[data-reading-mode="guided"]>header{padding-bottom:var(--space-2);margin-bottom:var(--space-2)}
+.wrap[data-reading-mode="guided"]>header h1{font-family:var(--font-paper);
+  font-size:var(--text-body);line-height:1.4;margin-bottom:var(--space-1)}
+.wrap[data-reading-mode="guided"] .lesson-reading-about summary{cursor:pointer;
+  font-family:var(--font-chrome);font-size:var(--text-xs);min-height:44px;
+  display:flex;align-items:center;color:var(--mut)}
+.wrap .lesson-reading-about summary{cursor:pointer;font-family:var(--font-chrome);
+  font-size:var(--text-xs);min-height:44px;display:flex;align-items:center;color:var(--mut)}
+.wrap[data-reading-mode="continuous"]>header h1{font-size:var(--text-heading);
+  margin-bottom:0;line-height:1.3}
+.wrap[data-reading-mode="continuous"] #lesson-content>section:first-child{padding-top:var(--space-2)}
+.wrap[data-reading-mode="continuous"] #lesson-content>section:first-child>h2{margin-top:var(--space-2)}
+.section-practice{font-family:var(--font-chrome);margin-block:var(--space-3)}
+.section-practice summary{cursor:pointer;min-height:44px;display:flex;align-items:center;
+  font-size:var(--text-body);color:var(--mut)}
+.section-practice .practice-item{margin-block:var(--space-3)}
+.section-practice .practice-preview{font-size:var(--text-body)}
+#lesson-content .practice-preview p{font-size:var(--text-body);margin-block:var(--space-2)}
+.section-practice a{min-height:44px;display:flex;align-items:center}
+.wrap[data-reading-mode="guided"] #lesson-content>section:first-child{padding-top:var(--space-2)}
+.wrap[data-reading-mode="guided"] #lesson-content>section:first-child>h2{margin-top:var(--space-2)}
 #lesson-content .callout{border-radius:var(--r-1);box-shadow:none;background:transparent;
   padding:var(--space-4);margin-block:var(--space-4)}
 #lesson-content :is(.callout-tip,.callout-note){border:0;border-inline-start:2px solid var(--line);
@@ -77,8 +106,8 @@ from surfaces import settings
 from surfaces.theme import THEME_CSS
 
 
-SUB_BYLINE = ("Reading material for this bank. Following a link below opens "
-              "the item in a new tab; nothing here is scored.")
+SUB_BYLINE = ("Read the material, then open practice or return to your saved sitting in this tab. "
+              "Reading alone records no answers.")
 
 EMPTY_HEADING = "No lesson yet"
 EMPTY_BODY = ("This bank has no ## LESSON section. Add one above the first "
@@ -86,7 +115,7 @@ EMPTY_BODY = ("This bank has no ## LESSON section. Add one above the first "
 WARN_SENTENCE = ("The external lesson file for this bank could not be read. "
                  "Run itembank lint %s for details.")
 ORPHAN_COPY = "No items reference this section yet."
-BACKLINKS_LABEL = "Items testing this"
+BACKLINKS_LABEL = "Section practice"
 CHIP_LABEL = "Read the lesson"
 
 # The plan 03.1-02 copywriting additions (03.1-UI-SPEC §15), verbatim: the
@@ -242,6 +271,12 @@ pre code{display:block;font-family:var(--font-ledger);font-size:16px;
   line-height:1.5;color:var(--ink)}
 .lang{display:block;font-size:12px;letter-spacing:.05em;color:var(--mut);
   margin-bottom:var(--space-1);font-family:var(--font-ledger)}
+.code-tools{display:flex;flex-wrap:wrap;gap:var(--space-2);align-items:center;
+  margin-block:var(--space-2)}
+.code-tools[hidden]{display:none}
+.code-tools button{min-height:44px}
+.code-status{font-size:12px;color:var(--mut)}
+.code-source:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
 table{border-collapse:collapse;margin:0 0 var(--space-2);min-width:100%}
 th,td{border:1px solid var(--line);padding:var(--space-2);
   text-align:left;font-size:16px;overflow-wrap:anywhere}
@@ -283,6 +318,9 @@ th{background:var(--chip);color:var(--mut);font-weight:600;font-size:12px}
 .gloss-more{margin:0;font-size:12px}
 .gloss-more a{color:var(--accent);text-decoration:none}
 .gloss-more a:hover,.gloss-more a:focus-visible{text-decoration:underline}
+.gloss-actions{display:flex;gap:var(--space-2);margin-top:var(--space-2)}
+.gloss-actions button{min-height:44px}
+.gloss-pin[hidden]{display:none}
 #glossary dt:target,#glossary dt:target + dd{background:var(--chip)}
 #glossary dt:target{border-inline-start:2px solid var(--accent)}
 #glossary{margin-top:var(--space-7)}
@@ -407,11 +445,11 @@ __RUNNABLE_CSS__
 __PRODUCT_CSS__
 </style>
 __MATH_ASSETS__
-</head><body><div class="wrap overhaul-lesson ib-profile ib-profile-__PRESENTATION_PROFILE__" data-presentation-profile="__PRESENTATION_PROFILE__">__PRODUCT_NAV__
+</head><body><div class="wrap overhaul-lesson ib-profile ib-profile-__PRESENTATION_PROFILE__" data-presentation-profile="__PRESENTATION_PROFILE__" data-reading-mode="__READING_MODE__">__PRODUCT_NAV__
 <header>
-  <p class="sub">Application: itembank</p>
+  __READER_APPLICATION__
   <h1>__TITLE__</h1>
-  <div class="sub">Reading · __SUB__</div>
+  __READER_BYLINE__
 </header>
 __STATUS__
 __CONTEXT_NAV__
@@ -769,7 +807,7 @@ GLOSS_ENHANCEMENT_JS = """<script>
     var def = panel && panel.querySelector(".gloss-def");
     if (!def) { return; }
     ev.preventDefault();
-    if (panel.showPopover) { panel.showPopover(); }
+    if (panel.showPopover && !panel.matches(':popover-open')) { panel.showPopover(); }
     if (def.getAttribute("data-gloss-state") === "done") { return; }
     def.textContent = LOADING;
     def.setAttribute("data-gloss-state", "loading");
@@ -788,11 +826,54 @@ GLOSS_ENHANCEMENT_JS = """<script>
 </script>""" % {"loading": json.dumps(LOADING_COPY),
                  "unavailable": json.dumps(UNAVAILABLE_COPY)}
 
+CODE_CRAFT_JS = """<script>
+(function () {
+  document.querySelectorAll('#lesson-content .code-tools').forEach(function (tools) {
+    var source = tools.parentElement.querySelector('.code-source code');
+    if (!source) return;
+    tools.hidden = false;
+    var status = tools.querySelector('.code-status');
+    var copy = tools.querySelector('.code-copy');
+    var pending = false;
+    tools.querySelector('.code-select').addEventListener('click', function () {
+      if (!source.textContent.length) { status.textContent = 'No code to select.'; return; }
+      var selection = window.getSelection();
+      if (!selection) { status.textContent = 'Selection unavailable. Select the source manually.'; return; }
+      var range = document.createRange();
+      range.selectNodeContents(source);
+      source.closest('.code-source').focus({preventScroll:true});
+      selection.removeAllRanges();
+      selection.addRange(range);
+      status.textContent = 'Code selected.';
+    });
+    copy.addEventListener('click', async function () {
+      if (pending) return;
+      var text = source.textContent;
+      if (!text.length) { status.textContent = 'No code to copy.'; return; }
+      if (!navigator.clipboard || !navigator.clipboard.writeText) {
+        status.textContent = 'Copy unavailable. Use Select code and copy manually.'; return;
+      }
+      pending = true;
+      copy.setAttribute('aria-disabled', 'true');
+      status.textContent = 'Copying code...';
+      try {
+        await navigator.clipboard.writeText(text);
+        status.textContent = 'Code copied.';
+      } catch (_) {
+        status.textContent = 'Copy denied. Use Select code and copy manually.';
+      } finally {
+        pending = false;
+        copy.removeAttribute('aria-disabled');
+      }
+    });
+  });
+})();
+</script>"""
+
 GLOSS_HOVER_JS = """<script>
 (function () {
   var media = matchMedia("(hover:hover) and (pointer:fine)");
-  if (!media.matches) { return; }
-  var openTimer = null, closeTimer = null, origin = null;
+  var openTimer = null, closeTimer = null, origin = null, returning = false;
   function cancel() { clearTimeout(openTimer); clearTimeout(closeTimer); }
   function panelFor(term) {
     return document.getElementById(term.getAttribute("aria-details"));
@@ -800,7 +881,69 @@ GLOSS_HOVER_JS = """<script>
   function pinned() {
     return document.querySelector('.gloss:popover-open[data-gloss-open="click"]');
   }
+  function remember(term, gloss) {
+    if (!term.id) { term.id = "gloss-origin-" + Date.now().toString(36); }
+    origin = term.id;
+    gloss.dataset.glossOrigin = term.id;
+  }
+  function setPinned(gloss, value) {
+    gloss.dataset.glossOpen = value ? "click" : "hover";
+    var pin = gloss.querySelector('.gloss-pin');
+    if (pin) { pin.setAttribute('aria-pressed', String(value)); pin.textContent = value ? 'Unpin' : 'Pin'; }
+  }
+  function hide(gloss, restore) {
+    var previous = returning;
+    returning = true;
+    try {
+      gloss.hidePopover();
+      var term = restore && document.getElementById(gloss.dataset.glossOrigin);
+      if (term) term.focus({preventScroll:true});
+    } finally { returning = previous; }
+  }
+  function close(gloss) {
+    cancel();
+    hide(gloss, true);
+  }
+  document.addEventListener('toggle', function (ev) {
+    var gloss = ev.target;
+    if (!gloss.classList || !gloss.classList.contains('gloss')) return;
+    var pin = gloss.querySelector('.gloss-pin');
+    if (pin) pin.hidden = false;
+  }, true);
+  document.addEventListener('focusin', function (ev) {
+    var term = ev.target.closest && ev.target.closest('.term');
+    if (!term || pinned() || returning) return;
+    var gloss = panelFor(term);
+    if (!gloss || !gloss.showPopover) return;
+    remember(term, gloss);
+    setPinned(gloss, false);
+    if (!gloss.matches(':popover-open')) gloss.showPopover();
+  });
+  document.addEventListener('focusout', function (ev) {
+    if (returning) return;
+    var term = ev.target.closest && ev.target.closest('.term');
+    var gloss = (ev.target.closest && ev.target.closest('.gloss')) || (term && panelFor(term));
+    if (!gloss || gloss.dataset.glossOpen !== 'hover') return;
+    if (ev.relatedTarget && (gloss.contains(ev.relatedTarget) || ev.relatedTarget === term)) return;
+    if (gloss.hidePopover) hide(gloss, false);
+  });
+  document.addEventListener('keydown', function (ev) {
+    var term = ev.target.closest && ev.target.closest('.term');
+    var gloss = ev.target.closest && ev.target.closest('.gloss');
+    if (term && ev.key === 'ArrowDown') {
+      gloss = panelFor(term);
+      if (!gloss || !gloss.showPopover) return;
+      ev.preventDefault();
+      remember(term, gloss); setPinned(gloss, true);
+      if (!gloss.matches(':popover-open')) gloss.showPopover();
+      gloss.querySelector('a,button').focus();
+    } else if (ev.key === 'Escape') {
+      gloss = gloss || (term && panelFor(term));
+      if (gloss && gloss.matches(':popover-open')) { ev.preventDefault(); close(gloss); }
+    }
+  });
   document.addEventListener("pointerenter", function (ev) {
+    if (!media.matches) return;
     var term = ev.target.closest && ev.target.closest(".term");
     var panel = ev.target.closest && ev.target.closest(".gloss");
     clearTimeout(closeTimer);
@@ -808,25 +951,38 @@ GLOSS_HOVER_JS = """<script>
     openTimer = setTimeout(function () {
       if (pinned()) { return; }
       var gloss = panelFor(term);
-      if (gloss) { gloss.dataset.glossOpen = "hover"; gloss.showPopover(); }
+      if (gloss && gloss.showPopover) {
+        remember(term, gloss); setPinned(gloss, false);
+        if (!gloss.matches(':popover-open')) gloss.showPopover();
+      }
     }, 180);
   }, true);
   document.addEventListener("pointerleave", function (ev) {
+    if (!media.matches) return;
     var term = ev.target.closest && ev.target.closest(".term");
     var panel = ev.target.closest && ev.target.closest(".gloss");
     if (!term && !panel) { return; }
     clearTimeout(openTimer);
     closeTimer = setTimeout(function () {
       var gloss = panel || (term && panelFor(term));
-      if (gloss && gloss.dataset.glossOpen === "hover") { gloss.hidePopover(); }
+      if (gloss && gloss.dataset.glossOpen === "hover") { hide(gloss, false); }
     }, 260);
   }, true);
   document.addEventListener("click", function (ev) {
     var term = ev.target.closest && ev.target.closest(".term");
     if (term) {
       var gloss = panelFor(term);
-      if (!term.id) { term.id = "gloss-origin-" + Date.now().toString(36); }
-      if (gloss) { gloss.dataset.glossOpen = "click"; origin = term.id; }
+      if (gloss && gloss.showPopover) {
+        ev.preventDefault();
+        remember(term, gloss); setPinned(gloss, true);
+        if (!gloss.matches(':popover-open')) gloss.showPopover();
+      }
+    }
+    var pin = ev.target.closest && ev.target.closest('.gloss-pin');
+    if (pin) { var gloss = pin.closest('.gloss'); setPinned(gloss, gloss.dataset.glossOpen !== 'click'); }
+    var closer = ev.target.closest && ev.target.closest('.gloss-close');
+    if (closer && closer.closest('.gloss').hidePopover) {
+      ev.preventDefault(); close(closer.closest('.gloss'));
     }
     var more = ev.target.closest && ev.target.closest(".gloss-more a");
     if (more) {
@@ -836,7 +992,7 @@ GLOSS_HOVER_JS = """<script>
         var back = entry.nextElementSibling && entry.nextElementSibling.querySelector(".gloss-back");
         if (back) { back.href = "#" + origin; back.textContent = "Back to the text"; }
       }
-      if (panel) { panel.hidePopover(); }
+      if (panel) { hide(panel, false); }
     }
   }, true);
   ["scroll", "pointerdown", "keydown", "visibilitychange"].forEach(function (name) {
@@ -888,9 +1044,13 @@ def _gloss_panel_html(record, slug, key_anchor=None):
     return ('<div id="gloss-%s" class="gloss" popover>'
             '<p class="gloss-term">%s</p>'
             '<p class="gloss-def">%s</p>'
-            '%s<p class="gloss-more"><a href="#term-%s">%s</a></p></div>'
+            '%s<p class="gloss-more"><a href="#term-%s">%s</a></p>'
+            '<div class="gloss-actions"><button type="button" class="go gloss-pin" '
+            'aria-pressed="false" hidden>Pin</button>'
+            '<button type="button" class="go gloss-close" popovertarget="gloss-%s" '
+            'popovertargetaction="hide">Close</button></div></div>'
             % (slug, html.escape(record["canonical"]), _inline(record["def"]),
-               key_link, slug, html.escape(FULL_ENTRY_COPY)))
+               key_link, slug, html.escape(FULL_ENTRY_COPY), slug))
 
 
 def _glossary_html(gloss_map, first_uses):
@@ -1501,10 +1661,12 @@ def _media_figure_html(asset, ref_id, ctx=None):
                    % (_dir_attr(ctx), "<br>".join(parts)))
 
     if availability == "present":
+        description = ('<details class="media-description"%s><summary>Image description</summary>'
+                       '<p>%s</p></details>' % (_dir_attr(ctx), html.escape(alt))) if alt else ""
         return ('<figure class="media" id="media-%s"><img src="%s" alt="%s">'
-                "%s</figure>"
+                "%s%s</figure>"
                 % (html.escape(anchor), html.escape(_media_src(path, ctx)),
-                   html.escape(alt), caption))
+                   html.escape(alt), description, caption))
     if availability == "remote":
         return ('<figure class="media media-remote" id="media-%s">'
                 '<p>%s</p><p>%s</p><a href="%s">%s</a>%s</figure>'
@@ -1685,7 +1847,11 @@ def _code_block(info, content, ctx=None):
     label = ('<span class="lang">%s</span>' % html.escape(lang)
              if lang else "")
     return ('<div class="scroll" data-code-block="%d" data-lang="%s">'
-            '%s<pre>%s</pre>%s</div>'
+            '%s<pre class="code-source" tabindex="0" role="region" '
+            'aria-label="Example code">%s</pre>'
+            '<div class="code-tools" hidden><button type="button" class="go code-select">'
+            'Select code</button><button type="button" class="go code-copy">Copy code</button>'
+            '<span class="code-status" role="status" aria-live="polite"></span></div>%s</div>'
             % (block_id, html.escape(lang), label, code, notice))
 
 
@@ -2179,16 +2345,35 @@ def _reader_context(bank_path, qs):
     return ctx
 
 
-def _backlinks_html(stem, qs, slug):
+def _backlinks_html(stem, qs, slug, context_nav=None):
     refs = backlinks(qs, slug)
     if not refs:
-        return '<div class="bl orphan">%s</div>' % html.escape(ORPHAN_COPY)
-    rows = "".join(
-        '<a href="/quiz/%s#%s">Q%d: %s</a>' %
-        (stem, q["id"], q["number"], html.escape(_truncate(q["stem"], 100)))
-        for q in refs)
-    return '<div class="bl"><span class="blabel">%s</span>%s</div>' % (
-        html.escape(BACKLINKS_LABEL), rows)
+        return ""
+    # Navigation identities come from the caller's admitted actions, never
+    # from a course label or a locally inferred saved-session identifier.
+    base = "/quiz/%s" % quote(stem, safe="")
+    for entry in context_nav or ():
+        href = entry.get("href") or ""
+        target = urlsplit(href)
+        if not target.scheme and not target.netloc and target.path == base:
+            base = urlunsplit(("", "", target.path, target.query, ""))
+            break
+    rows = []
+    saved_sitting = bool(parse_qs(urlsplit(base).query).get("session"))
+    action = "Return to saved sitting" if saved_sitting else "Open practice"
+    for q in refs:
+        # The existing block renderer protects fences before classifying
+        # prose, without creating lesson-section identities for a stem.
+        preview = _render_blocks(q.get("stem") or "")
+        if q.get("type") == "visual":
+            preview += '<p>Open the question for its diagram and response controls.</p>'
+        href = base if saved_sitting else base + "#" + quote(str(q["id"]), safe="")
+        rows.append('<div class="practice-item"><span class="blabel">Question %d</span>'
+                    '<a href="%s">%s</a>'
+                    '<div class="practice-preview">%s</div></div>' %
+                    (q["number"], html.escape(href, quote=True), action, preview))
+    return ('<details class="bl section-practice"><summary>%s (%d)</summary>%s</details>'
+            % (html.escape(BACKLINKS_LABEL), len(refs), "".join(rows)))
 
 
 # ---- Phase 16A guided mode (D-16A-9) --------------------------------------
@@ -2432,7 +2617,8 @@ def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
                 announce=None, session_id=None, lan_refused=False,
                 mode="continuous", media=None, activities=None,
                 step_id=None, tier_payload=None, tier_show_url=None,
-                media_base="", context_nav=None, theme_css=None):
+                media_base="", context_nav=None, theme_css=None,
+                exploration_context=None):
     """The one render both surfaces call: the daemon route and `cmd_lesson`
     write the same document because there is only one `lesson_page`.
 
@@ -2520,7 +2706,8 @@ def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
         raise ValueError(
             'lesson_page: mode must be "continuous", "guided", or "paced" '
             "(got %r)" % mode)
-    bank_text = open(bank_path, encoding="utf-8").read()
+    with open(bank_path, encoding="utf-8") as source_handle:
+        bank_text = source_handle.read()
     title = (grab(r"(?m)^#\s+(.*?)\s*$", bank_text)
              or os.path.basename(bank_path))
     warn_css = ""
@@ -2690,7 +2877,7 @@ def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
                 parts.append(rendered)
                 stop_at = idx
                 break
-            parts.append(rendered + _backlinks_html(stem, qs, h["slug"]))
+            parts.append(rendered + _backlinks_html(stem, qs, h["slug"], context_nav))
         body = "\n".join(parts)
         if stop_at is not None and gate is not None \
                 and gate["policy"] == "required":
@@ -2715,16 +2902,16 @@ def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
             gloss_script = GLOSS_ENHANCEMENT_JS
             if ctx["gloss_hover"]:
                 gloss_script += GLOSS_HOVER_JS
-            nav_mode = ctx["reader_nav"]
-            if nav_mode == "auto" and len(lesson["headings"]) < 4:
-                nav_mode = "none"
-            if nav_mode != "none":
-                if stop_at is not None:
-                    nav_html = (_reader_nav_html(lesson["headings"][:stop_at + 1], nav_mode)
-                                + '<p class="gate-note">%s</p>'
-                                % html.escape(TOC_FILTERED_COPY))
-                else:
-                    nav_html = _reader_nav_html(lesson["headings"], nav_mode)
+        visible_headings = [lesson["headings"][idx] for idx in idxs
+                            if stop_at is None or idx <= stop_at]
+        nav_mode = ctx["reader_nav"]
+        if nav_mode == "auto":
+            nav_mode = ("column" if mode == "continuous" and
+                        len(visible_headings) >= 2 else "none")
+        if nav_mode != "none":
+            nav_html = _reader_nav_html(visible_headings, nav_mode)
+            if stop_at is not None:
+                nav_html += '<p class="gate-note">%s</p>' % html.escape(TOC_FILTERED_COPY)
         if drill and ctx.get("key_answers"):
             answers = "".join(
                 "<li>%s</li>" % _inline(text)
@@ -2779,6 +2966,12 @@ def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
                                              len(paced_view)))
             status_html = ('<div class="status" role="status">%s</div>'
                            % html.escape(" ".join(lines)))
+    if runtime and nav_html and _check_ids(lesson):
+        # A changing visible-section outline must not move a required
+        # check band. Keep the safe outline after the rendered material
+        # in every live/inert state of a checkpoint-bearing lesson.
+        body += nav_html
+        nav_html = ""
     # The style footer and its degraded copy (03.1-UI-SPEC 9.6): one
     # Ledger-voice line names the style that produced the page. A resolved
     # named style reads `style: <id> · rendered by render_style`; the house
@@ -2833,6 +3026,13 @@ def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
     runnable_js = RUNNABLE_JS if run_emitted else ""
     run_session_attr = (' data-run-session="%s"'
                         % html.escape(session_id) if session_id else "")
+    if (runtime and isinstance(exploration_context, dict) and
+            (mode == "guided" or 'class="lesson-comparison"' in body or
+             'class="lesson-lineplot"' in body)):
+        run_session_attr += lesson_interaction.exploration_attributes(
+            exploration_context.get("lesson_id"),
+            exploration_context.get("revision_id"),
+            exploration_context.get("occurrence_id"))
     # A11Y-02: the document language and direction come from the parsed
     # lesson's own directives, escaped exactly as every other interpolated
     # value in this chain is. `lesson` may be None and may predate the two
@@ -2848,6 +3048,12 @@ def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
             .replace("__DIR__", doc_dir)
             .replace("__PRESENTATION_PROFILE__",
                      html.escape(presentation_profile, quote=True))
+            .replace("__READING_MODE__", mode)
+            .replace("__READER_APPLICATION__",
+                     '')
+            .replace("__READER_BYLINE__",
+                     ('<details class="lesson-reading-about"><summary>About this reading</summary>'
+                      '<div class="sub">Reading · __SUB__</div></details>'))
             .replace("__THEME__", THEME_CSS if theme_css is None else theme_css)
             .replace("__SHARED_CSS__", SHARED_CSS)
             .replace("__LESSON_CSS__", LESSON_CSS + (lesson_interaction.CSS
@@ -2868,7 +3074,8 @@ def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
                      if 'class="lesson-comparison"' in body else "")
                      + (lesson_interaction.LINEPLOT_JS
                         if 'class="lesson-lineplot"' in body else "")
-                     + (lesson_progressive.JS if mode == "guided" else ""))
+                     + (lesson_progressive.JS if mode == "guided" else "")
+                     + (CODE_CRAFT_JS if 'class="code-tools"' in body else ""))
             .replace("__STATUS__", status_html)
             .replace("__CONTEXT_NAV__", context_nav_html)
             .replace("__RUNNABLE_JS__", runnable_js)
@@ -3050,7 +3257,8 @@ def render_style(bank_path, style_id, out=None):
     out = out or (os.path.splitext(bank_path)[0]
                   + "_%s.html" % slug)
     os.makedirs(os.path.dirname(out) or ".", exist_ok=True)
-    open(out, "w", encoding="utf-8").write(page)
+    with open(out, "w", encoding="utf-8") as source_handle:
+        source_handle.write(page)
     return out
 
 
@@ -3089,7 +3297,8 @@ def cmd_lesson(a):
                        activities=parse_activities(a.bank))
     if page is None:
         sys.exit("no lesson heading matching %r in %s" % (a.ref, a.bank))
-    open(out, "w", encoding="utf-8").write(page)
+    with open(out, "w", encoding="utf-8") as source_handle:
+        source_handle.write(page)
     if a.ref:
         count = 1
     elif lesson and lesson.get("headings"):

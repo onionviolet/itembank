@@ -100,6 +100,7 @@ CELLS = {
     ("course", "inspect"): {
         "cli": ["shelf", "course show", "course blueprint-gate", "course audit", "course staleness"],
         "http": ["GET /", "GET /courses", "GET /course/<course_id>", "GET /course/<course_id>/<area>",
+                 "POST /restore/open",
                  "GET /api/course/<operation>/<course_id>",
                  "GET /course/<course_id>/learn/<lesson_id>", "POST /api/shelf", "POST /api/course/blueprint-gate", "POST /api/course/audit", "POST /api/course/staleness"],
     },
@@ -207,9 +208,14 @@ CELLS = {
     ("source", "inspect"): {
         "cli": ["source recheck"], "http": ["POST /api/source/recheck",
                                             "GET /course/<course_id>/<area>",
-                                            "GET /course/<course_id>/research"],
+                                            "GET /course/<course_id>/research",
+                                            "GET /course/<course_id>/help",
+                                            "POST /course/<course_id>/help",
+                                            "POST /api/course/context-help-<action>"],
         "note": "The Sources area lists bound sources. Research previews an "
-                "accepted occurrence using its exact locator.",
+                "accepted occurrence using its exact locator. Source-help "
+                "routes preview inclusion and owned request state; production "
+                "model answers remain unavailable until Q4 is accepted.",
     },
     ("source binding", "inspect"): {
         "cli": ["bind list"],
@@ -322,11 +328,12 @@ CELLS = {
     },
     ("learner note", "create"): {
         "cli": ["course save-reading-note"],
-        "http": ["POST /api/course/save-reading-note", "POST /course/<course_id>/research"],
+        "http": ["POST /api/course/save-reading-note", "POST /course/<course_id>/research",
+                 "POST /course/<course_id>/artifacts"],
         "note": "A reading note is saved separately from accepted source text.",
     },
     ("learner note", "inspect"): {
-        "cli": [], "http": ["GET /course/<course_id>/research"],
+        "cli": [], "http": ["GET /course/<course_id>/research", "GET /course/<course_id>/artifacts"],
         "note": "The Research view lists private notes for explicit context inclusion.",
     },
     ("evidence event", "create"): {
@@ -464,15 +471,17 @@ CELLS = {
     ("package", "inspect"): {
         "cli": ["course verify-package", "course package-losses"],
         "http": ["POST /api/course/verify-package",
-                 "POST /api/course/package-losses"],
+                 "POST /api/course/package-losses", "GET /restore", "POST /restore"],
         "note": "Both reads expose the exact loss report and current "
                 "completeness and restorable truth.",
     },
     ("package", "change"): {
         "cli": ["course restore-package"],
-        "http": ["POST /api/course/restore-package"],
+        "http": ["POST /api/course/restore-package", "POST /restore"],
         "note": "Restore consumes a package without changing it, stages a "
-                "fresh course, and publishes under course identity.",
+                "fresh course, and publishes under course identity. Native "
+                "union-copy requires exact scope/private-file consent and "
+                "publishes only a fresh governed recovery destination.",
     },
     ("package", "explain"): {
         "cli": ["course package-losses"],

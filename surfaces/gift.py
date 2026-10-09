@@ -268,7 +268,8 @@ def export_gift(a):
         print(e)
     os.makedirs(os.path.dirname(a.out) or ".", exist_ok=True)
     content = (document + "\n") if document else ""
-    open(a.out, "w", encoding="utf-8").write(content)
+    with open(a.out, "w", encoding="utf-8") as source_handle:
+        source_handle.write(content)
     skipped = len(gift_errors)
     exported = len(qs) - skipped
     if skipped:

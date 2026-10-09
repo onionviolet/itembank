@@ -96,14 +96,15 @@ with mock.patch.object(preflight.shutil, "which", return_value="available"), \
     check(not any(call.args[0][:2] == ["npm", "ci"] for call in runner.call_args_list),
           "source-only JS gate installed dependencies")
 
-# A long first failure must not hide another failing script or its traceback.
-diagnostics = "== tests/first.py\n" + "detail\n" * 30 + "== tests/later.py\nlate failure"
-output = io.StringIO()
-with mock.patch.object(preflight, "GATES", [("tests", "Synthetic suite", lambda: (False, diagnostics), False)]), \
-        mock.patch.object(sys, "argv", ["preflight.py"]), contextlib.redirect_stdout(output):
-    status = preflight.main()
-check(status == 1 and "== tests/later.py" in output.getvalue() and "late failure" in output.getvalue(),
-      "preflight hid a later suite failure behind truncated diagnostics")
+# Passing cases and long early failures must not hide a later failed test.
+for gate_id in ("tests", "js"):
+    diagnostics = "passing cases\n" * 30 + "== tests/later.py\nlate failure traceback"
+    output = io.StringIO()
+    with mock.patch.object(preflight, "GATES", [(gate_id, "Synthetic suite", lambda: (False, diagnostics), False)]), \
+            mock.patch.object(sys, "argv", ["preflight.py"]), contextlib.redirect_stdout(output):
+        status = preflight.main()
+    check(status == 1 and "== tests/later.py" in output.getvalue() and "late failure traceback" in output.getvalue(),
+          "preflight hid a later %s failure behind truncated diagnostics" % gate_id)
 
 if failures:
     for f in failures:

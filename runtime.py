@@ -2057,6 +2057,38 @@ def evidence_feedback(event, session=None):
     return submission_feedback(event, "exam")
 
 
+def saved_check_feedback(event, session, qs, bank_revision):
+    """Release a retained current-item run through the existing policy only."""
+    from model import content_fingerprint
+    if session.get("cursor", 0) >= len(session.get("items", [])):
+        return None
+    q = qs[session["items"][session["cursor"]]]
+    if (session.get("status") != "active" or session.get("mode") != "practice"
+            or q.get("type") != "check" or event.get("event_type") != "response"
+            or event.get("session_id") != session.get("session_id")
+            or event.get("mode") != session.get("mode")
+            or event.get("bank") != os.path.basename(session["bank"])
+            or event.get("item_ref") != q.get("id")
+            or event.get("item_id", "") != q.get("item_id", "")
+            or event.get("score") is True
+            or not staged_event_released(event, session)):
+        return None
+    snapshot = event.get("check_feedback")
+    if not isinstance(snapshot, dict) or (
+            snapshot.get("bank_revision") != bank_revision
+            or snapshot.get("item_revision") != content_fingerprint(q)):
+        return None
+    result = snapshot.get("interaction_result")
+    if (not isinstance(result, dict) or result.get("type") != "check"
+            or result.get("version") != INTERACTION_VERSION
+            or result.get("response") != event.get("check_source")
+            or result.get("verdict") != event.get("score")
+            or not isinstance(result.get("observations"), list)):
+        return None
+    return {"interaction_result": evidence_feedback(event, session)["check_feedback"]["interaction_result"],
+            "saved_check_feedback": True}
+
+
 def learner_evidence(events, sessions):
     """Exclude withheld events before deriving learner-facing score summaries."""
     return tuple(event for event in events if staged_event_released(
@@ -3234,6 +3266,26 @@ def marker_close(session, q, settled_marks):
     return dict(session, cursor=cursor, status=status)
 
 
+def saved_pending_feedback(event, session, qs, settled_marks):
+    """Project the recorded pending state without a verdict or keyed content."""
+    cursor = session.get("cursor", 0)
+    if (session.get("status") != "active" or session.get("mode") in ("exam", "diagnostic")
+            or cursor >= len(session.get("items", [])) or staged_activity(session)):
+        return None
+    q = qs[session["items"][cursor]]
+    if (q.get("type") != "short" or teaching_key(q) in settled_marks
+            or event.get("event_type") != "response" or event.get("item_type") != "short"
+            or event.get("session_id") != session.get("session_id")
+            or event.get("mode") != session.get("mode")
+            or event.get("bank") != os.path.basename(session["bank"])
+            or event.get("item_ref") != q.get("id")
+            or event.get("item_id", "") != q.get("item_id", "")
+            or event.get("objective", "") != q.get("objective", "")
+            or "score" not in event or event["score"] is not None):
+        return None
+    return {"action": "defer_feedback", "score": None}
+
+
 def formal_response_close(session, q, recorded_response):
     """Recover a silent formal advance after evidence outlived a session write.
 
@@ -3302,6 +3354,10 @@ LADDER_UNAVAILABLE_DEFAULT = ("This sitting's feedback mode does not run the "
 NEXT_TIER_UNLOCK_COPY = ("Tier %d unlocks after another attempt.",
                          "Or unlock it now with \"I'm stumped\".")
 FURTHER_TIER_UNLOCK_COPY = "Tier %d unlocks after tier %d."
+# A genuine wrong attempt has already unlocked the next tier but the learner
+# has not opened it. The locked sentences would be false here; the spec's
+# rule is that the card states the true rule, in the same ledger voice.
+NEXT_TIER_ENTITLED_COPY = "Tier %d is unlocked."
 MORE_TIERS_COPY = "%d more tiers after this one."
 NO_AUTHORED_TIER_COPY = "This item has no authored %s."
 
@@ -3404,8 +3460,9 @@ def teaching_payload(q, rec, mode, locked_preview="full"):
     next_locked = None
     further_locked = []
     if not exhausted:
-        unlock_copy = [NEXT_TIER_UNLOCK_COPY[0] % next_index,
-                       NEXT_TIER_UNLOCK_COPY[1]]
+        unlock_copy = ([NEXT_TIER_ENTITLED_COPY % next_index] if entitled else
+                       [NEXT_TIER_UNLOCK_COPY[0] % next_index,
+                        NEXT_TIER_UNLOCK_COPY[1]])
         remaining = list(range(next_index + 1, len(HINT_TIERS)))
         if locked_preview == "next":
             if remaining:
@@ -3829,7 +3886,8 @@ def read_lesson_run(path):
     degrade to the continuous document rather than block.
     """
     try:
-        data = json.load(open(session_path(path), encoding="utf-8"))
+        with open(session_path(path), encoding="utf-8") as source_handle:
+            data = json.load(source_handle)
     except (OSError, ValueError):
         return {"error": "lesson_run.unreadable"}
     if data.get("kind") != LESSON_RUN_KIND:

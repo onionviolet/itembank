@@ -108,7 +108,7 @@ def check_connected_unit():
             before = runtime.read_session(path)
             assert before['mode'] == 'practice' and before['status'] == 'active'
             status, overview_active = get(url + 'course/' + course_id)
-            assert status == 200 and 'Resume practice' in overview_active
+            assert status == 200 and 'data-course-resume' in overview_active
             assert ('session=' + session_id + '&amp;course=' + course_id) in overview_active
             exact = ia.course_shelf_state(root)['cards'][0]['cta_href']
             assert 'session=' + session_id in exact and 'course=' + course_id in exact

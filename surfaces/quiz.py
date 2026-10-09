@@ -265,7 +265,7 @@ def question_symbol_help(bank_path, qs, bank_stem="", serve=True,
 def page_for(bank_path, qs, serve=False, reveal=False, post_path="/answer",
              lesson_base="", lesson_slugs=None, bank_stem=None, mode=None,
              theme_css=None, lti_framing="", boot_extra=None, assist=False,
-             home_href="", presentation_profile="", symbol_return=None):
+             home_href="", presentation_profile="", symbol_return=None, home_label=""):
     """Render one quiz page. `theme_css`, when given, is the per-render
     generated token block (the daemon passes
     `theme.theme_css(load_settings(root))` so quiz shares the one palette
@@ -286,7 +286,8 @@ def page_for(bank_path, qs, serve=False, reveal=False, post_path="/answer",
     if not serve and getattr(qs, "staged_cases", []):
         sys.exit("Staged answer/reason activities require the served runtime. "
                  "Use itembank serve or the daemon; the source Markdown remains readable.")
-    text = open(bank_path, encoding="utf-8").read()
+    with open(bank_path, encoding="utf-8") as source_handle:
+        text = source_handle.read()
     title = grab(r"(?m)^#\s+(.*?)\s*$", text) or os.path.basename(bank_path)
     counts = collections.Counter(q["type"] for q in qs)
     mix = ", ".join("%d %s" % (v, k) for k, v in counts.most_common())
@@ -305,7 +306,7 @@ def page_for(bank_path, qs, serve=False, reveal=False, post_path="/answer",
     ctx_bank = html.escape(title)
     if home_href:
         ctx_bank = ('<a class="cx-home" href="%s">%s</a>'
-                    % (html.escape(home_href), ctx_bank))
+                    % (html.escape(home_href), html.escape(home_label) if home_label else ctx_bank))
     ctx_mode = html.escape(mode or "")
     # Served mode (SURF-02): the page receives bootstrap metadata only --
     # allowlisted bank stem, item count, configured session mode, and the
@@ -415,24 +416,7 @@ def page_for(bank_path, qs, serve=False, reveal=False, post_path="/answer",
                  .replace("__MATH_SCRIPT__", math_script)
                  .replace("__PRODUCT_CSS__", presentation.product_theme_css()
                           + presentation.PRODUCT_CSS
-                          + """
-.overhaul-quiz{max-width:1120px;background:var(--paper);color:var(--product-ink)}
-.overhaul-quiz #host{max-width:var(--measure-prose);margin:var(--space-5) auto;padding:0}
-.overhaul-quiz #host:has(.response-check,.response-visual,.response-dnd,.response-build,.response-table,[data-response-type=check],[data-response-type=visual],[data-response-type=dnd],[data-response-type=build],[data-response-type=table]){max-width:100%}
-.overhaul-quiz .overhaul-question{background:transparent;border:0;border-radius:0;padding:var(--space-4) 0;box-shadow:none}
-.overhaul-quiz h1.stem{font-family:var(--font-paper);font-size:var(--text-heading);font-weight:400;line-height:1.4;max-width:var(--measure-prose);margin-bottom:var(--space-4)}
-.overhaul-quiz .hint{margin-bottom:var(--space-3)}
-.overhaul-quiz .overhaul-response{border-block-start:1px solid var(--line);padding-block-start:var(--space-4);margin-block-start:var(--space-4);min-width:0}
-.overhaul-quiz .overhaul-response .fill-field{display:grid;grid-template-columns:minmax(0,1fr);align-items:start;gap:var(--space-2);padding:0;min-width:0}
-.overhaul-quiz .fill-field .fill-help{grid-column:1/-1;max-width:100%;overflow-wrap:anywhere;order:3}
-.overhaul-quiz .fill-field input{grid-column:1/-1;min-width:0;width:100%;order:2}
-.overhaul-quiz .choice{min-height:48px;padding:var(--space-3);border-radius:var(--r-1)}
-.overhaul-quiz .choice .ot{font-size:var(--text-body);line-height:1.5}
-.overhaul-quiz .feedback:not(:empty){border-block-start:2px solid var(--accent);padding-block-start:var(--space-4);margin-block-start:var(--space-4)}
-.overhaul-quiz .support-region{border-block-start:1px solid var(--line);padding-block-start:var(--space-3)}
-.overhaul-quiz .session-details{max-width:var(--measure-prose);margin-inline:auto}
-@media(max-width:767px){.overhaul-quiz #host{margin-block:var(--space-3)}.overhaul-quiz .overhaul-question{padding:var(--space-3) 0}}
-""")
+                          + presentation.QUIZ_PRODUCT_CSS)
                  .replace("__PRODUCT_NAV__", presentation.standalone_product_nav())
                  .replace("__SERVE__", "true" if serve else "false")
                  .replace("__CTX_TOTAL__", str(len(qs)))
@@ -540,7 +524,8 @@ def cmd_build(a):
     # client. It stays the shareable, no-process mode; `serve` is the graded one.
     mix, page = page_for(a.bank, qs, serve=False, reveal=not a.blind,
                          theme_css=css)
-    open(out, "w", encoding="utf-8").write(page)
+    with open(out, "w", encoding="utf-8") as source_handle:
+        source_handle.write(page)
     print("%d items -> %s" % (len(qs), out))
     print("   mix: " + mix)
     if any(q["type"] == "short" for q in qs):

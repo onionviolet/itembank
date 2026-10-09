@@ -52,7 +52,8 @@ def _read_plan(path):
     error is meaningful on any given return.
     """
     try:
-        data = open(path, "rb").read()
+        with open(path, "rb") as source_handle:
+            data = source_handle.read()
     except OSError as exc:
         return None, "", "", "cannot read plan: %s" % exc
     try:
@@ -474,7 +475,8 @@ def save(path, iso, edits, revision, force=False):
 def _atomic_replace(path, data, expected_rev):
     """Fresh-read revision gate plus same-directory atomic replace (D-09, D-11)."""
     try:
-        current = open(path, "rb").read()
+        with open(path, "rb") as source_handle:
+            current = source_handle.read()
     except OSError:
         current = b""
     if hashlib.sha256(current).hexdigest() != expected_rev:

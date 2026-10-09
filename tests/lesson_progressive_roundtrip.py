@@ -29,6 +29,16 @@ class ProgressiveTests(unittest.TestCase):
         self.assertNotIn('Highlight key wording', self.page())
         self.assertEqual(before, FIXTURE.read_bytes())
 
+    def test_guided_header_names_current_concept_without_changing_other_modes(self):
+        page = self.page(mode='guided')
+        self.assertIn('data-reading-mode="guided"', page)
+        self.assertIn('<details class="lesson-reading-about">', page)
+        self.assertIn('id="lesson-content"', page)
+        for mode in ('continuous', 'paced'):
+            other = self.page(mode=mode)
+            self.assertIn('<details class="lesson-reading-about">', other)
+            self.assertNotRegex(other, r'<div\b[^>]*\bdata-reading-mode="guided"')
+
     def test_show_all_cannot_cross_required_check(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / 'bank.md'

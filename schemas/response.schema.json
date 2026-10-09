@@ -414,6 +414,28 @@
           ],
           "description": "The learner's submitted source verbatim for a check item, null for every other type (plan 05-01): the scored vector stays in answer/canonical, and this reserved field is what a later reader (the tutoring model, a human marker) reads to see what was written (D-13)."
         },
+        "check_feedback": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["bank_revision", "item_revision", "interaction_result"],
+          "description": "Optional retained single-run check observations. Absent on legacy responses. Runtime release requires the owning current practice item and exact bank/item revisions; this snapshot never grades or executes. Observation semantics use item.schema.json's case_observation contract.",
+          "properties": {
+            "bank_revision": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+            "item_revision": {"type": "string"},
+            "interaction_result": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["version", "type", "response", "verdict", "observations"],
+              "properties": {
+                "version": {"const": 1},
+                "type": {"const": "check"},
+                "response": {"type": "string"},
+                "verdict": {"type": ["boolean", "null"]},
+                "observations": {"type": "array", "items": {"type": "object"}}
+              }
+            }
+          }
+        },
         "interaction_version": {
           "type": [
             "integer",

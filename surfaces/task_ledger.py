@@ -37,7 +37,8 @@ def _clean_header(value):
 
 def _read(path):
     try:
-        raw = open(path, "rb").read()
+        with open(path, "rb") as source_handle:
+            raw = source_handle.read()
     except OSError as exc:
         return None, "owner unavailable: %s" % exc
     try:

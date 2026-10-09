@@ -3,8 +3,8 @@
 import os
 import re
 import urllib.parse
-import contextlib
-import io
+from types import SimpleNamespace
+from datetime import datetime, timezone
 
 import course
 import evidence
@@ -160,11 +160,185 @@ def readiness_panel(payload):
             '<ul>%s</ul></section>' % (presentation.esc(payload["state"]), ''.join(rows)))
 
 
+def _admitted_sittings(root, course_dir, banks, events, course_id):
+    """Use the existing read-only quiz admission gate, never start a sitting."""
+    # Import locally: daemon renders this module, and its saved-session gate
+    # is the existing route authority for schema, selection and stale banks.
+    from surfaces.daemon import _saved_quiz_session
+
+    saved = ia._course_resume_state(root, course_dir)
+    if (saved.get("evidence_without_sitting") and not saved.get("sessions") and events
+            and all(event.get("event_type") == "reading_declared" and event.get("course_id") == course_id
+                    for event in events)):
+        try:
+            for event in events:
+                evidence._validate_reading_event(event)
+        except (OSError, ValueError, KeyError, TypeError):
+            pass
+        else:
+            # A declaration's operation ID is not an assessment sitting.
+            # It cannot imply a lost cursor or prevent source-first guidance.
+            saved = dict(saved, state="absent", cue=ia.NOT_STARTED_CUE)
+    by_path = {}
+    for stem, path in banks:
+        by_path.setdefault(os.path.realpath(path), []).append((stem, path))
+    sessions, failures, questions = {}, [], {}
+    if saved.get("state") == "unavailable" or "unavailable" in saved.get("cue", ""):
+        failures.append("Some saved sittings are unavailable; their history cannot be joined safely.")
+    for row in saved.get("sessions", ()):
+        if sum(s.get("session_id") == row["session_id"] for s in saved.get("sessions", ())) != 1:
+            failures.append("Saved sittings share an identity. Reconcile them before continuing.")
+            continue
+        matches = by_path.get(os.path.realpath(row["bank"])) or []
+        if len(matches) != 1:
+            failures.append("A saved sitting has no unique admitted course route.")
+            continue
+        stem, path = matches[0]
+        try:
+            if path not in questions:
+                questions[path] = model.load(path)
+            selected = _saved_quiz_session(SimpleNamespace(root=root), stem, path, questions[path], cfg={
+                "mode": row["mode"], "mode_specific": True,
+                "requested_session_id": row["session_id"]})
+            if selected is None:
+                raise ValueError("saved sitting unavailable")
+            sessions[row["session_id"]] = selected[1]
+        except (OSError, ValueError, KeyError, TypeError, SystemExit):
+            failures.append("A saved sitting is unavailable or changed. Review it before continuing.")
+    return saved, sessions, failures
+
+
+def _current_safe_bindings(course_dir, doc, *, include_unknown=False):
+    """Current unambiguous bindings with live source revisions and rights."""
+    graph.validate_reading_graph(doc)
+    registry = journal.read_registry(course_dir)
+    source_ids = {row.get("source_object_id") for row in doc.get("sources") or []}
+    superseded = {row.get("supersedes_binding_revision_id")
+                  for row in doc.get("bindings") or []}
+    rows = []
+    states = ("covered", "thin", "unknown") if include_unknown else ("covered", "thin")
+    for row in doc.get("bindings") or []:
+        if row.get("binding_revision_id") and row["binding_revision_id"] in superseded:
+            continue
+        source_id = row.get("source_object_id")
+        source = registry.get(source_id)
+        if (source_id not in source_ids or not source or source.get("kind") != "source"
+                or source.get("superseded_by") or row.get("state") not in states
+                or journal.object_state(course_dir, source_id) != "clean"
+                or (row.get("source_fingerprint") and row["source_fingerprint"] != source.get("fingerprint"))):
+            continue
+        right = (graph.treatment_right(row["treatment_kind"])
+                 if row.get("binding_kind") == "treatment" else "read")
+        if course.rights_for_binding(course_dir, source_id, right) == "granted":
+            rows.append(row)
+    return rows
+
+
+def _linked_explanation(course_dir, doc, banks, objective, resume):
+    """Resolve a current authored treatment through its exact admitted bank."""
+    paths = {}
+    for stem, path in banks:
+        paths.setdefault(os.path.realpath(path), []).append(stem)
+    registry = journal.read_registry(course_dir)
+    for binding in _current_safe_bindings(course_dir, doc):
+        if (binding.get("binding_kind") != "treatment" or binding.get("objective") != objective
+                or binding.get("treatment_kind") != "guided-lesson"):
+            continue
+        locator = binding.get("locator") or ""
+        match = re.match(r"^(.+?\.md)(?=$|[\s,;#])", locator.strip(), re.I)
+        if match is None:
+            continue
+        try:
+            path = _artifact_path(course_dir, match.group(1))
+            stems = paths.get(path) or []
+            if len(stems) != 1 or objective not in {q.get("objective") for q in model.load(path)}:
+                continue
+            lesson = model.parse_lesson(path)
+            if not lesson or lesson.get("error") or not lesson.get("headings"):
+                continue
+            errors, _warnings = model.lint([], lesson=lesson)
+            if errors:
+                continue
+            # Registered teaching artifacts must still be their accepted
+            # bytes. An external lesson without a registry cannot prove that.
+            lesson_path = os.path.realpath(lesson["source"])
+            registered = [oid for oid, row in registry.items()
+                          if os.path.realpath(os.path.join(course_dir, row.get("path") or ""))
+                          in (path, lesson_path)]
+            if (any(journal.object_state(course_dir, oid) != "clean" for oid in registered)
+                    or (lesson_path != path and not any(
+                        os.path.realpath(os.path.join(course_dir, registry[oid].get("path") or "")) == lesson_path
+                        for oid in registered))):
+                continue
+            query = {"course": doc["header"]["course_object_id"]}
+            if binding.get("binding_id"):
+                query["occurrence"] = binding["binding_id"]
+            if resume:
+                query["return"] = resume
+            return '/lesson/' + urllib.parse.quote(stems[0], safe='') + '?' + urllib.parse.urlencode(query)
+        except (OSError, ValueError, KeyError, TypeError):
+            continue
+    return None
+
+
+def _source_first_activity(course_dir, doc, banks):
+    """Prefer an accepted reading, then a bound lesson, then bound practice."""
+    cid = doc["header"]["course_object_id"]
+    # An accepted direct reading can be available while source coverage is
+    # still unknown. Availability is not a claim that its objective is covered.
+    bindings = _current_safe_bindings(course_dir, doc, include_unknown=True)
+    validated = graph.validate_reading_graph(doc)
+    superseded = {row["supersedes_revision_id"] for row in validated["occurrences"]}
+    binding_ids = {(row.get("binding_id"), row.get("binding_revision_id")) for row in bindings}
+    for row in validated["occurrences"]:
+        if row["revision_id"] in superseded:
+            continue
+        ref = row["binding_ref"]
+        if (ref["binding_id"], ref["binding_revision_id"]) not in binding_ids:
+            continue
+        try:
+            course.validate_reading_source(course_dir, row["source_ref"])
+        except (OSError, ValueError, KeyError, TypeError):
+            continue
+        return reading_href(cid, row), (row["objective_ids"][0] if row["objective_ids"] else None)
+    for objective in doc.get("objectives") or []:
+        explanation = _linked_explanation(course_dir, doc, banks, objective["id"], None)
+        if explanation:
+            return explanation, objective["id"]
+    by_path = {}
+    for stem, path in banks:
+        by_path.setdefault(os.path.realpath(path), []).append(stem)
+    for binding in bindings:
+        if (binding.get("binding_kind") != "treatment" or binding.get("treatment_kind") != "practice"
+                or binding.get("state") not in ("covered", "thin")):
+            continue
+        match = re.match(r"^(.+?\.md)(?=$|[\s,;#])", (binding.get("locator") or "").strip(), re.I)
+        if match is None:
+            continue
+        try:
+            path = _artifact_path(course_dir, match.group(1))
+            stems = by_path.get(path) or []
+            if len(stems) != 1:
+                continue
+            qs = model.load(path)
+            if binding["objective"] not in {q.get("objective") for q in qs}:
+                continue
+            errors, _warnings = model.lint(qs, lesson=model.parse_lesson(path))
+            if errors:
+                continue
+            return '/quiz/' + urllib.parse.quote(stems[0], safe='') + '?' + urllib.parse.urlencode(
+                {"mode": "practice", "course": cid}), binding["objective"]
+        except (OSError, ValueError, KeyError, TypeError):
+            continue
+    return '/course/' + urllib.parse.quote(cid, safe='') + '/learn', None
+
+
 def review_history(root, course_dir, doc, banks, cutoff=None):
     """A disposable joined view of saved responses, marks, readings and due work.
 
-    Never load a bank key or emit learner answers. Detailed feedback remains
-    behind the saved sitting's runtime route and release policy.
+    Never emit bank keys or learner answers. The current bank is parsed only
+    for the existing saved-sitting admission gate. Detailed feedback remains
+    behind that sitting's runtime route and release policy.
     """
     import retention
     import runtime
@@ -181,20 +355,26 @@ def review_history(root, course_dir, doc, banks, cutoff=None):
     if len(paths) != len(admitted_paths):
         failures.append("An artifact has ambiguous admitted routes; its review links are unavailable.")
     for log in sorted(logs):
-        warnings = io.StringIO()
+        issues = []
         try:
-            with contextlib.redirect_stdout(warnings):
-                current = list(evidence.live_events(log))
-            if warnings.getvalue():
+            current = list(evidence.live_events(log, diagnostics=issues.append))
+            if issues:
                 failures.append("Evidence includes unreadable or unsupported records.")
             events.extend(current)
-        except (OSError, ValueError):
+        except (OSError, ValueError, TypeError):
             failures.append("Evidence check failed. Repair the local record, then reload.")
     unique_events = {}
     for event in events:
         eid = event.get("event_id")
-        if not eid:
+        if not isinstance(eid, str) or not eid:
             failures.append("Evidence identity is unavailable; due work cannot be derived safely.")
+            continue
+        if event.get("session_id") is not None and not isinstance(event["session_id"], str):
+            failures.append("Evidence sitting identity is unsupported.")
+            continue
+        if event.get("event_type") == "mark" and (
+                not isinstance(event.get("marks_event"), str) or type(event.get("verdict")) is not bool):
+            failures.append("A review mark is unavailable or unsupported.")
             continue
         if eid in unique_events and unique_events[eid] != event:
             failures.append("Divergent records share an evidence identity. Reconcile them before reviewing due work.")
@@ -202,23 +382,30 @@ def review_history(root, course_dir, doc, banks, cutoff=None):
     events = list(unique_events.values())
     # Each admitted bank has its own evidence root. Session identity scopes
     # responses, including older events whose bank field is only a basename.
-    saved = ia._course_resume_state(root, course_dir)
-    if saved.get("state") == "unavailable":
-        failures.append("Some saved sittings are unavailable; their history cannot be joined safely.")
-    sessions = {s["session_id"]: s for s in saved["sessions"] if os.path.realpath(s["bank"]) in paths}
+    saved, sessions, sitting_failures = _admitted_sittings(root, course_dir, banks, events, cid)
+    failures.extend(sitting_failures)
     responses = [e for e in events if e.get("event_type") == "response" and
                  e.get("session_id") in sessions and
                  e.get("bank") == os.path.basename(sessions[e["session_id"]]["bank"])]
+    for event in responses:
+        if (event.get("mode") != sessions[event["session_id"]].get("mode")
+                or (event.get("score") is not None and type(event.get("score")) is not bool)
+                or not isinstance(event.get("item_ref"), str) or not event.get("item_ref")
+                or not isinstance(event.get("objective"), str)):
+            failures.append("Response context is unavailable or conflicts with its saved sitting.")
     ids = {e["event_id"] for e in responses}
     relevant = [e for e in events if e.get("event_id") in ids or
                 (e.get("session_id") in sessions and e.get("event_type") in ("mark", "hint", "selection"))]
     released = runtime.learner_evidence(relevant, sessions)
+    released_ids = {e.get("event_id") for e in released}
     marks = {e.get("marks_event"): e for e in released if e.get("event_type") == "mark"}
-    rows = []
+    if any(type(mark.get("verdict")) is not bool for mark in marks.values()):
+        failures.append("A review mark is unavailable or unsupported.")
+    rows, explanation_cache = [], {}
     counts = {"settled": 0, "missed": 0, "pending": 0, "withheld": 0, "reading_reported": 0}
     for event in responses:
         sitting = sessions[event["session_id"]]
-        permitted = runtime.assessment_feedback_released(event.get("mode"), sitting)
+        permitted = event["event_id"] in released_ids
         if permitted:
             verdict = retention._settled_verdict(event, marks)
             status = "pending" if verdict is None else "missed" if verdict is False else "settled-correct"
@@ -237,22 +424,20 @@ def review_history(root, course_dir, doc, banks, cutoff=None):
                    b.get("source_object_id") == source["source_object_id"] for b in doc.get("bindings") or []):
                 links.append({"origin": "Source", "label": source.get("title") or source["source_object_id"],
                               "href": '/course/%s/sources?source=%d#source-%d' % (urllib.parse.quote(cid, safe=''), index, index)})
-        for binding in doc.get("bindings") or []:
-            if binding.get("objective") != event.get("objective") or binding.get("treatment_kind") != "guided-lesson":
-                continue
-            locator = binding.get("locator") or ""
-            match = re.match(r"^(.+?\.md)(?=$|[\s,;#:]|$)", locator, re.I)
-            if match:
-                try:
-                    lesson_stem = paths.get(_artifact_path(course_dir, match.group(1)))
-                except ValueError:
-                    lesson_stem = None
-                if lesson_stem:
-                    links.append({"origin": "Lesson", "label": "Linked explanation",
-                                  "href": '/lesson/' + urllib.parse.quote(lesson_stem, safe='') + '?' +
-                                  urllib.parse.urlencode({"return": resume, "course": cid})})
+        if permitted:
+            try:
+                cache_key = (event.get("objective"), resume)
+                if cache_key not in explanation_cache:
+                    explanation_cache[cache_key] = _linked_explanation(
+                        course_dir, doc, banks, event.get("objective"), resume)
+                explanation = explanation_cache[cache_key]
+            except (OSError, ValueError, KeyError, TypeError):
+                explanation = None
+            if explanation:
+                links.append({"origin": "Lesson", "label": "Linked explanation", "href": explanation})
         rows.append({"event_id": event["event_id"], "session_id": event["session_id"],
-                     "item_ref": event.get("item_ref"), "objective": event.get("objective"),
+                     "item_ref": event.get("item_ref"), "item_id": event.get("item_id"),
+                     "artifact": stem, "mode": event.get("mode"), "objective": event.get("objective"),
                      "status": status, "timestamp": event["ts"],
                      "feedback_href": resume if sitting["status"] == "active" else
                      '/report?' + urllib.parse.urlencode({"session": event["session_id"]}),
@@ -271,7 +456,180 @@ def review_history(root, course_dir, doc, banks, cutoff=None):
     return {"state": "error" if failures else "empty" if not responses and not readings else "available",
             "rows": rows, "counts": counts, "due": due, "failures": failures,
             "session_state": saved.get("state", "unavailable"), "self_rating": "not-recorded",
+            "sessions": tuple(s for s in saved.get("sessions", ()) if s["session_id"] in sessions),
             "read_only": True}
+
+
+def prerequisite_context(root, course_dir, doc, banks, *, course_id=None):
+    """Authored relations and released history, without a readiness verdict."""
+    objectives = {row['id']: row for row in doc.get('objectives') or []}
+    result = {'objectives': {}, 'failures': [], 'read_only': True}
+    if not any(edge.get('edge_type') == 'prerequisite-of' for edge in doc.get('edges') or []):
+        return result
+    try:
+        warnings = graph.validate_order(doc)
+        result['failures'].extend(warnings)
+        history = review_history(root, course_dir, doc, banks)
+    except (OSError, ValueError, KeyError, TypeError, graph.GraphError):
+        history = {'state': 'error', 'rows': []}
+        result['failures'].append('Prerequisite history is unavailable. Review the course and evidence records.')
+    cid = urllib.parse.quote(course_id or doc['header']['course_object_id'], safe='')
+    for raw in doc.get('edges') or []:
+        # Unknown relations remain available in the graph, but cannot be
+        # promoted into a prerequisite just because their endpoints match.
+        edge = graph.validate_edge(raw)
+        if edge['original_type'] != 'prerequisite-of':
+            continue
+        source, target = edge['source'], edge['target']
+        if source not in objectives or target not in objectives or source == target:
+            result['failures'].append('A prerequisite has an unresolved objective identity. Repair the course map.')
+            continue
+        rows = [row for row in history['rows'] if row['objective'] == source]
+        counts = {state: sum(row['status'] == state for row in rows)
+                  for state in ('pending', 'feedback-withheld', 'missed', 'settled-correct')}
+        if history['state'] == 'error':
+            description = 'Evidence history is unavailable or incomplete. Review the evidence record.'
+        elif not rows:
+            description = 'No attributable assessment evidence is recorded for this objective.'
+        else:
+            description = ('%d settled attempts; %d pending review; %d with feedback withheld. '
+                           'These records do not establish readiness or mastery.' % (
+                               counts['missed'] + counts['settled-correct'], counts['pending'],
+                               counts['feedback-withheld']))
+        index = list(objectives).index(source)
+        result['objectives'].setdefault(target, []).append(dict(
+            edge, title=objectives[source].get('statement') or source,
+            href='/course/%s/map#objective-%d' % (cid, index), evidence=description))
+    return result
+
+
+def _due_practice_activity(course_dir, doc, banks, report):
+    """Join the existing due order to a current admitted practice treatment."""
+    if not report:
+        return None
+    objectives = {row['id'] for row in doc.get('objectives') or []}
+    paths = {}
+    for stem, path in banks:
+        paths.setdefault(os.path.realpath(path), []).append(stem)
+    bindings = _current_safe_bindings(course_dir, doc)
+    for due in report.get('due_order') or []:
+        objective = due.get('objective')
+        summary = (report.get('objectives') or {}).get(objective) or {}
+        if objective not in objectives or summary.get('due') is not True:
+            continue
+        for binding in bindings:
+            if (binding.get('objective') != objective or binding.get('binding_kind') != 'treatment'
+                    or binding.get('treatment_kind') != 'practice'):
+                continue
+            match = re.match(r'^(.+?\.md)(?=$|[\s,;#])', (binding.get('locator') or '').strip(), re.I)
+            if match is None:
+                continue
+            try:
+                path = _artifact_path(course_dir, match.group(1))
+                stems = paths.get(path) or []
+                questions = model.load(path)
+                errors, _ = model.lint(questions, lesson=model.parse_lesson(path))
+                if len(stems) != 1 or errors or objective not in {q.get('objective') for q in questions}:
+                    continue
+            except (OSError, ValueError, KeyError, TypeError):
+                continue
+            href = '/course/' + urllib.parse.quote(doc['header']['course_object_id'], safe='') + '/practice?'
+            href += urllib.parse.urlencode({'bank': stems[0], 'objective': objective}) + '#course-guidance'
+            explanation = summary.get('risk_reason') or 'The configured review interval has elapsed'
+            explanation = explanation[:1].upper() + explanation[1:].rstrip('.')
+            reason = '%s. Based on %d settled response(s).' % (explanation, summary.get('settled', 0))
+            return {'href': href, 'objective': objective, 'reason': reason}
+    return None
+
+
+def course_guidance(root, course_dir, doc, banks):
+    """A public next-action projection over admitted, runtime-released history."""
+    cid = doc["header"]["course_object_id"]
+    review_href = '/course/' + urllib.parse.quote(cid, safe='') + '/evidence#course-review-history'
+    start_href = '/course/' + urllib.parse.quote(cid, safe='') + '/learn'
+
+    def result(kind, title, reason, href, objective=None, resume=None):
+        out = {"kind": kind, "title": title, "reason": reason, "href": href,
+               "objective": objective}
+        if resume:
+            out["resume_href"] = resume
+        return out
+
+    try:
+        current = course.read_course(course_dir)
+        if current["state"] != "clean" or current["doc"] != doc:
+            raise ValueError("course changed or unavailable")
+        history = review_history(root, course_dir, doc, banks)
+    except (OSError, ValueError, KeyError, TypeError, SystemExit):
+        return result("unavailable", "Review the local course record",
+                      "The course or its evidence cannot be checked safely. Inspect the local record, then reload.",
+                      review_href)
+    if history["state"] == "error":
+        return result("unavailable", "Check the saved history",
+                      "Evidence or saved sittings are incomplete, unavailable or changed. Review them before choosing the next activity.",
+                      review_href)
+    active = [row for row in history["sessions"] if row["status"] == "active"]
+    if len(active) > 1 or history["session_state"] == "ambiguous":
+        return result("unavailable", "Choose a saved sitting",
+                      "More than one sitting is active. Choose the work you want to continue from the evidence area.",
+                      review_href)
+    admitted_paths = {os.path.realpath(path): stem for stem, path in banks}
+    resume = None
+    if active:
+        row = active[0]
+        stem = admitted_paths[os.path.realpath(row["bank"])]
+        resume = '/quiz/' + urllib.parse.quote(stem, safe='') + '?' + urllib.parse.urlencode(
+            {"mode": row["mode"], "session": row["session_id"], "course": cid})
+    # Log order breaks timestamp ties. Only the newest evidence for the same
+    # admitted item can describe its current unresolved work. A correction,
+    # pending response or withheld attempt displaces an older miss.
+    latest = {}
+    try:
+        for index, row in enumerate(history["rows"]):
+            stamp = datetime.fromisoformat(row["timestamp"])
+            if stamp.tzinfo is None:
+                raise ValueError("evidence timestamp unavailable")
+            rank = (stamp.astimezone(timezone.utc), index)
+            key = (row["artifact"], row.get("item_id") or row.get("item_ref"))
+            if key not in latest or rank > latest[key][0]:
+                latest[key] = (rank, row)
+    except (ValueError, TypeError, KeyError):
+        return result("unavailable", "Check the saved history",
+                      "Evidence timing or item identity is unavailable. Review the local record before choosing an activity.",
+                      review_href)
+    rows = [row for _rank, row in sorted(latest.values(), key=lambda pair: pair[0], reverse=True)]
+    if active:
+        # Finish the learner's selected sitting before suggesting older work.
+        rows = [row for row in rows if row["session_id"] == active[0]["session_id"]]
+    pending = next((row for row in rows if row["status"] == "pending"), None)
+    if pending:
+        return result("pending", "Review a pending response",
+                      "A response is awaiting review. It has no settled mark yet.",
+                      review_href, pending.get("objective"), resume)
+    missed = next((row for row in rows if row["status"] == "missed"
+                   and row["mode"] in ("practice", "drill", "remediation")), None)
+    if missed:
+        explanation = next((link["href"] for link in missed["context_links"]
+                            if link["origin"] == "Lesson"), None)
+        return result("review", "Review the linked explanation" if explanation else "Review the released attempt",
+                      "The latest released practice attempt for this item was missed. Review its explanation, then return to the saved sitting."
+                      if explanation and resume else
+                      "The latest released practice attempt for this item was missed. Review the available context before continuing.",
+                      explanation or review_href, missed.get("objective"), resume)
+    if resume:
+        return result("resume", "Resume your saved sitting",
+                      "Continue at the saved position. Held assessment feedback stays private until the runtime releases it.",
+                      resume, resume=resume)
+    due = _due_practice_activity(course_dir, doc, banks, history.get('due'))
+    if due:
+        return result('due', 'Practice a due objective', due['reason'], due['href'], due['objective'])
+    try:
+        start_href, objective = _source_first_activity(course_dir, doc, banks)
+    except (OSError, ValueError, KeyError, TypeError):
+        objective = None
+    return result("start", "Start with the source",
+                  "Choose an assigned reading or linked lesson. There is not enough unresolved released practice evidence to suggest remediation.",
+                  start_href, objective)
 
 
 def outline_panel(course_dir, doc, proposal_id=None):
@@ -425,6 +783,99 @@ def _source_text(course_dir, source_id, bank_paths):
     return text, None
 
 
+def source_inventory(course_dir, doc, *, course_id=None):
+    """Explicit, bounded course-folder discovery; never register found files."""
+    import discovery
+    registry = journal.read_registry(course_dir)
+    sources = {row['source_object_id']: index for index, row in enumerate(doc.get('sources') or [])}
+    registered = {}
+    for oid in sources:
+        row = registry.get(oid) or {}
+        if row.get('kind') == 'source':
+            registered.setdefault(row.get('path'), []).append(oid)
+    seen = [0]
+    def limited():
+        seen[0] += 1
+        return seen[0] > 128
+    report = discovery.run_report([course_dir], approved_roots=[course_dir], cancel=limited,
+        max_file_bytes=2 * 1024 * 1024,
+        skip_dirs=('.itembank', '_journal', '_attempts', '_evidence', '_notes', '_research', '.git'))
+    cid = urllib.parse.quote(course_id or doc['header']['course_object_id'], safe='')
+    rows = []
+    for entry in report['entries']:
+        ids = registered.get(entry['path']) or []
+        item = {'path': entry['path'], 'state': entry['state'], 'kind': 'unregistered file', 'href': None}
+        if len(ids) == 1:
+            index = sources[ids[0]]
+            item.update(kind='registered source', href='/course/%s/sources?source=%d#source-%d' % (cid, index, index))
+        elif ids:
+            item.update(kind='ambiguous source identity')
+        rows.append(item)
+    return {'rows': rows, 'complete': report['complete'], 'read_only': True}
+
+
+def source_impact(course_dir, doc, source_id):
+    """Read-only exact current assignments, preserving recorded revision identity."""
+    registry = journal.read_registry(course_dir)
+    row = registry.get(source_id) or {}
+    result = {'state': 'unavailable', 'accepted': row.get('fingerprint'), 'current': None,
+              'objectives': [], 'readings': [], 'treatments': [], 'issues': [],
+              'historical_readings': 0, 'historical_bindings': 0, 'read_only': True}
+    if row.get('kind') != 'source':
+        result['issues'].append('Source registration unavailable for exact ID: %s' % source_id)
+    try:
+        if row.get('kind') != 'source':
+            raise KeyError(source_id)
+        result['state'] = journal.object_state(course_dir, source_id)
+        if not identity.rights_granted(row.get('rights'), 'read'):
+            result['issues'].append('Current source fingerprint unavailable: read right is not granted.')
+            raise PermissionError('Source read right is not granted')
+        path = _artifact_path(course_dir, row['path'])
+        with open(path, 'rb') as stream:
+            raw = stream.read(2 * 1024 * 1024 + 1)
+        if len(raw) <= 2 * 1024 * 1024:
+            result['current'] = identity.object_fingerprint(raw, 'source')
+    except PermissionError:
+        pass
+    except (OSError, ValueError, KeyError, journal.JournalError):
+        result['state'] = 'unavailable'
+    superseded = {b.get('supersedes_binding_revision_id') for b in doc.get('bindings') or []}
+    current = []
+    for binding in doc.get('bindings') or []:
+        if binding.get('source_object_id') != source_id:
+            continue
+        if binding.get('binding_revision_id') in superseded and binding.get('binding_revision_id'):
+            result['historical_bindings'] += 1
+            continue
+        current.append(binding)
+    result['objectives'] = list(dict.fromkeys(b.get('objective') for b in current))
+    result['treatments'] = [b for b in current if b.get('binding_kind') == 'treatment']
+    known_objectives = {o.get('id') for o in doc.get('objectives') or []}
+    for oid in result['objectives']:
+        if oid not in known_objectives:
+            result['issues'].append('Objective link unavailable for exact ID: %s' % oid)
+    try:
+        manifest = graph.validate_reading_graph(doc)
+        old = {r['supersedes_revision_id'] for r in manifest['occurrences']}
+        for reading in manifest['occurrences']:
+            if reading['source_ref']['source_object_id'] != source_id:
+                continue
+            if reading['revision_id'] in old:
+                result['historical_readings'] += 1
+                continue
+            if reading['binding_ref']['binding_revision_id'] in superseded:
+                result['issues'].append('Reading %s revision %s retains a superseded binding; excluded from current impact.' %
+                                        (reading['occurrence_id'], reading['revision_id']))
+                continue
+            result['readings'].append(reading)
+            for oid in reading['objective_ids']:
+                if oid not in result['objectives']:
+                    result['objectives'].append(oid)
+    except (graph.GraphError, ValueError, KeyError):
+        result['issues'].append('Reading assignment links unavailable: the accepted reading manifest could not be validated.')
+    return result
+
+
 def details(handler, state, course_dir, doc, banks):
     """Addressable context with back links and no assessment answers."""
     area = state["area"]
@@ -455,7 +906,8 @@ def details(handler, state, course_dir, doc, banks):
         superseded = {r["supersedes_revision_id"] for r in validated["occurrences"]
                       if r["supersedes_revision_id"]}
         readings = [r for r in validated["occurrences"]
-                    if r["revision_id"] not in superseded]
+                    if r["revision_id"] not in superseded and
+                    r["binding_ref"]["binding_revision_id"] not in superseded_bindings]
     except (graph.GraphError, ValueError, KeyError):
         pass
     bank_activities = []
@@ -489,20 +941,30 @@ def details(handler, state, course_dir, doc, banks):
         admitted = banks_by_path.get(path) or []
         return admitted[0] if len(admitted) == 1 else None
 
-    def assigned_links(objective=None, source_id=None):
+    def assigned_links(objective=None, source_id=None, exact_binding=None, return_source=None):
         links = []
         for reading in readings:
+            if exact_binding is not None:
+                ref = reading['binding_ref']
+                if (not exact_binding.get('binding_id') or
+                        ref['binding_id'] != exact_binding['binding_id'] or
+                        ref['binding_revision_id'] != exact_binding.get('binding_revision_id')):
+                    continue
             if objective and objective not in reading["objective_ids"]:
                 continue
             if source_id and reading["source_ref"]["source_object_id"] != source_id:
                 continue
-            links.append('<li>%s</li>' % _link(
-                reading_href(state["course_id"], reading), "Open assigned reading"))
-        if objective:
+            href = reading_href(state["course_id"], reading)
+            if return_source:
+                href += '?' + urllib.parse.urlencode({'return_source': return_source})
+            links.append('<li>%s</li>' % _link(href, "Open assigned reading"))
+        if objective or source_id:
             seen = set()
             for binding in bindings:
+                if exact_binding is not None and binding is not exact_binding:
+                    continue
                 if binding.get("binding_kind") != "treatment" or \
-                        binding.get("objective") != objective or \
+                        (objective and binding.get("objective") != objective) or \
                         (source_id and binding.get("source_object_id") != source_id):
                     continue
                 bank = bound_bank(binding)
@@ -510,16 +972,23 @@ def details(handler, state, course_dir, doc, banks):
                     continue
                 stem, bank_objectives, has_lesson = bank
                 kind = binding.get("treatment_kind")
-                if objective not in bank_objectives:
+                if binding.get("objective") not in bank_objectives:
                     continue
                 if kind == "guided-lesson" and has_lesson:
                     href = '/lesson/' + urllib.parse.quote(stem, safe='')
+                    query = {"course": state["course_id"]}
+                    if binding.get("binding_id"):
+                        query["occurrence"] = binding["binding_id"]
+                    if return_source:
+                        query['return_source'] = return_source
+                    href += '?' + urllib.parse.urlencode(query)
                     label = "Open linked lesson"
                 elif kind in ("practice", "formal-test"):
                     mode = "practice" if kind == "practice" else "exam"
-                    query = urllib.parse.urlencode({"mode": mode,
-                                                    "course": state["course_id"]})
-                    href = '/quiz/' + urllib.parse.quote(stem, safe='') + '?' + query
+                    query = {"mode": mode, "course": state["course_id"]}
+                    if return_source:
+                        query['return_source'] = return_source
+                    href = '/quiz/' + urllib.parse.quote(stem, safe='') + '?' + urllib.parse.urlencode(query)
                     label = "Open linked practice" if mode == "practice" else "Open linked formal test"
                 else:
                     continue
@@ -530,7 +999,15 @@ def details(handler, state, course_dir, doc, banks):
                 if links else '<p>No assigned reading or linked activity is available here.</p>')
     sections = []
     if area == "map":
-        sections.append(readiness_panel(readiness(course_dir, banks)))
+        from surfaces import course_context_view
+        course_checks = readiness(course_dir, banks)
+        prerequisites = prerequisite_context(handler.root, course_dir, doc, banks, course_id=state['course_id'])
+        return_context = course_context_view.prerequisite_return(
+            getattr(handler, 'path', ''), doc.get('objectives') or [],
+            prerequisites['objectives'], state['course_id'])
+        if prerequisites['failures']:
+            sections.append('<p role="status">%s</p>' % presentation.esc(
+                ' '.join(dict.fromkeys(prerequisites['failures']))))
         for index, row in enumerate(doc.get("objectives") or []):
             oid = row.get("id")
             linked = [b for b in bindings if b.get("objective") == oid]
@@ -539,8 +1016,12 @@ def details(handler, state, course_dir, doc, banks):
                 sid = b.get("source_object_id")
                 if sid not in source_indexes:
                     continue
-                href = '/course/%s/sources?source=%d#source-%d' % (
-                    cid, source_indexes[sid], source_indexes[sid])
+                return_id = (return_context['origin'] if return_context and
+                             return_context['target'] == oid else oid)
+                href = '/course/%s/sources?%s#source-%d' % (
+                    cid, urllib.parse.urlencode({'source': source_indexes[sid],
+                                                  'return_objective': return_id}),
+                    source_indexes[sid])
                 treatment = b.get("treatment_kind") or "source support"
                 items.append('<li>%s: %s. %s. %s</li>' % (
                     presentation.esc(treatment), _link(href, source_titles[sid]),
@@ -548,12 +1029,34 @@ def details(handler, state, course_dir, doc, banks):
                     presentation.esc(b.get("state") or "State unknown")))
             links = ('<ul>%s</ul>' % ''.join(items) if items else
                      '<p>No current source or treatment binding is recorded for this objective.</p>')
-            sections.append('<section id="objective-%d" aria-labelledby="objective-title-%d">'
-                            '<h3 id="objective-title-%d">%s</h3>%s%s</section>' % (
-                                index, index, index,
-                                presentation.esc(objective_titles[oid]),
-                                links + assigned_links(objective=oid), back))
+            sections.append(course_context_view.objective_section(
+                index, row, prerequisites['objectives'].get(oid, []), links,
+                assigned_links(objective=oid), back, return_context))
+        sections.append(course_context_view.checks_details(
+            course_checks['state'], readiness_panel(course_checks)))
     elif area == "sources":
+        from surfaces import course_context_view
+        source_return = course_context_view.objective_return(
+            getattr(handler, 'path', ''), doc.get('objectives') or [], state['course_id'])
+        sections.append('<form method="get" action="/course/%s/sources">'
+            '<input type="hidden" name="inventory" value="1">'
+            '<button class="go" type="submit">Find files in this course folder</button>'
+            '<p>Read-only inventory of up to 128 files, at most 2 MiB each. '
+            'Private notes, journal and assessment history folders are excluded. '
+            'Finding a file does not register or import it.</p></form>' % cid)
+        query = urllib.parse.parse_qs(urllib.parse.urlsplit(getattr(handler, 'path', '')).query)
+        if query.get('inventory') == ['1']:
+            try:
+                inventory = source_inventory(course_dir, doc, course_id=state['course_id'])
+                entries = ''.join('<li>%s: %s, %s</li>' % (
+                    _link(r['href'], r['path']) if r['href'] else presentation.esc(r['path']),
+                    presentation.esc(r['kind']), presentation.esc(r['state'])) for r in inventory['rows'])
+                sections.append('<section aria-label="Course file inventory"><h3>Existing files</h3><ul>%s</ul>'
+                    '<p>%s</p></section>' % (entries or '<li>No files found.</li>',
+                    'Inventory completed within this scope.' if inventory['complete'] else
+                    'Inventory stopped at its file limit. Narrow the course folder before another scan.'))
+            except (OSError, ValueError, journal.JournalError):
+                sections.append('<p role="status">Inventory is unavailable. Repair the course registry and reload.</p>')
         for index, row in enumerate(doc.get("sources") or []):
             sid = row.get("source_object_id")
             linked = [b for b in bindings if b.get("source_object_id") == sid]
@@ -571,16 +1074,51 @@ def details(handler, state, course_dir, doc, banks):
                                   if selected_source == str(index) else
                                   (None, "Open this source to read its current text."))
             activities = assigned_links(source_id=sid)
-            for oid in dict.fromkeys(b.get("objective") for b in linked):
-                if oid in objective_indexes:
-                    activities += assigned_links(objective=oid, source_id=sid)
-            preview = ('<h4>Source text</h4><pre>%s</pre>' % presentation.esc(text)
+            preview = ('<h4>Source text</h4><pre class="course-source-text" tabindex="0" '
+                       'role="region" aria-label="Source text">%s</pre>' % presentation.esc(text)
                        if text is not None else '<p role="status">%s</p>' % presentation.esc(unavailable))
-            sections.append('<section id="source-%d" aria-labelledby="source-title-%d">'
-                            '<h3 id="source-title-%d">%s</h3><p>%s</p>'
+            impact = source_impact(course_dir, doc, sid)
+            if impact['state'] != 'clean':
+                from surfaces import course_context_view
+                origin_query = urllib.parse.urlencode({'return_source': sid})
+                affected = ''.join('<li>%s</li>' % _link('/course/%s/map?%s#objective-%d' %
+                    (cid, origin_query, objective_indexes[oid]), objective_titles[oid])
+                    for oid in impact['objectives'] if oid in objective_indexes)
+                reading_rows = []
+                for reading in impact['readings']:
+                    reading_rows.append('<li>%s<p>Assigned range: %s.</p>'
+                        '<details><summary>Reading revision details</summary>'
+                        '<p>Occurrence %s; recorded revision %s; source fingerprint %s.</p>'
+                        '<p>Binding %s; recorded binding revision %s.</p></details></li>' % (
+                        _link(reading_href(state['course_id'], reading) + '?' + origin_query, 'Inspect assigned reading'),
+                        presentation.esc(reading['source_ref']['locator']),
+                        presentation.esc(reading['occurrence_id']), presentation.esc(reading['revision_id']),
+                        presentation.esc(reading['source_ref']['source_fingerprint']),
+                        presentation.esc(reading['binding_ref']['binding_id']),
+                        presentation.esc(reading['binding_ref']['binding_revision_id'])))
+                treatment_rows = []
+                for binding in impact['treatments']:
+                    activity = assigned_links(source_id=sid, exact_binding=binding, return_source=sid)
+                    if '<li>' not in activity:
+                        activity = '<p>Task link unavailable: missing admitted artifact, objective mismatch, or unsupported treatment.</p>'
+                    treatment_rows.append('<li>%s: %s%s'
+                        '<details><summary>Binding revision details</summary>'
+                        '<p>Binding %s; recorded revision %s; source fingerprint %s.</p></details></li>' % (
+                        presentation.esc((binding.get('treatment_kind') or 'Unsupported treatment').replace('-', ' ')),
+                        presentation.esc(binding.get('locator') or 'Locator unavailable'),
+                        activity,
+                        presentation.esc(binding.get('binding_id') or 'Legacy binding has no permanent ID'),
+                        presentation.esc(binding.get('binding_revision_id') or 'No recorded revision ID'),
+                        presentation.esc(binding.get('source_fingerprint') or 'No recorded fingerprint')))
+                preview += course_context_view.source_impact(
+                    impact, affected, ''.join(reading_rows), ''.join(treatment_rows))
+            sections.append('<section id="source-%d" class="course-source-context" tabindex="-1" '
+                            'aria-labelledby="source-title-%d">'
+                            '<h3 id="source-title-%d">%s</h3>%s<p>%s</p>'
                             '<h4>Objective alignment and treatments</h4>%s%s%s</section>' % (
                                 index, index, index,
                                 presentation.esc(source_titles[sid]),
+                                source_return if selected_source == str(index) else '',
                                 presentation.esc(row.get("note") or "Registered course source."),
                                 '<ul>%s</ul>' % ''.join(items) if items else
                                 '<p>No current objective binding is recorded for this source.</p>',
@@ -589,24 +1127,12 @@ def details(handler, state, course_dir, doc, banks):
         from surfaces import retention_view
         sections.append(retention_view.course_review_history(
             review_history(handler.root, course_dir, doc, banks)))
-        counts = {"responses": 0, "marks": 0, "sessions": set()}
-        evidence_unavailable = False
-        try:
-            for event in evidence.live_events(evidence.log_path(course_dir)):
-                kind = event.get("event_type")
-                if kind == "response":
-                    counts["responses"] += 1
-                elif kind == "mark":
-                    counts["marks"] += 1
-                if event.get("session_id"):
-                    counts["sessions"].add(event["session_id"])
-        except (OSError, ValueError):
-            evidence_unavailable = True
+        counts = evidence.course_counts(evidence.log_path(course_dir))
         for key, title, note in (
                 ("responses", "Responses", "Recorded attempts include pending and incorrect responses. A count does not imply mastery."),
                 ("marks", "Marks", "Settled marks are recorded by the assessment runtime."),
                 ("sessions", "Sittings", "Open a saved sitting or its report below.")):
-            amount = len(counts[key]) if key == "sessions" else counts[key]
+            amount = counts[key]
             extra = ""
             if key == "sessions":
                 resume = ia._course_resume_state(handler.root, course_dir)
@@ -632,10 +1158,15 @@ def details(handler, state, course_dir, doc, banks):
                         links.append('<li>%s</li>' % _link(href, 'Resume saved sitting'))
                 extra = ('<ul>%s</ul>' % ''.join(links) if links else
                          '<p>No completed sitting report is available here.</p>')
-            status = ('<p role="status">Evidence counts are unavailable until the local '
-                      'record can be read. Repair the evidence record, then reload.</p>'
-                      if evidence_unavailable else
-                      '<p>%d recorded. %s</p>' % (amount, presentation.esc(note)))
+            if counts["state"] == "unavailable":
+                status = ('<p role="status">Evidence counts are unavailable until the local '
+                          'record can be read. Repair the evidence record, then reload.</p>')
+            elif counts["state"] == "incomplete":
+                status = ('<p role="status">Evidence history is incomplete. %d live records of this kind '
+                          'were read; this count may omit unreadable or unsupported records. '
+                          'Inspect the evidence record, then reload.</p>' % amount)
+            else:
+                status = '<p>%d recorded. %s</p>' % (amount, presentation.esc(note))
             sections.append('<section id="evidence-%s"><h3>%s</h3>%s%s%s</section>' % (
                 key, title, status, extra, back))
     return '<div class="course-detail">%s</div>' % ''.join(sections)

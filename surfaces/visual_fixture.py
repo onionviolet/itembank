@@ -703,7 +703,7 @@ def _console(url=DSH_URL, live=True):
         "itembank does not start it. Run <code>%s</code> in a terminal, then "
         "reload this page.</p>"
         '<p class="vf-status">This tool keeps its own session log, its own '
-        "colours and its own interface language. Nothing it drafts changes "
+        "colors and its own interface language. Nothing it drafts changes "
         "anything here until itembank records the operation, with a way back. "
         "Where its text goes is set by its configuration and not by "
         "itembank, so this panel does not claim.</p>"

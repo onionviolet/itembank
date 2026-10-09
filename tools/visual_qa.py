@@ -3,8 +3,8 @@
 
 jsdom does no layout, so the width, zoom, focus-visibility, target-size,
 contrast, motion, and touch gates need a real layout engine. This harness
-drives the pinned Playwright Chromium (VENDORED.md row `playwright`,
-approved in 17A-04-DECISIONS.md D-17A-04-1) over the synthetic visual
+drives Playwright Chromium (VENDORED.md row `playwright`, approved in
+17A-04-DECISIONS.md D-17A-04-1) over the synthetic visual
 fixture and reports measured evidence. It is a development tool: nothing in
 the shipped runtime imports it, and when Playwright is absent it refuses
 with one line rather than degrading into DOM-only claims.
@@ -42,6 +42,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
 try:
+    from playwright.sync_api import Error as PlaywrightError
     from playwright.sync_api import sync_playwright
 except ImportError:
     print("refused: the pinned dev-only Playwright harness is not installed "
@@ -68,7 +69,8 @@ def build_pages(work):
     """fixture.html (light/dark via media query), oled.html, hover_only.html."""
     html = visual_fixture.single_file()
     fixture = os.path.join(work, "fixture.html")
-    open(fixture, "w", encoding="utf-8").write(html)
+    with open(fixture, "w", encoding="utf-8") as source_handle:
+        source_handle.write(html)
 
     # The fixture emits the system theme (light root plus a dark media
     # override). oled is a forced mode, so the oled leg appends the oled
@@ -85,7 +87,8 @@ def build_pages(work):
     oled_html = html.replace(
         "</head>", "<style>%s\n%s</style></head>" % (oled_root, oled_alias), 1)
     oled = os.path.join(work, "oled.html")
-    open(oled, "w", encoding="utf-8").write(oled_html)
+    with open(oled, "w", encoding="utf-8") as source_handle:
+        source_handle.write(oled_html)
 
     # The deliberately hover-only negative fixture: same tokens, one
     # definition revealed ONLY by :hover on a non-focusable span. This page
@@ -111,7 +114,8 @@ def build_pages(work):
         "</body></html>"
         % theme.theme_css(theme.DEFAULT_THEME_CONFIG))
     negative = os.path.join(work, "hover_only.html")
-    open(negative, "w", encoding="utf-8").write(negative_html)
+    with open(negative, "w", encoding="utf-8") as source_handle:
+        source_handle.write(negative_html)
     return fixture, oled, negative
 
 
@@ -587,6 +591,35 @@ def check_equivalence(browser, url, results, gate, expect_failure):
     page.close()
 
 
+def _launch_browser(chromium):
+    """Prefer the pinned bundle; absent executables alone permit Chrome fallback.
+
+    An explicit channel is authoritative. Driver, sandbox, permission and
+    other launch failures remain genuine failures, with no weaker QA engine.
+    """
+    configured = os.environ.get("ITEMBANK_VISUAL_QA_CHANNEL") or None
+    if configured:
+        return chromium.launch(channel=configured), {
+            "requested_channel": configured,
+            "selected_channel": configured,
+            "fallback_reason": None,
+        }
+    try:
+        browser = chromium.launch(channel=None)
+    except PlaywrightError as error:
+        reason = str(error).partition("\n")[0]
+        if not reason.startswith(
+                "BrowserType.launch: Executable doesn't exist at "):
+            raise
+        browser = chromium.launch(channel="chrome")
+        return browser, {"requested_channel": None,
+                         "selected_channel": "chrome",
+                         "fallback_reason": reason}
+    return browser, {"requested_channel": None,
+                     "selected_channel": "bundled-chromium",
+                     "fallback_reason": None}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--json", dest="json_path",
@@ -603,8 +636,7 @@ def main():
     fixture, oled, negative = build_pages(work)
 
     with sync_playwright() as pw:
-        browser = pw.chromium.launch(
-            channel=os.environ.get("ITEMBANK_VISUAL_QA_CHANNEL") or None)
+        browser, launch = _launch_browser(pw.chromium)
         try:
             from importlib.metadata import version
             pw_version = version("playwright")
@@ -612,6 +644,7 @@ def main():
             pw_version = "unknown"
         env = {"playwright": pw_version,
                "browser": browser.version,
+               "launch": launch,
                "direction": visual_fixture.DEFAULT_DIRECTION}
         check_widths(browser, file_url(fixture), results, args.shots)
         check_keyboard(browser, file_url(fixture), results)

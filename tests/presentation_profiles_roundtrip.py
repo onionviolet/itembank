@@ -340,7 +340,7 @@ def check_live_surface_output():
         lesson_page = daemon.lesson.lesson_page(
             bank, load(bank), daemon.parse_lesson(bank))
         for text in ('data-presentation-profile="trajectory-deck"',
-                     "Application: itembank", "Reading"):
+                     'aria-label="Main navigation"', "About this reading"):
             if text not in lesson_page:
                 fail("lesson lost shared hierarchy %r" % text)
         class Handler:
