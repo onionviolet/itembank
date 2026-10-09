@@ -143,7 +143,8 @@ def check_invalid_direction_degrades():
 def check_no_normalization_imports():
     """The posture assertion. The behavior it guards against is invisible in
     output, so the source is the only place to catch it early."""
-    for name in ("model.py", "surfaces/lesson.py", "capabilities.py"):
+    for name in ("model.py", "model_lesson.py", "model_provenance.py",
+                 "model_ids.py", "model_style.py", "surfaces/lesson.py", "capabilities.py"):
         text = open(os.path.join(ROOT, name), encoding="utf-8").read()
         if "unicodedata" in text:
             fail("%s mentions unicodedata; Phase 16A applies no Unicode "

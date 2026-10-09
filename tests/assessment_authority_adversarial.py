@@ -599,7 +599,8 @@ def attack_16a_composed_glossary_leak(sitting):
     # one gate that is occasionally too strict.
     pattern = re.compile(r"^\s*def\s+\w*(leak|disclose|key_scan)\w*\s*\(",
                          re.M)
-    for name in ("capabilities.py", "model.py", "surfaces/lesson.py"):
+    for name in ("capabilities.py", "model.py", "model_lesson.py", "model_provenance.py",
+                 "model_ids.py", "model_style.py", "surfaces/lesson.py"):
         text = open(os.path.join(ROOT, name), encoding="utf-8").read()
         found = pattern.findall(text)
         if found:

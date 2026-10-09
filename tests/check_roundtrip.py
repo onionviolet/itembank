@@ -1266,7 +1266,8 @@ def check_honest_limits_gate():
         "README.md": {"sandbox": 1},
         "surfaces/quiz.py": {"sandbox": 1},
     }
-    zero_files = ["model.py", "runner.py", "surfaces/quiz_page.py",
+    zero_files = ["model.py", "model_lesson.py", "model_provenance.py",
+                  "model_ids.py", "model_style.py", "runner.py", "surfaces/quiz_page.py",
                   "surfaces/session.py", "surfaces/daemon.py", "GRADING.md"]
     zero_files.extend(os.path.join("surfaces", "assets", "quiz", asset)
                       for asset in sorted(os.listdir(os.path.join(ROOT, "surfaces", "assets", "quiz"))))

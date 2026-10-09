@@ -397,3 +397,139 @@ remain unverified in this environment:
 
 Review and socket-enabled verification remain open. This record proves source
 byte preservation, the stated test slices, and staged/archive asset loading.
+
+## Model split, 2026-10-09
+
+Source extraction completed under the A3 facade and late-import pattern. The
+initial checkout was clean. The accepted scope was four sibling core modules,
+explicit facade re-exports, packaging allowlist updates, source-test location
+updates, and this execution record. No Git staging, commit, push, install, or
+human acceptance was performed. Undo is the task-scoped diff and removal of
+the four new modules.
+
+| Module | Lines before | Lines after | Responsibility |
+| --- | ---: | ---: | --- |
+| `model.py` | 4,954 | 3,252 | Public facade, bank parser, lint authority, shared definitions |
+| `model_style.py` | 0 | 610 | Style metrics, enforcement, suppression, warning calibration, StylePrompt, local constants |
+| `model_provenance.py` | 0 | 207 | Winnowing, paraphrase checks, source text reading, unsourced-specific findings |
+| `model_lesson.py` | 0 | 808 | Slugs, lesson directives, lesson/comparison/lineplot/terms/sources/media/activities readers |
+| `model_ids.py` | 0 | 197 | Key content hashes, key identity splice, item ID assignment |
+
+All 70 moved names, including underscore helpers and constants, have explicit
+`from model_<family> import (...)` re-exports. No wildcard imports or `__all__`
+were introduced. The four modules import no `model` at module load. Shared
+facade dependencies are resolved by local `import model` and `model.<name>`
+lookups. Each sibling-first import order passed in a fresh Python process.
+No shared base module was needed.
+
+`load`, `parse_bank`, `parse_question`, `LintError`, `lint`, and the existing
+bank/structure lint entry points remain defined in `model.py`. So do
+`content_fingerprint`, `new_item_id`, the shared marker vocabulary and derived
+`TERMINATOR`, style loading/resolution, `_user_data_dir`, `STYLE_RULE_KINDS`,
+`LOCKED_RULE_IDS`, spec text, and lint code catalogue. These retained clusters
+serve shared callers or source assertions; the marker expressions retain one
+source. Case/prerequisite directive regexes stay with their retained readers.
+Moved lesson readers call the existing `model.parse_question`, never another
+bank parser. The core dependency-layer gate discovers root modules and includes
+all four new siblings automatically.
+
+The test monkeypatch search covered `mock.patch("model.`, `patch.object(model`,
+model attribute assignments, and `setattr(model`. Existing targets are
+`_user_data_dir`, `parse_lesson`, `parse_terms`, and `load`. The first and last
+stay defined on the facade. `parse_media` resolves its call to the patched
+`model.parse_lesson` at call time; an external wrap/count probe observed exactly
+one call. Literal style-constant source assertions remain unchanged. Source
+inventory checks now include the applicable sibling files in lesson,
+localization, assessment-authority, capability-tracer, claim-word, and
+subject-dispatch tests. No assertion was weakened.
+
+### Baseline and final comparison
+
+A throwaway script outside the repository captured SHA-256 for every uppercase
+constant, the complete facade namespace, and parse/load/lesson/companion-reader
+and lint outputs for every markdown fixture recursively under `fixtures/`.
+Serialization uses `json.dumps(..., default=repr, sort_keys=True)`. Sets are
+sorted before hashing; plain object sentinels have a stable type marker rather
+than a process-specific memory address. These are representation normalizations
+for comparison, not changes to runtime values.
+
+Final result: all 66 uppercase constant hashes, all 38 fixture records, and
+all facade names are identical, with no differences. `load` accepted 28 of
+38 fixtures; `parse_lesson` returned without exception for all 38, including
+its existing absent-section and degraded outcomes. Both default lint and lint
+with explicitly parsed lesson/terms/keys/sources/cases/media/activities were
+compared for every accepted bank; rejected loads and reader exceptions were
+also recorded. All 85 original function/class bodies are byte-identical after
+removing only the added late imports and AST-located `model.` qualifications.
+A separate normalized AST comparison also passed for all 85 definitions.
+
+`build.py` explicitly stages all four new root modules. A fresh temporary
+`build.stage` tree was archived as a zipapp; a process outside the checkout
+imported `model`, `runtime`, and `itembank` from that archive, loaded the sample
+bank, and parsed the lesson fixture. Archive CLI lint passed: 6 items, 0 errors,
+6 existing objective-prefix warnings. The first archive harness used a wrong
+synthetic-bank format and fixture filename; the corrected harness passed.
+
+### Checks and remaining coverage
+
+| Check | Result |
+| --- | --- |
+| `python3 -c "import model, runtime, itembank"` | Exit 0 |
+| `python3 scripts/preflight.py --quick` | Exit 0; all executed gates passed, including 41 core modules in layers; Python/JS suites and clean-tree gate skipped |
+| Baseline/final comparison | All constants, fixture records, and names identical |
+| Definition/source comparison and sibling-first imports | All 85 original bodies preserved; all four import orders passed |
+| Fresh staged zipapp | Imports, bank load, lesson parse, and CLI lint passed |
+| `tests/style_roundtrip.py` | Exit 0; all assertions passed |
+| `tests/staged_parser_roundtrip.py` | Exit 0 |
+| `tests/lesson_run_roundtrip.py` | Exit 0 |
+| `tests/lesson_retention_roundtrip.py` | Exit 0 |
+| `tests/product_gm_ui_lesson_roundtrip.py` | Exit 0 |
+| `tests/lesson_progressive_roundtrip.py` | Exit 0 |
+| `tests/note_trio_roundtrip.py` | Exit 0; 9 passed, 0 failed |
+| `tests/localization_render_check.py` | Exit 0 |
+| `tests/assessment_authority_adversarial.py` | Exit 0; 18 attempted, 18 refused, 0 succeeded |
+| `tests/packaging_roundtrip.py` | Exit 0 |
+| Socket-free lesson slice | 130 test functions passed, including spec, ID assignment, provenance, and paraphrase |
+| Socket-free lesson-code slice | 2 test functions passed |
+| Socket-free lesson-interaction slice | 16 unittest cases passed |
+| Static stylesheet slice | 13 checks passed over 27 collected stylesheets |
+| Changed source-inventory assertions | check_honest_limits_gate, scenario_localization, and test_no_subject_dispatch_in_surfaces passed |
+| Socket-free agent-lesson-revision slice | check_keyed_content_refused passed |
+| `git diff --check` | Exit 0 |
+
+Slices use external harnesses with the original test definitions and assertions.
+The lesson harness omits unguarded top-level test invocations and calls the
+socket-free functions explicitly. There are no standalone lint, spec,
+id_assign, provenance, or paraphrase roundtrip filenames in this checkout;
+those checks are present in the lesson and style suites. Large modules,
+including `model.py`, `build.py`, and lesson/source-inspection tests, were
+sampled by symbols and bounded windows rather than displayed whole.
+
+Loopback binding was directly probed and raised
+`PermissionError: [Errno 1] Operation not permitted`. The following full or
+socket-dependent checks remain unverified:
+
+| Suite | Open checks |
+| --- | --- |
+| lesson_roundtrip | test_lesson_src_degraded_daemon_and_cli; test_routes_and_cli_twin; test_gloss_route_and_cli_twin; test_key_review_route_and_cli |
+| lesson_code_roundtrip | test_runnable_page_contract; test_lesson_run_observation; test_lesson_run_refusals_and_bounds; test_lesson_run_zero_evidence_and_session_delta |
+| lesson_interaction_roundtrip | test_native_route_writes_nothing |
+| stylesheet_roundtrip | collect_served and assertions over served CSS; check_fonts_served; check_every_served_page_declares_fonts; check_type_scale |
+| lesson_exploration_roundtrip | check_routes and optional check_browser, both requiring native served routes |
+| agent_lesson_revision_roundtrip | check_lesson_correction; check_changed_source_refuses_accept; full suite exited 1 at its stub-server bind |
+
+An initial static stylesheet slice correctly refused to assert the type-scale
+check without its required served CSS. The final static slice excludes the
+three named served checks and preserves every assertion. Full
+`capability_stress_corpus_tracer` exited 0 with 0 passed and 18 skipped because
+its shipped-suite prerequisites need sockets; its changed localization
+scenario separately passed. The additionally attempted `paced_lesson_tracer`
+exited 1: 3 scenarios passed, 5 failed. Its full-sitting daemon bind failed,
+three dependent scenarios lacked the route, and its visual-QA browser launch
+terminated with SIGABRT. These environmental gaps remain open; no source fix
+or weaker test was applied for them.
+
+Two pre-existing em dash characters remain in retained `model.py` text to keep
+the original bodies verbatim. No new prose or sibling module introduces one.
+Final source/package checks establish the extraction and stated coverage;
+socket-enabled verification and reviewer acceptance remain open.

@@ -1142,7 +1142,8 @@ def scenario_localization():
 
     # The whole phase's posture, asserted against the source rather than
     # against output, because the behavior it guards is invisible in output.
-    for name in ("model.py", "surfaces/lesson.py", "capabilities.py"):
+    for name in ("model.py", "model_lesson.py", "model_provenance.py",
+                 "model_ids.py", "model_style.py", "surfaces/lesson.py", "capabilities.py"):
         text = open(os.path.join(ROOT, name), encoding="utf-8").read()
         if "unicodedata" in text:
             fail("localization, posture hop: %s mentions unicodedata; "

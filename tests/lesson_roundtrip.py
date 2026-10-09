@@ -377,8 +377,10 @@ def test_public_item_and_schema():
 def test_structural_rules():
     if "lesson" in inspect.getsource(itembank.parse_bank):
         fail("parse_bank must not be modified")
-    model_src = "\n".join(l for l in open(os.path.join(ROOT, "model.py"),
-                                          encoding="utf-8") if not l.lstrip().startswith("#"))
+    model_src = "\n".join(
+        l for name in ("model.py", "model_lesson.py")
+        for l in open(os.path.join(ROOT, name), encoding="utf-8")
+        if not l.lstrip().startswith("#"))
     if "maxsplit" in model_src:
         fail("lesson preamble must use the unbounded split, never maxsplit")
     lesson_src = "\n".join(l for l in open(os.path.join(ROOT, "surfaces", "lesson.py"),
@@ -3315,7 +3317,9 @@ def test_key_id_minting_shared_namespace():
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=30)
     if open(bank, encoding="utf-8").read() != before:
         fail("a second id-assign run must be a byte-identical no-op")
-    model_src = open(os.path.join(ROOT, "model.py"), encoding="utf-8").read()
+    model_src = "\n".join(
+        open(os.path.join(ROOT, name), encoding="utf-8").read()
+        for name in ("model.py", "model_ids.py"))
     if re.search(r"def new_key_id|def key_id\(", model_src):
         fail("a separate key-id function must not exist")
 
