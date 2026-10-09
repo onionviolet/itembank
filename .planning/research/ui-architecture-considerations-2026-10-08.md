@@ -296,3 +296,104 @@ checks in that suite remain unverified. `tests/serve_roundtrip.py` and
 Reviewer HTTP coverage remains open. No Git staging, commit, push, installation,
 or human acceptance was performed. HTML extraction and later A4 waves remain
 outside this work.
+
+
+## A4 wave 2 execution evidence, 2026-10-09
+
+Source extraction completed under the wave 1 pattern, awaiting review. The
+initial checkout was clean. No Git staging, commit, push, installation, or
+human acceptance was performed. Undo consists of restoring this task's source,
+test, and research-document edits and removing the 29 new assets listed below.
+All eleven touched surface modules were sampled by symbols and windows; none
+was displayed whole. AST tools located literal spans without a second parser
+for bank content.
+
+Import-time `resources.read_text` calls retain every constant name. The three
+lesson script percent-format operations remain in Python, as do study and LTI
+substitutions at render time. `SHARED_CSS = SHARED_CSS + PRIMITIVE_CSS` remains
+unchanged. Both interaction script constants and the progressive script retain
+`"<script>" + EXPLORATION_JS + ...`, moving only their trailing literal text.
+Existing script tags, whitespace, escapes, and em dash characters inside moved
+code were preserved. New prose contains no em dash characters.
+
+### Per-module byte comparison and file inventory
+
+A throwaway script outside the repository imported all eleven modules before
+editing and recorded SHA-256 for every uppercase string constant, including
+imported and derived constants. The final fresh-process comparison has the
+same names and hashes for all 201 constants. This includes the final shared
+stylesheet, interaction JS and LINEPLOT_JS, progressive JS, and the imported
+lesson aliases. Synthetic `lesson_page`, `day_page`, and `study_page` outputs
+also match byte for byte. The comparison script and JSON snapshots remain
+outside the repository, so they are execution evidence rather than new tests.
+
+| Module | Lines before | Lines after | Uppercase strings | Comparison | New files under surfaces/assets/ |
+| --- | ---: | ---: | ---: | --- | --- |
+| `day.py` | 2081 | 1501 | 5 | PASS | `day/`: `day.css`, `day.js` |
+| `presentation.py` | 1952 | 1226 | 14 | PASS | `presentation/`: `shared.css`, `primitive.css`, `product.css`, `quiz-product.css` |
+| `lesson.py` | 3306 | 2722 | 85 | PASS | `lesson/`: `lesson.css`, `math-adapter.js`, `runnable.css`, `runnable.js`, `gloss-enhancement.js`, `code-craft.js`, `gloss-hover.js` |
+| `daemon.py` | 4690 | 4426 | 22 | PASS | `daemon/`: `restore-script.js`, `shelf-script.js` |
+| `visual_fixture.py` | 1572 | 1387 | 15 | PASS | `visual_fixture/`: `chrome.css`, `onefile.css` |
+| `study.py` | 455 | 282 | 2 | PASS | `study/`: `study.css`, `study.js` |
+| `lesson_interaction.py` | 500 | 122 | 5 | PASS | `lesson_interaction/`: `exploration.js`, `interaction.css`, `interaction.js`, `lineplot.css`, `lineplot.js` |
+| `lesson_progressive.py` | 189 | 7 | 3 | PASS | `lesson_progressive/`: `progressive.css`, `progressive.js` |
+| `theme.py` | 1065 | 997 | 16 | PASS | `theme/`: `settings.css` |
+| `lti.py` | 1423 | 1370 | 29 | PASS | `lti/`: `picker.js` |
+| `palette.py` | 378 | 343 | 5 | PASS | `palette/`: `palette.css` |
+
+All 29 requested literal bodies moved cleanly. No requested f-string or other
+unclean extraction remains. HTML-bearing templates stay in Python:
+`BIND_PANEL`, `LESSON_TEMPLATE`, `PALETTE_HTML`, `LOOK_BODY`, and
+`SETTINGS_BODY`. Literals below 20 lines remain, including the explicitly
+excluded nine-line `COURSE_FRAME_CSS`. No HTML template was extracted.
+
+### Tests, packaging, and remaining gates
+
+Source-reading tests retain every assertion and include the moved assets:
+lesson overflow and scroll targets, study color literals, presentation font
+ownership and surface font declarations, primitive prose checks, settings
+external-loader exclusions, and the check claim-word gate. The exploration
+browser receipt now hashes the relevant assets as well as Python sources.
+JS source searches found no additional wave 2 Python-literal reader requiring
+an update; those tests import runtime constants or render pages instead.
+
+`build.stage` still recursively copies `surfaces` through `STAGE_DIRS`; no
+packaging configuration changed. All 29 new files were present verbatim in a
+staged build and temporary zipapp. A fresh process imported all eleven modules
+from that zipapp. All string hashes match the checkout baseline except the
+three existing visual-fixture path constants `ROOT`, `PROTOTYPE_DIR`, and
+`FIXTURE_PATH`, which were separately verified to relocate to the archive path
+as their existing `__file__` expressions require. Both visual-fixture asset
+constants match exactly. The first archive harness incorrectly required those
+paths to equal checkout paths; the corrected harness passed. The checkout
+comparison retains the strict all-constants invariant without exceptions.
+
+Checks passed:
+
+- `python3 scripts/preflight.py --quick`: exit 0; every executed gate passed;
+  Python suites, JS suites, and clean-tree gate skipped by quick mode.
+- `node --test tests/js/*.test.mjs`: 147 passed, 0 failed, 0 skipped, exit 0.
+- Full `surface_roundtrip`, `component_primitives_roundtrip`, and
+  `settings_roundtrip`: exit 0 each.
+- `lesson_roundtrip`: 130 socket-free test functions passed via an external AST
+  harness that omitted the suite's unguarded top-level calls, preserving its
+  definitions and assertions. `presentation_roundtrip`: 18 socket-free check
+  functions passed. Its parser self-check deliberately catches a malformed
+  two-h1 fixture, so its expected FAIL diagnostic is not a suite failure.
+- Changed `check_roundtrip.check_honest_limits_gate`: passed without sockets.
+  All eleven surface modules parse successfully; `git diff --check` passed.
+
+Loopback bind was directly probed and raised
+`PermissionError: [Errno 1] Operation not permitted`. These socket checks
+remain unverified in this environment:
+
+| Suite | Unrun socket checks |
+| --- | --- |
+| lesson_roundtrip | test_lesson_src_degraded_daemon_and_cli; test_routes_and_cli_twin; test_gloss_route_and_cli_twin; test_key_review_route_and_cli |
+| presentation_roundtrip | test_shared_accent_tokens_across_routes; test_reload_after_save_updates_tokens; test_forced_modes_preserve_semantic_tokens; test_index_and_report_state_copy |
+| lesson_exploration_roundtrip | check_routes; check_browser, including its expanded source receipt |
+| check_roundtrip | HTTP, agent, cross-path, explanation-threading, and network-refusal cases; the complete suite was not run |
+| Other relevant server suites | serve_roundtrip, daemon_roundtrip, and lti_roundtrip were not run because they require loopback servers |
+
+Review and socket-enabled verification remain open. This record proves source
+byte preservation, the stated test slices, and staged/archive asset loading.

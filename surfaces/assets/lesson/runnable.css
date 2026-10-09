@@ -1,0 +1,23 @@
+
+/* plan 09-05 runnable lesson code */
+.scroll.runnable{border:1px solid var(--line);border-radius:8px;padding:.5rem .75rem;margin:.75rem 0}
+.scroll.runnable .lang{display:inline-block;margin-right:.5rem}
+.scroll.runnable .example-label{font-weight:600}
+.run-source-label{display:block;margin:.35rem 0 .15rem;font-size:12px;
+  font-family:var(--font-chrome)}
+.run-source{display:block;width:100%;min-height:3.5rem;font:16px/1.45 var(--font-code);
+  padding:.4rem .5rem;box-sizing:border-box;resize:vertical;tab-size:4;background:var(--chip);color:var(--ink)}
+.run-help{font-size:16px;font-family:var(--font-chrome);opacity:.85;margin:.3rem 0}
+.run-go{min-height:44px;min-width:44px;padding:.5rem 1rem;margin:.25rem 0;font:inherit;cursor:pointer}
+.run-go[disabled]{opacity:.6;cursor:default}
+.run-status{min-height:1.2em;margin:.4rem 0 .2rem;font-size:16px;
+  line-height:1.5;font-family:var(--font-ledger)}
+.run-status.run-error{color:var(--warn)}
+.run-label{font-size:12px;font-family:var(--font-ledger);font-weight:600;
+  margin:.6rem 0 .15rem;text-transform:none}
+.run-stdout,.run-stderr{margin:0 0 .25rem;padding:.4rem .5rem;max-height:14rem;overflow:auto;
+  background:var(--chip);border:1px solid var(--line);font:12px/1.45 var(--font-code);
+  white-space:pre-wrap;word-break:break-word}
+.run-unavailable{font-size:16px;font-family:var(--font-ledger);line-height:1.5;
+  opacity:.9;margin:.35rem 0 0}
+@media (prefers-reduced-motion:reduce){.scroll.runnable *{transition:none!important}}

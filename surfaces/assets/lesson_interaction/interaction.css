@@ -1,0 +1,33 @@
+
+.lesson-comparison {overflow-wrap:anywhere}
+.lesson-comparison strong {font-weight:700}
+.comparison-static strong {text-shadow:0 0 .45em color-mix(in srgb,var(--accent) 30%,transparent)}
+.comparison-static {white-space:pre-line}
+.comparison-controls {margin-block:1.5rem;border-top:1px solid var(--line);padding-top:1rem;
+  font-family:var(--font-chrome)}
+.comparison-controls label {display:block}
+.comparison-controls input[type=range], .comparison-meter-b {position:absolute;width:1px;height:1px;
+  min-height:0;padding:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.comparison-adjust {display:flex;align-items:end;flex-wrap:wrap;gap:.5rem;margin-block:.75rem}
+.comparison-adjust label {font-size:var(--text-xs);color:var(--mut)}
+.comparison-adjust input {display:block;width:7rem;max-width:100%;min-height:44px;
+  border:1px solid var(--edge);border-radius:var(--r-1);background:var(--bg);color:var(--ink);
+  padding:.5rem;font:inherit;font-size:var(--text-body);font-variant-numeric:tabular-nums}
+.comparison-controls button {min-width:44px;min-height:44px;padding:.5rem .75rem;
+  border:1px solid var(--edge);border-radius:var(--r-1);background:var(--bg);color:var(--ink);font:inherit}
+.comparison-controls button:disabled {opacity:.4}
+.comparison-controls :is(input,button):focus-visible {outline:2px solid var(--accent);outline-offset:3px}
+.comparison-bars {display:grid;gap:.75rem;margin-block:1rem;font-variant-numeric:tabular-nums}
+.comparison-bars meter:not(.comparison-meter-b) {width:calc(100% - 44px);height:1.5rem;margin-inline:22px}
+.comparison-direct {position:relative;height:52px;margin-inline:22px;touch-action:pan-y}
+.comparison-direct-track {position:absolute;inset:22px 0 auto;height:8px;background:var(--line);border-radius:var(--r-1)}
+.comparison-direct-fill {height:100%;width:var(--comparison-b);background:var(--accent);border-radius:inherit}
+.comparison-controls .comparison-handle {position:absolute;top:4px;left:var(--comparison-b);transform:translateX(-50%);
+  width:44px;height:44px;padding:0;touch-action:none;cursor:ew-resize;border-color:var(--accent);font-weight:700}
+.comparison-handle[data-pending="1"] {background:var(--accent);color:var(--bg)}
+.comparison-controls:has(input[type=range]:focus-visible) .comparison-handle {outline:2px solid var(--accent);outline-offset:3px}
+.comparison-gesture-help {font-size:var(--text-xs);color:var(--mut)}
+.exploration-continuity {font-size:var(--text-xs);color:var(--mut)}
+.comparison-result {font-weight:600;border-top:1px solid var(--line);padding-top:.75rem}
+@media print {.comparison-controls {display:none!important}.comparison-static strong {text-shadow:none}}
+@media (forced-colors:active) {.lesson-comparison strong {color:CanvasText;background:Canvas;text-decoration:underline;text-shadow:none}}

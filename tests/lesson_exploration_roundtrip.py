@@ -117,6 +117,9 @@ def check_browser(output=None):
     paths = ('surfaces/lesson_interaction.py', 'surfaces/lesson_progressive.py',
              'surfaces/lesson.py', 'surfaces/daemon.py',
              'tests/lesson_exploration_roundtrip.py', 'tests/fixtures/exploration_lineplot.md')
+    paths += tuple(str(path.relative_to(ROOT))
+                   for module in ('lesson_interaction', 'lesson_progressive', 'lesson', 'daemon')
+                   for path in sorted((ROOT / 'surfaces' / 'assets' / module).iterdir()))
     inputs = {path: hashlib.sha256((ROOT / path).read_bytes()).hexdigest() for path in paths}
     with exploration_fixture() as (root, base, info), served(root) as url, sync_playwright() as pw:
         browser = pw.chromium.launch(channel=os.environ.get('ITEMBANK_VISUAL_QA_CHANNEL', 'chrome'), headless=True)

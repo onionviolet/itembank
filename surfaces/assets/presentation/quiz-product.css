@@ -1,0 +1,39 @@
+
+.overhaul-quiz{max-width:1120px;background:var(--paper);color:var(--product-ink)}
+.overhaul-quiz #host{max-width:var(--measure-prose);margin:var(--space-5) auto;padding:0}
+.overhaul-quiz #host:has(.response-check,.response-visual,.response-dnd,.response-build,.response-table,[data-response-type=check],[data-response-type=visual],[data-response-type=dnd],[data-response-type=build],[data-response-type=table]){max-width:100%}
+.overhaul-quiz .overhaul-question{background:transparent;border:0;border-radius:0;padding:var(--space-4) 0;box-shadow:none}
+.overhaul-quiz h1.stem{font-family:var(--composition-display-font);font-size:var(--composition-question-size);font-weight:600;letter-spacing:-.02em;line-height:1.2;max-width:var(--measure-prose);margin-bottom:var(--space-4)}
+.overhaul-quiz .hint{margin-bottom:var(--space-3)}
+@media(max-width:640px){.overhaul-quiz h1.stem{font-size:var(--text-display)}}
+.overhaul-quiz .overhaul-response{border:0;padding:0;margin-block-start:var(--space-4);min-width:0}
+.overhaul-quiz .overhaul-response .fill-field{display:grid;grid-template-columns:minmax(0,1fr);align-items:start;gap:var(--space-2);padding:0;min-width:0}
+.overhaul-quiz .fill-field .fill-help{grid-column:1/-1;max-width:100%;overflow-wrap:anywhere;order:3}
+.overhaul-quiz .fill-field input{grid-column:1/-1;min-width:0;width:100%;order:2}
+.overhaul-quiz summary{min-height:44px;padding-block:var(--space-2)}
+.overhaul-quiz .context-line a,.overhaul-quiz a.chip.lesson{display:inline-flex;align-items:center;min-height:44px}
+.overhaul-quiz .choice input{width:44px;height:44px;flex:0 0 44px}
+.overhaul-quiz .choices{gap:var(--composition-list-gap);margin-top:var(--space-4)}
+.overhaul-quiz .choice{min-height:var(--space-6);
+  padding:min(var(--composition-row-pad),var(--space-3)) var(--space-2);
+  background:var(--composition-card-bg);border:var(--composition-card-border) solid var(--edge);
+  border-top:var(--composition-rule-width) solid var(--edge);
+  border-radius:var(--composition-card-radius);gap:var(--space-3)}
+.overhaul-quiz .choice:last-of-type{border-bottom:1px solid var(--line)}
+.overhaul-quiz .choice .k{font-family:var(--font-paper);font-size:var(--text-display);font-weight:600;color:var(--accent)}
+.overhaul-quiz .choice:has(input:checked){box-shadow:inset 3px 0 0 var(--accent);background:var(--accent-soft)}
+.overhaul-quiz .choice.right{background:var(--ok-bg);border-color:var(--ok)}
+.overhaul-quiz .choice.wrong{background:var(--bad-bg);border-color:var(--bad)}
+.overhaul-quiz .choice:has(input:checked).right{background:var(--ok-bg)}
+.overhaul-quiz .choice:has(input:checked).wrong{background:var(--bad-bg)}
+.overhaul-quiz .choice .ot{font-size:var(--text-heading);line-height:1.5}
+.overhaul-quiz .feedback:not(:empty){border:0;padding-block-start:0;margin-block-start:var(--space-4)}
+.overhaul-quiz .support-region{border-block-start:1px solid var(--line);padding-block-start:var(--space-3)}
+.overhaul-quiz .session-details{max-width:var(--measure-prose);margin-inline:auto}
+@media(max-width:767px){.overhaul-quiz #host{margin-block:var(--space-3)}.overhaul-quiz .overhaul-question{padding:var(--space-3) 0}}
+
+.overhaul-quiz .verdict{font-family:var(--font-paper);font-size:var(--text-heading);font-weight:400;
+  border-left:3px solid var(--accent);padding:var(--space-2) var(--space-3);margin:var(--space-4) 0}
+.overhaul-quiz .verdict::before{content:"Margin note";display:block;
+  font-family:var(--font-ledger);font-size:var(--text-xs);text-transform:uppercase;
+  letter-spacing:.1em;color:var(--mut);margin-bottom:var(--space-1)}

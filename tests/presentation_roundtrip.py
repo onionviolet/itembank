@@ -752,10 +752,11 @@ def test_font_tokens_name_fallbacks_and_only_presentation_names_families():
     for name in ("Source Serif 4", "iA Writer Quattro"):
         for root, _dirs, files in os.walk(os.path.join(ROOT, "surfaces")):
             for fn in files:
-                if not fn.endswith(".py"):
+                if not fn.endswith((".py", ".css", ".js")):
                     continue
                 path = os.path.join(root, fn)
-                if os.path.basename(path) == "presentation.py":
+                if (os.path.basename(path) == "presentation.py" or
+                        root == os.path.join(ROOT, "surfaces", "assets", "presentation")):
                     continue
                 src = open(path, encoding="utf-8").read()
                 if name in src:
@@ -973,6 +974,11 @@ def test_no_family_literal_in_surface_templates():
         if not os.path.exists(path):
             continue
         src = open(path, encoding="utf-8").read()
+        asset_module = {"lesson.py": "lesson", "study.py": "study", "day.py": "day"}.get(fn)
+        if asset_module:
+            asset_dir = os.path.join(ROOT, "surfaces", "assets", asset_module)
+            for asset in sorted(os.listdir(asset_dir)):
+                src += open(os.path.join(asset_dir, asset), encoding="utf-8").read()
         if fn == "quiz_page.py":
             src += open(os.path.join(ROOT, "surfaces", "assets", "quiz", "latex-input.css"),
                         encoding="utf-8").read()

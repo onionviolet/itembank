@@ -30,6 +30,7 @@ hand-kept list: courses come from `ia.course_shelf_state`, banks from the
 daemon's own scan, commands from `cli.build_parser()`. A command added to
 the parser appears in the palette with no further work.
 """
+import resources
 import html
 import json
 
@@ -156,43 +157,7 @@ def index(root, banks, selected_look="", course_module=None):
 # The overlay's own rules. Every colour resolves through a token, because a
 # palette that painted itself would be the one surface a look could not
 # restyle.
-PALETTE_CSS = """
-.ib-palette[hidden]{display:none}
-.ib-palette{position:fixed;inset:0;z-index:60;display:grid;
-  align-items:start;justify-items:center;padding:10vh var(--space-3);
-  background:rgba(0,0,0,.38)}
-.ib-palette-box{width:min(640px,100%);background:var(--card);
-  border:1px solid var(--line);border-radius:var(--r-3);overflow:hidden;
-  box-shadow:0 18px 48px rgba(0,0,0,.22)}
-.ib-palette input{width:100%;font:inherit;font-size:var(--text-lesson);padding:16px 18px;
-  border:0;border-bottom:1px solid var(--line);background:var(--card);
-  color:var(--ink)}
-.ib-palette input:focus-visible{outline:2px solid var(--accent);
-  outline-offset:-2px}
-.ib-palette ul{list-style:none;margin:0;padding:6px;max-height:52vh;
-  overflow:auto}
-.ib-palette li{border-radius:var(--r-1)}
-.ib-palette button{display:grid;gap:2px;width:100%;text-align:left;
-  font:inherit;background:transparent;border:0;color:inherit;cursor:pointer;
-  padding:10px 12px;min-height:44px;border-radius:var(--r-1)}
-.ib-palette li[data-active] button,.ib-palette button:hover{
-  background:var(--chip)}
-.ib-palette button:focus-visible{outline:2px solid var(--accent);
-  outline-offset:-2px}
-.ib-palette-kind{font-family:var(--font-ledger);font-size:var(--text-xs);
-  letter-spacing:.08em;text-transform:uppercase;color:var(--mut)}
-.ib-palette-label{font-size:var(--text-body);font-weight:600;overflow-wrap:anywhere}
-.ib-palette-detail{font-size:var(--text-xs);color:var(--mut);overflow-wrap:anywhere}
-.ib-palette-foot{display:flex;flex-wrap:wrap;gap:var(--space-2);
-  justify-content:space-between;padding:10px 14px;
-  border-top:1px solid var(--line);font-size:var(--text-xs);color:var(--mut)}
-.ib-palette-empty{padding:18px;color:var(--mut);font-size:var(--text-xs)}
-.ib-palette-open{position:fixed;right:var(--space-3);bottom:var(--space-3);
-  z-index:20;font:inherit;font-size:var(--text-xs);font-weight:600;min-height:44px;
-  padding:10px 14px;border-radius:999px;border:1px solid var(--line);
-  background:var(--card);color:var(--ink);cursor:pointer}
-@media (max-width:767px){.ib-palette{padding:6vh var(--space-2)}}
-"""
+PALETTE_CSS = resources.read_text("surfaces/assets/palette/palette.css")
 
 PALETTE_HTML = """
 <button type="button" class="ib-palette-open" data-palette-open

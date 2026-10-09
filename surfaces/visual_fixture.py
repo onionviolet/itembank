@@ -14,6 +14,7 @@ This module renders a fixture. It holds no key, scores nothing, and reaches no
 session state. It is development-only and its route stays behind an explicit
 opt in.
 """
+import resources
 import io
 import json
 import os
@@ -73,155 +74,7 @@ FIXED_RULES = """
 # toolbar, and the pager. A direction overlay changes layout, weight and
 # rhythm on top of this; it never re-declares the scale, or the three
 # directions would be comparing typography instead of layout.
-CHROME_CSS = """
-.vf-harness-run { border: 1px solid var(--line); border-radius: var(--r-3);
-     padding: var(--space-4); background: var(--card); margin-bottom: var(--space-5); }
-.vf-harness-run[data-state="waiting"] { border-color: var(--warn);
-     background: var(--warn-bg); }
-.vf-harness-run h3 { margin-top: var(--space-1); }
-.vf-approval { border: 1px solid var(--accent); border-radius: var(--r-3);
-     padding: var(--space-4); margin-bottom: var(--space-4); background: var(--card); }
-.vf-approval h4 { margin: 0 0 var(--space-1); font-size: var(--vf-h3); }
-.vf-skills { list-style: none; padding: 0; display: flex; flex-wrap: wrap;
-     gap: var(--space-2); }
-.vf-backends { list-style: none; padding: 0; }
-.vf-backends li { padding: var(--space-2) var(--space-3); border-radius: var(--r-2);
-     border: 1px solid var(--line); margin-bottom: var(--space-2); }
-.vf-backends li[data-state="ok"] { border-color: var(--ok); background: var(--ok-bg); }
-.vf-spend { font-family: var(--font-code); font-size: var(--vf-h3); margin-bottom: 0; }
-/* The embedded console. A visible seam on purpose: inside the frame is a
-   separate application with its own palette, its own interface language and
-   its own idea of what a session is. Pretending otherwise would be the
-   dishonest option, so the border says "different tool" rather than
-   blending in. */
-.vf-console { border: 1px solid var(--line); border-radius: var(--r-3);
-     background: var(--card); margin-bottom: var(--space-5); overflow: hidden; }
-.vf-console-head { display: flex; flex-wrap: wrap; align-items: baseline;
-     gap: var(--space-2) var(--space-3); padding: var(--space-2) var(--space-3);
-     border-bottom: 1px dashed var(--line); background: var(--chip); }
-.vf-console-head h3 { margin: 0; font-size: var(--vf-h3); }
-.vf-console-head p { margin: 0; }
-.vf-console iframe { display: block; width: 100%; height: 70vh; min-height: 22rem;
-     border: 0; background: var(--card); }
-/* An iframe takes keyboard focus but neither :focus nor :focus-visible
-   matches the frame element in Chromium once focus delegates into the inner
-   document, so the console wrapper carries the indicator via :focus-within
-   (17A-04 QA finding). The one-file export replaces the frame with the
-   static block below instead, because no CSS can mark Tab focus inside a
-   cross-origin frame. */
-.vf-console:focus-within { outline: 3px solid var(--accent);
-     outline-offset: 2px; }
-.vf-console-static { padding: var(--space-4) var(--space-3);
-     min-height: 8rem; display: flex; align-items: center;
-     background: var(--card); }
-.vf-console-foot { padding: var(--space-2) var(--space-3);
-     border-top: 1px dashed var(--line); }
-.vf-console-foot p { margin: 0; }
-.vf-nav-course-name { margin: var(--space-5) 0 0; font-weight: 600;
-     font-size: var(--vf-meta); color: var(--ink); }
-.surface { padding-block: var(--space-5) var(--space-7); }
-h1 { font-size: var(--vf-h1); line-height: 1.15; letter-spacing: -0.02em;
-     margin: 0 0 var(--space-2); }
-.vf-stage h2 { font-size: var(--vf-h2); line-height: 1.2;
-     letter-spacing: -0.015em; margin: 0 0 var(--space-4); }
-.vf-stage h3 { font-size: var(--vf-h3); line-height: 1.3; margin:
-     var(--space-5) 0 var(--space-2); color: var(--ink); }
-.vf-stage p, .vf-stage li, .vf-stage td { font-size: var(--vf-body);
-     line-height: var(--vf-leading); }
-.vf-status, .vf-legend, .vf-progress, .vf-chrome-label, .vf-denominator,
-.vf-source, figcaption { font-size: var(--vf-meta); color: var(--mut);
-     font-family: var(--font-ledger); }
-
-/* Prototype toolbar. Deliberately reads as scaffolding, not as product. */
-.vf-chrome { display: flex; flex-wrap: wrap; align-items: center;
-     gap: var(--space-2) var(--space-3); padding: var(--space-2) var(--space-3);
-     margin-bottom: var(--space-6); border: 1px dashed var(--line);
-     border-radius: var(--r-2); background: var(--chip); }
-.vf-chrome-label { margin: 0; text-transform: uppercase;
-     letter-spacing: .09em; font-size: var(--vf-micro); }
-.vf-dirs, .vf-steps { display: flex; flex-wrap: wrap; gap: var(--space-1);
-     list-style: none; margin: 0; padding: 0; }
-.vf-steps { counter-reset: vfs; }
-.vf-dirs a, .vf-steps a { display: inline-block; padding: 2px var(--space-2);
-     border-radius: var(--r-1); text-decoration: none; color: var(--mut);
-     font-size: var(--vf-micro); border: 1px solid transparent; }
-.vf-dirs a:hover, .vf-steps a:hover { color: var(--ink); background: var(--card); }
-.vf-dirs a[aria-current], .vf-steps a[aria-current] { color: var(--ink);
-     background: var(--card); border-color: var(--line); font-weight: 600; }
-
-/* Pager: the flow control the product would actually have. */
-.vf-pager { display: flex; flex-wrap: wrap; align-items: center;
-     gap: var(--space-3); margin-top: var(--space-7);
-     padding-top: var(--space-4); border-top: 1px solid var(--line); }
-.vf-progress { margin: 0; margin-inline-end: auto; }
-/* A control must never shatter mid-word. SHARED_CSS grants p
-   overflow-wrap:anywhere so a long path in prose can wrap, and that inherits
-   into any control sitting inside a paragraph, which is how a one-word button
-   ends up stacking one letter per line in a narrow column. Controls opt out. */
-.vf-next, .vf-prev, .of-bar label, .vf-appnav a, .vf-appnav label,
-.vf-appnav .vf-area-entry, button { overflow-wrap: normal; word-break: keep-all;
-     hyphens: none; }
-.vf-prev, .vf-next { display: inline-flex; align-items: center;
-     justify-content: center; text-decoration: none;
-     min-height: 44px; box-sizing: border-box;
-     font-size: var(--vf-body); padding: var(--space-2) var(--space-4);
-     border-radius: var(--r-2); border: 1px solid var(--line);
-     color: var(--ink); text-align: center; }
-.vf-next { background: var(--accent); color: var(--card); border-color: var(--accent); }
-.vf-prev:hover { background: var(--chip); }
-.vf-next:hover { filter: brightness(1.08); }
-
-/* Content forms. */
-.vf-def { margin: var(--space-5) 0; padding-inline-start: var(--space-4);
-     border-inline-start: 3px solid var(--accent); }
-.vf-def dt { font-weight: 650; font-size: var(--vf-h3); margin-bottom: var(--space-1); }
-.vf-def dd { margin: 0; }
-.vf-warn { margin: var(--space-5) 0; padding: var(--space-3) var(--space-4);
-     border-radius: var(--r-2); background: var(--warn-bg);
-     border-inline-start: 4px solid var(--warn); }
-.vf-warn p { margin: 0; }
-.vf-predict { margin: var(--space-5) 0; padding: var(--space-3) var(--space-4);
-     border-radius: var(--r-2); background: var(--chip); }
-.vf-predict p { margin: 0; font-style: italic; }
-.vf-check { margin: var(--space-6) 0; padding: var(--space-4);
-     border-radius: var(--r-2); border: 1px solid var(--line); background: var(--card); }
-.vf-check ul { list-style: none; padding: 0; margin: var(--space-3) 0; }
-.vf-check li { padding: var(--space-2) var(--space-3); margin-bottom: var(--space-2);
-     border: 1px solid var(--line); border-radius: var(--r-1); background: var(--bg); }
-.vf-table-wrap { margin: var(--space-5) 0; overflow-x: auto; }
-.vf-table-wrap table { border-collapse: collapse; width: 100%; }
-.vf-table-wrap th, .vf-table-wrap td { text-align: start;
-     padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--line); }
-.vf-table-wrap th { font-size: var(--vf-meta); text-transform: uppercase;
-     letter-spacing: .07em; color: var(--mut); font-family: var(--font-ledger); }
-.vf-image-slot { aspect-ratio: 16 / 7; border-radius: var(--r-2);
-     border: 1px dashed var(--line); background: var(--chip); }
-.vf-figure { margin: var(--space-5) 0; }
-.vf-shelf { list-style: none; padding: 0; margin: 0; }
-.vf-card h3 { margin: 0 0 var(--space-1); font-size: var(--vf-h3); }
-.vf-card p { margin: 0; }
-.vf-diff { list-style: none; padding: 0; }
-.vf-diff li { padding: var(--space-1) var(--space-3); border-radius: var(--r-1);
-     font-family: var(--font-code); font-size: var(--vf-meta); }
-.vf-diff-add { background: var(--ok-bg); border-inline-start: 3px solid var(--ok); }
-.vf-diff-context { color: var(--mut); }
-.vf-feedback { margin: var(--space-4) 0; padding: var(--space-3) var(--space-4);
-     border-radius: var(--r-2); background: var(--bad-bg); }
-.vf-feedback p { margin: 0; }
-.vf-answer { margin: 0 0 var(--space-3); }
-button[type="button"]:not(.term) { display: inline-flex; align-items: center;
-     justify-content: center; font: inherit;
-     min-height: 44px; box-sizing: border-box;
-     font-size: var(--vf-body);
-     padding: var(--space-2) var(--space-4); border-radius: var(--r-2);
-     border: 1px solid var(--line); background: var(--card); color: var(--ink);
-     cursor: pointer; }
-button[type="button"]:not(.term):hover { background: var(--chip); }
-@media (max-width: 767px) {
-  .vf-pager { flex-direction: column; align-items: stretch; }
-  .vf-prev, .vf-next { text-align: center; }
-}
-"""
+CHROME_CSS = resources.read_text("surfaces/assets/visual_fixture/chrome.css")
 
 
 def load_fixture(path=FIXTURE_PATH):
@@ -1286,45 +1139,7 @@ GLOSS_FALLBACK_CSS = """
   inset: auto var(--space-4) var(--space-4) auto; }
 """
 
-ONEFILE_CSS = """
-.of-switch { position: absolute; width: 1px; height: 1px; overflow: hidden;
-  clip-path: inset(50%); white-space: nowrap; }
-.of-bar { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4);
-  align-items: center; padding: var(--space-3);
-  border: 1px dashed var(--line); border-radius: var(--r-2);
-  background: var(--chip); margin-bottom: var(--space-6); }
-.of-group { display: flex; flex-wrap: wrap; gap: var(--space-1);
-  align-items: center; }
-.of-group > b { font-size: var(--vf-micro); text-transform: uppercase;
-  letter-spacing: .09em; color: var(--mut); font-weight: 600;
-  margin-inline-end: var(--space-1); font-family: var(--font-ledger); }
-.of-bar label, .vf-appnav label, .vf-pager label, .vf-resume label {
-  cursor: pointer; }
-.of-bar label { display: inline-flex; align-items: center;
-  min-height: 44px; box-sizing: border-box; padding: 3px var(--space-3);
-  border-radius: var(--r-1); border: 1px solid transparent;
-  font-size: var(--vf-micro); color: var(--mut); }
-.of-bar label:hover { color: var(--ink); background: var(--card); }
-.of-screen { display: none; }
-.of-swatch { display: inline-block; width: 1.15rem; height: 1.15rem;
-  border-radius: 50%; border: 2px solid var(--line); vertical-align: -3px; }
-.of-bar label:has(.of-swatch) { padding: 3px; min-width: 44px;
-  justify-content: center; }
-.of-note { font-size: var(--vf-meta); color: var(--mut); margin: 0 0 var(--space-4);
-  font-family: var(--font-ledger); }
-/* Nav and pager entries are labels here, not links, so they need the link look. */
-.vf-appnav label { display: flex; align-items: center; min-height: 44px;
-  box-sizing: border-box; padding: var(--space-2) var(--space-3);
-  border-radius: var(--r-2); color: var(--mut); }
-.vf-appnav label:hover { color: var(--ink); background: var(--chip); }
-.vf-pager label, .vf-resume label { display: inline-flex; align-items: center;
-  justify-content: center; text-decoration: none;
-  min-height: 44px; box-sizing: border-box;
-  font-size: var(--vf-body); padding: var(--space-2) var(--space-4);
-  border-radius: var(--r-2); border: 1px solid var(--line); color: var(--ink); }
-.vf-pager label.vf-next, .vf-resume label.vf-next { background: var(--accent);
-  color: var(--card); border-color: var(--accent); }
-"""
+ONEFILE_CSS = resources.read_text("surfaces/assets/visual_fixture/onefile.css")
 
 
 def _scope_css(css, guard):

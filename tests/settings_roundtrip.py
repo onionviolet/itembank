@@ -84,6 +84,10 @@ def check_adapter_manifest_and_no_loader():
     sources = "\n".join(open(os.path.join(ROOT, path), encoding="utf-8").read()
                          for path in ("surfaces/presentation.py", "surfaces/settings.py",
                                       "surfaces/theme.py", "surfaces/looks.py"))
+    for module in ("presentation", "theme"):
+        asset_dir = os.path.join(ROOT, "surfaces", "assets", module)
+        sources += "\n".join(open(os.path.join(asset_dir, asset), encoding="utf-8").read()
+                             for asset in sorted(os.listdir(asset_dir)))
     for token in ("importlib.import_module", "exec_module(",
                   "spec_from_file_location(", "watchdog", "hot_reload",
                   "live_reload"):

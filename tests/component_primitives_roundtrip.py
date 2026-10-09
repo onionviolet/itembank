@@ -561,7 +561,11 @@ def check_no_em_dash():
         fail("the 17A-03 section marker is gone from presentation.py")
     # Spelled as an escape so the detector does not itself carry the
     # character it bans.
-    if "\u2014" in body[start:]:
+    primitive_and_product = "".join(
+        open(os.path.join(ROOT, "surfaces", "assets", "presentation", asset),
+             encoding="utf-8").read()
+        for asset in ("primitive.css", "product.css", "quiz-product.css"))
+    if "\u2014" in body[start:] + primitive_and_product:
         fail("an em dash entered repository-authored prose")
     ok("prose: no em dash in anything 17A-03 added")
 

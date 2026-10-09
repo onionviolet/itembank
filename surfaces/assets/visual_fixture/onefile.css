@@ -1,0 +1,38 @@
+
+.of-switch { position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip-path: inset(50%); white-space: nowrap; }
+.of-bar { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4);
+  align-items: center; padding: var(--space-3);
+  border: 1px dashed var(--line); border-radius: var(--r-2);
+  background: var(--chip); margin-bottom: var(--space-6); }
+.of-group { display: flex; flex-wrap: wrap; gap: var(--space-1);
+  align-items: center; }
+.of-group > b { font-size: var(--vf-micro); text-transform: uppercase;
+  letter-spacing: .09em; color: var(--mut); font-weight: 600;
+  margin-inline-end: var(--space-1); font-family: var(--font-ledger); }
+.of-bar label, .vf-appnav label, .vf-pager label, .vf-resume label {
+  cursor: pointer; }
+.of-bar label { display: inline-flex; align-items: center;
+  min-height: 44px; box-sizing: border-box; padding: 3px var(--space-3);
+  border-radius: var(--r-1); border: 1px solid transparent;
+  font-size: var(--vf-micro); color: var(--mut); }
+.of-bar label:hover { color: var(--ink); background: var(--card); }
+.of-screen { display: none; }
+.of-swatch { display: inline-block; width: 1.15rem; height: 1.15rem;
+  border-radius: 50%; border: 2px solid var(--line); vertical-align: -3px; }
+.of-bar label:has(.of-swatch) { padding: 3px; min-width: 44px;
+  justify-content: center; }
+.of-note { font-size: var(--vf-meta); color: var(--mut); margin: 0 0 var(--space-4);
+  font-family: var(--font-ledger); }
+/* Nav and pager entries are labels here, not links, so they need the link look. */
+.vf-appnav label { display: flex; align-items: center; min-height: 44px;
+  box-sizing: border-box; padding: var(--space-2) var(--space-3);
+  border-radius: var(--r-2); color: var(--mut); }
+.vf-appnav label:hover { color: var(--ink); background: var(--chip); }
+.vf-pager label, .vf-resume label { display: inline-flex; align-items: center;
+  justify-content: center; text-decoration: none;
+  min-height: 44px; box-sizing: border-box;
+  font-size: var(--vf-body); padding: var(--space-2) var(--space-4);
+  border-radius: var(--r-2); border: 1px solid var(--line); color: var(--ink); }
+.vf-pager label.vf-next, .vf-resume label.vf-next { background: var(--accent);
+  color: var(--card); border-color: var(--accent); }

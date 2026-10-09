@@ -959,6 +959,9 @@ def test_render_malformed_table_falls_back_to_paragraph():
 def test_render_overflow_containers():
     src = open(os.path.join(ROOT, "surfaces", "lesson.py"),
                encoding="utf-8").read()
+    for asset in sorted(os.listdir(os.path.join(ROOT, "surfaces", "assets", "lesson"))):
+        src += open(os.path.join(ROOT, "surfaces", "assets", "lesson", asset),
+                    encoding="utf-8").read()
     if "overflow-x:auto" not in src:
         fail("the reader must style wide code and tables with their own "
              "horizontal scroll container")
@@ -3088,7 +3091,11 @@ def test_scroll_contract_and_reader_nav_modes():
     if "scroll-margin-top:calc(var(--sticky-h,0px) + var(--space-2))" not in page4:
         fail("reader targets must carry the shared sticky clearance")
 
-    quiz_source = inspect.getsource(lesson).replace(" ", "")
+    quiz_source = inspect.getsource(lesson)
+    for asset in sorted(os.listdir(os.path.join(ROOT, "surfaces", "assets", "lesson"))):
+        quiz_source += open(os.path.join(ROOT, "surfaces", "assets", "lesson", asset),
+                            encoding="utf-8").read()
+    quiz_source = quiz_source.replace(" ", "")
     if "section[id],#glossarydt" not in quiz_source:
         fail("reader scroll targets must include sections and glossary entries")
 

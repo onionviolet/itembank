@@ -1270,6 +1270,8 @@ def check_honest_limits_gate():
                   "surfaces/session.py", "surfaces/daemon.py", "GRADING.md"]
     zero_files.extend(os.path.join("surfaces", "assets", "quiz", asset)
                       for asset in sorted(os.listdir(os.path.join(ROOT, "surfaces", "assets", "quiz"))))
+    zero_files.extend(os.path.join("surfaces", "assets", "daemon", asset)
+                      for asset in sorted(os.listdir(os.path.join(ROOT, "surfaces", "assets", "daemon"))))
     import glob
     phase = os.path.join(ROOT, ".planning", "phases",
                          "05-check-item-type-code-editor")

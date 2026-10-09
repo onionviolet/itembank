@@ -10,6 +10,7 @@ after the learner deliberately flips the card, and the surface never calls
 local recall state are presentation and queue behavior only, while quiz
 alone is response-driven.
 """
+import resources
 import html, os, sys
 
 from model import grab, lint, load
@@ -39,75 +40,7 @@ script_safe_json = presentation.script_safe_json
 # and the generated theme block. No color literals anywhere -- every token is
 # a semantic custom property, so the custom accent can never mean
 # correct/incorrect (T-04-20, T-04-26).
-STUDY_CSS = r"""
-.tabs{display:flex;gap:8px;margin:0 0 14px}
-.tab{flex:1;min-height:44px;padding:10px 9px;border:1px solid var(--line);
-  border-radius:9px;background:var(--card);color:var(--ink);cursor:pointer;
-  font:inherit;font-weight:600}
-.tab.on{background:var(--accent-soft);border-color:var(--accent);
-  color:var(--accent)}
-.status{min-height:24px;font-size:14px;color:var(--mut);margin:0 0 10px}
-.bar{height:6px;background:var(--line);border-radius:99px;overflow:hidden;
-  margin:0 0 16px}
-.bar>i{display:block;height:100%;background:var(--accent);width:0}
-.meta{font-size:12px;color:var(--mut);text-transform:uppercase;
-  letter-spacing:.04em;margin:0 0 10px}
-.chip{display:inline-block;background:var(--chip);color:var(--mut);
-  padding:2px 8px;border-radius:5px;margin-right:6px;font-size:11px}
-.chip.type{background:var(--accent-soft);color:var(--accent)}
-.stem{font-size:20px;font-weight:600;margin:0 0 12px}
-.recall-note{font-size:13px;color:var(--mut);margin:0 0 8px}
-.recall-opts{display:flex;flex-direction:column;gap:8px;margin:0 0 16px}
-.recall-opt{display:block;width:100%;text-align:left;min-height:44px;
-  padding:10px 12px;border:1px solid var(--line);border-radius:9px;
-  background:var(--card);color:var(--ink);font:inherit;cursor:pointer;
-  transition:background .12s,border-color .12s}
-.recall-opt:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.recall-opt[aria-pressed="true"]{border-color:var(--accent);
-  background:var(--accent-soft);color:var(--accent)}
-.explain h3{font-size:16px;font-weight:600;margin:18px 0 6px;
-  text-transform:none;letter-spacing:0}
-.explain h3:first-child{margin-top:0}
-.answer-text{font-size:17px;font-weight:600;color:var(--ink)}
-.why{font-size:15px;line-height:1.5;overflow-wrap:anywhere}
-.options{list-style:none;padding:0;margin:0 0 8px}
-.options li{margin:0 0 8px}
-.rationale{border:1px solid var(--line);border-radius:8px;padding:8px 12px;
-  background:var(--card)}
-.rationale summary{cursor:pointer;font-weight:600;overflow-wrap:anywhere}
-.rationale[open] summary{margin-bottom:6px}
-.rationale p{margin:0;font-size:14px;line-height:1.5;
-  overflow-wrap:anywhere}
-.badge{display:inline-block;font-size:11px;font-weight:600;padding:1px 7px;
-  border-radius:5px;border:1px solid currentColor;margin-right:8px;
-  vertical-align:middle}
-.badge.ok{color:var(--ok);background:var(--ok-bg)}
-.badge.selected{color:var(--accent);background:var(--accent-soft)}
-.model,.rows,.steps,.rubric{font-size:15px;line-height:1.5;
-  overflow-wrap:anywhere}
-.rows,.steps,.rubric{margin:0;padding-left:18px}
-.rows li,.steps li,.rubric li{margin:0 0 4px}
-.acts{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}
-.acts[hidden]{display:none}
-.card[hidden]{display:none}
-.acts button{min-height:44px;border:1px solid var(--line);border-radius:9px;
-  padding:10px 20px;font:inherit;font-weight:600;cursor:pointer;
-  background:var(--card);color:var(--ink)}
-.acts button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.acts button[data-action-primary]{background:var(--accent-soft);
-  border-color:var(--accent);color:var(--accent)}
-.acts button:disabled{opacity:.55;cursor:default}
-.done{text-align:center;padding:40px 10px}
-.done .big{font-size:40px;font-weight:800;color:var(--ok)}
-.done button{min-height:44px;border:1px solid var(--accent);border-radius:9px;
-  padding:10px 20px;font:inherit;font-weight:600;cursor:pointer;
-  background:var(--accent-soft);color:var(--accent)}
-@media (max-width:767px){
-  .stem{font-size:18px}
-  .acts button{width:100%}
-  .done button{width:100%}
-}
-"""
+STUDY_CSS = resources.read_text("surfaces/assets/study/study.css")
 
 
 def _rationale_list(view):
@@ -261,113 +194,7 @@ def _card_markup(view, index):
             % (index, meta, stem, recall, explain, acts))
 
 
-STUDY_JS = r"""
-const CARDS=__DATA__;
-const esc=s=>(s==null?"":String(s)).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
-const REDUCED=window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches;
-const deck=document.getElementById("deck"),status=document.getElementById("status"),prog=document.getElementById("prog");
-let mode="flash",order=[],i=0,queue=[],setAside=0;
-const selected={};
-function shuffle(a){for(let j=a.length-1;j>0;j--){const k=Math.floor(Math.random()*(j+1));[a[j],a[k]]=[a[k],a[j]]}return a}
-function cardEl(n){return deck.querySelector('[data-card="'+n+'"]')}
-function say(t){status.textContent=t}
-function setMode(m){mode=m;document.getElementById("tFlash").classList.toggle("on",m==="flash");document.getElementById("tLearn").classList.toggle("on",m==="learn");start()}
-document.getElementById("tFlash").onclick=()=>setMode("flash");
-document.getElementById("tLearn").onclick=()=>setMode("learn");
-function show(n){deck.querySelectorAll("[data-card]").forEach((c,k)=>{c.hidden=k!==n})}
-function syncState(c){
-  const revealed=!c.querySelector("[data-explain]").hidden;
-  const r=c.querySelector("[data-reveal]");
-  if(!revealed){
-    r.textContent="Reveal explanation";
-    r.setAttribute("data-action-primary","");
-    r.removeAttribute("aria-disabled");
-  }
-  c.querySelector("[data-acts=front]").hidden=revealed;
-  c.querySelector("[data-acts=revealed]").hidden=!(revealed&&mode==="flash");
-  c.querySelector("[data-acts=rating]").hidden=!(revealed&&mode==="learn");
-}
-function reveal(c){
-  const sec=c.querySelector("[data-explain]");
-  if(sec.hidden){say("Revealing explanation\u2026");sec.hidden=false;}
-  const sel=selected[c.dataset.card]||[];
-  sel.forEach(k=>{
-    const d=c.querySelector('[data-opt="'+k+'"]');
-    if(!d)return;
-    d.open = true;
-    const p=d.querySelector("p");
-    if(p&&!p.querySelector(".badge.selected")){
-      const b=document.createElement("span");
-      b.className="badge selected";
-      b.textContent="Selected";
-      p.insertBefore(b,p.firstChild);
-    }
-  });
-  const r=c.querySelector("[data-reveal]");
-  r.textContent="Explanation revealed";
-  r.setAttribute("aria-disabled","true");
-  r.removeAttribute("data-action-primary");
-  syncState(c);
-  say("Explanation revealed. Review the answer and rationale.");
-  r.focus({preventScroll:true});
-}
-function wireRecall(c){
-  c.querySelectorAll("[data-recall]").forEach(b=>{
-    b.addEventListener("click",()=>{
-      const k=b.getAttribute("data-recall");
-      const wasOn=b.getAttribute("aria-pressed")==="true";
-      b.setAttribute("aria-pressed",wasOn?"false":"true");
-      let s=selected[c.dataset.card]||(selected[c.dataset.card]=[]);
-      const at=s.indexOf(k);
-      if(wasOn){if(at>=0)s.splice(at,1)}else if(at<0)s.push(k);
-      say(wasOn?"Your recall choice cleared. Not graded.":"Your recall choice recorded. Not graded.");
-    });
-  });
-}
-function wireNav(c){
-  c.querySelectorAll("[data-prev]").forEach(prev=>prev.addEventListener("click",()=>{
-    if(mode==="flash"){if(i>0){i--;render()}}
-    else if(queue.length>1){queue.unshift(queue.pop());render()}
-  }));
-  c.querySelectorAll("[data-next]").forEach(next=>next.addEventListener("click",()=>{
-    if(mode==="flash"){if(i<CARDS.length-1){i++;render()}else finish("Flashcards done.")}
-    else{queue.push(queue.shift());render()}
-  }));
-  c.querySelector("[data-got]").addEventListener("click",()=>{if(mode==="learn"){setAside++;queue.shift();render()}});
-  c.querySelector("[data-miss]").addEventListener("click",()=>{if(mode==="learn"){queue.push(queue.shift());render()}});
-  c.querySelector("[data-reveal]").addEventListener("click",()=>reveal(c));
-}
-function render(){mode==="flash"?renderFlash():renderLearn()}
-function renderFlash(){
-  if(i>=CARDS.length)return finish("Flashcards done.");
-  show(i);const c=cardEl(i);
-  prog.style.width=((i+1)/CARDS.length*100)+"%";
-  syncState(c);
-  say("Flashcards · card "+(i+1)+" of "+CARDS.length);
-  const r=c.querySelector("[data-reveal]");
-  if(r&&!REDUCED)r.focus({preventScroll:true});
-}
-function renderLearn(){
-  if(!queue.length)return finish("Review pile complete. This recall rating was not graded or saved.");
-  show(queue[0]);const c=cardEl(queue[0]);
-  prog.style.width=(setAside/CARDS.length*100)+"%";
-  syncState(c);
-  say("Learn · "+setAside+" set aside / "+CARDS.length+" · "+queue.length+" in pile. Recall ratings are not graded or saved.");
-  const r=c.querySelector("[data-reveal]");
-  if(r&&!REDUCED)r.focus({preventScroll:true});
-}
-function finish(msg){
-  prog.style.width="100%";say("");
-  deck.innerHTML='<div class="done"><div class="big">Done</div><p>'+esc(msg)+'</p><button type="button" class="b nav" data-again>Shuffle and restart</button></div>';
-  document.querySelector("[data-again]").onclick=start;
-}
-function start(){
-  order=shuffle([...Array(CARDS.length).keys()]);
-  if(mode==="flash"){i=0;renderFlash()}else{queue=[...order];setAside=0;renderLearn()}
-}
-deck.querySelectorAll("[data-card]").forEach(c=>{wireRecall(c);wireNav(c)});
-start();
-"""
+STUDY_JS = resources.read_text("surfaces/assets/study/study.js")
 
 
 def study_page(bank_path, qs):

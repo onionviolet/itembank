@@ -975,6 +975,9 @@ def check_study_theme_and_palette():
         shutil.rmtree(tmp, ignore_errors=True)
     src = open(os.path.join(ROOT, "surfaces", "study.py"),
                encoding="utf-8").read()
+    for asset in sorted(os.listdir(os.path.join(ROOT, "surfaces", "assets", "study"))):
+        src += open(os.path.join(ROOT, "surfaces", "assets", "study", asset),
+                    encoding="utf-8").read()
     if re.search(r"#[0-9a-fA-F]{6}", src):
         fail("surfaces/study.py contains component color literals")
     css = presentation_roundtrip.style_css(page)
