@@ -3598,7 +3598,7 @@ def invoke_hint(session_file, retry=False):
     Sequences: resolve session and current item -> hint_context -> mint or
     reuse the interaction id (at most one generation per id, D-12) ->
     model_adapter.request_from_operation(operation hint) ->
-    model_adapter.invoke with surfaces.settings.load_settings -> validate
+    model_adapter.invoke with settings_core.load_settings -> validate
     the result -> tier_gate.evaluate_candidate on any candidate ->
     learner_payload on pass, or the authored fallback via
     authored_hint(q, tier) on drop/unavailable (D-08/D-11) -> append one
@@ -3610,7 +3610,7 @@ def invoke_hint(session_file, retry=False):
     import model
     import model_adapter
     import tier_gate
-    from surfaces import settings as _settings
+    import settings_core as _settings
 
     data = read_session(session_file)
     if staged_case(data) is not None:
@@ -3727,7 +3727,7 @@ def invoke_rubric_review(session_file):
     typed refusal with a named reason and NO evidence write (D-13). On a
     genuine pending short response it sequences: build the rubric_review
     request with the item's rubric points -> model_adapter.invoke with
-    surfaces.settings.load_settings -> tier_gate.evaluate_candidate
+    settings_core.load_settings -> tier_gate.evaluate_candidate
     (rubric_proposal shape, gate tier 5 -- the reviewer sees the whole
     authored ladder while correct/model stay always-protected) -> append the
     model_interaction event (D-15) and, on pass, the mark_proposal event
@@ -3739,7 +3739,7 @@ def invoke_rubric_review(session_file):
     import model
     import model_adapter
     import tier_gate
-    from surfaces import settings as _settings
+    import settings_core as _settings
 
     data = read_session(session_file)
     if data["status"] != "active":

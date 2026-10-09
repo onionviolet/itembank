@@ -7,6 +7,9 @@ of what an authoring agent has to satisfy.
 import collections, hashlib, json, os, re, sys, uuid
 
 import resources
+from markdown_blocks import (split_cells, is_separator_row, CALLOUT_MARK_RE,
+                             callout_required_of, callout_spec, callout_entered,
+                             protect_fenced_code)
 
 
 LETTERS = "ABCDEFGH"
@@ -1074,13 +1077,8 @@ def _term_refs(text):
 
 
 def _terms_row_cells(line):
-    """Split one `## TERMS` pipe row with the lesson reader's own cell
-    splitter, never a second implementation. Imported lazily because
-    surfaces/lesson.py imports this module at load time; a top-level import
-    here would cycle, and the reuse is the point (research's anti-pattern:
-    don't hand-roll a second splitter)."""
-    from surfaces.lesson import _is_separator_row, _split_cells
-    return _split_cells(line), _is_separator_row(line)
+    """Split one `## TERMS` pipe row with the shared Markdown cell splitter."""
+    return split_cells(line), is_separator_row(line)
 
 
 def parse_terms(bank_path):
@@ -1934,9 +1932,7 @@ def _bank_preamble(bank_path):
 def _parse_style_file(style_id, path, text, warnings):
     """Parse one style file's `## Voice` prose zone, `## Rules` pipe table
     and `## Exemplar` block into a plain dict. The pipe table reuses the
-    existing cell splitter (function-local import: surfaces.lesson imports
-    model, so a top-level model -> surfaces import would cycle -- the same
-    pattern plan 03.1-02 used for parse_terms). A duplicate rule id inside
+    shared Markdown cell splitter. A duplicate rule id inside
     one file is recorded in `duplicate_rules`; the caller owns the LintError
     record."""
     voice, rules_text, exemplar = "", "", ""
@@ -1953,7 +1949,6 @@ def _parse_style_file(style_id, path, text, warnings):
         elif section == "exemplar":
             exemplar += line + "\n"
 
-    from surfaces.lesson import _is_separator_row, _split_cells
     rules = []
     duplicate_rules = []
     seen = set()
@@ -1961,12 +1956,12 @@ def _parse_style_file(style_id, path, text, warnings):
     for row in rules_text.splitlines():
         if not row.strip().startswith("|"):
             continue
-        if _is_separator_row(row):
+        if is_separator_row(row):
             past_separator = True
             continue
         if not past_separator:
             continue  # the header row precedes the separator
-        cells = _split_cells(row)
+        cells = split_cells(row)
         if len(cells) < 2:
             continue
         rule = {
@@ -4411,37 +4406,31 @@ def lint(questions, lesson=LESSON_UNCHECKED, terms=TERMS_UNCHECKED,
                 seen_steps.add(step_id)
             # Phase 16A unknown-semantic findings (D-16A-3, CAP-01's
             # Degraded clause). The marker shape and the required-marker
-            # rule are read from `surfaces.lesson` through a function-local
-            # import rather than re-spelled here: `surfaces.lesson` imports
-            # this module, so a top-level edge would cycle, and this is the
-            # same pattern `parse_terms` already uses to reuse that module's
-            # cell splitter. One finding per DISTINCT kind, in
+            # rule come from the shared Markdown block parser.
+            # One finding per DISTINCT kind, in
             # first-appearance order, so a lesson using the same unknown
             # kind six times reports it once rather than six times.
-            from surfaces.lesson import (_CALLOUT_MARK_RE,
-                                         _callout_required_of, _callout_spec,
-                                         _callout_entered, _protect_code)
             # Validate only the explicitly opted-in Example body. Ordinary
             # examples, tables and emphasis retain their existing meaning.
             # The reader protects fences per heading. An unterminated fence
             # in one heading must not hide declarations in the next.
             protected = "\n\n".join(
-                _protect_code(part)[0] for part in re.split(
+                protect_fenced_code(part)[0] for part in re.split(
                     r"(?m)(?=^###\s)", lesson.get("body") or ""))
             comparison_lines = protected.split("\n")
             index = 0
             while index < len(comparison_lines):
                 raw_line = comparison_lines[index]
                 index += 1
-                marker = _CALLOUT_MARK_RE.match(raw_line)
-                if marker is None or not _callout_entered(raw_line):
+                marker = CALLOUT_MARK_RE.match(raw_line)
+                if marker is None or not callout_entered(raw_line):
                     continue
                 block = [marker.group(2)] if marker.group(2) else []
                 while index < len(comparison_lines) and comparison_lines[index].startswith(">"):
                     following = comparison_lines[index]
                     block.append(re.sub(r"^>\s?", "", following))
                     index += 1
-                kind, _ = _callout_required_of(marker.group(1))
+                kind, _ = callout_required_of(marker.group(1))
                 if kind != "EXAMPLE":
                     continue
                 comparison = parse_lesson_comparison("\n".join(block))
@@ -4454,14 +4443,14 @@ def lint(questions, lesson=LESSON_UNCHECKED, terms=TERMS_UNCHECKED,
                                             "semantics", "BANK", lineplot["error"]))
             seen_unknown = []
             for raw_line in (lesson.get("body") or "").split("\n"):
-                cm = _CALLOUT_MARK_RE.match(raw_line)
+                cm = CALLOUT_MARK_RE.match(raw_line)
                 if cm is None:
                     continue
                 marker = cm.group(1)
-                if _callout_spec(marker) is not None:
+                if callout_spec(marker) is not None:
                     continue
-                kind, required = _callout_required_of(marker)
-                if _callout_spec(kind) is not None and required:
+                kind, required = callout_required_of(marker)
+                if callout_spec(kind) is not None and required:
                     continue
                 if (kind, required) in seen_unknown:
                     continue
@@ -4538,8 +4527,7 @@ def lint(questions, lesson=LESSON_UNCHECKED, terms=TERMS_UNCHECKED,
     # The rights and availability vocabularies are READ from `capabilities`
     # through a function-local import, never restated here. `capabilities`
     # does not import `model`, so this edge does not cycle; the local import
-    # keeps `model`'s top-level import list unchanged, which is the same
-    # technique `parse_terms` uses to reach `surfaces.lesson`.
+    # keeps this optional capability dependency local to media linting.
     #
     # Membership is all that is checked. No finding here gates anything, and
     # no code path in Phase 16A reads a rights value to decide whether an

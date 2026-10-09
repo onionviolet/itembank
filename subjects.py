@@ -255,7 +255,7 @@ def load_registry(base):
     runs the closed-shape `validate_registry()` over `subject_profiles`, so
     an invalid registry is a named profile/settings error before any
     selection. Only the conservative default stays code-owned (D-03)."""
-    from surfaces import settings  # function-local: configuration, not a surface
+    import settings_core as settings
     data = settings.load_settings(base)
     return validate_registry(data.get("subject_profiles"))
 

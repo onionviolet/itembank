@@ -20,10 +20,12 @@ stands in for, and `tests/preflight_roundtrip.py` fails the build if a CI step
 appears that no gate claims, so the mirror cannot silently drift the way the
 old hand-listed test file did. Two CI steps are deliberately not mirrored and
 are named in CI_ONLY below with the reason.
+Local architecture checks are named separately in LOCAL_ONLY.
 
 Standard library only, same as everything else in scripts/.
 """
 import argparse
+import ast
 import filecmp
 import json
 import os
@@ -35,6 +37,13 @@ import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PY = sys.executable
+
+# Local architecture checks supplement the mirrored CI steps.
+LOCAL_ONLY = {
+    "Core modules do not import client surfaces":
+        "local architecture gate; scans every root Python module except "
+        "the launcher, packager, and server",
+}
 
 # CI steps this script deliberately does not mirror, and why. Named here so the
 # drift test can tell "not mirrored on purpose" from "quietly forgotten".
@@ -186,6 +195,36 @@ def gate_guard():
     return code == 0, out
 
 
+def gate_core_layers():
+    """Reject static client imports anywhere in a root core module."""
+    excluded = {"build.py", "itembank.py", "server.py"}
+    violations = []
+    checked = 0
+    for name in sorted(os.listdir(ROOT)):
+        path = os.path.join(ROOT, name)
+        if not name.endswith(".py") or name in excluded or not os.path.isfile(path):
+            continue
+        checked += 1
+        try:
+            with open(path, encoding="utf-8") as source:
+                tree = ast.parse(source.read(), filename=name)
+        except (OSError, SyntaxError) as exc:
+            violations.append("%s: cannot inspect imports: %s" % (name, exc))
+            continue
+        for node in ast.walk(tree):
+            modules = []
+            if isinstance(node, ast.Import):
+                modules = [alias.name for alias in node.names]
+            elif isinstance(node, ast.ImportFrom) and node.level == 0:
+                modules = [node.module or ""]
+            for module in modules:
+                if module == "surfaces" or module.startswith("surfaces."):
+                    violations.append("%s:%d: core imports %s" %
+                                      (name, node.lineno, module))
+    return not violations, ("\n".join(violations) if violations else
+                            "%d core modules have no client imports" % checked)
+
+
 def gate_skill_mirrors():
     # Python rather than `diff -rq`: diff is not on a stock Windows box, so the
     # shell version of this gate simply could not run locally.
@@ -250,8 +289,9 @@ def gate_summaries():
     return code == 0, out
 
 
-# (gate id, CI step name it mirrors, function, slow?)
+# (gate id, CI step or local check name, function, slow?)
 GATES = [
+    ("layers", "Core modules do not import client surfaces", gate_core_layers, False),
     ("lint", "Sample fixture lints clean", gate_lint_clean, False),
     ("broken", "Broken fixture is caught", gate_broken_caught, False),
     ("build", "Sample fixture builds", gate_build, False),

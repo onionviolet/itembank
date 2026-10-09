@@ -33,6 +33,7 @@ import itembank                                                              # n
 STAGE_FILES = (
     "itembank.py", "model.py", "runtime.py", "server.py", "evidence.py",
     "schema_validate.py", "selection.py", "retention.py", "resources.py",
+    "markdown_blocks.py", "settings_core.py",
     "auditor.py", "authoring.py", "audit_writer.py",
     "runner.py", "subjects.py",
     # Phase 14A and 14B, added 2026-08-27 by plan 14C-01 Task 4. These

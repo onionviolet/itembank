@@ -25,7 +25,7 @@ import urllib.request
 import resources
 import schema_validate
 from extension_registry import build_registry
-from surfaces.settings import resolve_profile as _resolve_profile
+from settings_core import resolve_profile as core_resolve_profile
 
 
 SCHEMA_RESOURCE = "schemas/model_adapter.schema.json"
@@ -94,13 +94,13 @@ def request_from_operation(operation, interaction_id, profile, **payload):
 
 
 def resolve_profile(settings_data, name=None):
-    """The active-profile resolver, owned by surfaces/settings.py so config
+    """The active-profile resolver, owned by settings_core.py so config
     and adapter share one read; re-exported here as part of this module's
     public boundary. Returns (profile_or_None, error_or_None); exactly one is
     non-None. An empty active profile or empty profiles array is
     adapter.profile_disabled; a bad registry is settings.invalid_value; an
     active name that matches no profile is adapter.profile_unknown."""
-    return _resolve_profile(settings_data, name)
+    return core_resolve_profile(settings_data, name)
 
 
 def _ok_result(request, backend_class, profile, candidate, elapsed_ms):

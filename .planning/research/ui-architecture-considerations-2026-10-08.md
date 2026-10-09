@@ -81,3 +81,59 @@ runtime as arguments instead of importing a surface.
 - Copy voice (audit P5) remains half done: runtime-owned hint-ladder strings
   ("Tier N is unlocked") still leak runtime vocabulary. Changing them is a
   runtime disclosure-copy change and needs its own decision.
+
+## A5 execution evidence, 2026-10-08
+
+Shared table, callout, and fence syntax now lives in `markdown_blocks.py` as
+public names. The lesson surface renders the shared parser's raw fence tokens.
+Settings loading, validation classification, model-profile resolution, and
+mode precedence now live in `settings_core.py`; surfaces re-export the existing
+public settings and precedence entry points. Defaults, file formats, and
+settings paths are unchanged. The nine moved settings and precedence function
+ASTs match their prior implementations exactly.
+
+The import scan also found `subjects.py` importing surface settings and
+`strategies.py` importing surface mode precedence. Both now call the core.
+`server.py:41` still imports `surfaces.visual_fixture`, as explicitly excluded
+by the task. The generated launcher imports in `build.py` are unchanged; its
+package allowlist now includes both shared modules.
+
+The new `layers` gate runs in quick preflight and scans static imports,
+including function-local imports, in every root Python module except
+`build.py`, `itembank.py`, and `server.py`. It uses the AST rather than matching
+comments or launcher strings. Regression cases cover nested and multiline
+imports, submodule imports, exclusions, harmless text, and syntax errors.
+
+Verification at this source revision:
+
+| Check | Result |
+| --- | --- |
+| `python3 scripts/preflight.py --quick` | Exit 0; 37 core modules checked; all fast gates passed |
+| `python3 tests/preflight_roundtrip.py` | Exit 0; 15 CI steps, 14 gates, 2 CI-only steps |
+| `python3 tests/settings_roundtrip.py` | Exit 0 |
+| `python3 tests/lesson_roundtrip.py` | Exit 1; daemon loopback bind denied by sandbox |
+| `python3 tests/model_adapter_roundtrip.py` | Exit 1; fake HTTP server bind denied by sandbox |
+| `python3 tests/hint_roundtrip.py` | Exit 1; daemon loopback bind denied by sandbox |
+| `node --test tests/js/*.test.mjs` | Final exit 0; 147 passed, 0 failed |
+| `python3 tests/config_roundtrip.py` | Exit 0 after restoring the surface's schema-print resource import |
+| `python3 tests/strategy_precedence_roundtrip.py` | Exit 0; 5 passed |
+| `python3 tests/lesson_interaction_roundtrip.py` | Exit 1; 17 ran, 1 socket-bind error |
+| `python3 tests/local_harness_roundtrip.py` | Exit 1; loopback bind denied by sandbox |
+| Focused lesson slice | 20 fence, table, callout, and term checks passed |
+| Focused model-adapter slice | 4 settings and transport-registration checks passed |
+| Fresh zipapp smoke check | Both shared modules present; config schema and sample lint passed |
+| `git diff --check` | Passed |
+
+The first JS run passed 146 of 147 tests; the quiz-observer timing assertion
+failed. That test passed in isolation, and the repeated full command passed
+147 of 147. This is an observed intermittent result, not a diagnosed cause.
+The sandbox rejects `socket.bind` with `PermissionError: [Errno 1] Operation
+not permitted`; rerun the socket-dependent suites in an environment permitting
+loopback binds. Focused slices do not replace those full-suite gates.
+
+Large touched modules were read by symbol and bounded windows, including
+`model.py`, `runtime.py`, `model_adapter.py`, `subjects.py`, `strategies.py`,
+and the lesson, settings, and IA surfaces. No staging, commit, or push was
+performed. The source refactor and local checks do not establish installed
+desktop-app or human acceptance. Undo is the task-scoped diff plus removal of
+the two new shared modules, preserving unrelated concurrent edits.

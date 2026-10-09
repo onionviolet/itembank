@@ -17,6 +17,7 @@ import contextlib
 import io
 import re
 import sys
+import tempfile
 from unittest import mock
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -48,7 +49,7 @@ check(not unmirrored,
       "CI steps that no preflight gate claims and CI_ONLY does not excuse: %s"
       % ", ".join(unmirrored))
 
-stale = [s for s in claimed if s not in ci_steps]
+stale = [s for s in claimed if s not in ci_steps and s not in preflight.LOCAL_ONLY]
 check(not stale,
       "preflight names steps that CI no longer has: %s" % ", ".join(stale))
 
@@ -75,6 +76,38 @@ check(sorted(ci_messages) == sorted(preflight.BROKEN_MESSAGES),
 # Gate ids are unique and usable on a command line.
 ids = [g[0] for g in preflight.GATES]
 check(len(ids) == len(set(ids)), "duplicate preflight gate id: %s" % ids)
+
+check(any(g[0] == "layers" and not g[3] for g in preflight.GATES),
+      "core-layer gate is missing or skipped by --quick")
+check(set(preflight.LOCAL_ONLY) <= claimed, "local gate declarations are stale")
+
+# Static imports include nested and multiline statements. Strings, comments,
+# similarly named packages, and non-root clients must not trigger the gate.
+with tempfile.TemporaryDirectory() as root:
+    for name in ("build.py", "itembank.py", "server.py"):
+        with open(os.path.join(root, name), "w", encoding="utf-8") as source:
+            source.write("import surfaces\n")
+    os.mkdir(os.path.join(root, "surfaces"))
+    with open(os.path.join(root, "surfaces", "client.py"), "w", encoding="utf-8") as source:
+        source.write("import surfaces\n")
+    core = os.path.join(root, "new_core.py")
+    with mock.patch.object(preflight, "ROOT", root):
+        with open(core, "w", encoding="utf-8") as source:
+            source.write('# import surfaces\ntext = "from surfaces import lesson"\n'
+                         'import surfaces_extra\n')
+        ok, _ = preflight.gate_core_layers()
+        check(ok, "core-layer gate rejected non-import text or excluded files")
+        with open(core, "w", encoding="utf-8") as source:
+            source.write('import os, surfaces.lesson as reader\n'
+                         'def nested():\n    from surfaces import (\n        settings,\n    )\n'
+                         '    import surfaces\n    from surfaces.lesson import reader\n')
+        ok, message = preflight.gate_core_layers()
+        check(not ok and all('new_core.py:%d:' % line in message for line in (1, 3, 6, 7)),
+              "core-layer gate missed static or function-local imports: " + message)
+        with open(core, "w", encoding="utf-8") as source:
+            source.write('invalid Python syntax !\n')
+        ok, _ = preflight.gate_core_layers()
+        check(not ok, "core-layer gate silently skipped an unparseable module")
 
 # Source-only verification must never launch one of the fresh archive tests,
 # while default CI parity still runs the whole inventory.
@@ -110,5 +143,5 @@ if failures:
     for f in failures:
         print("FAIL " + f)
     sys.exit(1)
-print("preflight_roundtrip: ok (%d CI steps, %d mirrored gates, %d ci-only)"
+print("preflight_roundtrip: ok (%d CI steps, %d gates, %d ci-only)"
       % (len(ci_steps), len(preflight.GATES), len(preflight.CI_ONLY)))

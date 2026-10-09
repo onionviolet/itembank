@@ -9,6 +9,9 @@ import html, json, os, re, sys
 from urllib.parse import parse_qs, quote, urlsplit, urlunsplit
 
 import capabilities
+from markdown_blocks import (FENCE_RE, CALLOUT_MARK_RE, callout_spec,
+                             callout_required_of, callout_kind_of, callout_entered,
+                             split_cells, is_separator_row, protect_fenced_code)
 from model import parse_lesson_comparison, parse_lesson_lineplot
 from surfaces import lesson_interaction, lesson_progressive
 import evidence
@@ -743,38 +746,12 @@ def _truncate(text, limit):
 
 
 _TOKEN_RE = re.compile(r"^\x00K(\d+)\x00$")
-_FENCE_RE = re.compile(r"^(`{3,})\s*(.*?)\s*$")
-_CALLOUT_MARK_RE = re.compile(r"^>\s*\[!([A-Za-z][^\]]*)\]\s*(.*)$")
 # A line that is ONLY a `[MEDIA: <id>]` directive (plan 16A-05). Anchored at
 # both ends on purpose: a figure is a block-level thing, so a `[MEDIA:]`
 # appearing inside a paragraph, a list item, a table cell, or a fence is left
 # alone and renders as literal text. Inlining a figure would break the run it
 # sits in, and no requirement asks for one.
 _MEDIA_BLOCK_RE = re.compile(r"^\s*\[MEDIA:\s*([^\]]*?)\s*\]\s*$")
-
-# The locked callout kinds (03.1-UI-SPEC §9.2-§9.4): each maps to the exact
-# Ledger-voice label the renderer and the linter share (§15). The `CHECK:`
-# prefix is handled separately as the inert reserved slot (D-18). Adding a
-# kind is a one-line registration here -- the container and its degradation
-# contract do not change.
-_CALLOUT_KINDS = {
-    "KEY": ("key", "Key point"),
-    "EXAMPLE": ("example", "Example"),
-    "NOTE": ("note", "Note"),
-    "WARNING": ("warning", "Warning"),
-    # Phase 16A, D-16A-1 option-a: added alongside the shipped four rather
-    # than promoting the dict into a semantic-role registry, so this dict
-    # stays the one source of truth for what a callout kind means. The
-    # container and its degradation contract are unchanged, which is what the
-    # comment above already promises.
-    "PREREQUISITE": ("prerequisite", "Before this"),
-    "MISCONCEPTION": ("misconception", "Common mistake"),
-    "TIP": ("tip", "Expert tip"),
-    "COUNTEREXAMPLE": ("counterexample", "Counterexample"),
-    "EXCERPT": ("excerpt", "From the source"),
-    "UNCERTAINTY": ("uncertainty", "Not settled"),
-    "SUMMARY": ("summary", "In short"),
-}
 
 # One in-repo decorative callout mark (03.1-UI-SPEC §2): a single 16×16
 # currentColor SVG glyph, aria-hidden, whose visible Ledger label carries
@@ -1002,7 +979,6 @@ GLOSS_HOVER_JS = """<script>
 </script>"""
 
 
-
 # The glossary rules are sliced out of the shipped LESSON_CSS rather than copied,
 # so the 17A visual tracer and any later surface that shows a hover definition
 # style it from the same bytes the reader uses. A copy would drift silently; a
@@ -1118,29 +1094,6 @@ def _reader_nav_html(headings, variant="column"):
                html.escape(SECTIONS_NAV_COPY), items))
 
 
-def _callout_spec(raw):
-    """Map one `[!KIND]` marker to its locked `(slug, label, check_id)`
-    triple, or None.
-
-    `CHECK:` (with or without an id) maps to the reserved slot; the id is
-    kept so Phase 6.2's live band can resolve the check item -- the inert
-    slot drops it exactly as 3.1 did (the anchor carries no key and no
-    scoring path until the band activates it). Any other kind returns None
-    so the block classifier falls through to the pre-change paragraph
-    output byte-for-byte: an unknown kind never raises and never invents a
-    container.
-    """
-    kind = raw.strip()
-    if kind.startswith("CHECK:"):
-        m = re.match(r"^CHECK:\s*(\S+)", kind)
-        check_id = m.group(1) if m else ""
-        return ("check", "Check", check_id)
-    slug, label = _CALLOUT_KINDS.get(kind, (None, None))
-    if slug is None:
-        return None
-    return (slug, label, None)
-
-
 # The locked user-visible copy of the unsupported-block refusal (D-16A-3,
 # CAP-01's Degraded clause). One string, one place: a learner who meets a
 # block this reader cannot honor reads this sentence and then the author's own
@@ -1161,68 +1114,6 @@ MEDIA_MISSING_COPY = ("This image is not available on this machine. Its "
                       "description is below.")
 MEDIA_REMOTE_COPY = ("This image lives outside this course and is not loaded "
                      "here. Its description is below, and the link opens it.")
-
-
-def _callout_required_of(raw):
-    """Split one captured `[!...]` marker into its `(kind, required)` pair.
-
-    A trailing `!` inside the brackets declares the semantic required
-    (D-16A-3): `MISCONCEPTION!` is `("MISCONCEPTION", True)` and
-    `MISCONCEPTION` is `("MISCONCEPTION", False)`. This runs BEFORE any
-    registry lookup and never consults one, so an unregistered kind still
-    reports its required flag -- which is the whole point, because an unknown
-    REQUIRED semantic must be refused out loud rather than falling through
-    the unknown-optional paragraph path and disappearing.
-
-    `_CALLOUT_MARK_RE` is not involved and is not changed: its group 1 already
-    accepts a trailing exclamation mark, so a bank using none of them captures
-    byte identically.
-
-    `CHECK:` is resolved by `_callout_spec` before this function is consulted,
-    exactly as it is today. `[!CHECK: id!]` is therefore not a supported form
-    and is treated as an unknown kind; a later reader should not add a branch
-    for it.
-    """
-    kind = (raw or "").strip()
-    if kind.endswith("!"):
-        return kind[:-1], True
-    return kind, False
-
-
-def _callout_kind_of(line):
-    """The dispatch key of one `> [!...]` line: the literal string "KEY"
-    for any [!KEY] variant (the plan 03.1-03 card), the locked `(slug,
-    label)` pair for the generic kinds, or None for an unknown kind that
-    must degrade to the pre-change paragraph output."""
-    m = _CALLOUT_MARK_RE.match(line)
-    if m is None:
-        return None
-    kind = m.group(1)
-    if kind == "KEY" or kind.startswith("KEY:"):
-        return "KEY"
-    return _callout_spec(kind)
-
-
-def _callout_entered(line):
-    """True when one line opens a block the callout branch handles.
-
-    Defined once because two guards share it: the branch itself, and the
-    paragraph-continuation break. If only the branch knew about unknown
-    required semantics, a required block sitting directly under a paragraph
-    would be swallowed into that paragraph and lost, which is the same
-    silent drop the whole contract exists to refuse.
-
-    A known kind enters, exactly as it did before Phase 16A. An unknown kind
-    enters only when it is marked required with a trailing `!`; an unknown
-    optional kind still returns False and still falls through to the
-    pre-16A paragraph output byte for byte.
-    """
-    m = _CALLOUT_MARK_RE.match(line)
-    if m is None:
-        return False
-    if _callout_kind_of(line) is not None:
-        return True
-    return _callout_required_of(m.group(1))[1]
 
 
 _KEY_CLOZE_RE = re.compile(r"\{\{([^{}]+)\}\}")
@@ -1247,7 +1138,7 @@ def _parse_key_callout(raw_lines):
     `>` lines, cloze flag from the body -- the same field set
     `model.parse_key_blocks()` returns, resolved here from the raw lines
     the block renderer already holds."""
-    marker = _CALLOUT_MARK_RE.match(raw_lines[0])
+    marker = CALLOUT_MARK_RE.match(raw_lines[0])
     title = marker.group(2).strip() if marker else ""
     raw = "\n".join(raw_lines)
     kid = grab(r"(?m)^>\s*\[ID:\s*(\S+)\s*\]", raw)
@@ -1726,7 +1617,7 @@ def lesson_fence_languages(lesson):
     """The ordered list of fenced-block languages in a parsed lesson, in
     document order. The reader renders one section per heading (the intro is
     not rendered), so this walks each heading's body top to bottom with the
-    same `_FENCE_RE` and open-to-closer consumption `_protect_code` uses --
+    same `FENCE_RE` and open-to-closer consumption `_protect_code` uses --
     the server-side enumeration the daemon's `/api/lesson/run` block-id
     resolution and the renderer's sequential `data-code-block` ids both
     follow (09-05 D-05), so a block id always names the same fence. A fence
@@ -1737,7 +1628,7 @@ def lesson_fence_languages(lesson):
             lines = (h.get("body") or "").split("\n")
             i = 0
             while i < len(lines):
-                m = _FENCE_RE.match(lines[i])
+                m = FENCE_RE.match(lines[i])
                 if m:
                     langs.append(lesson_slug(m.group(2).strip() or ""))
                     fence = m.group(1)
@@ -1856,55 +1747,9 @@ def _code_block(info, content, ctx=None):
 
 
 def _protect_code(text, ctx=None):
-    """Lift every fenced block out of a section's text before any inline
-    pass, replacing each with an opaque placeholder line that no inline
-    pattern can match. Returns `(protected_text, tokens)` with the rendered
-    code fragments in order.
-
-    This ordering is the whole design: a single interleaved pass would let
-    an emphasis or link pattern reach inside a fenced block and silently
-    mangle exactly the content Phase 9 depends on being verbatim, and the
-    damage would be invisible until someone read the rendered code closely.
-    An unterminated fence treats the rest of the section as the block's
-    content -- the forgiving reading that keeps the document readable
-    (T-3-04).
-    """
-    lines = text.split("\n")
-    out, tokens = [], []
-    i = 0
-    while i < len(lines):
-        m = _FENCE_RE.match(lines[i])
-        if m:
-            fence = m.group(1)
-            info = m.group(2).strip()
-            closer = re.compile(r"^`{%d,}\s*$" % len(fence))
-            j = i + 1
-            body = []
-            while j < len(lines) and not closer.match(lines[j]):
-                body.append(lines[j])
-                j += 1
-            if j < len(lines):
-                j += 1  # skip the closing fence line
-            tokens.append(_code_block(info, "\n".join(body), ctx))
-            out.append("\x00K%d\x00" % (len(tokens) - 1))
-            i = j
-        else:
-            out.append(lines[i])
-            i += 1
-    return "\n".join(out), tokens
-
-
-def _split_cells(row):
-    row = row.strip()
-    if row.startswith("|"):
-        row = row[1:]
-    if row.endswith("|"):
-        row = row[:-1]
-    return [c.strip() for c in row.split("|")]
-
-
-def _is_separator_row(row):
-    return all(re.match(r"^:?-+:?$", c) for c in _split_cells(row))
+    """Protect fenced code with the shared parser, then render its tokens."""
+    protected, blocks = protect_fenced_code(text)
+    return protected, [_code_block(info, body, ctx) for info, body in blocks]
 
 
 def _table_html(rows, ctx=None):
@@ -1923,10 +1768,10 @@ def _table_html(rows, ctx=None):
     the generic lesson-table label. There is no subject-specific renderer
     path (D-12).
     """
-    if len(rows) < 2 or not _is_separator_row(rows[1]):
+    if len(rows) < 2 or not is_separator_row(rows[1]):
         return None
-    header = _split_cells(rows[0])
-    body = [_split_cells(r) for r in rows[2:]]
+    header = split_cells(rows[0])
+    body = [split_cells(r) for r in rows[2:]]
     if any(len(r) != len(header) for r in body):
         return None
     label = (ctx or {}).get("section_title") or "Lesson table"
@@ -2063,8 +1908,8 @@ def _render_blocks(text, ctx=None):
             out.append(tokens[int(tm.group(1))])
             i += 1
             continue
-        cm = _CALLOUT_MARK_RE.match(line)
-        if cm and _callout_entered(line):
+        cm = CALLOUT_MARK_RE.match(line)
+        if cm and callout_entered(line):
             # The callout branch (D-18): a `> [!KIND]` marker starts a run
             # whose body is every following `>`-prefixed line, closed at
             # the first non-`>` line. Only locked kinds -- plus the plan
@@ -2073,7 +1918,7 @@ def _render_blocks(text, ctx=None):
             # one more entrant and no other change: an unknown kind marked
             # REQUIRED with a trailing `!` (D-16A-3), which is refused out
             # loud below rather than silently dropped.
-            if _callout_kind_of(line) == "KEY":
+            if callout_kind_of(line) == "KEY":
                 raw_lines = [line]
                 i += 1
                 while i < len(lines) and lines[i].startswith(">"):
@@ -2081,10 +1926,10 @@ def _render_blocks(text, ctx=None):
                     i += 1
                 out.append(_key_card_html(raw_lines, ctx))
                 continue
-            spec = _callout_spec(cm.group(1))
-            kind, required = _callout_required_of(cm.group(1))
+            spec = callout_spec(cm.group(1))
+            kind, required = callout_required_of(cm.group(1))
             if spec is None and required:
-                spec = _callout_spec(kind)
+                spec = callout_spec(kind)
             body = [cm.group(2)] if cm.group(2) else []
             i += 1
             while i < len(lines) and lines[i].startswith(">"):
@@ -2197,7 +2042,7 @@ def _render_blocks(text, ctx=None):
             if (re.match(r"^#{4,}\s", nxt) or re.match(r"^-\s+", nxt)
                     or re.match(r"^\d+\.\s+", nxt) or _TOKEN_RE.match(nxt)
                     or "|" in nxt
-                    or _callout_entered(nxt)
+                    or callout_entered(nxt)
                     or _MEDIA_BLOCK_RE.match(nxt)):
                 break
             buf.append(nxt)
@@ -2422,7 +2267,7 @@ def guided_stages(heading_body, heading_slug=""):
     in_callout = False
     for line in lines:
         stripped = line.strip()
-        is_callout_mark = bool(_CALLOUT_MARK_RE.match(stripped))
+        is_callout_mark = bool(CALLOUT_MARK_RE.match(stripped))
         if is_callout_mark:
             in_callout = True
         current.append(line)
@@ -3104,7 +2949,7 @@ def _style_block_kind(block):
     callout kinds from `> [!KIND]`, fenced code, deeper headings, lists,
     tables, or paragraph."""
     text = block.lstrip()
-    cm = _CALLOUT_MARK_RE.match(text)
+    cm = CALLOUT_MARK_RE.match(text)
     if cm:
         return cm.group(1).split(":")[0].strip().upper()
     if text.startswith("```"):
@@ -3114,7 +2959,7 @@ def _style_block_kind(block):
     if re.match(r"^(\s*[-*]\s|\s*\d+\.\s)", text):
         return "list"
     lines = text.splitlines()
-    if len(lines) >= 2 and "|" in lines[0] and _is_separator_row(lines[1]):
+    if len(lines) >= 2 and "|" in lines[0] and is_separator_row(lines[1]):
         return "table"
     return "paragraph"
 

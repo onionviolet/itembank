@@ -28,6 +28,9 @@ would ship a state it never executed. Setting the variable makes
 `activity_view_state` take the same branch a build without `journal.py` takes.
 It is read only when the `journal` argument is omitted.
 """
+from settings_core import (MODE_LAYERS, MODE_LAYERS_FIXED,
+                           MODE_LAYER_CONFLICT_TEMPLATE, MODE_LAYER_DISPLAY_PHRASES,
+                           mode_layer_conflict_copy, mode_layer_resolve)
 import json
 import os
 import re
@@ -71,13 +74,6 @@ DEGRADED_STATES = ("crash", "cancelled", "disk_full", "offline",
 ATTENTION_STATES = ("up_to_date", "due", "pending_review", "needs_input",
                     "needs_reconciliation", "last_valid_overview")
 
-# Ordered lowest authority first, so a later member overrides an earlier one.
-MODE_LAYERS = ("learner_preference", "author_strategy", "objective_constraint",
-               "accommodation_override", "instructor_policy",
-               "runtime_authority", "system_safety")
-
-# The two layers no learner preference and no instructor policy can move.
-MODE_LAYERS_FIXED = ("runtime_authority", "system_safety")
 
 # Notes is deliberately absent: D4 gives Notes no dedicated route and renders
 # it only as a contextual panel inside Learn and Evidence.
@@ -1179,65 +1175,10 @@ MODE_LAYER_ROWS = tuple(
 
 MODE_LAYER_FIXED_HEADING = "Always fixed by itembank"
 
-# `{layer}` is substituted with a display phrase, never an internal key, so the
-# sentence reads as English. The UI-SPEC's own worked example, verbatim:
-# Timed test mode is set by your instructor's policy and can't be changed here.
-MODE_LAYER_CONFLICT_TEMPLATE = ("{setting} is set by {layer} for this course "
-                                "and can't be changed here.")
-
-# The phrase that reads correctly inside MODE_LAYER_CONFLICT_TEMPLATE.
-MODE_LAYER_DISPLAY_PHRASES = {
-    "learner_preference": "your own preference",
-    "author_strategy": "this course's design",
-    "objective_constraint": "this objective's requirements",
-    "accommodation_override": "your accommodation settings",
-    "instructor_policy": "your instructor's policy",
-    "runtime_authority": "itembank's assessment rules",
-    "system_safety": "itembank's safety rules",
-}
-
-
 def mode_layer_rows():
     """The seven layers as shallow copies, so a caller cannot mutate the
     module constant."""
     return [dict(row) for row in MODE_LAYER_ROWS]
-
-
-def mode_layer_conflict_copy(setting_name, layer):
-    """The exact locked sentence for one refused control. Raises `KeyError`
-    for an unknown layer rather than emitting a sentence naming nothing."""
-    return MODE_LAYER_CONFLICT_TEMPLATE.format(
-        setting=setting_name, layer=MODE_LAYER_DISPLAY_PHRASES[layer])
-
-
-def mode_layer_resolve(setting_name, requests):
-    """The pure half of the mode-layer contract.
-
-    It reads only its two arguments. It imports no strategy, accommodation, or
-    instructor record and touches no file. The collector that populates
-    `requests` from live state is Phase 16C's under D8 and D-16B-12, so there
-    is one precedence rule in this repository and not two.
-
-    The winning layer is the highest-indexed member of `MODE_LAYERS` present
-    in `requests`. An unknown key raises `ValueError` rather than being
-    ignored, because silently dropping a layer would let a caller believe its
-    request was considered.
-    """
-    for key in requests:
-        if key not in MODE_LAYERS:
-            raise ValueError("unknown mode layer: %r" % key)
-
-    present = [layer for layer in MODE_LAYERS if layer in requests]
-    if not present:
-        return {"value": None, "winning_layer": None, "conflict": False,
-                "copy": ""}
-
-    winner = present[-1]
-    value = requests[winner]
-    conflict = any(requests[layer] != value for layer in present[:-1])
-    return {"value": value, "winning_layer": winner, "conflict": conflict,
-            "copy": (mode_layer_conflict_copy(setting_name, winner)
-                     if conflict else "")}
 
 
 # The exact Degraded-State Matrix sentence for each state. `permission_denied`
