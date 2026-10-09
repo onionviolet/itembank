@@ -533,3 +533,216 @@ Two pre-existing em dash characters remain in retained `model.py` text to keep
 the original bodies verbatim. No new prose or sibling module introduces one.
 Final source/package checks establish the extraction and stated coverage;
 socket-enabled verification and reviewer acceptance remain open.
+
+
+## Runtime split (2026-10-09)
+
+User-authorized implementation of the accepted M1-M5, D1 and R1 proposal.
+This is a source refactor with import plumbing only. No Git staging, commit,
+push, installation or deployment occurred.
+
+### F1: Extraction and authority
+
+| File | Lines | Moved responsibility |
+| --- | ---: | --- |
+| runtime.py | 2,876 | Public facade, sole scorer and all R1 retained definitions |
+| runtime_sessions.py | 206 | M1 session persistence, migration, staged bindings and views |
+| runtime_teaching.py | 416 | M2 authored ladder and teaching-state bookkeeping |
+| runtime_feedback.py | 311 | M3 release policy and existing-feedback rendering |
+| runtime_visual_contract.py | 248 | M4 protocol validation and public renderer contracts |
+| runtime_gloss.py | 184 | M5 authored answer rendering and glossary disclosure gate |
+
+The original facade had 3,994 lines; the facade reduction is 1,118 lines.
+All 60 proposed names moved: 42 functions and 18 constants/registries. Every
+moved name, including private helpers, is explicitly re-exported. Internal
+modules import only standard-library dependencies at load time; functions
+resolve runtime-owned helpers and constants through local `import runtime`
+and call-time facade attributes. No sibling imports another sibling at load
+time. Surfaces continue using the facade.
+
+All R1 candidates remain in runtime.py, including normalization and keys,
+scoring, polynomial and visual verdict machinery, teaching_transition,
+_idempotent_canon, selected-option classification, checkpoint feedback,
+session_summary, public_item and page_item. No additional proposed name
+required withholding. An external text audit checked all 108 retained
+functions/classes/constants byte-for-byte and all 42 moved functions
+byte-for-byte after undoing only local imports and facade qualifiers.
+
+The runtime architecture diagram line alone changed in AGENTS.md, retaining
+column alignment. The identical line was absent from .claude/CLAUDE.md and
+docs/AGENT-REFERENCE.md; neither needed edits. Numbered rules are unchanged.
+Existing function text, including the teaching separator literal, was moved
+verbatim. No new prose uses an em dash.
+
+### F2: Before/after comparison
+
+Before editing, a throwaway script outside the repository saved SHA256 hashes
+for every uppercase runtime constant and JSON with `default=repr` for
+public_item, explain_payload and score_response on every item in every
+fixtures/*.md bank accepted by model.load. Responses were the canonical key,
+an empty string and the wrong option Z. Exceptions were recorded by type and
+message. Both revealed and unrevealed explanations were recorded. Constant
+serialization sorts sets and serializes registry callables by unchanged
+source rather than process-specific memory addresses; all runs use the same
+hash seed.
+
+Result: **byte-identical** before/after JSON, covering 45 constants, 26 banks,
+135 items and 405 score calls. Six model.load-rejected fixture files were
+recorded separately with identical rejection results. No differences.
+
+Combined before/after SHA256:
+`44e3546895ca707d4c4a36bee4366a14e391e80e06c01e34757dfcf38c95768f`.
+
+The unchanged inspect.getsource(score_response) SHA256 is
+`39d0e61fd2da19c8b7896db2bf96ed4db83200172bdbe004139afbfe24329f64`.
+The scoring test still requires exactly one score_response in runtime.py and
+retains its existing pinned hash and all previous assertions.
+
+### F3: Source inspections, rebinding and packaging
+
+The proposal's source-inspection table names five files. Those five now cover
+all extracted modules, and course_resume_roundtrip is the sixth strengthened
+T1 file, testing facade identity for functions/constants, absence of load-time
+back-imports and observable call-time rebinding. No existing assertion was
+removed or weakened.
+
+| T1 file | Exact verification result |
+| --- | --- |
+| scoring_roundtrip | Full script exit 0; all five modules present, one scorer and pinned source |
+| model_surface_roundtrip | Full script exit 0; extracted source included in prohibited-flag scan |
+| model_phase_roundtrip | Full script exit 1 at socket bind; run_contract_audit separately passed |
+| subject_loop_roundtrip | Full script exit 1 at socket startup; test_no_subject_dispatch_in_surfaces separately passed |
+| course_guidance_journey_roundtrip | Full script exit 1 at socket startup; source_fingerprints separately verified all five module paths |
+| course_resume_roundtrip | Full script exit 1 at socket startup; check_runtime_facade separately passed on final source |
+
+The original course-shelf patch route was also exercised without a server:
+with a persisted synthetic sitting, patching runtime.read_session to raise
+PermissionError changed the shelf cue from Session in progress to Session
+status unavailable. The patch was called. Facade lookup remains observable.
+
+All five modules are included in build.py STAGE_FILES. An external harness
+called build.stage, created a zipapp, and launched isolated Python from outside
+the checkout. `import runtime, model, itembank` succeeded with runtime.__file__
+inside the staged archive. packaging_roundtrip exited 0; its existing optional
+onedir-sidecar checks skipped because that artifact was not built.
+
+### F4: Verification and limitations
+
+- `python3 -c "import runtime, model, itembank"`: exit 0.
+- `python3 scripts/preflight.py --quick`: exit 0, including layers:
+  46 core modules have no client imports. Tests, clean-tree and JS gates skip
+  under the existing quick policy; model.py and surfaces/daemon.py remain
+  above the size warning threshold.
+- External text/AST audits and before/after comparison: passed.
+- Full suite commands: 71 attempted, 36 exit 0, 34 exit 1 on socket startup,
+  and evidence_roundtrip timed out after 120 seconds. The inventory below
+  preserves exact command outcomes rather than claiming full-suite passes
+  from partial checks. LTI's exit 0 includes two crypto-free checks only;
+  its signature checks skipped because cryptography is not installed.
+- Original non-socket slices: 42 hint checks, 23 evidence checks, the three
+  separately invoked T1 source checks, the facade check and
+  lesson_roundtrip.test_glossable_gate passed. No assertion rewriting.
+  The evidence slice additionally demonstrated the day socket restriction;
+  serve/day checks remain open. The original course-shelf patch check passed.
+
+Loopback binding raises `PermissionError: [Errno 1] Operation not permitted`.
+Some harnesses report this as a daemon failing to print a URL. A control run
+of check_disclosure_roundtrip with the original pre-split runtime reproduced
+its identical assert-base failure, confirming that startup gap predates the
+split. Socket cases cannot be certified in this sandbox.
+
+Every command in the following inventory is `python3 tests/<name>.py`:
+
+| Suite | Result |
+| --- | --- |
+| scoring_roundtrip.py | Exit 0 |
+| model_surface_roundtrip.py | Exit 0 |
+| model_phase_roundtrip.py | Exit 1; socket startup blocked |
+| subject_loop_roundtrip.py | Exit 1; socket startup blocked |
+| course_guidance_journey_roundtrip.py | Exit 1; socket startup blocked |
+| hint_roundtrip.py | Exit 1; socket startup blocked |
+| model_gate_roundtrip.py | Exit 0 |
+| course_resume_roundtrip.py | Exit 1; socket startup blocked |
+| a2_question_families_roundtrip.py | Exit 0 |
+| a5_inline_fields_roundtrip.py | Exit 0 |
+| a5_served_integration_roundtrip.py | Exit 1; socket startup blocked |
+| activity_graph_contract_roundtrip.py | Exit 0 |
+| blueprint_roundtrip.py | Exit 0 |
+| check_disclosure_roundtrip.py | Exit 1; socket startup blocked |
+| check_kill_roundtrip.py | Exit 0 |
+| check_roundtrip.py | Exit 1; socket startup blocked |
+| coding_unit_roundtrip.py | Exit 1; socket startup blocked |
+| connected_unit_roundtrip.py | Exit 1; socket startup blocked |
+| course_guidance_engine_roundtrip.py | Exit 0 |
+| desk_experience_roundtrip.py | Exit 1; socket startup blocked |
+| diagram_roundtrip.py | Exit 1; socket startup blocked |
+| evidence_anchor_contract_roundtrip.py | Exit 0 |
+| fill_roundtrip.py | Exit 0 |
+| fill_surface_roundtrip.py | Exit 1; socket startup blocked |
+| hotspot_roundtrip.py | Exit 1; socket startup blocked |
+| import_roundtrip.py | Exit 0 |
+| latex_input_roundtrip.py | Exit 0 |
+| learner_artifacts_roundtrip.py | Exit 0 |
+| lesson_code_roundtrip.py | Exit 1; socket startup blocked |
+| lesson_roundtrip.py | Exit 1; socket startup blocked |
+| lesson_run_roundtrip.py | Exit 0 |
+| lti_roundtrip.py | Exit 0; signature checks skipped (missing cryptography) |
+| matching_workflow_roundtrip.py | Exit 1; socket startup blocked |
+| model_adapter_roundtrip.py | Exit 1; socket startup blocked |
+| ordering_authoring_roundtrip.py | Exit 0 |
+| ordering_contract_roundtrip.py | Exit 0 |
+| ordering_gate_roundtrip.py | Exit 0 |
+| ordering_workflow_roundtrip.py | Exit 1; socket startup blocked |
+| polynomial_production_roundtrip.py | Exit 0 |
+| presentation_profiles_roundtrip.py | Exit 0 |
+| product_gm_integration_course_roundtrip.py | Exit 1; socket startup blocked |
+| product_gm_integration_source_journey_roundtrip.py | Exit 1; socket startup blocked |
+| product_gm_integration_source_return_roundtrip.py | Exit 1; socket startup blocked |
+| product_gm_iteration_pending_return_roundtrip.py | Exit 1; socket startup blocked |
+| product_gm_ui_journey_roundtrip.py | Exit 1; socket startup blocked |
+| question_domains_roundtrip.py | Exit 0 |
+| rich_practice_readiness_roundtrip.py | Exit 0 |
+| runner_verdict_roundtrip.py | Exit 0 |
+| source_adapters_roundtrip.py | Exit 1; socket startup blocked |
+| staged_activity_contract_roundtrip.py | Exit 0 |
+| staged_checker_disclosure_roundtrip.py | Exit 0 |
+| staged_checker_ui_roundtrip.py | Exit 1; socket startup blocked |
+| timeline_roundtrip.py | Exit 1; socket startup blocked |
+| trace_roundtrip.py | Exit 1; socket startup blocked |
+| true_false_roundtrip.py | Exit 0 |
+| ui_overhaul_journey_roundtrip.py | Exit 1; socket startup blocked |
+| ui_overhaul_navigation_roundtrip.py | Exit 1; socket startup blocked |
+| visual_accessibility_roundtrip.py | Exit 1; socket startup blocked |
+| visual_authoring_roundtrip.py | Exit 0 |
+| visual_evidence_roundtrip.py | Exit 1; socket startup blocked |
+| visual_roundtrip.py | Exit 1; socket startup blocked |
+| gift_export_roundtrip.py | Exit 0 |
+| evidence_roundtrip.py | Timed out after 120 seconds; 23 non-socket checks separately passed |
+| mock_exam_roundtrip.py | Exit 0 |
+| polynomial_checker_contract_roundtrip.py | Exit 0 |
+| pacing_roundtrip.py | Exit 0 |
+| paced_view_roundtrip.py | Exit 1; socket startup blocked |
+| protocol_roundtrip.py | Exit 0 |
+| staged_production_roundtrip.py | Exit 0 |
+| surface_roundtrip.py | Exit 0 |
+| packaging_roundtrip.py | Exit 0; optional onedir-sidecar checks skipped |
+
+Additional known socket suites not attempted after the restriction was proven:
+math_offline_roundtrip, daemon_roundtrip, serve_roundtrip and
+ui_overhaul_workspace_roundtrip. All exit-1 entries above require a rerun in a
+socket-enabled environment; the hint API/browser cases and evidence serve/day
+cases also remain open. No runtime behavioral difference was observed in the
+verified corpus and non-socket checks.
+
+### F5: Scope, recovery and next gate
+
+runtime.py, build.py and the large test modules were sampled by symbol,
+reference windows and AST/text audits rather than displayed in full. The
+accepted proposal and task-scoped execution instructions were read before
+editing. No unrelated source or installed application was changed.
+
+Recovery: reverse this task's named-file diff, remove its five new modules,
+and remove only this appended record while preserving any subsequent edits.
+The remaining verification gate is the socket-dependent suite inventory above
+in an environment that permits loopback binding. Optional LTI signatures and
+packaged onedir checks retain their separate prerequisite gaps.

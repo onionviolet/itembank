@@ -735,7 +735,8 @@ def test_no_subject_dispatch_in_surfaces():
     roots = [os.path.join(ROOT, "surfaces")]
     roots += [os.path.join(ROOT, f) for f in
               ("itembank.py", "model.py", "model_lesson.py", "model_provenance.py",
-               "model_ids.py", "model_style.py", "runtime.py", "evidence.py",
+               "model_ids.py", "model_style.py", "runtime.py",
+               "runtime_sessions.py", "runtime_teaching.py", "runtime_feedback.py", "runtime_visual_contract.py", "runtime_gloss.py", "evidence.py",
                "selection.py", "server.py", "schema_validate.py",
                "resources.py", "subjects.py", "build.py", "model_adapter.py",
                "tier_gate.py")]

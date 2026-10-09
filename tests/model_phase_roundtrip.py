@@ -1053,7 +1053,8 @@ def run_contract_audit():
         if auto_pattern.search(key):
             fail("settings schema carries an auto-accept property %r" % key)
     modules = ("model_adapter.py", "tier_gate.py", "evidence.py",
-               "runtime.py", "surfaces/session.py", "surfaces/evidence_cli.py",
+               "runtime.py",
+               "runtime_sessions.py", "runtime_teaching.py", "runtime_feedback.py", "runtime_visual_contract.py", "runtime_gloss.py", "surfaces/session.py", "surfaces/evidence_cli.py",
                "surfaces/settings.py")
     for mod in modules:
         src = open(os.path.join(ROOT, mod), encoding="utf-8").read()

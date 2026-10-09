@@ -95,6 +95,9 @@ def main():
 
     # One scorer, structurally, across every module rather than in the one file
     # that happens to hold it today.
+    for module in ('runtime_sessions.py', 'runtime_teaching.py', 'runtime_feedback.py', 'runtime_visual_contract.py', 'runtime_gloss.py'):
+        if not os.path.isfile(os.path.join(ROOT, module)):
+            fail("missing internal runtime component: %s" % module)
     scorers = []
     for base, dirs, files in os.walk(ROOT):
         # Sibling phase-run worktrees (.phaseNNN-wt) are nested checkouts of

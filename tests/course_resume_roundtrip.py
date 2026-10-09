@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Course shelf labels project persisted sessions without advancing them."""
+import ast
+import inspect
 import json
 import os
 from pathlib import Path
@@ -18,6 +20,41 @@ from daemon_roundtrip import start_daemon, get, json_request
 def snapshot(root):
     return {str(p.relative_to(root)): p.read_bytes()
             for p in root.rglob('*') if p.is_file()}
+
+
+def check_runtime_facade():
+    modules = ('runtime_sessions', 'runtime_teaching', 'runtime_feedback',
+               'runtime_visual_contract', 'runtime_gloss')
+    for name in modules:
+        module = __import__(name)
+        tree = ast.parse(inspect.getsource(module))
+        for node in tree.body:
+            if isinstance(node, ast.Import):
+                assert all(not alias.name.startswith('runtime')
+                           for alias in node.names), name
+            elif isinstance(node, ast.ImportFrom):
+                assert not (node.module or '').startswith('runtime'), name
+            elif isinstance(node, ast.FunctionDef):
+                assert getattr(runtime, node.name) is getattr(module, node.name)
+            elif isinstance(node, ast.Assign):
+                for target in node.targets:
+                    assert isinstance(target, ast.Name), name
+                    assert getattr(runtime, target.id) is getattr(module, target.id)
+    with patch('runtime.session_path', return_value='facade-session') as resolve:
+        with patch('runtime_sessions.open') as read:
+            read.return_value.__enter__.return_value.read.return_value = '{}'
+            with patch('runtime.upgrade_session', return_value={'facade': True}) as upgrade:
+                assert runtime.read_session('original') == {'facade': True}
+                resolve.assert_called_once_with('original')
+                upgrade.assert_called_once_with({})
+    with patch('runtime.read_session', side_effect=PermissionError) as read:
+        try:
+            runtime.invoke_hint('facade-session')
+        except PermissionError:
+            pass
+        else:
+            raise AssertionError('facade read_session patch was bypassed')
+        read.assert_called_once_with('facade-session')
 
 
 def check_resume():
@@ -163,4 +200,5 @@ def check_resume():
 
 
 if __name__ == '__main__':
+    check_runtime_facade()
     check_resume()

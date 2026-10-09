@@ -561,6 +561,8 @@ def test_suggestion_pending_token_only_and_no_auto_accept():
                              encoding="utf-8").read()
         session_src = inspect.getsource(session_surface)
         runtime_src = inspect.getsource(runtime)
+        for module in ('runtime_sessions', 'runtime_teaching', 'runtime_feedback', 'runtime_visual_contract', 'runtime_gloss'):
+            runtime_src += inspect.getsource(__import__(module))
         for needle in ("auto_accept", "auto-accept", "autoaccept"):
             if needle in settings_text or needle in session_src \
                     or needle in runtime_src:

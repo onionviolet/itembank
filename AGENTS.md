@@ -25,7 +25,7 @@ Binding documents:
 
 ```
 model.py                  what a bank is, and what makes one invalid (one parser)
-runtime.py                the only scorer; decides what a surface may see
+runtime.py                the only scorer; decides what a surface may see (runtime_*.py: internal parts behind it)
 server.py                 one loopback HTTP server
 surfaces/                 clients only: quiz, study, day, session, CLI, export
 ```

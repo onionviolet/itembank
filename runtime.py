@@ -11,6 +11,81 @@ surface that wants more than the first one has to ask.
 """
 import collections, fractions, hashlib, json, os, re, sys, unicodedata
 
+from runtime_sessions import (
+    SESSION_VERSION,
+    session_path,
+    SESSION_UPGRADES,
+    upgrade_session,
+    read_session,
+    write_session,
+    staged_case,
+    staged_token,
+    staged_activity,
+    staged_binding,
+    validate_staged_binding,
+    session_view,
+)
+
+from runtime_teaching import (
+    HINT_TIERS,
+    new_teaching_record,
+    teaching_key,
+    _reveal_display,
+    _objective_hint_display,
+    authored_hint,
+    _record_from_evidence,
+    _next_reveal,
+    reconcile_teaching_state,
+    marker_close,
+    formal_response_close,
+    _advance_cursor,
+    TIER_HEADER_WORDS,
+    LADDER_UNAVAILABLE_REASONS,
+    LADDER_UNAVAILABLE_DEFAULT,
+    NEXT_TIER_UNLOCK_COPY,
+    FURTHER_TIER_UNLOCK_COPY,
+    NEXT_TIER_ENTITLED_COPY,
+    MORE_TIERS_COPY,
+    NO_AUTHORED_TIER_COPY,
+    _tier_header,
+    teaching_payload,
+)
+
+from runtime_feedback import (
+    assessment_feedback_released,
+    report_feedback,
+    staged_event_released,
+    evidence_feedback,
+    saved_check_feedback,
+    learner_evidence,
+    submission_feedback,
+    polynomial_feedback,
+    staged_feedback,
+    response_text,
+    explain_payload,
+    FEEDBACK_POLICIES,
+    saved_pending_feedback,
+)
+
+from runtime_visual_contract import (
+    _validate_interaction_contract,
+    VISUAL_ACTIONS,
+    _VISUAL_SCENE_MEMBERS,
+    _VISUAL_KIND_BY_INTERACTION,
+    _VISUAL_SCORING_MEMBERS,
+    _VISUAL_EXEC_RE,
+    _reject_visual_exec,
+    _visual_response_schema,
+    _visual_interaction_contract,
+)
+
+from runtime_gloss import (
+    answer_text,
+    glossable,
+    _GLOSS_WORD_RE,
+    _fragment_discloses,
+)
+
 
 # ---- agent assessment runtime ----------------------------------------------
 # The browser is a presentation adapter. These helpers are the shared runtime
@@ -32,7 +107,6 @@ import collections, fractions, hashlib, json, os, re, sys, unicodedata
 # unavailable capabilities. New sessions persist the complete snapshot; the
 # v2-to-v3 upgrade leaves the slot null and the session adapter fills it once
 # from the bank on the first action (D-04).
-SESSION_VERSION = 4
 ITEM_VERSION = 1
 REPORT_VERSION = 1
 # The public interaction-contract version for a check item (plan 05-01):
@@ -146,31 +220,6 @@ def public_item(q, shuffle_seed=0):
     return out
 
 
-def _validate_interaction_contract(config):
-    """The public_item boundary gate for a check item's interaction contract:
-    the envelope and the renderer_config must carry exactly the declared keys
-    with the declared value kinds, and the whole config must serialize as JSON
-    data -- no callables, no case material, no key. A config built from a
-    parsed question can never fail this; it exists so a future caller cannot
-    slip something through the boundary unnoticed."""
-    if not isinstance(config, dict):
-        raise ValueError("interaction contract must be an object")
-    for key in ("version", "type", "renderer_config", "response_schema"):
-        if key not in config:
-            raise ValueError("interaction contract missing %r" % key)
-    if config["type"] != "check":
-        raise ValueError("interaction contract type must be 'check'")
-    rc = config["renderer_config"]
-    if not isinstance(rc, dict):
-        raise ValueError("renderer_config must be an object")
-    for key in ("language", "starter_source", "hidden_case_count"):
-        if key not in rc:
-            raise ValueError("renderer_config missing %r" % key)
-    if not isinstance(rc["hidden_case_count"], int)             or isinstance(rc["hidden_case_count"], bool):
-        raise ValueError("hidden_case_count must be an integer")
-    if not isinstance(config["response_schema"], dict):
-        raise ValueError("response_schema must be an object")
-    json.dumps(config)      # JSON data only: a callable or a non-JSON value dies here
 
 
 def _check_observation(q, index, case_result):
@@ -1006,39 +1055,10 @@ VISUAL_KINDS = ("point", "numberline_point", "interval", "hotspot",
 # Phase 999.1 adds the advanced families additively (D-999.1-01): protocol
 # integer stays 1 and the envelope shape is unchanged; only these allowlists
 # grow, so plot/numberline items stay byte-compatible.
-VISUAL_ACTIONS = ("place_point", "move_point",
-                  "select_numberline_point", "set_interval",
-                  "select_hotspot", "place_timeline_event",
-                  "move_timeline_event", "connect_diagram",
-                  "place_trace_point", "move_trace_point")
 # The closed allowlist of authored scene members per interaction
 # (T-06.1-03/D-999.1-04): each family accepts exactly its own set; anything
 # else is rejected before a renderer sees it.
-_VISUAL_SCENE_MEMBERS = {
-    "plot": frozenset({"version", "axes", "initial", "actions",
-                       "accessibility"}),
-    "numberline": frozenset({"version", "axis", "initial", "actions",
-                             "accessibility"}),
-    "hotspot": frozenset({"version", "plane", "regions", "initial",
-                          "actions", "accessibility"}),
-    "timeline": frozenset({"version", "axis", "events", "initial",
-                           "actions", "accessibility"}),
-    "diagram": frozenset({"version", "plane", "nodes", "initial",
-                          "actions", "accessibility"}),
-    "trace": frozenset({"version", "axes", "point_count", "initial",
-                        "actions", "accessibility"}),
-}
 # The response kinds each interaction family accepts (D-999.1-02).
-_VISUAL_KIND_BY_INTERACTION = {
-    "plot": ("point",),
-    "numberline": ("numberline_point", "interval"),
-    "hotspot": ("hotspot",),
-    "timeline": ("timeline_event",),
-    "diagram": ("diagram_connection",),
-    "trace": ("trace_path",),
-}
-_VISUAL_SCORING_MEMBERS = frozenset({"kind", "accepted", "tolerance",
-                                     "partial_credit", "feedback"})
 # Stable authored identifier grammar for the advanced families: bounded
 # length, no whitespace or punctuation beyond `-`/`_`, and nothing that the
 # script-bearing scan (below) would flag. Ids are semantic data, never code.
@@ -1053,13 +1073,6 @@ _VISUAL_SHAPES = ("rect", "circle", "polygon")
 # rejects the member before rendering (T-06.1-03). Event-handler keys are
 # matched as bare words (`onload`), and common executable call patterns are
 # matched in values (`alert(`, `eval(`, ...).
-_VISUAL_EXEC_RE = re.compile(
-    r"<\s*script|javascript:|eval\s*\(|new\s+Function|setTimeout|setInterval|"
-    r"document\.|window\.|innerHTML\s*=|alert\s*\(|prompt\s*\(|confirm\s*\(|"
-    r"location\.|localStorage|sessionStorage|fetch\s*\(|XMLHttpRequest|"
-    r"(?:^|[^A-Za-z0-9])on(?:click|load|mouse|pointer|touch|key|input|change|"
-    r"focus|blur|submit|error|dblclick|wheel|unload|resize|scroll|over|out)"
-    r"\b", re.I)
 
 # One SCALAR: a signed base-10 integer/decimal with at most six fractional
 # digits, or a rational `INTEGER/POSITIVE_INTEGER`. Exponents, NaN,
@@ -1731,173 +1744,10 @@ def visual_within_tolerance(state, accepted, tol):
     return False
 
 
-def _reject_visual_exec(member, where):
-    """Recursively scan one authored JSON member and reject any string or key
-    carrying a script-bearing token, so no bank content can become browser
-    code (T-06.1-03). Raises ValueError with the offending path."""
-    if isinstance(member, str):
-        if _VISUAL_EXEC_RE.search(member):
-            raise ValueError("visual %s carries a script-bearing value" % where)
-    elif isinstance(member, dict):
-        for key, value in member.items():
-            if _VISUAL_EXEC_RE.search(str(key)):
-                raise ValueError("visual %s carries a script-bearing key %r"
-                                 % (where, key))
-            _reject_visual_exec(value, where)
-    elif isinstance(member, list):
-        for item in member:
-            _reject_visual_exec(item, where)
 
 
-def _visual_response_schema(kind):
-    if kind == "point":
-        return {"type": "object", "kind": "point",
-                "fields": {"x": "scalar", "y": "scalar"}}
-    if kind == "numberline_point":
-        return {"type": "object", "kind": "numberline_point",
-                "fields": {"value": "scalar"}}
-    if kind == "interval":
-        return {"type": "object", "kind": "interval",
-                "fields": {"start": "scalar", "end": "scalar",
-                           "start_closed": "boolean", "end_closed": "boolean"}}
-    if kind == "hotspot":
-        return {"type": "object", "kind": "hotspot",
-                "fields": {"region": "identifier"}}
-    if kind == "timeline_event":
-        return {"type": "object", "kind": "timeline_event",
-                "fields": {"event": "identifier", "value": "scalar"}}
-    if kind == "diagram_connection":
-        return {"type": "object", "kind": "diagram_connection",
-                "fields": {"from": "identifier", "to": "identifier"}}
-    return {"type": "object", "kind": "trace_path",
-            "fields": {"points": "point_list"}}
 
 
-def _visual_interaction_contract(q):
-    """Build the key-free public interaction contract for a visual item,
-    validating the declarative scene and scoring envelope first.
-
-    The contract carries exactly `version`, `type`, `interaction`,
-    `renderer_config` (scene, initial state, actions, accessibility) and
-    `response_schema` -- never accepted states, tolerance, partial_credit,
-    reveal content, or any scoring authority (D-02/D-03). Raises ValueError
-    on unknown members, executable/script-bearing content, an invalid scene,
-    or a malformed scoring envelope, so a bad bank fails before a renderer
-    sees it.
-    """
-    interaction = q.get("interaction")
-    if interaction not in VISUAL_INTERACTIONS:
-        raise ValueError(
-            "visual item %s: unknown INTERACTION %r (protocol %d supports %s)"
-            % (q["id"], interaction, VISUAL_PROTOCOL_VERSION,
-               ", ".join(VISUAL_INTERACTIONS)))
-    scene = q.get("visual")
-    scoring = q.get("scoring")
-    if not isinstance(scene, dict) or not isinstance(scoring, dict):
-        raise ValueError("visual item %s: VISUAL and SCORING must be JSON "
-                         "objects" % q["id"])
-    unknown = set(scene) - _VISUAL_SCENE_MEMBERS[interaction]
-    if unknown:
-        raise ValueError("visual item %s: unknown VISUAL member(s) %s"
-                         % (q["id"], ", ".join(sorted(unknown))))
-    unknown = set(scoring) - _VISUAL_SCORING_MEMBERS
-    if unknown:
-        raise ValueError("visual item %s: unknown SCORING member(s) %s"
-                         % (q["id"], ", ".join(sorted(unknown))))
-    _reject_visual_exec(scene, "VISUAL")
-    _reject_visual_exec(scoring, "SCORING")
-
-    kind = scoring.get("kind")
-    if kind not in VISUAL_KINDS:
-        raise ValueError("visual item %s: unknown SCORING kind %r"
-                         % (q["id"], kind))
-    if kind not in _VISUAL_KIND_BY_INTERACTION.get(interaction, ()):
-        raise ValueError("visual item %s: SCORING kind %r does not match "
-                         "INTERACTION %r" % (q["id"], kind, interaction))
-    if scoring.get("partial_credit") is not False:
-        raise ValueError("visual item %s: protocol %d is dichotomous; "
-                         "partial_credit must be false"
-                         % (q["id"], VISUAL_PROTOCOL_VERSION))
-    scene_data = _visual_scene(q, interaction)
-    if scene_data is None:
-        raise ValueError("visual item %s: scene geometry is invalid"
-                         % q["id"])
-
-    actions = scene.get("actions")
-    if not isinstance(actions, list) or not actions \
-            or any(a not in VISUAL_ACTIONS for a in actions):
-        raise ValueError("visual item %s: actions must be a non-empty subset "
-                         "of %s" % (q["id"], ", ".join(VISUAL_ACTIONS)))
-    accessibility = scene.get("accessibility")
-    if not isinstance(accessibility, dict) \
-            or not str(accessibility.get("description") or "").strip():
-        raise ValueError("visual item %s: accessibility.description is "
-                         "required (D-07)" % q["id"])
-
-    # The accepted states and tolerance are validated here (server-side) so a
-    # malformed scoring envelope fails before any learner sees the item; they
-    # are never emitted into the public contract.
-    accepted = scoring.get("accepted")
-    if not isinstance(accepted, list) or not accepted:
-        raise ValueError("visual item %s: SCORING.accepted must be a "
-                         "non-empty list" % q["id"])
-    for raw in accepted:
-        state = _canonical_accepted_state(q, raw)
-        if state is None or not visual_state_in_domain(q, state):
-            raise ValueError("visual item %s: an accepted state is invalid "
-                             "or out of domain" % q["id"])
-    tolerance = scoring.get("tolerance") or {}
-    if not isinstance(tolerance, dict):
-        raise ValueError("visual item %s: SCORING.tolerance must be an "
-                         "object" % q["id"])
-    for key, raw in tolerance.items():
-        if canonical_scalar(raw) is None or fractions.Fraction(raw) < 0:
-            raise ValueError("visual item %s: tolerance %r is not a "
-                             "non-negative SCALAR" % (q["id"], key))
-    if kind in ("hotspot", "diagram_connection") and any(
-            fractions.Fraction(canonical_scalar(v)) > 0
-            for v in tolerance.values()):
-        raise ValueError("visual item %s: %s scoring is exact-id; tolerance "
-                         "must be zero" % (q["id"], kind))
-
-    renderer_config = {"actions": list(actions),
-                       "accessibility": {"description":
-                                         str(accessibility["description"])}}
-    if interaction == "plot":
-        renderer_config["axes"] = {"x": scene_data["x"], "y": scene_data["y"]}
-        renderer_config["initial"] = scene.get("initial") or {"points": []}
-    elif interaction == "numberline":
-        renderer_config["axis"] = scene_data["axis"]
-        renderer_config["initial"] = scene.get("initial") or {
-            "points": [], "interval": None}
-    elif interaction == "hotspot":
-        renderer_config["plane"] = scene_data["plane"]
-        renderer_config["regions"] = [
-            {"id": rid, "label": r["label"], "shape": r["shape"],
-             "coords": r["coords"]}
-            for rid, r in scene_data["regions"].items()]
-        renderer_config["initial"] = scene.get("initial") or {"region": None}
-    elif interaction == "timeline":
-        renderer_config["axis"] = scene_data["axis"]
-        renderer_config["events"] = [
-            {"id": eid, "label": entry["label"]}
-            for eid, entry in scene_data["events"].items()]
-        renderer_config["initial"] = scene.get("initial") or {"placements": []}
-    elif interaction == "diagram":
-        renderer_config["plane"] = scene_data["plane"]
-        renderer_config["nodes"] = [
-            {"id": nid, "label": n["label"], "x": n["x"], "y": n["y"]}
-            for nid, n in scene_data["nodes"].items()]
-        renderer_config["initial"] = scene.get("initial") or {
-            "connections": []}
-    else:  # trace
-        renderer_config["axes"] = {"x": scene_data["axes"]["x"],
-                                    "y": scene_data["axes"]["y"]}
-        renderer_config["point_count"] = scene_data["point_count"]
-        renderer_config["initial"] = scene.get("initial") or {"points": []}
-    return {"version": VISUAL_PROTOCOL_VERSION, "type": "visual",
-            "interaction": interaction, "renderer_config": renderer_config,
-            "response_schema": _visual_response_schema(kind)}
 
 
 def _advanced_observation(q, state, kind, data):
@@ -2004,130 +1854,20 @@ def visual_observation(q, state, verdict, hint_tier=None):
         "tolerance_policy_version": VISUAL_TOLERANCE_POLICY_VERSION,
     }
 
-def assessment_feedback_released(mode, session=None):
-    """Release silent-mode correctness only from a verified closed sitting."""
-    if session and staged_case(session) is not None:
-        return False
-    policy = FEEDBACK_POLICIES.get(mode, FEEDBACK_POLICIES["practice"])
-    return policy["right"] != "defer_feedback" or bool(
-        session and session.get("mode") == mode
-        and session.get("status") == "complete")
 
 
-def report_feedback(summary, session):
-    """Project a derived report without changing its evidence or session."""
-    if assessment_feedback_released(session.get("mode"), session):
-        return summary
-    return dict(summary, auto_correct=None, objectives={
-        name: dict(row, correct=None)
-        for name, row in summary["objectives"].items()})
 
 
-def staged_event_released(event, session):
-    """Resolve each linked event's own case independently of the current case."""
-    if not event.get("activity_id"):
-        return assessment_feedback_released(event.get("mode"), session)
-    if not session or session.get("session_id") != event.get("session_id") or session.get("mode") != event.get("mode"):
-        return False
-    case = next((case for case in session.get("staged_cases", [])
-                 if case["activity_id"] == event["activity_id"]), None)
-    if case is None or case["case_revision"] != event.get("case_revision"):
-        return False
-    if event.get("child_id") not in case["children"]:
-        return False
-    index = case["children"].index(event["child_id"])
-    if event.get("stage") != case["order"][index]:
-        return False
-    if not any(row.get("event_id") == event.get("event_id")
-               for row in session.get("responses", [])):
-        return False
-    policy = FEEDBACK_POLICIES.get(event.get("mode"), FEEDBACK_POLICIES["practice"])
-    if policy["right"] == "defer_feedback":
-        return session.get("status") == "complete"
-    return session.get("cursor", 0) > case["positions"][-1]
 
 
-def evidence_feedback(event, session=None):
-    """Fail closed when a held event's owning sitting cannot be verified."""
-    if staged_event_released(event, session):
-        out = dict(event)
-        if "checker_outcomes" in out:
-            out["checker_outcomes"] = polynomial_feedback(out["checker_outcomes"], event.get("hint_tier"))
-        return out
-    return submission_feedback(event, "exam")
 
 
-def saved_check_feedback(event, session, qs, bank_revision):
-    """Release a retained current-item run through the existing policy only."""
-    from model import content_fingerprint
-    if session.get("cursor", 0) >= len(session.get("items", [])):
-        return None
-    q = qs[session["items"][session["cursor"]]]
-    if (session.get("status") != "active" or session.get("mode") != "practice"
-            or q.get("type") != "check" or event.get("event_type") != "response"
-            or event.get("session_id") != session.get("session_id")
-            or event.get("mode") != session.get("mode")
-            or event.get("bank") != os.path.basename(session["bank"])
-            or event.get("item_ref") != q.get("id")
-            or event.get("item_id", "") != q.get("item_id", "")
-            or event.get("score") is True
-            or not staged_event_released(event, session)):
-        return None
-    snapshot = event.get("check_feedback")
-    if not isinstance(snapshot, dict) or (
-            snapshot.get("bank_revision") != bank_revision
-            or snapshot.get("item_revision") != content_fingerprint(q)):
-        return None
-    result = snapshot.get("interaction_result")
-    if (not isinstance(result, dict) or result.get("type") != "check"
-            or result.get("version") != INTERACTION_VERSION
-            or result.get("response") != event.get("check_source")
-            or result.get("verdict") != event.get("score")
-            or not isinstance(result.get("observations"), list)):
-        return None
-    return {"interaction_result": evidence_feedback(event, session)["check_feedback"]["interaction_result"],
-            "saved_check_feedback": True}
 
 
-def learner_evidence(events, sessions):
-    """Exclude withheld events before deriving learner-facing score summaries."""
-    return tuple(event for event in events if staged_event_released(
-        event, sessions.get(event.get("session_id"))))
 
 
-def submission_feedback(payload, mode):
-    """Project a submission response through the runtime's feedback policy.
-
-    Silent sittings release review through the completion/report path, never
-    through submission observations. Walk nested adapters and replay envelopes
-    too, so moving a feedback field cannot accidentally make it public.
-    Durable evidence and session state do not pass through this projection.
-    """
-    policy = FEEDBACK_POLICIES.get(mode, FEEDBACK_POLICIES["practice"])
-    if policy["right"] != "defer_feedback":
-        return payload
-    private = {"score", "verdict", "passed", "expected", "run_result",
-               "interaction_result", "observations", "explain", "reveal",
-               "selection_feedback", "ordering_diagnostic", "activity_feedback", "input", "actual", "stdout", "stderr",
-               "checker_outcomes", "diagnostic_id", "runtime_comparison",
-               "exit_code", "timed_out", "truncated"}
-
-    def project(value):
-        if isinstance(value, dict):
-            return {key: project(child) for key, child in value.items()
-                    if key not in private}
-        if isinstance(value, (list, tuple)):
-            return [project(child) for child in value]
-        return value
-
-    return project(payload)
 
 
-def polynomial_feedback(outcomes, hint_tier=None):
-    """Diagnostic identity is teaching content released at the trap tier."""
-    return {ident: {key: value for key, value in result.items()
-                    if key != "diagnostic_id" or isinstance(hint_tier, int) and hint_tier >= 2}
-            for ident, result in outcomes.items()}
 
 
 def interaction_result(q, response, verdict, observations):
@@ -2160,212 +1900,32 @@ def interaction_result(q, response, verdict, observations):
     }
 
 
-def session_path(path):
-    return os.path.abspath(path)
 
 
 # Registered forward-upgrade functions, keyed by the source version each one
 # upgrades from. Version 1 is the only older version that has ever existed;
 # the registry exists so every bump is a one-function change to
 # SESSION_UPGRADES rather than a rewrite of read_session.
-SESSION_UPGRADES = {
-    1: lambda data: dict(data, teaching_state={}),
-    # v2-to-v3 (Phase 9): a nullable subject-profile slot only. The upgrade
-    # never inspects a bank or settings; the first action on a legacy session
-    # resolves and persists the snapshot once (D-04).
-    2: lambda data: dict(data, subject_profile=None),
-    3: lambda data: dict(data, staged_cases=[]),
-}
-
-
-def upgrade_session(data):
-    """Carry a session dict forward to SESSION_VERSION, one registered step
-    at a time.
-
-    A non-integer `schema_version` and a version above what this build
-    understands each exit with a named error rather than guessing at a
-    shape. This is the migration path `.planning/codebase/CONCERNS.md`
-    flagged as missing: a version stamp with no way to move forward from it.
-    """
-    version = data.get("schema_version")
-    if not isinstance(version, int):
-        sys.exit("session has no valid schema_version (got %r)" % (version,))
-    while version < SESSION_VERSION:
-        upgrade = SESSION_UPGRADES.get(version)
-        if upgrade is None:
-            sys.exit("no upgrade path from session schema %d to %d" %
-                     (version, SESSION_VERSION))
-        data = upgrade(data)
-        version += 1
-        data["schema_version"] = version
-    if version > SESSION_VERSION:
-        sys.exit("session schema %d is newer than this build understands (%d); "
-                 "upgrade itembank" % (version, SESSION_VERSION))
-    return data
-
-
-def read_session(path):
-    try:
-        with open(session_path(path), encoding="utf-8") as stream:
-            data = json.load(stream)
-    except (OSError, ValueError) as exc:
-        sys.exit("cannot read session %s: %s" % (path, exc))
-    return upgrade_session(data)
-
-
-def write_session(path, data):
-    """Write one session atomically, through a temp name no other writer can
-    claim.
-
-    The temp name carries a per-write nonce because the daemon is threaded and
-    two requests can write one session file at the same moment. A shared
-    `<target>.tmp` made that collide rather than serialize: the first
-    `os.replace` consumed the temp file, and the second raised
-    `FileNotFoundError` on a path it had just written. That surfaced as an
-    intermittent `400 Bad Request` out of `handle_quiz_get`, reproduced on
-    2026-08-30 at twelve concurrent requests. Last-writer-wins on the content
-    is unchanged and still the caller's problem to avoid; what is fixed is one
-    writer destroying another's in-flight temp file.
-
-    The suffix stays `.tmp` so every leftover sweep that looks for
-    `endswith(".tmp")` still sees these.
-    """
-    target = session_path(path)
-    os.makedirs(os.path.dirname(target), exist_ok=True)
-    tmp = "%s.%s.tmp" % (target, os.urandom(4).hex())
-    try:
-        with open(tmp, "w", encoding="utf-8") as fh:
-            json.dump(data, fh, ensure_ascii=False, indent=2)
-            fh.write("\n")
-        os.replace(tmp, target)
-    except BaseException:
-        # A failed write leaves the old session valid; it may not also leave
-        # a half-written temp file behind for a leftover sweep to find.
-        try:
-            os.remove(tmp)
-        except OSError:
-            pass
-        raise
 
 
 
-def staged_case(data, position=None):
-    """Resolve a case from the one canonical sitting cursor."""
-    position = data.get("cursor", 0) if position is None else position
-    return next((case for case in data.get("staged_cases", [])
-                 if position in case["positions"]), None)
 
 
-def staged_token(data, case):
-    value = [data["session_id"], case["case_revision"],
-             case["bank_fingerprint"], data["cursor"], len(data["responses"])]
-    return hashlib.sha256(json.dumps(value).encode()).hexdigest()
 
 
-def staged_activity(data):
-    case = staged_case(data)
-    if case is None or data.get("status") != "active":
-        return None
-    stage = case["positions"].index(data["cursor"])
-    result = {"activity_id": case["activity_id"],
-              "case_revision": case["case_revision"],
-              "stimulus": case["stimulus"], "stage": case["order"][stage],
-              "child_id": case["children"][stage],
-              "submission_token": staged_token(data, case)}
-    if stage:
-        result["committed_answer"] = next(row["answer"] for row in data["responses"]
-            if row["item_id"] == case["item_refs"][0])
-    return result
 
 
-def staged_binding(bank_path, qs, indices):
-    """Bind declarations to the exact accepted bytes and selected positions."""
-    with open(bank_path, "rb") as stream:
-        fingerprint = "sha256:" + hashlib.sha256(stream.read()).hexdigest()
-    selected = {qs[index].get("item_id"): pos for pos, index in enumerate(indices)}
-    bound = []
-    for declaration in getattr(qs, "staged_cases", []):
-        children = declaration["children"]
-        present = [child in selected for child in children]
-        if any(present) and not all(present):
-            sys.exit("staged case must retain both children; increase count or exclude the whole case")
-        if all(present):
-            positions = [selected[child] for child in children]
-            if positions[1] != positions[0] + 1:
-                sys.exit("staged case requires adjacent answer then reason; remove focus or change selection")
-            revision = "sha256:" + hashlib.sha256(json.dumps(
-                declaration, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
-            bound.append(dict(declaration, case_revision=revision,
-                              bank_fingerprint=fingerprint, positions=positions,
-                              item_refs=[qs[indices[pos]]["id"] for pos in positions]))
-    return bound
 
 
-def validate_staged_binding(data, qs):
-    if data.get("staged_binding_required") and not data.get("staged_cases"):
-        sys.exit("staged binding missing; restore the accepted session before resuming")
-    if not data.get("staged_cases"):
-        return
-    current = staged_binding(data["bank"], qs, data["items"])
-    if current != data["staged_cases"]:
-        sys.exit("staged binding changed or unavailable; restore the accepted bank before resuming")
 
 
-def staged_feedback(data, qs, case):
-    if data["cursor"] <= case["positions"][-1]:
-        return None
-    policy = FEEDBACK_POLICIES.get(data["mode"], FEEDBACK_POLICIES["practice"])
-    if policy["right"] == "defer_feedback" and data["status"] != "complete":
-        return None
-    return [{"child_id": child, "item_id": qs[data["items"][pos]]["id"],
-             "score": next(row["score"] for row in data["responses"]
-                           if row["item_id"] == qs[data["items"][pos]]["id"]),
-             "explain": explain_payload(qs[data["items"][pos]], True)}
-            for child, pos in zip(case["children"], case["positions"])]
 
-def session_view(data, qs):
-    validate_staged_binding(data, qs)
-    selected = data["items"]
-    cursor = data["cursor"]
-    view = {"schema_version": SESSION_VERSION, "session_id": data["session_id"],
-            "status": data["status"], "mode": data["mode"],
-            "objective": data.get("objective", ""), "position": cursor,
-            "total": len(selected), "responses": len(data["responses"])}
-    if data.get("timing"):
-        view["timing"] = dict(data["timing"])
-    # Phase 9 (D-04): the persisted subject/profile snapshot is part of the
-    # public view. Legacy sessions whose null slot is not filled yet report
-    # an empty subject id and no profile metadata.
-    sp = data.get("subject_profile")
-    if isinstance(sp, dict):
-        prof = sp.get("profile") or {}
-        view["subject_id"] = sp.get("subject_id", "")
-        view["subject_profile"] = {
-            "id": prof.get("id", ""),
-            "version": prof.get("version"),
-            "registry_version": sp.get("registry_version"),
-            "profile_version": sp.get("profile_version"),
-            "lesson": prof.get("lesson"),
-            "allowed_item_types": prof.get("allowed_item_types"),
-            "verifier": prof.get("verifier"),
-            "unsupported_capabilities": sp.get("unsupported_capabilities", []),
-        }
-    else:
-        view["subject_id"] = ""
-    if data["status"] == "active" and cursor < len(selected):
-        view["item"] = public_item(qs[selected[cursor]], data.get("seed", 0) + cursor)
-        activity = staged_activity(data)
-        if activity is not None:
-            view["activity"] = activity
-    else:
-        view["summary"] = session_summary(data)
-    if data.get("mode") not in ("exam", "diagnostic"):
-        for case in data.get("staged_cases", []):
-            if cursor == case["positions"][-1] + 1:
-                feedback = staged_feedback(data, qs, case)
-                if feedback is not None:
-                    view["activity_feedback"] = feedback
-    return view
+
+
+
+
+
+
 
 
 def session_summary(data, settled_marks=None):
@@ -2404,294 +1964,19 @@ def session_summary(data, settled_marks=None):
             "objectives": dict(by_objective)}
 
 
-def answer_text(q):
-    """Compact answer text for study and export surfaces."""
-    if q["type"] in ("mc", "multi"):
-        return "; ".join("%s) %s" % (c, q["opts"][c]) for c in q["correct"])
-    if q["type"] in ("table", "dnd"):
-        labels = {c["id"]: c["text"] + " (" + c["id"] + ")" for c in (q.get("matching") or {}).get("choices", [])}
-        return "; ".join("%s -> %s" % (r["text"], labels.get(r["cat"], r["cat"])) for r in q["rows"])
-    if q["type"] == "build":
-        if "ordering" in q:
-            texts = {b["id"]: b["text"] for b in q["blocks"]}
-            return "One valid order: " + " -> ".join(texts[i] for i in ordering_example(q))
-        return " -> ".join(q["steps"])
-    if q["type"] == "fill":
-        return "\n".join("%s: %s" % (
-            field["label"], " / ".join(field["accepted"]) if field["kind"] == "text"
-            else field["checker"]["target"] if field["kind"] == "polynomial"
-            else field["answer"] + (" " + field["unit"] if field.get("unit") else ""))
-            for field in q.get("fields") or [])
-    if q["type"] == "check":
-        # No keyed option and no model answer; describe what the item asks in
-        # the same terse voice the other branches use. Never the case inputs
-        # or expected outputs -- this feeds surfaces that show an answer
-        # before the learner has attempted the item (plan 05-07).
-        n = len(q.get("cases") or [])
-        return "code check: %d hidden test case%s (%s)" % (
-            n, "" if n == 1 else "s", q.get("lang") or "python")
-    return q.get("model", "")
 
 
-def glossable(qs, term):
-    """The one gate between a term's definition and the learner: False when
-    the definition text could disclose keyed answer material from any
-    question in `qs`, True otherwise.
-
-    This is the same class of decision as `public_item()` withholding a key:
-    the runtime, not the author and not a model, decides what reaches the
-    learner (Directive §4.1, D-20). It is deliberately conservative -- on any
-    ambiguity it returns False. It is a pure function: no I/O, no side
-    effects, deterministic across calls. It is NOT a secrecy mechanism
-    against the file on disk: the learner owns the bank markdown, and
-    UI-SPEC §8.4 states that plainly.
-
-    The answer-bearing fragments are the fields `public_item()` WITHHOLDS:
-    the correct option labels, the canonical key output of `canonical_key()`,
-    the collapsed key/answer text for short and build items, and, added
-    2026-08-28, the authored rationale block (`WHY BEST`, `KEY DISCRIMINATOR`,
-    `SECOND-BEST`, and each `DISTRACTOR ANALYSIS` line).
-
-    Deriving the fragment set from what `public_item` withholds makes the two
-    gates agree BY CONSTRUCTION rather than by coincidence. Before the
-    rationale was added they disagreed: `public_item` withheld `WHY BEST` and
-    `glossable` admitted a definition quoting it verbatim, so an author could
-    reproduce the rationale into a term definition or a source excerpt and no
-    gate saw it. Rationale fragments are whole sentences, so this catches
-    verbatim reproduction and not incidental word overlap, which is exactly
-    the sensitivity wanted: quoting a rationale is a disclosure, sharing a
-    noun with one is not.
-
-    **How a fragment is matched, and why it is not a bare substring
-    (corrected 2026-08-28).** A multi-character fragment must appear on word
-    boundaries, so a definition is refused for containing the option text
-    "two" but not for containing "twofold". A SINGLE-CHARACTER fragment, which
-    in practice is a multiple-choice item's option letter, must additionally
-    appear as a capital letter that is not opening a sentence.
-
-    That last rule exists because the previous bare-substring test made this
-    gate useless. `canonical_key()` for a multiple-choice item returns the
-    bare correct option letter, so a bank keyed `A` refused every definition
-    containing the letter "a", which is every definition anyone would write:
-    both terms in `fixtures/terms_above_lesson_bank.md` were suppressed, and
-    the hover, focus, and touch glossary was effectively off in any bank with
-    a multiple-choice item. A gate that refuses everything is not a
-    conservative gate; it is a disabled feature that looks like a gate.
-
-    The rule distinguishes the two ways a single letter appears in English:
-    "The keyed letter is B, placed with the stem" names a letter and is
-    refused, while "A small invented thing" opens with an article and is
-    admitted. It reads the ORIGINAL definition for case, not the collapsed
-    one, because case is the whole signal.
-
-    This loosening is bounded and deliberate. Per UI-SPEC section 8.4 this
-    gate is NOT a secrecy mechanism against the file on disk: the learner owns
-    the bank markdown and can read the key there. It exists so a definition
-    does not hand over an answer mid-sitting, and every fragment that actually
-    carries the answer, the option text, the model answer, the build steps,
-    and every multi-character canonical key, is still matched.
-    """
-    def _collapse(s):
-        return " ".join(str(s or "").split()).lower()
-
-    raw_definition = " ".join(str(term.get("def") or "").split())
-    definition = raw_definition.lower()
-    if not definition:
-        return True
-    for q in qs:
-        t = q["type"]
-        if t in ("mc", "multi"):
-            frags = [q["opts"][c] for c in q["correct"]]
-        elif t == "fill":
-            frags = []
-            for field in q.get("fields") or []:
-                if field.get("kind") in ("numeric", "polynomial"):
-                    # A tolerance interval and converted quantities have many
-                    # equivalent spellings. Free prose cannot be proven free
-                    # of these answers by matching a finite fragment list.
-                    return False
-                candidate = _fill_text(field, raw_definition)
-                for accepted in field.get("accepted") or []:
-                    fragment = _fill_text(field, accepted)
-                    if fragment and fragment in candidate:
-                        return False
-                frags.extend(field.get("accepted") or [])
-            # A one-character typed key is content, not an MC option label.
-            # Retain the conservative substring check for this form.
-            if any(_collapse(frag) in definition for frag in frags if _collapse(frag)):
-                return False
-        elif t == "short":
-            frags = [q.get("model", "")]
-        elif t == "build":
-            frags = list(q.get("steps") or [])
-        else:
-            frags = []
-        key = canonical_key(q)
-        if key is not None:
-            frags.append(key)
-        # The authored rationale block: every field `public_item()` withholds
-        # and `explain_payload()` releases only after a response exists.
-        frags.append(q.get("why") or "")
-        frags.append(q.get("disc") or "")
-        frags.append(q.get("second") or "")
-        frags.extend((q.get("da") or {}).values())
-        for frag in frags:
-            frag = _collapse(frag)
-            if not frag:
-                continue
-            if _fragment_discloses(definition, raw_definition, frag):
-                return False
-    return True
 
 
 # The word characters a fragment must not be embedded inside. `definition` is
 # already lowercased and whitespace-collapsed when this runs, so ASCII letters
 # and digits are the whole class that matters.
-_GLOSS_WORD_RE = re.compile(r"[0-9a-z]")
 
 
-def _fragment_discloses(definition, raw_definition, frag):
-    """True when `frag` appears in `definition` as a real occurrence rather
-    than as a coincidence inside a longer word.
-
-    Split out of `glossable` so the single-character rule has one home and one
-    docstring rather than being an inline branch nobody can find. `definition`
-    is lowercased and collapsed; `raw_definition` is the same text with its
-    original case, which the single-character rule reads.
-    """
-    start = 0
-    while True:
-        at = definition.find(frag, start)
-        if at == -1:
-            return False
-        end = at + len(frag)
-        before = definition[at - 1] if at else ""
-        after = definition[end] if end < len(definition) else ""
-        embedded = bool(_GLOSS_WORD_RE.fullmatch(before)) \
-            or bool(_GLOSS_WORD_RE.fullmatch(after))
-        if not embedded:
-            if len(frag) > 1:
-                return True
-            # A single character, which in practice is an option letter. It
-            # discloses only when it is NAMING a letter, which in English
-            # means a capital that is not opening a sentence. An article or a
-            # sentence-initial capital is not a disclosure.
-            original = raw_definition[at:end]
-            if original.isupper():
-                preceding = raw_definition[:at].rstrip()
-                sentence_initial = (not preceding
-                                    or preceding[-1] in ".!?:;")
-                if not sentence_initial:
-                    return True
-        start = at + 1
 
 
-def response_text(q, answer):
-    """Human-readable rendering of what the learner actually gave.
-
-    The attempt file records option text, not letters. Letters are reshuffled on
-    every page load, so "B" in a saved attempt names a different option the next
-    time the same bank is sat, which makes the record unreadable exactly when
-    somebody comes back to mark it.
-    """
-    answer = normalize_answer(answer)
-    t = q["type"]
-    if t == "fill":
-        if not isinstance(answer, dict):
-            return ""
-        return "\n".join("%s: %s" % (f["label"], answer.get(f["id"], ""))
-                         for f in q["fields"])
-    if t == "short":
-        return str(answer or "")
-    if t in ("mc", "multi"):
-        given = answer if isinstance(answer, list) else [answer]
-        keys = [str(k).strip().upper() for k in given]
-        return "; ".join("%s) %s" % (k, q["opts"][k]) for k in keys if k in q["opts"])
-    if t in ("table", "dnd"):
-        if isinstance(answer, list):
-            answer = dict((str(i), v) for i, v in enumerate(answer))
-        if not isinstance(answer, dict):
-            return ""
-        return "; ".join("%s -> %s" % (r["text"], answer.get(str(r.get("id", i)), "(unassigned)"))
-                         for i, r in enumerate(q["rows"]))
-    if t == "build":
-        return " -> ".join(str(x) for x in answer) if isinstance(answer, list) else ""
-    if t == "check":
-        # The attempt file records the learner's own source, readable by a
-        # marker or a later reader, bounded at a stated line count with a
-        # marker when longer -- the full text is always in the evidence log's
-        # check_source regardless (plan 05-07).
-        lines = str(answer or "").splitlines()
-        KEEP = 40
-        head = lines[:KEEP]
-        if len(lines) > KEEP:
-            head.append("... (%d more lines in the evidence log)" % (len(lines) - KEEP))
-        return "\n".join(head)
-    return ""
 
 
-def explain_payload(q, reveal=True, run_result=None):
-    """Everything the learner may see AFTER responding, and nothing before it.
-
-    Under `serve` this is what the process hands back with the verdict, which is
-    what lets the page render a full explanation while never having been sent a
-    key it could leak or grade against.
-    """
-    out = {"answer_text": answer_text(q), "why": q.get("why", ""),
-           # C7 (03.1-03): the syllabus reference and the one-sentence
-           # Educational Objective line are answer-adjacent, so both live in
-           # the post-verdict payload only -- never public_item().
-           "objective": q.get("objective", ""),
-           "educational_objective": q.get("objective_line", ""),
-           "disc": q.get("disc", ""), "second": q.get("second", ""),
-           "trap": q.get("trap", ""), "notes": q.get("notes") or []}
-    t = q["type"]
-    if t in ("mc", "multi"):
-        out["correct"] = q["correct"]
-        out["da"] = dict((k, v) for k, v in (q.get("da") or {}).items() if v)
-    elif t in ("table", "dnd"):
-        out["row_cats"] = dict((str(r.get("id", i)), r["cat"]) for i, r in enumerate(q["rows"]))
-    elif t == "build":
-        if "ordering" in q:
-            example = ordering_example(q)
-            texts = {b["id"]: b["text"] for b in q["blocks"]}
-            out["steps"] = [texts[i] for i in example]
-            out["answer_text"] = " -> ".join(out["steps"])
-            out["ordering"] = q["ordering"]
-            out["example_order"] = example
-        else:
-            out["steps"] = q["steps"]
-    elif t == "short":
-        # The model answer stays hidden unless asked for, because reading it
-        # turns every item after this one into recognition rather than recall.
-        out["model"] = q.get("model", "") if reveal else ""
-        out["rubric"] = (q.get("rubric") or []) if reveal else []
-        if not reveal:
-            out["trap"] = ""
-            # answer_text for a short IS the model answer; blanking model
-            # while leaving it here defeated the blanking.
-            out["answer_text"] = ""
-    elif t == "check":
-        # With `run_result` the per-case actual output and the timed-out /
-        # truncated flags are zipped against the authored input and expected
-        # halves (the only channel through which actual output can reach the
-        # explanation, D-15); without it the authored halves stand alone.
-        rows = []
-        for i, c in enumerate(q.get("cases") or []):
-            row = {
-                "case_index": i + 1,
-                "input": c.get("call") if q.get("harness") else c.get("stdin", ""),
-                "expected": c["expected"],
-                "expected_kind": "pattern" if q.get("match") == "regex" else "output",
-            }
-            if run_result is not None and i < len(run_result):
-                rc = run_result[i]
-                row["actual"] = rc.get("actual", "")
-                row["timed_out"] = bool(rc.get("timed_out"))
-                row["truncated"] = bool(rc.get("truncated"))
-            rows.append(row)
-        out["cases"] = rows
-    return out
 
 
 def page_item(q, reveal=True, offline=False):
@@ -2734,14 +2019,6 @@ def page_item(q, reveal=True, offline=False):
 # The six fixed authored tiers (D-07/D-08). An unavailable tier stays in its
 # numbered slot: `authored_hint` returns `available: false` at the same index
 # rather than shifting later content forward.
-HINT_TIERS = (
-    {"name": "lesson", "label": "lesson pointer"},
-    {"name": "objective", "label": "objective"},
-    {"name": "trap", "label": "trap"},
-    {"name": "rationale", "label": "picked-option rationale"},
-    {"name": "discriminator", "label": "discriminator"},
-    {"name": "reveal", "label": "authored reveal"},
-)
 
 # One policy table keyed ONLY by feedback mode (D-01/D-10..D-13). `selection`
 # is the Phase 7 axis and is deliberately absent: feedback policy never
@@ -2756,34 +2033,6 @@ HINT_TIERS = (
 # correct response). Weibao, USER-VISION 2026-08-24: "its just to rule out
 # wrong answers and also show what I got right so I can keep on going rather
 # than gambling", and he is explicit that this is NOT partial credit.
-FEEDBACK_POLICIES = {
-    # drill already discloses the full authored reveal on a wrong answer, so
-    # a partial disclosure before it would be strictly less than it gets.
-    "drill": {"wrong": "advance", "right": "advance", "selection": "none"},
-    "practice": {"wrong": "hold", "right": "advance", "selection": "own_picks"},
-    # Diagnostic and exam stay silent, which is fidelity to how the real
-    # examination behaves: an examinee learns nothing mid-item.
-    "diagnostic": {"wrong": "defer_feedback", "right": "defer_feedback",
-                   "selection": "none"},
-    "exam": {"wrong": "defer_feedback", "right": "defer_feedback",
-             "selection": "none"},
-    # remediation was not one of the four planned Phase 6 modes, but it ships
-    # in the session mode enum; practice's held-retry ladder is the honest
-    # teaching behavior for it rather than an unhandled mode.
-    "remediation": {"wrong": "hold", "right": "advance",
-                    "selection": "own_picks"},
-    # paced is the 16D lesson-run checkpoint context (D-PACED-3), reachable
-    # only through a paced lesson's checkpoint and never a sitting: the
-    # session mode enum does not carry it, exactly as with 'legacy'. Its
-    # held-retry shape is practice's; the tier ladder on top of it is
-    # checkpoint_feedback's, released by the runtime.
-    "paced": {"wrong": "hold", "right": "advance", "selection": "own_picks"},
-    # 'legacy' appears only on events migrated from a pre-mode store; a
-    # live session can never carry it, and a legacy mode must not pretend to
-    # be a policy it never was.
-    "legacy": {"wrong": "defer_feedback", "right": "defer_feedback",
-               "selection": "none"},
-}
 
 
 def _selection_display(right, wrong):
@@ -2848,12 +2097,6 @@ def selection_feedback(q, answer):
             "display": _selection_display(right, wrong)}
 
 
-def new_teaching_record():
-    """One item's persisted teaching state (D-03)."""
-    return {"attempt_count": 0, "highest_tier_unlocked": -1,
-            "highest_tier_shown": -1, "last_genuine_canonical": None,
-            "last_response_event_id": None,
-            "shown_tiers": []}
 
 
 def _idempotent_canon(q, answer):
@@ -2872,183 +2115,18 @@ def _idempotent_canon(q, answer):
     return "short:" + text
 
 
-def teaching_key(q):
-    """The stable key teaching_state is indexed by: the opaque item id when
-    one has been assigned, else the positional reference -- identical to
-    `evidence.evidence_key()` (which cannot be imported here without a cycle).
-    """
-    return q.get("item_id") or ("ref:" + q["id"])
 
 
-def _reveal_display(q):
-    """The reveal tier's learner-facing text: the runtime's own compact
-    answer shaper plus the item's WHY text when one is authored. Tier 5's
-    `content` is the structured `explain_payload` dict, which a surface
-    rendering strings could only print as nothing -- so the runtime shapes
-    the words here, where disclosure has already been authorized, rather
-    than leaving a surface to invent them.
-    """
-    parts = [answer_text(q) or ""]
-    why = (q.get("why") or "").strip()
-    if why:
-        parts.append(why)
-    return " — ".join(p for p in parts if p)
 
 
-def _objective_hint_display(objective):
-    """Turn an internal objective id into learner-facing hint text.
-
-    Objective ids are durable machine references, not teaching copy.  Keep the
-    identifier private to the item and expose only its descriptive tail.  This
-    is deliberately a small, deterministic presentation rule rather than a
-    guessed objective description: authors still own the wording when they
-    want more than the id can honestly say.
-    """
-    tail = str(objective or "").split(":", 1)[-1]
-    words = [part for part in re.split(r"[._-]+", tail)
-             if part and not part.isdigit()]
-    if not words:
-        # Numbered objectives such as ``math:1.2`` still carry a useful
-        # learner-facing reference.  Keep that authored identifier rather
-        # than claiming the tier is unavailable merely because it has no
-        # alphabetic words.
-        return ("Focus: %s." % tail) if tail else ""
-    phrase = " ".join(words)
-    return "Focus: %s." % (phrase[:1].upper() + phrase[1:])
 
 
-def authored_hint(q, tier, canonical):
-    """The sole private-tier resolver for the six fixed authored tiers
-    (D-07/D-08/D-09). Missing content returns `available: false` at the same
-    index. Tier 3 is response-specific: it resolves the distractor analysis
-    for the learner's latest genuine picked option.
-
-    Every payload carries `display`: the learner-facing text for that tier,
-    empty when the tier is unavailable. `content` is unchanged on every tier,
-    so no existing consumer changes behaviour. The split exists because the
-    runtime already owns what a tier discloses; a surface that re-derived
-    display text from an id would be a second place deciding what the learner
-    reads. `display` carries text only -- never a tier index, name or label.
-    """
-    t = HINT_TIERS[tier]
-    name = t["name"]
-    if tier == 0:
-        # The slug is a DERIVED identifier for anchors and lookups. It was
-        # never learner-facing text, and printing it is the whole of this
-        # defect: an offline hint read "Authored hint / the-airway-step-by-
-        # step". Availability keys on the author-written reference because
-        # that names the real source; the two are equivalent in practice.
-        ref = q.get("lesson_ref") or ""
-        slug = q.get("lesson_slug") or ""
-        return {"index": 0, "name": name, "available": bool(ref),
-                "content": slug,
-                "display": ('Review “%s”. Use the Read the lesson link '
-                            'above to open it.' % ref) if ref else "",
-                "slug": slug, "label": t["label"]}
-    if tier == 1:
-        obj = q.get("objective") or ""
-        return {"index": 1, "name": name, "available": bool(obj),
-                "content": obj, "display": _objective_hint_display(obj),
-                "label": t["label"]}
-    if tier == 2:
-        trap = q.get("trap") or ""
-        return {"index": 2, "name": name, "available": bool(trap),
-                "content": trap,
-                "display": ("Common wrong turn: %s" % trap) if trap else "",
-                "label": t["label"]}
-    if tier == 3:
-        content = ""
-        if canonical and q["type"] in ("mc", "multi"):
-            option = str(canonical).split(",")[0].strip()
-            content = (q.get("da") or {}).get(option, "")
-        return {"index": 3, "name": name, "available": bool(content),
-                "content": content,
-                "display": ("Why your last choice is tempting: %s" % content)
-                           if content else "",
-                "label": t["label"],
-                "for_response": canonical}
-    if tier == 4:
-        disc = q.get("disc") or ""
-        return {"index": 4, "name": name, "available": bool(disc),
-                "content": disc,
-                "display": ("Deciding test: %s" % disc) if disc else "",
-                "label": t["label"]}
-    # tier == 5: the authored reveal -- the full post-response explanation.
-    return {"index": 5, "name": name, "available": True,
-            "content": explain_payload(q, reveal=True),
-            "display": _reveal_display(q), "label": t["label"]}
 
 
-def _record_from_evidence(q, events):
-    """Pure fold of an item's live response/hint events into a teaching
-    record -- the crash-window reconciliation input (D-15/D-16). `events` is
-    the item's already-live (post-retraction) event list.
-    """
-    rec = new_teaching_record()
-    key = None
-    for ev in events:
-        et = ev.get("event_type")
-        if et == "response":
-            rec["attempt_count"] += 1
-            rec["last_genuine_canonical"] = ev.get("canonical")
-            rec["last_response_event_id"] = ev.get("event_id")
-            ht = ev.get("hint_tier")
-            if isinstance(ht, int):
-                rec["highest_tier_shown"] = max(rec["highest_tier_shown"], ht)
-                rec["highest_tier_unlocked"] = max(rec["highest_tier_unlocked"], ht)
-        elif et == "hint":
-            idx = ev.get("tier_index")
-            if isinstance(idx, int):
-                rec["highest_tier_shown"] = max(rec["highest_tier_shown"], idx)
-                rec["highest_tier_unlocked"] = max(rec["highest_tier_unlocked"], idx)
-                rec["shown_tiers"].append({"index": idx,
-                                           "name": ev.get("tier_name"),
-                                           "unlock_path": ev.get("unlock_path")})
-    return rec
 
 
-def _next_reveal(q, rec, unlock_path):
-    """Compute the next tier to reveal from a teaching record.
-
-    Returns (hint_payload, new_record). When every tier is already shown,
-    returns a payload with `tier: None` and `exhausted: True` -- disclosure
-    never repeats, and no new hint event is authorized.
-    """
-    next_index = rec["highest_tier_shown"] + 1
-    if next_index >= len(HINT_TIERS):
-        shown = list(rec["shown_tiers"])
-        return {"tier": None, "shown": shown, "exhausted": True}, rec
-    tier = authored_hint(q, next_index, rec["last_genuine_canonical"])
-    rec = dict(rec)
-    rec["highest_tier_shown"] = next_index
-    rec["highest_tier_unlocked"] = max(rec["highest_tier_unlocked"], next_index)
-    rec["shown_tiers"] = list(rec["shown_tiers"]) + [
-        {"index": next_index, "name": tier["name"], "unlock_path": unlock_path}]
-    payload = {"tier": tier, "unlock_path": unlock_path,
-               "shown": [s["index"] for s in rec["shown_tiers"]],
-               "for_response": rec["last_genuine_canonical"]}
-    return payload, rec
 
 
-def reconcile_teaching_state(session, q, evidence_state=None):
-    """Fold live evidence into the session's teaching state for one item.
-
-    `evidence_state` is a dict keyed by item key whose values are that item's
-    live (post-retraction) response/hint event lists. When supplied, the
-    item's record is rebuilt from those events, repairing a crash window in
-    which evidence was durable but the session write was not -- without
-    replaying any disclosure. Returns the session dict.
-    """
-    state = session.get("teaching_state")
-    if not isinstance(state, dict):
-        state = {}
-        session = dict(session, teaching_state=state)
-    if evidence_state:
-        key = teaching_key(q)
-        events = evidence_state.get(key)
-        if events:
-            state[key] = _record_from_evidence(q, events)
-    return session
 
 
 def teaching_transition(session, q, action, evidence_state=None):
@@ -3245,72 +2323,12 @@ def teaching_transition(session, q, action, evidence_state=None):
             "hint_tier": hint_tier}
 
 
-def marker_close(session, q, settled_marks):
-    """Close a sitting parked on an answered item whose mark is now settled.
-
-    This is the "after" in `exam must not move the cursor before an accepted
-    mark`. A pending prose answer parks the sitting at the marker's desk, and
-    before 2026-08-24 nothing ever collected it: `mark` appends an evidence
-    event and never touches a session, so a bank holding one short item could
-    not be completed on any surface. `lti_roundtrip` reached that state only by
-    hand-writing cursor and status into the session file.
-
-    Returns the advanced session, or None when the item is not settled, so the
-    caller can tell "moved" from "still parked" without comparing cursors. The
-    cursor arithmetic stays here because the runtime owns session state; the
-    caller supplies only the facts, since this module reads no files.
-    """
-    if not settled_marks or teaching_key(q) not in settled_marks:
-        return None
-    cursor, status = _advance_cursor(session)
-    return dict(session, cursor=cursor, status=status)
 
 
-def saved_pending_feedback(event, session, qs, settled_marks):
-    """Project the recorded pending state without a verdict or keyed content."""
-    cursor = session.get("cursor", 0)
-    if (session.get("status") != "active" or session.get("mode") in ("exam", "diagnostic")
-            or cursor >= len(session.get("items", [])) or staged_activity(session)):
-        return None
-    q = qs[session["items"][cursor]]
-    if (q.get("type") != "short" or teaching_key(q) in settled_marks
-            or event.get("event_type") != "response" or event.get("item_type") != "short"
-            or event.get("session_id") != session.get("session_id")
-            or event.get("mode") != session.get("mode")
-            or event.get("bank") != os.path.basename(session["bank"])
-            or event.get("item_ref") != q.get("id")
-            or event.get("item_id", "") != q.get("item_id", "")
-            or event.get("objective", "") != q.get("objective", "")
-            or "score" not in event or event["score"] is not None):
-        return None
-    return {"action": "defer_feedback", "score": None}
 
 
-def formal_response_close(session, q, recorded_response):
-    """Recover a silent formal advance after evidence outlived a session write.
-
-    The session adapter supplies a live response for the current item. This
-    runtime function alone decides whether that response closes the cursor.
-    Practice remains parked on pending prose and retains its own retry flow.
-    """
-    if session.get("mode") not in ("exam", "diagnostic") or not recorded_response:
-        return None
-    if (recorded_response.get("item_ref") != q.get("id") or
-            recorded_response.get("session_id") != session.get("session_id") or
-            recorded_response.get("event_type") != "response"):
-        return None
-    cursor, status = _advance_cursor(session)
-    return dict(session, cursor=cursor, status=status)
 
 
-def _advance_cursor(session):
-    """Cursor advance shared by every advancing action; returns the next
-    cursor and status."""
-    cursor = session["cursor"] + 1
-    status = session["status"]
-    if cursor >= len(session["items"]):
-        status = "complete"
-    return cursor, status
 
 
 # ---- phase 13.5: the ladder payload -- D-09's boundary as a pure function ----
@@ -3325,164 +2343,28 @@ def _advance_cursor(session):
 # (14-UI-SPEC section 14, INHERITED from 06-UI-SPEC section 5.2). Tier 3 is
 # response-specific, so it is the one entry completed at resolve time rather
 # than read off this tuple whole.
-TIER_HEADER_WORDS = ("LESSON", "OBJECTIVE", "TRAP", "RATIONALE",
-                     "DISCRIMINATOR", "REVEAL")
 
 # The mode's OWN stated sentence for a ladder that does not run (14-UI-SPEC
 # section 9.3, INHERITED verbatim). Availability is never read from this map:
 # it is derived from FEEDBACK_POLICIES below, so a feedback mode added later
 # gets a ladder only if somebody decided to give it one, rather than
 # inheriting one from a mode list restated here and forgotten.
-LADDER_UNAVAILABLE_REASONS = {
-    "drill": "Drill mode shows the answer straight away. The hint ladder does "
-             "not run here.",
-    "diagnostic": "Diagnostic mode records your answers and shows nothing "
-                  "until the sitting ends.",
-    "exam": "Exam mode holds all feedback until this attempt has been marked.",
-}
 
 # The sentence for a non-hold mode with no authored one -- today only
 # 'legacy', which appears on migrated events and which no live session can
 # carry. It states the true thing rather than borrowing another mode's words.
-LADDER_UNAVAILABLE_DEFAULT = ("This sitting's feedback mode does not run the "
-                              "hint ladder.")
 
 # The three locked-card sentences (14-UI-SPEC section 14 / 06-UI-SPEC section
 # 5.2, LOCKED). Carried as separate lines rather than one joined string
 # because the inherited copy table has them as separate rows, and a fixture
 # asserting either row should not have to know how the two were joined.
-NEXT_TIER_UNLOCK_COPY = ("Tier %d unlocks after another attempt.",
-                         "Or unlock it now with \"I'm stumped\".")
-FURTHER_TIER_UNLOCK_COPY = "Tier %d unlocks after tier %d."
 # A genuine wrong attempt has already unlocked the next tier but the learner
 # has not opened it. The locked sentences would be false here; the spec's
 # rule is that the card states the true rule, in the same ledger voice.
-NEXT_TIER_ENTITLED_COPY = "Tier %d is unlocked."
-MORE_TIERS_COPY = "%d more tiers after this one."
-NO_AUTHORED_TIER_COPY = "This item has no authored %s."
 
 
-def _tier_header(q, index, canonical):
-    """One tier's Ledger header: `TIER {n} - {WORD}`, with tier 3 naming the
-    option the learner actually picked. Resolved here and never by a client:
-    a surface that rebuilt this string from a tier id would be a second place
-    deciding how a tier introduces itself.
-    """
-    word = TIER_HEADER_WORDS[index]
-    if index == 3 and canonical and q["type"] in ("mc", "multi"):
-        option = str(canonical).split(",")[0].strip()
-        if option:
-            word = "%s FOR %s" % (word, option)
-    return "TIER %d · %s" % (index, word)
 
 
-def teaching_payload(q, rec, mode, locked_preview="full"):
-    """The whole of what a surface may know about the authored hint ladder
-    for one item (14-UI-SPEC section 9.1, LOCKED). Pure: it reads no file,
-    writes nothing, touches no session, and reads no settings -- the caller
-    resolves `locked_preview` server-side and passes it in, so a client can
-    never widen its own preview (T-14-11).
-
-    `rec` is a `new_teaching_record()`-shaped dict, `mode` the sitting's
-    feedback mode, `locked_preview` the resolved `teaching.hint_locked_preview`
-    value (`full` or `next`).
-
-    Returned keys:
-
-      available          -- false in any mode whose FEEDBACK_POLICIES `wrong`
-                            entry is not `hold`. Derived from that table, not
-                            from a mode list restated here.
-      unavailable_reason -- null when available, else the mode's own sentence.
-      shown              -- one entry per already-disclosed tier, in index
-                            order: {index, name, label, header, display,
-                            available}. `display` is the text the runtime
-                            already resolved (`authored_hint`'s own `display`),
-                            or the inherited no-authored-content sentence.
-                            `available` is disclosed information ON A SHOWN
-                            TIER only (06-UI-SPEC section 5.2 discloses
-                            availability at the moment a tier is shown).
-      next_locked        -- {index, name, header, unlock_copy} for the single
-                            next undisclosed tier, or null when none remains.
-      further_locked     -- the locked tiers after that one, each {name,
-                            header, unlock_copy} and deliberately NO index:
-                            their number already appears inside their own
-                            locked copy, and nothing else needs it. Empty
-                            under `locked_preview: next`, which instead
-                            appends the inherited count line to next_locked.
-      entitled           -- a tier is unlocked and not yet shown.
-      exhausted          -- the last tier has been shown.
-      unlock_path        -- "attempt" when entitled, else "stumped"; null when
-                            the ladder does not run, because a refused ladder
-                            has no path rather than a stumped one.
-
-    What it never contains, and what the fixtures assert: an undisclosed
-    tier's body or `content`, an undisclosed tier's availability,
-    `highest_tier_unlocked` or `attempt_count`, or anything else a client
-    could turn into a request naming a tier. There is no request shape that
-    names a tier because there is nothing in this payload to name one with.
-    """
-    if rec is None:
-        rec = new_teaching_record()
-    policy = FEEDBACK_POLICIES.get(mode, FEEDBACK_POLICIES["practice"])
-    if policy["wrong"] != "hold":
-        # 06-UI-SPEC section 6.5: absent with a stated reason, never a rail of
-        # greyed cards. Nothing about the item's tiers crosses this branch.
-        return {"available": False,
-                "unavailable_reason": LADDER_UNAVAILABLE_REASONS.get(
-                    mode, LADDER_UNAVAILABLE_DEFAULT),
-                "shown": [], "next_locked": None, "further_locked": [],
-                "entitled": False, "exhausted": False, "unlock_path": None}
-
-    canonical = rec.get("last_genuine_canonical")
-    highest_shown = rec.get("highest_tier_shown", -1)
-    highest_unlocked = rec.get("highest_tier_unlocked", -1)
-
-    # The ladder is monotone: `highest_tier_shown` IS the disclosed set, and
-    # it is the same number `_next_reveal` reveals against, so the payload and
-    # the transition can never disagree about where the boundary sits.
-    shown = []
-    for index in range(highest_shown + 1):
-        tier = authored_hint(q, index, canonical)
-        shown.append({
-            "index": index,
-            "name": tier["name"],
-            "label": tier["label"],
-            "header": _tier_header(q, index, canonical),
-            "display": tier["display"] if tier["available"]
-                       else NO_AUTHORED_TIER_COPY % tier["label"],
-            "available": tier["available"],
-        })
-
-    next_index = highest_shown + 1
-    exhausted = next_index >= len(HINT_TIERS)
-    entitled = highest_unlocked > highest_shown
-
-    next_locked = None
-    further_locked = []
-    if not exhausted:
-        unlock_copy = ([NEXT_TIER_ENTITLED_COPY % next_index] if entitled else
-                       [NEXT_TIER_UNLOCK_COPY[0] % next_index,
-                        NEXT_TIER_UNLOCK_COPY[1]])
-        remaining = list(range(next_index + 1, len(HINT_TIERS)))
-        if locked_preview == "next":
-            if remaining:
-                unlock_copy.append(MORE_TIERS_COPY % len(remaining))
-        else:
-            further_locked = [
-                {"name": HINT_TIERS[i]["name"],
-                 "header": _tier_header(q, i, canonical),
-                 "unlock_copy": [FURTHER_TIER_UNLOCK_COPY % (i, i - 1)]}
-                for i in remaining]
-        next_locked = {"index": next_index,
-                       "name": HINT_TIERS[next_index]["name"],
-                       "header": _tier_header(q, next_index, canonical),
-                       "unlock_copy": unlock_copy}
-
-    return {"available": True, "unavailable_reason": None,
-            "shown": shown, "next_locked": next_locked,
-            "further_locked": further_locked,
-            "entitled": entitled, "exhausted": exhausted,
-            "unlock_path": "attempt" if entitled else "stumped"}
 
 
 # ---- phase 8: model-orchestrated hint and rubric review (08-04) ------------

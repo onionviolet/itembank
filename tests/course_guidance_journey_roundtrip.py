@@ -96,7 +96,8 @@ def snapshot(root, *, allow_indexes=False, timed_sitting=None):
 
 
 def source_fingerprints():
-    paths = ('evidence.py', 'runtime.py', 'surfaces/course_workbench.py',
+    paths = ('evidence.py', 'runtime.py',
+               'runtime_sessions.py', 'runtime_teaching.py', 'runtime_feedback.py', 'runtime_visual_contract.py', 'runtime_gloss.py', 'surfaces/course_workbench.py',
              'surfaces/daemon.py', 'surfaces/presentation.py',
              'surfaces/ia.py', 'surfaces/session.py', 'surfaces/lesson.py',
              'tests/course_guidance_journey_roundtrip.py')
