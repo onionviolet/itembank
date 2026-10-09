@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Itembank UI GM: served before and after</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { margin: 0 auto; padding: 28px; max-width: 1120px; font: 16px/1.6 system-ui, sans-serif; }
+  h1 { font-size: 28px; line-height: 1.2; }
+  p { max-width: 75ch; }
+  .pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+  figure { margin: 0; }
+  figcaption { margin: 0 0 8px; font-weight: 650; }
+  img { display: block; width: 100%; max-width: 390px; height: auto; border: 1px solid #8886; }
+  section { margin-block: 36px; }
+  a { color: inherit; text-decoration-thickness: 2px; text-underline-offset: 3px; }
+  @media (max-width: 620px) { .pair { grid-template-columns: 1fr; } body { padding: 18px; } }
+</style>
+<h1>Itembank: actual served UI changes</h1>
+<p>Same fictional material, native source, installed Chrome, 390px light view.
+These screenshots compare the inherited source with the verified local change.
+They do not represent an installed update or human visual acceptance.</p>
+<section>
+  <h2>U1: less header, more lesson</h2>
+  <p>The first section moves up 124px. Reading details remain in About;
+  continuous reading gains a useful section outline. Guided reading keeps its
+  existing first-section position.</p>
+  <div class="pair">
+    <figure><figcaption>Before</figcaption><a href="../../../../.reasonix/product-gm-ui-20261004/before/lesson-390-light-js.png"><img alt="Before: large title and bank-oriented byline above the first section" src="../../../../.reasonix/product-gm-ui-20261004/before/lesson-390-light-js.png"></a></figure>
+    <figure><figcaption>After</figcaption><a href="../../../../.reasonix/product-gm-ui-20261004/release/lesson-390-light-js.png"><img alt="After: compact title, About details and section outline above the same material" src="../../../../.reasonix/product-gm-ui-20261004/release/lesson-390-light-js.png"></a></figure>
+  </div>
+</section>
+<section>
+  <h2>U3: the passage reaches you sooner</h2>
+  <p>The source passage moves up 70px. Read, Study, Notebook and Write a note
+  remain prominent; secondary source and display tools open deliberately.</p>
+  <div class="pair">
+    <figure><figcaption>Before</figcaption><a href="../../../../.reasonix/product-gm-ui-20261004/before/reading-390-light-js.png"><img alt="Before: separate source context and selection actions create extra toolbar rows" src="../../../../.reasonix/product-gm-ui-20261004/before/reading-390-light-js.png"></a></figure>
+    <figure><figcaption>After</figcaption><a href="../../../../.reasonix/product-gm-ui-20261004/release/reading-390-light-js.png"><img alt="After: one Reading tools disclosure and a visible note action above the source passage" src="../../../../.reasonix/product-gm-ui-20261004/release/reading-390-light-js.png"></a></figure>
+  </div>
+</section>
+<p>U2 also replaces raw question previews with readable section practice, keeps
+the admitted course and saved-sitting URL, and states when a link resumes a
+sitting rather than selecting a different question.</p>
+<p>Keyboard, note refusal/retry, source-position return, stale-source recovery,
+desktop/narrow light/dark and script-free checks are recorded in <a href="REPORT.md">the UI report</a>.</p>
+</html>

@@ -4,11 +4,11 @@ milestone: reach
 milestone_name: reach
 current_phase_name: 20-extensible-ui-foundation-and-interaction-clarity-pass
 current_phase: 20
-status: "Finished source work consolidated into main; latest macOS app built, verified and installed. Protected learner files unchanged; obsolete build duplicates moved to recoverable Trash. P3/P5/domain decisions and broader human/external gates remain separate."
-stopped_at: "Main and installed production payload include baa8284; packaging checksum repair is 6ee4054. Current result and recovery are in MAIN-APP-UPDATE-2026-09-30. Exact format decisions remain the next implementation gate."
-last_updated: "2026-09-30"
-last_activity: 2026-09-30
-last_activity_desc: "Integrated released C/D/A/UI work into main, built and installed the verified macOS app, repaired final-installer checksums and cleaned redundant build products recoverably."
+status: "October 7 whole-vision accountability and P13 source recovery recorded. COORDINATION owns the finite wave, current verification, changed LAN boundary and P14 practice-entry efficiency. Prior aggregate and delivery/human states retain their separate owners."
+stopped_at: "Whole-vision accountability and P13 refusal recovery are recorded. COORDINATION owns current evidence, finite wave and P14 practice-entry efficiency. Delivery and human gates remain separate."
+last_updated: "2026-10-07"
+last_activity: 2026-10-07
+last_activity_desc: "Vision map and P13 recovery verified; COORDINATION owns P14 practice-entry efficiency."
 progress:
   total_phases: 41
   completed_phases: 41
@@ -17,6 +17,178 @@ progress:
   counting_rule: "phase directories under .planning/phases; a phase counts complete when frozen or when its execution gate is complete. Human, external, and waived legs remain named limits rather than active implementation phases. Reach phases 19A through 19E and Phase 20 have completed their recorded execution gates. A plan is complete only when its required gate passes; a summary file alone does not close it."
 ---
 # Project State
+
+**Recurring Product GM, October 7:** The
+[continuation checkpoint](research/product-gm-2026-10-04/COORDINATION.md)
+owns the current finite wave, P13 recovery evidence and P14 practice-entry efficiency.
+The [vision map](research/product-gm-2026-10-04/VISION-COVERAGE.md) owns derived
+whole-entry accountability. Prior packet, aggregate and separate delivery/human
+evidence keep their existing owners.
+
+**Product GM source integration, October 4:** The
+[integration receipt](research/product-gm-2026-10-04/integration/REPORT.md)
+joins U1-U3 lesson/reader composition, F1 paged Unicode source search, F2 exact
+changed-source task impact, compact course actions and explicit source-review
+returns. Actual current writer releases and hashes were verified; source-origin
+native gates and 20 Chrome desktop/narrow/static/reload/restart checks pass.
+Pending prose, source rights/revisions, existing sittings and runtime disclosure
+remain distinct. The final combined source-only attempt reports 219 of 221
+executed Python scripts passed (224 discovered, 3 app-build scripts deferred);
+JS passes. Its two inherited LAN scripts still time out on this host's advertised
+internet-tunnel address; dirty-tree remains failed. The aggregate is partial,
+not a full pass or release. Source stays uncommitted. Q1-Q4, provenance/root
+policy, package, installed and human/learning gates remain open. Next: execute
+the two unchanged LAN scripts in a reachable advertised-route session, retaining
+the original failures and this current combined receipt.
+
+
+**Fresh audit and refinement, October 4:** The
+[audit owner](research/fresh-audit-refinement-2026-10-04.md) records five source
+repairs and their evidence: draft revision admission, one source activity
+group, deterministic file closure, functioning day edit/tick/recovery controls,
+and exact source-result emphasis. The single combined source-only run passes
+JS and 208 of 210 executed Python scripts; two scripts stop at LAN preview
+timeouts. A fixed-response probe passes on loopback and times out on this
+host's advertised LAN address. The original aggregate and inherited dirty-tree
+gate remain failed. Final focused day checks and synthetic browser save/tick/
+reload/search/reflow checks pass. Source stays uncommitted. Exact format,
+provenance/root-policy, build, installed and human gates remain open. Next:
+resolve the host LAN route and finish the two failed script gates, then follow
+the existing concrete decision and delivery owners without repeating a full suite.
+
+**Cross-repo continuation, October 3:** The
+[implementation owner](research/cross-repo-continuation-2026-10-03.md) adds local,
+bounded search across registered course sources, exact source/locator/range
+preview and return to the original query. Saved model context, private notes,
+assessment state and evidence remain unchanged. Eleven source checks, four
+actual native/fresh-daemon checks and six Chrome journeys at 1280/390/320 with
+scripts enabled and disabled pass. Inputs and buttons use the existing 44-pixel
+control presentation. Earlier Unicode selected-context work remains preserved.
+The completed combined source-only run passes all 209 executed Python scripts
+out of 212 discovered; three existing app-build scripts are deferred. Its JS and
+dirty-tree gates fail. An isolated unchanged-source JS rerun passes 132 tests;
+the original JS cause was lost in truncated diagnostics and remains unknown.
+Preflight now preserves full JS/Python failures; its late-failure regression and
+final quick source-only gates pass. Frozen search source/test hashes match;
+concurrent vision/UI-review prose additions are named in the owning record.
+The original failed/interrupted runs remain unchanged. Q1 domains, Q2 fixed
+anchors, Q3 graph/transcript and Q4 source-question adapter choices remain
+pending, along with earlier immutable provenance and root-policy decisions.
+Source stays uncommitted and installed/human/live-provider acceptance remains
+separate. Next action: answer those existing concrete choices before production
+promotion, using the recorded gate receipts rather than rerunning the passed
+Python suite without a new change or failure.
+
+**Prior implementation improvements, October 3:** The
+[implementation owner](research/prior-implementation-improvements-2026-10-03.md)
+records F1 explicit objective-specific due practice through existing retention
+and runtime selection, F2 Unicode selected-context search with original citation
+offsets/grouping/pagination, F4 actual response/mark/retraction export and F5
+read-only internal/external root-reference proposals. Native keyboard/reload/
+restart, Chrome at 1280/390/320 including script-free flows, focused contract
+checks and final quick source-only gates pass. The single full source-only run
+executed 208 of 211 Python scripts and passed JS. Five scripts failed because
+task recovery snapshots retained `.py` suffixes and the authority scan counted
+a second evidence writer. Snapshots now use `.py.txt`; all five affected suites
+pass scoped reruns. The original full run and inherited dirty-tree gate remain
+failed. Later control/presentation refinements pass their focused source/native/
+browser checks. No equivalent full suite was repeated.
+F3 source-question v1 registration, F4 immutable draft/rubric provenance and F5
+applying root remapping were presented as exact direct choices and remain
+unanswered. Executable proposal specimens are linked from their existing
+owners. Earlier Q1-Q3 rich formats remain pending too. Source stays uncommitted;
+Git, package/install, live provider, human accessibility and learning gates stay
+separate. Next action: answer those exact contract/recovery choices, then promote
+only the accepted changes through the existing authorities.
+
+**Cross-repo implementation, October 3:** The
+[coordinator](research/cross-repo-implementation-2026-10-03.md) integrated five
+released local chats. Native original-work drafts now join deliberate exact
+short practice, pending submission, existing human review/retraction and exact
+return. Comparison/lineplot/guided exploration preserves scoped tab state with
+reset/cancel, revision/occurrence isolation and storage fallback. Source context
+uses reader selection and an exact occurrence picker, inclusion preview,
+cancel/recovery and exact return; successful provider tests use a synthetic
+contract while production source-question registration stays held for Q4.
+Native package preview/consent/copy/reopen preserves the original and private
+files; ordinary accepted course folders reopen separately, while copies carrying
+workspace-root references require review before broader navigation.
+Native/Chrome 1280/390/320, script-free and scoped fault/restart gates pass.
+The single combined source-only preflight executed 206 of 209 Python scripts
+and passed JS. Six scripts failed on missing route classification/capability
+metadata and plain lesson CLI-render parity; all six pass focused repairs.
+Final quick source-only gates pass. The original full run and dirty-tree gate
+remain failed; no equivalent full suite was repeated. Source inputs and final
+repair versions are recorded in the coordinator's receipts. Exact Q1 domains,
+Q2 anchors, Q3 graph/transcript and Q4 source-question adapter choices remain
+pending. Source stays uncommitted, preserving the inherited work. Installed,
+live-provider, human accessibility/learning and wider artifact/workspace carry
+acceptance remain separate. Next action: answer the concrete Q1-Q4 specimens,
+then promote only selected formats through the released existing owners.
+
+**Current backlog implementation, October 3:** The
+[implementation owner](research/engine-expansion-2026-10-02.md#october-3-authorized-implementation-continuation)
+records A1 prerequisite context, A2 original text-transfer explanation with
+pending review, A4 bounded course-folder inventory and changed-source impact,
+and A5 owned asynchronous author cancellation/explicit linked retry. The runtime
+retains assessment authority; no broader attachment or source-reading branch
+format was added. Current native course/transfer/job checks pass, including
+restart, retraction, CLI completion, late-draft refusal, stale target conflict,
+idempotent acceptance/undo, and exact keyboard return at 1280/390/320.
+The single full source-only run executed 197 of 200 Python scripts and passed
+JS. Two older browser legs failed on an absent Playwright cache binary; their
+focused installed-Chrome reruns pass. The original full run and dirty
+clean-tree gate remain failed. Concurrent UI changes and final CLI/refusal
+fixes are named source-version limits, not a frozen candidate certification.
+A3 exact anchor, domain and authored-only branch decisions were requested and
+remain unanswered. Source remains uncommitted; app delivery, human learning,
+touch and screen-reader acceptance remain separate. Earlier dated entries keep
+their original verification snapshots.
+
+**Current course context presentation, October 3:** The
+[UI goal owner](research/ui-goal-review-2026-09-29.md#october-3-course-map-composition-and-exact-context-return)
+records native objective/prerequisite/activity composition, exact objective
+return through prerequisite and source detours, collapsed source revision
+details, and visible status with full course-check details below the objectives.
+Focused native/HTTP checks, Chrome at 1280/390/320 in light/dark, script-free
+return, source-change withholding and quick source-only gates pass. This pass
+releases source writes and preserves the concurrent backlog owner's graph,
+discovery, transfer and cancel/retry logic. That owner records the one full
+source-only gate above. Its final outcome remains distinct from this bounded pass.
+Source remains uncommitted; app delivery and human acceptance remain separate.
+
+**Current course guidance, October 2:** The
+[implementation owner](research/overall-improvements-2026-10-01.md#october-2-implementation-and-independent-verification)
+owns typed live counts, native next activity/reason/objective, exact saved-sitting
+remediation/return, source admission and recovery checks. Engine/UI/verification
+lanes are released. Focused checks and native HTTP/Chrome at 1280/390/320 pass;
+the single combined source-only preflight executed 194 Python scripts and JS.
+Two older lesson-control assertions failed, then passed focused repairs; the
+original full run remains failed. Final quick source-only gates pass, and the
+shared clean-tree gate remains open. Prior dirty coding,
+reading, runtime and schema work stays preserved. Source remains uncommitted;
+installed and human visual/accessibility/learning acceptance stay separate.
+The requested [engine expansion chat](research/engine-expansion-2026-10-02.md)
+finished E1-E5 research; authored prerequisite context in Course map is its next
+ready proposal, not an accepted broader format change.
+Current next action: review the native guidance composition and the engine
+report prerequisite-context proposal. The owning record preserves exact failed,
+passed and deferred gates for any later source consolidation or app delivery.
+
+
+**Current coding-learning slice, October 1:** The
+[coding-learning record](research/coding-learning-2026-10-01.md) owns original
+source-grounded teaching-pattern research, the native boundary unit, renderer
+changes and exact verification limits. Prediction, implementation, useful
+failure feedback, optional runtime hints, repair and an unworked event-window
+transfer were exercised on synthetic data. Continuation adds recovery of the
+original run after hint, reload and daemon restart, revision/session exclusion,
+and broader Runestone/PrairieLearn/Rustlings/nbgrader dispositions. The source diff remains uncommitted;
+the installed September 30 app is unchanged. Human learning/visual acceptance,
+Dojo/multi-file execution promotion and the prior P3/P5/domain decisions remain
+distinct open gates. No proprietary course content was copied.
+Coding-learning next action: review the native unit's learning quality and the
+bounded source diff; its owning record names the exact automated/browser gates.
 
 **Current main and app update, September 30:** Direct user instruction lifted
 the prior build/install hold for this candidate. The

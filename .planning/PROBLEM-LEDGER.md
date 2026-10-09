@@ -486,3 +486,128 @@ Physical touch and screen-reader acceptance remain open.
 and this ledger only. No production or learner-artifact change. Revert only
 this presentation patch to undo without changing stored word states. Next
 action: try adjacent words and judge whether reading stays comfortable.
+
+
+### P-20261001-01: boundary marker looks draggable but is decorative
+
+**Reported by:** Weibao, 2026-10-01
+**Status:** Fixed in prototype and browser-verified; human acceptance open
+**Area:** boundary lab design study, direct manipulation
+**Owner:** prototypes/ui-character-20261001; broader craft review in the UI goal owner
+**Severity:** Presentation usability defect in a prototype
+
+**Verbatim observation:**
+
+> for something like this we need to consider the subtle details on presentation, such as draggong the little triagne rather than the bar below it and more?  its little details like that that makes something feel premium or otherwise?
+
+**Observed environment:** The user supplied a crop of the boundary lab showing
+the triangle at eleven and a separate visible slider below it. The reference is
+the assistant-created design prototype, not an installed learner sitting.
+
+**Reproduction:** Before repair, an actual browser drag from the triangle at ten
+toward thirteen left the displayed comparison at ten. The number-line marker
+had no pointer behavior; only the separate native slider updated the diagram.
+
+**Diagnosis, separate from the observation:** A visible handle promised an
+interaction that lived elsewhere. SVG number labels could also be selected
+while trying to manipulate the diagram. This is reproduced on the prototype;
+it does not establish a corresponding defect in every production visual.
+
+**Repair:** The diagram captures direct marker/point interaction and maps pointer
+coordinates through its SVG transform. Marker grabs preserve their initial
+offset, whole-number values clamp to seven through thirteen, and release,
+cancellation and lost capture clear drag state. A 44 by 44 CSS-pixel hit area
+surrounds the small marker. Grab/grabbing cursors and a hover/focus/drag halo
+provide cues. Only SVG diagram text suppresses selection. The duplicate visible
+slider is removed; a labeled native range remains keyboard/screen-reader
+exposed and focuses the visible marker. This is teaching observation, not grading.
+
+**Verification:** Browser drag ten to thirteen changes the displayed comparison;
+drag beyond the right edge remains thirteen; click nine selects nine. Native
+Arrow Left, Home and End work. At 390px, a grab sixteen pixels off the visible
+triangle moves seven to eleven. The measured hit area is 44px at both desktop
+and narrow widths, with zero horizontal overflow and no drag-selected text.
+The repair records and images live in the prototype README/evidence directory.
+
+**Open checks:** The in-app browser rejects CDP Input.dispatchTouchEvent, so no
+emulated or physical touch/cancellation pass is claimed. Screen-reader and human
+interaction preference remain open. Pointer cancellation cleanup is implemented,
+not independently exercised in this browser pass. Native production integration
+remains the separate D1-D5 proposal.
+
+**Recovery and next action:** Restore evidence/before-direct-marker.html only
+when the current prototype fingerprint still matches this operation, preserving
+later edits. Compare the revised diagram directly and carry the same affordance,
+feedback, input and edge-state review into the next native learning slice.
+
+
+### P-20261001-02: specimen navigation discards browser history
+
+**Origin:** Agent reproduction during Weibao's October 1 request to extend
+interaction craft. This is not a claim that Weibao separately reported Back.
+**Status:** Fixed in prototype and browser-verified; human acceptance open
+**Owner and area:** prototypes/ui-character-20261001, screen navigation
+
+**User authorization, verbatim:**
+
+> work accordingly and more, and ocnsider other little areaas like that oo
+
+**Reproduction and diagnosis:** Start at Learn, choose Course map, then press
+browser Back. The old specimen navigated to about:blank instead of Learn.
+Each screen transition replaced the same history entry. The fix uses actual
+screen links and history entries, and restores prior focus/scroll within the
+current document. Reload restores the URL screen and cached experiment choices;
+per-view focus/scroll memory starts fresh after a document reload.
+
+**Verification:** Learn to Practice to Back returns to Learn with unchanged
+comparison, the original learn-to-practice opener focused and scroll y=236.
+Forward opens Practice. Independent reload preserves the experiment's selected
+value, comparison and theme. The current README owns full browser evidence,
+other small repairs and exact storage/future-state limits.
+
+**Boundary and recovery:** Presentation-only specimen; no course/session,
+scoring or main application write. Restore the checked before-craft-pass snapshot
+only when the current owned fingerprint still matches. Keep ledger history and
+later edits. Human preference, physical touch and native promotion remain open.
+
+
+### P-20261007-01: practice feels less efficient than generating problems in chat
+
+**Reported by:** Weibao, 2026-10-07
+**Status:** Reported; causal diagnosis and timing unverified
+**Area:** Starting practice, adapting problems, and returning to study
+**Owner:** Practice journey; Product GM coordinator owns any implementation packet
+
+**Verbatim observation:**
+
+> Unfortunately itembank doesn’t feel as efficient as generating practice problems straight in a chat accordingly right now, thoughts on addressing this?
+
+**Observed environment:** The user compared itembank with direct problem generation
+in a chat. No exact route, model, input method, elapsed time, or app build was
+supplied. Do not infer that source changes match the installed experience.
+
+**Diagnosis, separate from the observation:** A possible mismatch between quick
+study intent and course-authoring setup. Sampled source shows the course Practice
+page listing bound material (surfaces/daemon.py), and the seeding authoring path
+running source selection, outline, drafting, checks, verification, and per-item
+acceptance (surfaces/seeding.py). These samples do not reproduce the user's
+actual path or prove that either causes the reported inefficiency.
+
+**Candidate direction, exploratory:** Test a natural-language practice request
+that reuses course/source context, prepares the smallest useful set, supports
+focused follow-up requests, and resumes locally. Keep structured problem work,
+source links, question validation, and runtime assessment authority. Distinguish
+informal draft coaching from accepted assessment and evidence; a quicker entry
+must not silently accept keys, settle prose marks, or change an active test.
+The proposal is unaccepted and does not revise the binding product contract.
+
+**Evidence needed and next action:** Compare the same approved source, topic,
+requested demand, and model through chat and the normal app entry. Measure time
+to the first usable problem, learner setup actions, useful problems completed
+in ten minutes, explanation/correction quality, and next-day resume friction.
+The user's judgment of efficiency remains the acceptance gate. No benchmark,
+prototype, implementation, or repair is claimed in this intake.
+
+**Recovery:** Remove only this appended report if capture is unwanted, preserving
+other reports and all pre-existing dirty work. The local operation receipt retains
+the expected base and before/after digests.

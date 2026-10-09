@@ -329,6 +329,15 @@ Approval opens an explicit confirmation naming the one reversible unit. Success 
 | `text-lesson` | 18px / 1.65 | **added 2026-08-10.** Sustained authored lesson prose only (Paper voice). Recorded reason: 16px system-ui is right for UI copy, but sustained serif reading sits best at 17–19px, inside Butterick's 15–25px / 120–145% window. Not a general fifth UI size; a surface that is not lesson prose still uses `text-body`. |
 | `text-heading` | 20px / 1.2 | section/activity heading |
 | `text-display` | 32px / 1.1 | page result/major report heading only |
+| `--text-title` | 40px, 32px at widths up to 640px | focus title and spacious question display |
+| `--text-hero` | 56px, 40px at widths up to 640px | desk display title |
+| `--rule-thin`, `--rule-heavy` | 1px, 3px | composition rules; color stays in theme tokens |
+| `--composition-display-font`, `--composition-label-font` | Paper, Ledger by default | look assigns heading and index type roles; Console uses Ledger display, Neo/Cash/Contrast use Chrome display |
+| `--composition-title-size`, `--composition-hero-size`, `--composition-question-size` | title, hero, display tokens | look assigns display scale; aliases follow the 640px token reduction |
+| `--composition-row-pad`, `--composition-card-pad`, `--composition-list-gap` | space-4, zero, zero by default | look density and inset; aliases use space-2 through space-5, independent of 44px target floor |
+| `--composition-rule-width`, `--composition-card-border` | rule-thin, zero by default | ruled ledger versus enclosed cards; Contrast and Neo use rule-heavy |
+| `--composition-card-radius`, `--composition-card-bg` | zero, transparent by default | Cash/Soft use space-4 corners and the theme card surface |
+
 | `--weight-normal` | 400 | body, prose, every default string |
 | `--weight-emphasis` | 600 | headings, labels, primary action, table headers — the *only* emphasis tier |
 | surface 60% | `--bg`, `--ink` | page field, reader, primary text |

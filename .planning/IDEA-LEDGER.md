@@ -1994,6 +1994,20 @@ work. Verification results live in the report's validation section.
   prototype from Syntax Lab-style drills to CS coursework while keeping those
   drills as one mode. It concretizes existing runnable-code and transfer goals
   without making coding execution a universal requirement.
+- **2026-10-01 bounded native slice:** [coding-learning absorption](research/coding-learning-2026-10-01.md)
+  records the original prediction, implementation, debugging and unworked
+  transfer unit on existing Python runtime authority. Read-only public code
+  panels and native runtime-released per-case feedback close two observed
+  display seams. The broader Dojo stays Prototype: human learning, multi-file
+  adapters, hostile-code isolation and rich/native editor convergence remain
+  open. This does not adopt proprietary curricula or help-request penalties.
+- **2026-10-01 continuation:** the same record reconciles Runestone,
+  PrairieLearn, Rustlings and nbgrader with older audits. Native current-item
+  practice check feedback now derives from the original revision-bound local
+  response event after hint, reload and restart. An existing schema omission
+  that refused saved check responses is repaired. Larger file/dependency,
+  compiler, server/database and notebook adapters retain their dependencies
+  and revisit triggers; the Dojo disposition remains Prototype.
 
 ### IL-20260908-01: authenticated source acquisition and transcript completion
 

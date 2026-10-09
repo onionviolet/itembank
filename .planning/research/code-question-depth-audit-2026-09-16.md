@@ -324,3 +324,20 @@ against the reference tasks. Then the activity and execution contract needs
 runtime authority, durable evidence, recovery, and accessibility review before
 normal course navigation can present it as accepted practice. Keep the
 synthetic prototype's ungraded observations distinct from settled scores.
+
+## October 1 bounded native adoption
+
+The [coding-learning unit](coding-learning-2026-10-01.md) now exercises one
+original objective through the existing native runtime. D1 gains a read-only,
+keyboard-focusable public-stem code panel with preserved indentation and
+escaped text, plus plain/malformed fallback in served and offline clients.
+Native check feedback now displays only runtime-released case observations;
+the code-prediction, failed attempt, optional hint, repair, debugging and
+changed-context transfer journey was exercised in a real browser.
+
+This is source work, with narrow layout and runtime evidence checks. It is
+uncommitted and does not establish installed or human learning acceptance.
+The optional project brief remains ungraded. Dojo JS/Python workers and the
+two-file demonstration retain the original separate promotion gate. In
+particular, this does not close a hostile-code execution review, independent
+human transfer proof, editor parity or a broad coding curriculum/catalog.
