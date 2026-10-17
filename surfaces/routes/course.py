@@ -758,6 +758,10 @@ def handle_course_reading_get(handler, course_id, occurrence_id, revision_id):
         origin = urllib.parse.parse_qs(urllib.parse.urlsplit(handler.path).query).get('from', ['learn'])[0]
         source_return = _course_source_return(handler, course_id)
         return_options = {"source_return": source_return} if source_return else {}
+        if not source_return:
+            from surfaces import course_notes
+            return_options['notes_return'] = course_notes.reading_return(course_id,
+                urllib.parse.parse_qs(urllib.parse.urlsplit(handler.path).query, keep_blank_values=True))
         handler.send_html(desk_surface.render(
             course_id, read, occurrence_id, revision_id, view,
             theme_css=theme.theme_css(settings.load_settings(handler.root)),

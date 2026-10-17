@@ -1655,7 +1655,12 @@ def _agent_area_html(handler, state, course_dir):
 def _course_area_extra(handler, state, course_dir):
     """Context, review, and source binding markup beyond area rows."""
     if course_dir is not None and state.get("area") == "learn":
-        return '<p><a href="/course/%s/artifacts">Save and review my original work</a></p>' % urllib.parse.quote(state["course_id"], safe="")
+        from surfaces import course_notes
+        original_work = '<p><a href="/course/%s/artifacts">Save and review my original work</a></p>' % urllib.parse.quote(state["course_id"], safe="")
+        if getattr(handler, 'client_address', None) and not _client_is_loopback(handler):
+            return original_work + '<p id="course-notes">Private course notes are available on this computer.</p>'
+        fields = urllib.parse.parse_qs(urllib.parse.urlsplit(getattr(handler, 'path', '')).query, keep_blank_values=True)
+        return original_work + '<style>%s</style>%s' % (course_notes.CSS, course_notes.panel(course_dir, fields))
     if course_dir is not None and state.get("area") in ("agent", "build"):
         body = _agent_area_html(handler, state, course_dir)
         if state.get("area") == "build":
@@ -2034,6 +2039,8 @@ def _course_frame(handler, state, back, course_dir=None):
                    % (presentation.esc(state.get("display_state", "empty")),
                       presentation.esc(notice), action_html))
     tool_current = state["area"] not in ("overview", "learn", "practice", "test")
+    if state['area'] == 'learn' and course_dir:
+        content = '<p><a href="#course-notes">My course notes</a></p>' + content
     tool_label = ("Course tools: %s" % state["area_label"] if tool_current
                   else "Course tools")
     tool_menu = ('<details class="course-tools"><summary>%s</summary>'

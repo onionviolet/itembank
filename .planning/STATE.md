@@ -18,6 +18,18 @@ progress:
 ---
 # Project State
 
+
+**Vision-first refinement, October 11:** The
+[fresh implementation evaluation](research/fresh-implementation-2026-10-11.md)
+records criteria formed from the new full brief before implementation/history
+comparison, architecture alternatives, capability routing and a bounded
+saved-note rediscovery slice. Learn now exposes searchable private course notes
+with exact query/page return from available source readings. Broken anchors
+retain wording and objectives; conflicted note pairs require recovery; LAN
+preview does not read private notes. Its native/browser/preflight evidence is
+owned by that record. The existing Product GM queue remains with COORDINATION.
+This is source implementation, not whole-product, installed or human acceptance.
+
 **Recurring Product GM, October 7:** The
 [continuation checkpoint](research/product-gm-2026-10-04/COORDINATION.md)
 owns the current finite wave, P13 recovery evidence and P14 practice-entry efficiency.

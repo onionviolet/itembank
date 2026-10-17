@@ -1,0 +1,25 @@
+{
+  "date": "2026-10-11",
+  "status": "created_and_active",
+  "thread_id": "01a12e06-c1ba-7451-aa22-8f350032e5ca",
+  "host_id": "local",
+  "workspace": "/Users/weiwei/Documents/Codex/2026-10-11/itembank-fresh/outputs",
+  "target_kind": "standalone local workspace (projectless tool target)",
+  "inputs": [
+    "START-PROMPT.md",
+    "ORIGINAL-QUIZLET-PROMPT.md",
+    "FULL-LEARNING-WORKSPACE-BRIEF.md"
+  ],
+  "source_of_truth": "new chat owns its workspace and implementation evidence",
+  "launch_overrides": [
+    "empty project; no clone supplied",
+    "no old repository, planning, chat-history or provider-memory consultation for initial design",
+    "sole writer in new workspace"
+  ],
+  "limits": [
+    "No old project or chat archived",
+    "No old automation changed",
+    "No application build completion claimed",
+    "Sidebar saved-project registration unavailable: CUA refused Codex app access"
+  ]
+}

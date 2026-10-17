@@ -2985,3 +2985,32 @@ This is direct dissatisfaction evidence; the three remedies are agent inferences
   and name remaining dependencies. No whole-platform adoption or hard rejection
   follows from this entry. Undo only this additive entry and matching captures
   against their task-start before images, preserving inherited dirty work.
+
+
+### IL-20261011-01: saved-note rediscovery in the course
+
+- **Origin:** [the complete learner-owned workspace brief](USER-VISION.md#2026-10-11-complete-learner-owned-learning-workspace-brief), sections 7-9, 25, 50-52.
+- **Disposition:** Core, a course-scoped read-only collection over existing learner notes.
+- **Owner:** [fresh implementation evaluation and packet](research/fresh-implementation-2026-10-11.md#implemented-packet).
+- **Evidence class:** current source inspection found no Learn collection or note query; synthetic native/browser checks test the implemented remedy. Primary-workspace usefulness remains a human gate.
+- **Dependencies and cost:** existing validated private note pair, accepted reading graph, source admission and course shell. A small derived view adds no storage format, index, migration or model call. Full-pair reading at scale remains unbenchmarked.
+- **Next gate and recovery:** save through the reading UI, reopen Learn, search, open an available source and return to the same query/page without changing canonical bytes. Undo the exact source hunks; existing notes retain their format.
+
+### IL-20261011-02: typed retrieval and scalable note indexing
+
+- **Origin:** [fresh architecture comparison](research/fresh-implementation-2026-10-11.md#credible-alternatives-and-current-fitness), interpreting brief sections 25 and 43.
+- **Disposition:** Prototype, extend typed retrieval beyond source passages and the current course note collection; consider a disposable SQLite text index.
+- **Owner:** existing search/source/surface owners, with this recommendation recorded in the fresh implementation evaluation.
+- **Evidence class:** design recommendation. No global-search completeness or large-library latency measurement is claimed.
+- **Dependencies and cost:** explicit per-object disclosure scope, current revision validation and representative library timings; index invalidation and rebuild cost.
+- **Revisit:** a measured cross-course retrieval task or note-query latency demonstrates a need. Keep canonical files and existing search operational until a tested replacement is accepted.
+
+
+### IL-20261011-03: fresh study-first learning-workspace candidate
+
+- **Origin:** [fresh-candidate discussion](USER-VISION-INBOX.md#2026-10-11-fresh-study-app-candidate-and-possible-archive), including direct user preference for the supplied-prompt clone.
+- **Disposition:** Prototype, a separate candidate with complete studying first, then sources/notes and a joined teaching course loop.
+- **Owner:** [candidate assessment and prepared prompt](research/itembank-reset-2026-10-11/ASSESSMENT.md).
+- **Evidence class:** user preference is direct evidence; reasons for better results and the proposed foundation are inferences. The actual clone has not been inspected.
+- **Dependencies and cost:** candidate execution authorization and access to the better clone if used, normal-mode persistence, fresh-profile restore, genuine offline return, and representative learner comparison. Real migration/support effort is unmeasured.
+- **Revisit and recovery:** choose the better clone or an empty candidate after checking its working baseline. Archive or retire the old project only under explicit instruction with uncommitted work, learner data, writers and automations accounted for. Existing code and broader vision remain intact.

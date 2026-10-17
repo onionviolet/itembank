@@ -155,7 +155,7 @@ def href(course_id, row):
 
 
 def render(course_id, read, occurrence_id, revision_id, view, origin='learn', theme_css=None,
-           source_return=None):
+           source_return=None, notes_return=None):
     """Render an admitted reading; source_return is a daemon-resolved back action."""
     esc = presentation.esc
     selected = view['occurrence'] or {}
@@ -171,7 +171,8 @@ def render(course_id, read, occurrence_id, revision_id, view, origin='learn', th
         % (esc(note['learner_wording']), esc(note['anchor_state']), esc(note['owner']))
         for note in view['notes'])
     origin_suffix = ('?' + urlencode({'return_source': source_return['source_id']})
-                     if source_return else '?from=overview' if origin == 'overview' else '')
+                     if source_return else notes_return['reading_query'] if notes_return else
+                     '?from=overview' if origin == 'overview' else '')
     path = ''.join('<a href="%s"%s>%s</a>' % (esc(href(course_id,row) + origin_suffix),
                     ' aria-current="page"' if row['occurrence_id']==occurrence_id else '',
                     esc(view['placements'][row['occurrence_id']]['title'])) for row in view['occurrences'])
@@ -189,9 +190,12 @@ def render(course_id, read, occurrence_id, revision_id, view, origin='learn', th
         esc(view['content'] or 'Source unavailable.'),context_help.reader_panel(view),esc(reading_status),
         esc(view['note_error'] or 'Private source notes. Shared across assignments using this source.'),saved_notes,
         esc((selected.get('source_ref') or {}).get('locator','Unavailable')),esc(occurrence_id),esc(revision_id))
+    body = body.replace('<h3>Saved notes</h3>',
+        '<p><a href="%s">Browse my course notes</a></p><h3>Saved notes</h3>' %
+        esc('/course/' + course_id + '/learn#course-notes'))
     ctx=dict(course_id=course_id, expected_fingerprint=read['fingerprint'], occurrence_id=occurrence_id, revision_id=revision_id)
     return presentation.surface_shell(title,body,theme_css=THEME_CSS if theme_css is None else theme_css,wide=True,extra_css=CSS+context_help.CSS,
-        back=source_return or {'href':'/course/'+course_id+('' if origin == 'overview' else '/learn'),
+        back=source_return or notes_return or {'href':'/course/'+course_id+('' if origin == 'overview' else '/learn'),
               'label':'Back to overview' if origin == 'overview' else 'Back to Learn'},
         noscript='The source range is readable here. Enable JavaScript to report read or save a note.',
         tail='<script>'+SCRIPT.replace('__CONTEXT__',presentation.script_safe_json(ctx))+VIEW_SCRIPT+context_help.READER_SCRIPT+"\ndocument.querySelector('.reading-toolbar').hidden=false;document.querySelector('#reading-mode-description').hidden=false;document.querySelectorAll('.reading-return').forEach(b=>b.hidden=false);"+'</script>')

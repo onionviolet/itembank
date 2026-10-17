@@ -1503,3 +1503,24 @@ the course vision. Prompt-driven entry and draft practice are candidate directio
 pending a normal-entry comparison. The existing Product GM coordinator owns any
 later packet. Preserve the current scoring, disclosure, source and recovery
 contracts while testing whether the learner gets useful practice sooner.
+
+
+### 2026-10-11: vision-first implementation and improvement
+
+> without considering the prior work which would cause bias, consider how you would go about implementing the above and then improve accordingly
+
+**Disposition:** route the evaluation method and bounded source changes to the [fresh implementation owner](research/fresh-implementation-2026-10-11.md). The attached product brief is preserved verbatim in [the complete learner-owned workspace vision entry](USER-VISION.md#2026-10-11-complete-learner-owned-learning-workspace-brief). Form criteria from the supplied vision before reconciling current code and binding constraints. This authorizes reversible local improvements; it does not establish a bias-free audit or a completed full product.
+
+
+### 2026-10-11: fresh study-app candidate and possible archive
+
+> should we archive this and then make a new prompt to start from scratch? since a from scratch clone of quizlet with the prompt, attached, was better than what I had, more to consider?
+
+**Disposition:** route the comparison and possible reset to the [fresh candidate assessment](research/itembank-reset-2026-10-11/ASSESSMENT.md) and [prepared implementation prompt](research/itembank-reset-2026-10-11/START-PROMPT.md). Preserve the [attached study-app prompt](research/itembank-reset-2026-10-11/ORIGINAL-QUIZLET-PROMPT.md) exactly as comparison evidence. The user's report is direct preference evidence; clone implementation and durability remain uninspected. This asks for advice and a concrete prompt proposal, not an executed archive, app replacement, new chat or accepted contraction of the broader learner-workspace vision. A separate candidate, potentially using the better clone as its foundation, is recommended.
+
+
+### 2026-10-11: launch the fresh workspace in a new chat
+
+> send out a new folder with a new project and new chat, running the restart prompt to start accordingly and without prior bias
+
+**Disposition:** execution authorization for the [fresh workspace launch](research/itembank-reset-2026-10-11/ASSESSMENT.md#authorized-launch-october-11). The new chat receives the three full prompt documents, starts from an empty standalone folder and excludes old Itembank implementation/history/memory from initial design. Its implementation and verification belong to that chat. No archive, migration, paid provider, deployment, commit or automation change follows from this launch.
